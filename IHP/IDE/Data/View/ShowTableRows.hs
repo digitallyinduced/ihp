@@ -4,6 +4,7 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.Layout
+import qualified Data.ByteString.Char8 as ByteString
 
 data ShowTableRowsView = ShowTableRowsView
     { tableNames :: [Text]
@@ -18,18 +19,19 @@ data ShowTableRowsView = ShowTableRowsView
 
 instance View ShowTableRowsView where
     html ShowTableRowsView { .. } = [hsx|
-        <div class="mx-2 pt-5">
-            <div class="row no-gutters bg-white">
+        <div class="h-100">
+            {headerNav}
+            <div class="h-100 row no-gutters">
                 {renderTableSelector tableNames tableName}
                 <div class="col" oncontextmenu="showContextMenu('context-menu-data-root')">
                     <div style="overflow: scroll; max-height: 80vh">
-                        {renderRows rows tableBody tableName}
+                        {whenNonEmpty rows $ renderRows rows tableBody tableName}
+                        {whenEmpty rows emptyState}
                     </div>
                     {pageMenu}
                     
                 </div>
             </div>
-            {customQuery ""}
         </div>
         <div class="custom-menu menu-for-column shadow backdrop-blur" id="context-menu-data-root">
             <a href={NewRowAction tableName}>Add Row</a>
@@ -49,9 +51,25 @@ instance View ShowTableRowsView where
                     contextMenuId = "context-menu-column-" <> tshow primaryKey
                     primaryKey = intercalate "---" . map (cs . fromMaybe "" . get #fieldValue) $ filter ((`elem` primaryKeyFields) . cs . get #fieldName) fields
             renderField primaryKey DynamicField { .. }
-                | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="no-link border rounded p-1" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
+                | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="border rounded p-1" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
                 | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
-                | otherwise = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{sqlValueToText fieldValue}</a></span></td>|]
+                | otherwise = renderNormalField primaryKey DynamicField { .. }
+
+            renderNormalField primaryKey DynamicField { .. } = [hsx|
+                        <td data-foreign-key-column={foreignKeyHoverCardUrl}>
+                            <span data-fieldname={fieldName}>
+                                <a href={EditRowValueAction tableName (cs fieldName) primaryKey}>
+                                    {sqlValueToText fieldValue}
+                                </a>
+                            </span>
+                        </td>
+                    |]
+                where
+                    isForeignKeyColumn = "_id" `ByteString.isSuffixOf` fieldName
+                    foreignKeyHoverCardUrl = if isForeignKeyColumn
+                        then Just $ pathTo ShowForeignKeyHoverCardAction { tableName, id = primaryKey, columnName = cs fieldName }
+                        else Nothing
+
 
             columnNames = map (get #fieldName) (fromMaybe [] (head rows))
 
@@ -61,7 +79,7 @@ instance View ShowTableRowsView where
 
             pageMenu = when (length totalPages > 1)
                 [hsx|
-                    <div style="position: absolute; bottom: 0; height: 30px" class="d-flex justify-content-center w-100 bg-white" oncontextmenu="showContextMenu('context-menu-pagination'); event.stopPropagation();">
+                    <div style="position: absolute; bottom: 0; height: 30px" class="d-flex justify-content-center w-100" oncontextmenu="showContextMenu('context-menu-pagination'); event.stopPropagation();">
                         {backButton}
                         {forEach (totalPages) renderPageButton}
                         {nextButton}  
@@ -84,3 +102,14 @@ instance View ShowTableRowsView where
 
             renderPageButton :: Int -> Html
             renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark font-weight-bold" else "text-muted")]}>{nr}</a>|]
+
+            emptyState :: Html
+            emptyState = [hsx|
+                <div class="d-flex w-100 h-100 justify-content-center mt-5">
+                    <div class="text-center">
+                        <p class="text-muted">This table has no rows yet.</p>
+
+                        <a href={NewRowAction tableName} class="btn btn-secondary">+ Add first {tableNameToModelName tableName}</a>
+                    </div>
+                </div>
+            |]

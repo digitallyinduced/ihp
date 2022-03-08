@@ -1,0 +1,28 @@
+pre {
+  background-color: #002b36;
+
+  border-radius: 3px;
+}
+pre > code {
+  color: #839496 !important;
+  background-color: #002b36;
+  display: block;
+  padding: 1rem;
+}
+
+code {
+  background-color: rgba(0, 43, 54, 1);
+  color: #2aa198 !important;
+  padding: 2px;
+  padding-left: 4px;
+  padding-right: 4px;
+  border-radius: 2px;
+}
+
+code .cr {
+  color: #93a1a1 !important;
+  font-weight: bold;
+}
+
+code .kw, code .kw, code .kw { color: #859900; }
+code .st { color: #2aa198; }

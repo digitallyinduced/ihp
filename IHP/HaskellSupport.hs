@@ -7,6 +7,7 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.HaskellSupport
 ( (|>)
+, (|>>)
 , whenEmpty
 , whenNonEmpty
 , get
@@ -55,6 +56,10 @@ import qualified Data.ByteString.Char8 as ByteString
 infixl 8 |>
 a |> f = f a
 {-# INLINE (|>) #-}
+
+infixl 8 |>>
+a |>> b = a <&> b
+{-# INLINABLE (|>>) #-}
 
 -- | Used by 'nonEmpty' and 'isEmptyValue' to check for emptyness
 class IsEmpty value where

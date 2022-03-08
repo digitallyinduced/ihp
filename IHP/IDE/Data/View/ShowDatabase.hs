@@ -12,19 +12,20 @@ data ShowDatabaseView = ShowDatabaseView {
 
 instance View ShowDatabaseView where
     html ShowDatabaseView { .. } = [hsx|
-        <div class="mx-2 pt-5">
-            <div class="row no-gutters bg-white">
+        <div class="h-100">
+            {headerNav}
+            <div class="h-100 row no-gutters" oncontextmenu="event.preventDefault();">
                 {renderTableSelector tableNames ""}
             </div>
-            {customQuery ""}
         </div>
     |]
 
 
+renderTableSelector :: [Text] -> Text -> Html
 renderTableSelector tableNames activeTableName = [hsx|
-    <div class="col-2 object-selector">
+    <div class="col-2 object-selector" oncontextmenu="event.preventDefault();">
         <div class="d-flex">
-            <h5>Tables</h5>
+            <h5 class="pl-3">Tables</h5>
         </div>
         {forEach tableNames renderTable}
         <div class="text-muted context-menu-notice">Right click to open context menu</div>
@@ -35,12 +36,10 @@ renderTableSelector tableNames activeTableName = [hsx|
         renderTable name = [hsx|
             <a
                 href={ShowTableRowsAction name}
-                class={classes [("object object-table w-100 context-table", True), ("active", name == activeTableName)]}
+                class={classes [("object object-table w-100 context-table pl-3", True), ("active", name == activeTableName)]}
                 oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}
             >
-                <div class="d-flex">
-                    {name}
-                </div>
+                {name}
             </a>
             <div class="custom-menu menu-for-table shadow backdrop-blur" id={contextMenuId}>
                 <a href={pathTo (ShowTableAction name)}>Show Schema</a>

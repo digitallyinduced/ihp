@@ -1,6 +1,12 @@
 @import "/IDE/ihp-toolserver-layout.css";
 @import "/IDE/toolserver-logs.css";
 @import "/IDE/ihp-codegen.css";
+@import "/IDE/contextmenu.css";
+@import "/IDE/tooltip.css";
+@import "/IDE/table.css";
+@import "/IDE/form.css";
+@import "/IDE/code.css";
+@import "/IDE/migrations.css";
 
 .object-selector h5 {
     font-size: 14px;
@@ -191,4 +197,219 @@
 .edit-policy .ace_editor {
     min-height: 80px;
     border-radius: 3px;
+}
+
+
+
+.object-selector, .column-selector {
+    background-color: #063642;
+}
+
+.object {
+    color: #E5EAEB;
+    transition: all 0.1s;
+    border-bottom: 1px solid #0A4151;
+}
+
+.object:hover {
+    color: hsla(196, 13%, 80%, 1);
+    background-color: hsla(192, 81%, 26%, 0.25);
+}
+
+.object.active {
+    background-color: hsla(192, 81%, 26%, 0.5);
+    color:  hsla(196, 13%, 95%, 1);
+}
+
+.object-selector, .column-selector, .visual-error {
+    border-right: 1px solid #0A4151;
+    border-left: 0;
+    border-top: 0;
+    border-bottom: 0;
+}
+
+.object-selector h5, .column-selector h5 {
+    color: #E5EAEB;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.column-selector .column td:first-child {
+    color:  #fff;
+}
+
+.column-selector .column {
+    color: #FFFFFF;
+}
+
+.alert.alert-primary {
+    background-color: hsla(192, 81%, 26%, 1);
+    color: hsla(196, 13%, 90%, 1);
+    border: 1px solid #0A4151;
+}
+
+#schema-designer-viewer {
+    margin-bottom: 0;
+    flex-grow: 1;
+}
+
+.object-selector, .column-selector {
+    min-height: 0 !important;
+}
+
+.migration-status-visible .column-selector {
+    padding-bottom: 100px;
+}
+
+.table-hover tbody tr:hover {
+    color: #fff;
+}
+
+.view-selector {
+    border-bottom: 1px solid #0A4151;
+    padding-top: 1rem;
+    padding-bottom: 0.5rem;
+    font-size: 14px;
+    user-select: none;
+}
+
+.view-selector a {
+    color:  #fff;
+    opacity: 0.9;
+    text-decoration: none;
+    font-weight: bold;
+    margin-right: 12px;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.view-selector a.active {
+    border-bottom: 2px solid #E5EAEB;
+}
+
+#column-options label {
+    color: hsla(196, 13%, 80%, 0.8);
+    font-size: 12px;
+}
+
+#column-options .custom-control {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#column-options .custom-control-label::before {
+    top: 1px;
+}
+
+#editor .code-editor-container {
+    min-height: 800px;
+}
+
+.select2-results__option span.key {
+    opacity: 0.5;
+    margin-right: 12px;
+    font-size: 10px;
+}
+.select2-results__option span.key-value-container {
+    display: flex;
+    flex-direction: column;
+    padding-right: 8px;
+    padding-left: 8px;
+    border-right: 1px solid hsl(300deg 1% 83% / 10%);
+}
+
+.select2-results__option .record {
+    display: flex;
+    flex-direction: row;
+    overflow: scroll;
+}
+
+.select2-results__option span.value {
+    white-space: nowrap;
+}
+
+#migration-status-container {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+}
+
+#migration-status-container > .alert {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 14px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    border: 2px solid #0B5163;
+    background-color: #0A4151;
+}
+
+#migration-status-container .btn.btn-dark {
+    background-color: #002B37;
+    border: 1px solid hsla(192, 81%, 26%, 0.8);
+}
+
+.policy-expression small, .index .index-expressions {
+    color: hsla(196, 13%, 80%, 1) !important
+}
+
+.object.object-table a, a.object.object-table {
+    text-overflow: ellipsis;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#schema-designer-viewer .object-selector, #schema-designer-viewer .column-selector {
+    transition: all 0.2s;
+}
+
+
+.foreign-key-hovercard .tooltip-inner {
+    min-width: 350px;
+    min-height: 350px;
+    text-align: left;
+    background-color: hsl(192deg 83% 22%);
+    border: 2px solid #0A4151 !important;
+    box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important;
+}
+
+.foreign-key-hovercard {
+    opacity: 1 !important;
+}
+
+.foreign-key-hovercard h1 {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+
+.btn-suggested-table {
+    width: calc(100% - 24px);
+    display: block;
+    text-align: left;
+    background-color: #0A4151;
+    padding: 0;
+    margin-left: 4px;
+    margin-right: 4px;
+    color: #E5EAEB;
+    opacity: 0.5;
+    border: 1px dashed #08657D;
+}
+
+.btn-suggested-table:hover {
+    background-color: #0B4D60;
+    border: 1px solid #08657D;
+    opacity: 1;
+}
+
+#suggested-columns-title {
+    font-size: 14px;
+    font-weight: 400;
 }

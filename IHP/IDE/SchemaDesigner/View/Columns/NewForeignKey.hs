@@ -18,6 +18,7 @@ instance View NewForeignKeyView where
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
+        {migrationStatus}
         {renderModal modal}
     |]
         where

@@ -1,0 +1,22 @@
+.tooltip .tooltip-inner {
+    text-align: left;
+    background-color: #0B5163;
+    border: 1px solid hsl(175deg 59% 40% / 33%) !important;
+    border-radius: 4px;
+    font-size: 12px;
+
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+
+    box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important;
+}
+.tooltip .arrow {
+    display: none;
+}
+
+.tooltip {
+    opacity: 1 !important;
+    user-select: none;
+}

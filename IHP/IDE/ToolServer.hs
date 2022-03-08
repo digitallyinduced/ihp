@@ -26,6 +26,7 @@ import IHP.IDE.SchemaDesigner.Controller.Columns ()
 import IHP.IDE.SchemaDesigner.Controller.Policies ()
 import IHP.IDE.SchemaDesigner.Controller.Schema ()
 import IHP.IDE.SchemaDesigner.Controller.Tables ()
+import IHP.IDE.SchemaDesigner.Controller.Migrations ()
 import IHP.IDE.Data.Controller ()
 import IHP.IDE.Logs.Controller ()
 import IHP.IDE.CodeGen.Controller ()
@@ -131,6 +132,7 @@ instance FrontController ToolServerApplication where
         , parseRoute @LogsController
         , parseRoute @DataController
         , parseRoute @CodeGenController
+        , parseRoute @MigrationsController
         , startPage TablesAction
         ]
 

@@ -65,6 +65,7 @@ data TestController
   | TestInteger { p1 :: Integer, p2 :: Maybe Integer, p3 :: [Integer] }
   | TestIntegerId { integerId :: Id Band }
   | TestUUIDId { uuidId :: Id Performance }
+  | TestUUIDList { uuidList :: [UUID] }
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -103,6 +104,8 @@ instance Controller TestController where
         renderPlain (cs $ ClassyPrelude.show integerId)
     action TestUUIDId { .. } = do
         renderPlain (cs $ ClassyPrelude.show uuidId)
+    action TestUUIDList { .. } = do
+        renderPlain $ cs $ ClassyPrelude.show uuidList
 
 instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -186,6 +189,14 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             runSession (testGet "test/TestIntegerId?integerId=123") Server.application >>= assertSuccess "123"
         it "parses Id with UUID param" $ withContext do
             runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "parses [UUID] param: empty" $ withContext do
+            runSession (testGet "test/TestUUIDList") Server.application >>= assertSuccess "[]"
+        it "parses [UUID] param: one element" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
+        it "parses [UUID] param: multiple elements" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34]"
+        it "parses [UUID] param: multiple elements, ignoring non UUID" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,423423432432432") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContext do
             pathTo TestAction `shouldBe` "/test/Test"

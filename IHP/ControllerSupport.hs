@@ -44,7 +44,7 @@ import qualified Data.CaseInsensitive
 import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
-import IHP.FrameworkConfig (FrameworkConfig (..))
+import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext)
 import Network.HTTP.Types.Header
@@ -298,10 +298,9 @@ respondAndExit response = do
 -- > 
 -- >     putStrLn ("Stripe public key: " <> stripePublicKey)
 --
-getAppConfig :: forall configParameter. (?context :: ControllerContext, Typeable configParameter) => configParameter
+getAppConfig :: forall configParameter context. (?context :: context, ConfigProvider context, Typeable configParameter) => configParameter
 getAppConfig = ?context
-        |> get #requestContext
-        |> get #frameworkConfig
+        |> getFrameworkConfig
         |> get #appConfig
         |> TypeMap.lookup @configParameter
         |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))

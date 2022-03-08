@@ -67,7 +67,8 @@ data DataController
     = ShowDatabaseAction
     | ShowTableRowsAction { tableName :: Text }
     | DeleteTableRowsAction { tableName :: Text }
-    | ShowQueryAction
+    | NewQueryAction
+    | QueryAction
     | DeleteEntryAction { primaryKey :: Text, tableName :: Text }
     | CreateRowAction
     | NewRowAction { tableName :: Text }
@@ -76,6 +77,8 @@ data DataController
     | EditRowValueAction { tableName :: Text, targetName :: Text, id :: Text }
     | ToggleBooleanFieldAction { tableName :: Text, targetName :: Text, targetPrimaryKey :: Text }
     | UpdateValueAction
+    | ShowForeignKeyHoverCardAction { tableName :: Text, id :: Text, columnName :: Text }
+    | AutocompleteForeignKeyColumnAction { tableName :: !Text, columnName :: !Text, term :: !(Maybe Text) }
     deriving (Eq, Show, Data)
 
 data LogsController
@@ -92,7 +95,6 @@ data CodeGenController
     | NewMailAction
     | NewActionAction
     | NewApplicationAction
-    | NewMigrationAction
     | NewJobAction
     | CreateControllerAction
     | CreateScriptAction
@@ -100,11 +102,19 @@ data CodeGenController
     | CreateMailAction
     | CreateActionAction
     | CreateApplicationAction
-    | CreateMigrationAction
     | CreateJobAction
     | OpenControllerAction
     deriving (Eq, Show, Data)
 
+data MigrationsController
+    = MigrationsAction
+    | NewMigrationAction
+    | CreateMigrationAction
+    | EditMigrationAction { migrationId :: !Int }
+    | UpdateMigrationAction { migrationId :: !Int }
+    | DeleteMigrationAction { migrationId :: !Int }
+    | RunMigrationAction { migrationId :: !Int }
+    deriving (Eq, Show, Data)
 
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
@@ -134,3 +144,7 @@ newtype AppUrl = AppUrl Text
 newtype WebControllers = WebControllers [Text]
 
 newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool
+
+data SqlConsoleResult
+    = SelectQueryResult ![[DynamicField]]
+    | InsertOrUpdateResult !Int64
