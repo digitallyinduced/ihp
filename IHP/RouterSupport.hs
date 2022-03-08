@@ -453,6 +453,9 @@ instance QueryParam Int where
 instance QueryParam Integer where
     showQueryParam = show
 
+instance QueryParam UUID where
+    showQueryParam = show
+
 instance QueryParam a => QueryParam (Maybe a) where
     showQueryParam (Just val) = showQueryParam val
     showQueryParam Nothing = ""
@@ -512,12 +515,17 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                 \val -> (eqT :: Maybe (d :~: [Integer]))
                     >>= \Refl -> Just (showQueryParam val),
                 \val -> (eqT :: Maybe (d :~: Maybe Integer))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: UUID))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Maybe UUID))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: [UUID]))
                     >>= \Refl -> Just (showQueryParam val)
-
                 ]
 
             arguments :: String
-            !arguments  = show action -- `SomeRecord { a = b, c = d }`
+            !arguments = show action -- `SomeRecord { a = b, c = d }`
                     |> List.filter (/= ' ')
                     |> List.break (== '{')
                     |> snd

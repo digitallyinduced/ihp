@@ -5,6 +5,7 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 import qualified Control.Exception as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encoding.Internal as Aeson
 
 import Data.Aeson.TH
 import Data.Aeson
@@ -21,11 +22,18 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Builder as ByteString
 import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
+
+import qualified IHP.GraphQL.Types as GraphQL
+import qualified IHP.GraphQL.Parser as GraphQL
+import qualified IHP.GraphQL.Compiler as GraphQL
+import IHP.GraphQL.JSON ()
+import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -54,6 +62,17 @@ instance (
                 result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
 
                 sendJSON DataSyncResult { result, requestId }
+            
+            handleMessage GraphQLRequest { gql, variables, requestId, transactionId } = do
+                let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
+                        Left parserError -> error (cs $ tshow parserError)
+                        Right statements -> statements
+
+                let [(theQuery, theParams)] = GraphQL.compileDocument variables document
+
+                [PG.Only graphQLResult] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
+
+                sendJSON GraphQLResult { graphQLResult, requestId }
             
             handleMessage CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit

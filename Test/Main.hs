@@ -49,6 +49,9 @@ import qualified Test.FileStorage.MimeTypesSpec
 import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.PGListenerSpec
+import qualified Test.GraphQL.ParserSpec
+import qualified Test.GraphQL.CompilerSpec
+import qualified Test.GraphQL.SchemaCompilerSpec
 
 main :: IO ()
 main = hspec do
@@ -85,3 +88,6 @@ main = hspec do
     Test.IDE.CodeGeneration.MigrationGenerator.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
+    Test.GraphQL.ParserSpec.tests
+    Test.GraphQL.CompilerSpec.tests
+    Test.GraphQL.SchemaCompilerSpec.tests
