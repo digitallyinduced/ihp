@@ -13,7 +13,7 @@ module IHP.View.Form where
 
 import IHP.Prelude
 import           IHP.ValidationSupport
-import           IHP.View.ConvertibleStrings ()
+import           HSX.View.ConvertibleStrings ()
 import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5

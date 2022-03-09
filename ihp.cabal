@@ -183,9 +183,6 @@ library
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
         , IHP.Controller.Cookie
-        , IHP.HSX.Parser
-        , IHP.HSX.QQ
-        , IHP.HSX.ToHtml
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware
@@ -194,7 +191,6 @@ library
         , IHP.ValidationSupport.ValidateCanView
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
-        , IHP.View.ConvertibleStrings
         , IHP.View.Form
         , IHP.Modal.Types
         , IHP.Modal.ControllerFunctions
