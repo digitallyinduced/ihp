@@ -141,7 +141,7 @@ parseTableConstraint = do
         lexeme "CONSTRAINT"
         identifier
     (Left <$> parsePrimaryKeyConstraint) <|>
-      (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name))
+      (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name <|> parseExcludeConstraint name))
 
 parsePrimaryKeyConstraint = do
     lexeme "PRIMARY"
@@ -171,6 +171,34 @@ parseCheckConstraint name = do
     lexeme "CHECK"
     checkExpression <- between (char '(' >> space) (char ')' >> space) expression
     pure CheckConstraint { name, checkExpression }
+
+parseExcludeConstraint name = do
+    lexeme "EXCLUDE"
+    excludeElements <- between (char '(' >> space) (char ')' >> space) $ excludeElement `sepBy` (char ',' >> space)
+    predicate <- optional do
+        lexeme "WHERE"
+        between (char '(' >> space) (char ')' >> space) expression
+    pure ExcludeConstraint { name, excludeElements, predicate }
+    where
+        excludeElement = do
+            element <- identifier
+            space
+            lexeme "WITH"
+            space
+            operator <- parseOperator
+            pure ExcludeConstraintElement { element, operator }
+
+parseOperator = choice $ map lexeme
+    [ "="
+    , "<>"
+    , "!="
+    , "<="
+    , "<"
+    , ">="
+    , ">"
+    , "AND"
+    , "OR"
+    ]
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
