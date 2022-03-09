@@ -133,8 +133,23 @@ addConstraint tableName = do
     constraint <- parseTableConstraint >>= \case
       Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { name = Nothing, primaryKeyConstraint }
       Right constraint -> pure constraint
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
     char ';'
-    pure AddConstraint { tableName, constraint }
+    pure AddConstraint { tableName, constraint, deferrable, deferrableType }
+
+parseDeferrable = do
+    isDeferrable <- lexeme "DEFERRABLE" <|> lexeme "NOT DEFERRABLE"
+    pure $ case isDeferrable of
+        "DEFERRABLE" -> True
+        "NOT DEFERRABLE" -> False
+
+parseDeferrableType = do
+    lexeme "INITIALLY"
+    dtype <- lexeme "IMMEDIATE" <|> lexeme "DEFERRED"
+    case dtype of
+        "IMMEDIATE" -> pure InitiallyImmediate
+        "DEFERRED" -> pure InitiallyDeferred
 
 parseTableConstraint = do
     name <- optional do
@@ -618,8 +633,10 @@ alterTable = do
             lexeme "ADD"
             let addUnique = do
                     unique <- parseUniqueConstraint Nothing
+                    deferrable <- optional parseDeferrable
+                    deferrableType <- optional parseDeferrableType
                     char ';'
-                    pure (AddConstraint tableName unique)
+                    pure (AddConstraint tableName unique deferrable deferrableType)
             addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
