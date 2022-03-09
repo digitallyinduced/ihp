@@ -103,6 +103,7 @@ common shared-properties
             , neat-interpolation
             , unagi-chan
             , with-utf8
+            , ihp-hsx
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
