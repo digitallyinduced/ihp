@@ -63,6 +63,7 @@ let
               manualOverrides
 
               (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
+              (self: super: { ormolu = if pkgs.system == "aarch64-darwin" then pkgs.haskell.lib.overrideCabal super.ormolu (_: { enableSeparateBinOutput = false; }) else super.ormolu; })
             ];
           };
         }

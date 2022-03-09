@@ -124,10 +124,18 @@ data Constraint
         { name :: !(Maybe Text)
         , checkExpression :: !Expression
         }
+    | ExcludeConstraint
+        { name :: !(Maybe Text)
+        , excludeElements :: ![ExcludeConstraintElement]
+        , predicate :: !(Maybe Expression)
+        }
     | AlterTableAddPrimaryKey
         { name :: !(Maybe Text)
         , primaryKeyConstraint :: !PrimaryKeyConstraint
         }
+    deriving (Eq, Show)
+
+data ExcludeConstraintElement = ExcludeConstraintElement { element :: !Text, operator :: !Text }
     deriving (Eq, Show)
 
 data Expression =
