@@ -63,6 +63,7 @@
 , neat-interpolation
 , unagi-chan
 , with-utf8
+, nodejs
 }:
 mkDerivation {
   pname = "ihp";
@@ -134,6 +135,13 @@ mkDerivation {
     with-utf8
   ];
   license = lib.licenses.mit;
+  preBuild = ''
+    cd lib/IHP/static/IDE/Graph
+    HOME=/tmp npm ci
+    HOME=/tmp npm run build
+    rm -rf node_modules
+    cd ../../../../..
+  '';
   postInstall = ''
     cp exe/IHP/CLI/run-script $out/bin/run-script
 
@@ -148,4 +156,6 @@ mkDerivation {
   configureFlags = [ "--flag FastBuild" ];
   # Uncommenting will not generate documentation
   doHaddock = false;
+
+  buildTools = [ nodejs ];
 }
