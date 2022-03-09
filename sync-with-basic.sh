@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 git remote add basic git@github.com:digitallyinduced/ihp.git
 git config remote.basic.pushurl "this remote is readonly"
 git fetch basic
