@@ -18,7 +18,7 @@ data Statement
     -- | CREATE EXTENSION IF NOT EXISTS "name";
     | CreateExtension { name :: Text, ifNotExists :: Bool }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
-    | AddConstraint { tableName :: Text, constraint :: Constraint }
+    | AddConstraint { tableName :: Text, constraint :: Constraint, deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType }
     -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
     | DropConstraint { tableName, constraintName :: Text }
     -- | ALTER TABLE tableName ADD COLUMN column;
@@ -68,6 +68,11 @@ data Statement
     | Begin
     -- | COMMIT;
     | Commit
+    deriving (Eq, Show)
+
+data DeferrableType
+    = InitiallyImmediate
+    | InitiallyDeferred
     deriving (Eq, Show)
 
 data CreateTable

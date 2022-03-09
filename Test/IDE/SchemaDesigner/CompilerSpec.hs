@@ -124,6 +124,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;\n"
 
@@ -137,6 +139,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET DEFAULT;\n"
 
@@ -150,6 +154,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE SET NULL;\n"
 
@@ -163,6 +169,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE RESTRICT;\n"
 
@@ -176,6 +184,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE NO ACTION;\n"
 
@@ -189,6 +199,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Nothing
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ;\n"
 
@@ -199,6 +211,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
 
@@ -224,6 +238,8 @@ tests = do
                                     (IsExpression (VarExpression "price") (VarExpression "NULL"))
                                 )
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE properties ADD CONSTRAINT foobar CHECK ((property_type = 'haus_buy' AND area_garden IS NOT NULL AND rent_monthly IS NULL) OR (property_type = 'haus_rent' AND rent_monthly IS NOT NULL AND price IS NULL));\n"
 
@@ -234,6 +250,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = LessThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) < 20);\n"
 
@@ -244,6 +262,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = LessThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) <= 20);\n"
 
@@ -254,6 +274,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = GreaterThanExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) > 20);\n"
 
@@ -264,6 +286,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = GreaterThanOrEqualToExpression (CallExpression ("length") [VarExpression "title"]) (VarExpression "20")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (length(title) >= 20);\n"
 
@@ -278,6 +302,8 @@ tests = do
                             ]
                         , predicate = Nothing
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =);\n"
 
@@ -292,6 +318,8 @@ tests = do
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =) WHERE (title = 'why');\n"
 
@@ -309,8 +337,70 @@ tests = do
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (i1 WITH =, i2 WITH <>, i3 WITH !=, i4 WITH AND, i5 WITH OR) WHERE (title = 'why');\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE;\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. NOT DEFERRABLE" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        }
+                    , deferrable = Just False
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =) NOT DEFERRABLE;\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE INITIALLY IMMEDIATE" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyImmediate
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE INITIALLY IMMEDIATE;\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE INITIALLY DEFERRED" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyDeferred
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE INITIALLY DEFERRED;\n"
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
@@ -661,7 +751,7 @@ tests = do
 
         it "should compile 'ALTER TABLE .. ADD UNIQUE (..);' statements" do
             let sql = "ALTER TABLE users ADD UNIQUE (full_name);\n"
-            let statements = [ AddConstraint { tableName = "users", constraint = UniqueConstraint { name = Nothing, columnNames = ["full_name"] }  } ]
+            let statements = [ AddConstraint { tableName = "users", constraint = UniqueConstraint { name = Nothing, columnNames = ["full_name"] }, deferrable = Nothing, deferrableType = Nothing } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'ALTER TABLE .. DROP CONSTRAINT ..;' statements" do

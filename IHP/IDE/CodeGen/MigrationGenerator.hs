@@ -218,7 +218,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
 
                         updateConstraint = if get #isUnique dropColumn
                             then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
-                            else AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames = [get #name dropColumn] } }
+                            else AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames = [get #name dropColumn] }, deferrable = Nothing, deferrableType = Nothing }
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -341,7 +341,7 @@ normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
     where 
         (normalizedTable, normalizeTableRest) = normalizeTable table
-normalizeStatement AddConstraint { tableName, constraint } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint } ]
+normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { expressions, indexType, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, indexType = normalizeIndexType indexType, .. } ]
@@ -376,7 +376,7 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
         normalizedCheckConstraints :: [Either Statement Constraint]
         normalizedCheckConstraints = constraints
                 |> map \case
-                    checkConstraint@(CheckConstraint {}) -> Left AddConstraint { tableName = name, constraint = checkConstraint }
+                    checkConstraint@(CheckConstraint {}) -> Left AddConstraint { tableName = name, constraint = checkConstraint, deferrable = Nothing, deferrableType = Nothing }
                     otherConstraint -> Right otherConstraint
 
         normalizedTableConstraints :: [Constraint]
@@ -402,7 +402,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
     where
         uniqueConstraint =
             if isUnique
-                then [ AddConstraint { tableName = get #name table, constraint = UniqueConstraint (Just $ (get #name table) <>"_" <> name <> "_key") [name] } ]
+                then [ AddConstraint { tableName = get #name table, constraint = UniqueConstraint (Just $ (get #name table) <>"_" <> name <> "_key") [name], deferrable = Nothing, deferrableType = Nothing } ]
                 else []
 
         normalizeName :: Text -> Text
