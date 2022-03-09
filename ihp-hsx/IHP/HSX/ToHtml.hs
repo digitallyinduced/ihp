@@ -6,8 +6,7 @@ import qualified Text.Blaze.Html5 as Html5
 import qualified Text.Blaze.Internal
 import ClassyPrelude
 import Data.String.Conversions (cs)
-import IHP.View.ConvertibleStrings ()
-import qualified Data.ByteString
+import IHP.HSX.ConvertibleStrings ()
 
 class ToHtml a where
     toHtml :: a -> Html5.Html
@@ -18,13 +17,13 @@ instance ToHtml (Text.Blaze.Internal.MarkupM ()) where
 
 instance ToHtml Text where
     {-# INLINE toHtml #-}
-    toHtml = cs
+    toHtml = Html5.text
 
 instance ToHtml String where
     {-# INLINE toHtml #-}
-    toHtml = cs
+    toHtml = Html5.string
 
-instance ToHtml Data.ByteString.ByteString where
+instance ToHtml ByteString where
     {-# INLINE toHtml #-}
     toHtml value = toHtml (cs value :: Text)
 
@@ -34,4 +33,4 @@ instance {-# OVERLAPPABLE #-} ToHtml a => ToHtml (Maybe a) where
 
 instance {-# OVERLAPPABLE #-} Show a => ToHtml a where
     {-# INLINE toHtml #-}
-    toHtml value = cs (show value)
+    toHtml value = Html5.string (show value)

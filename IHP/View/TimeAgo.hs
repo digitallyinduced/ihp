@@ -7,7 +7,7 @@ module IHP.View.TimeAgo (timeAgo, dateTime, date, time) where
 
 import IHP.Prelude
 import Data.Time.Format.ISO8601 (iso8601Show)
-import IHP.View.ConvertibleStrings ()
+import IHP.HSX.ConvertibleStrings ()
 import Text.Blaze.Html5 (Html, (!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
