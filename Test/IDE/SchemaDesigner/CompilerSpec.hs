@@ -304,17 +304,13 @@ tests = do
                             [ ExcludeConstraintElement { element = "i1", operator = "=" }
                             , ExcludeConstraintElement { element = "i2", operator = "<>" }
                             , ExcludeConstraintElement { element = "i3", operator = "!=" }
-                            , ExcludeConstraintElement { element = "i4", operator = "<" }
-                            , ExcludeConstraintElement { element = "i5", operator = "<=" }
-                            , ExcludeConstraintElement { element = "i6", operator = ">" }
-                            , ExcludeConstraintElement { element = "i7", operator = ">=" }
-                            , ExcludeConstraintElement { element = "i8", operator = "AND" }
-                            , ExcludeConstraintElement { element = "i9", operator = "OR" }
+                            , ExcludeConstraintElement { element = "i4", operator = "AND" }
+                            , ExcludeConstraintElement { element = "i5", operator = "OR" }
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
                         }
                     }
-            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (i1 WITH =, i2 WITH <>, i3 WITH !=, i4 WITH <, i5 WITH <=, i6 WITH >, i7 WITH >=, i8 WITH AND, i9 WITH OR) WHERE (title = 'why');\n"
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (i1 WITH =, i2 WITH <>, i3 WITH !=, i4 WITH AND, i5 WITH OR) WHERE (title = 'why');\n"
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]

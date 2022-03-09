@@ -185,20 +185,16 @@ parseExcludeConstraint name = do
             space
             lexeme "WITH"
             space
-            operator <- parseOperator
+            operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
-parseOperator = choice $ map lexeme
-    [ "="
-    , "<>"
-    , "!="
-    , "<="
-    , "<"
-    , ">="
-    , ">"
-    , "AND"
-    , "OR"
-    ]
+        parseCommutativeInfixOperator = choice $ map lexeme
+            [ "="
+            , "<>"
+            , "!="
+            , "AND"
+            , "OR"
+            ]
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
