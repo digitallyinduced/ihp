@@ -80,30 +80,30 @@ tests = do
                     userId: UUID!
                 }
                 input NewUser {
-                    id: ID!
+                    id: ID
                     email: String!
                     passwordHash: String!
                     lockedAt: Timestamp
-                    failedLoginAttempts: Int!
+                    failedLoginAttempts: Int
                 }
                 input NewTask {
-                    id: ID!
+                    id: ID
                     title: String!
                     body: String!
                     userId: UUID!
                 }
                 input UserPatch {
-                    id: ID!
-                    email: String!
-                    passwordHash: String!
+                    id: ID
+                    email: String
+                    passwordHash: String
                     lockedAt: Timestamp
-                    failedLoginAttempts: Int!
+                    failedLoginAttempts: Int
                 }
                 input TaskPatch {
-                    id: ID!
-                    title: String!
-                    body: String!
-                    userId: UUID!
+                    id: ID
+                    title: String
+                    body: String
+                    userId: UUID
                 }
             |]
 

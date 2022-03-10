@@ -136,7 +136,7 @@ newRecordType schema (StatementCreateTable table@(CreateTable { name, columns })
         typeDefinition =
             InputObjectTypeDefinition
                 { name = "New" <> tableNameToModelName name
-                , fieldDefinitions = map (columnToRecordField table) columns
+                , fieldDefinitions = map (columnToNewRecordField table) columns
                 }
 newRecordType _ _ = Nothing
 
@@ -150,7 +150,7 @@ patchType schema (StatementCreateTable table@(CreateTable { name, columns })) =
         typeDefinition =
             InputObjectTypeDefinition
                 { name = tableNameToModelName name <> "Patch"
-                , fieldDefinitions = map (columnToRecordField table) columns
+                , fieldDefinitions = map (columnToPatchRecordField table) columns
                 }
 patchType _ _ = Nothing
 
@@ -172,6 +172,21 @@ columnToRecordField table Column { name, columnType, notNull } =
                 |> get #primaryKeyConstraint
                 |> get #primaryKeyColumnNames
         isPrimaryKey = name `elem` primaryKeyColumns
+
+columnToNewRecordField :: CreateTable -> Column -> FieldDefinition
+columnToNewRecordField table column@(Column { defaultValue = Just _ }) = removeNonNullFromFieldDefinition (columnToRecordField table column)
+    where
+columnToNewRecordField table column = columnToRecordField table column
+
+columnToPatchRecordField :: CreateTable -> Column -> FieldDefinition
+columnToPatchRecordField table column = removeNonNullFromFieldDefinition (columnToRecordField table column)
+
+removeNonNull :: Type -> Type
+removeNonNull (NonNullType type_) = type_
+removeNonNull type_ = type_
+
+removeNonNullFromFieldDefinition :: FieldDefinition -> FieldDefinition
+removeNonNullFromFieldDefinition fieldDefinition = fieldDefinition { type_ = removeNonNull (get #type_ fieldDefinition) }
 
 postgresTypeToGraphQLType :: PostgresType -> Type
 postgresTypeToGraphQLType PText = NamedType "String"
