@@ -41,5 +41,5 @@ jobs:
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
-          nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
+          nix-shell --option sandbox false --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
           
