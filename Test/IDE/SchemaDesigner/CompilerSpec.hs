@@ -301,11 +301,63 @@ tests = do
                             , ExcludeConstraintElement { element = "author", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. USING BTREE" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Btree
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING BTREE (title WITH =, author WITH =);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. USING GIST" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gist
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING GIST (title WITH =, author WITH =);\n"
+
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. USING GIN" do
+            let statement = AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gin
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING GIN (title WITH =, author WITH =);\n"
 
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. WHERE .." do
             let statement = AddConstraint
@@ -317,6 +369,7 @@ tests = do
                             , ExcludeConstraintElement { element = "author", operator = "=" }
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -336,6 +389,7 @@ tests = do
                             , ExcludeConstraintElement { element = "i5", operator = "OR" }
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -351,6 +405,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Nothing
@@ -366,6 +421,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just False
                     , deferrableType = Nothing
@@ -381,6 +437,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyImmediate
@@ -396,6 +453,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred

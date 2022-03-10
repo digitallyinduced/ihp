@@ -133,6 +133,7 @@ data Constraint
         { name :: !(Maybe Text)
         , excludeElements :: ![ExcludeConstraintElement]
         , predicate :: !(Maybe Expression)
+        , indexType :: !(Maybe IndexType)
         }
     | AlterTableAddPrimaryKey
         { name :: !(Maybe Text)
