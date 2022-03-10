@@ -125,7 +125,15 @@ migrateAppDB revision = withAppModelContext do
     SchemaMigration.migrate SchemaMigration.MigrateOptions { minimumRevision }
 
 findMigratedRevisions :: IO [Int]
-findMigratedRevisions = withAppModelContext SchemaMigration.findMigratedRevisions
+findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext SchemaMigration.findMigratedRevisions)
+    where
+        -- The schema_migrations table might not have been created yet
+        -- In that case there cannot be any migrations that have been run yet
+        emptyListIfTablesDoesntExists operation = do
+            result <- Exception.try operation
+            case result of
+                Left (EnhancedSqlError { sqlError }) | get #sqlErrorMsg sqlError == "relation \"schema_migrations\" does not exist" -> pure []
+                Right result -> pure result
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result
 withAppModelContext inner =
