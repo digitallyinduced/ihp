@@ -146,7 +146,6 @@ tests = do
                     , constraints = []
                     }
 
-
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
 
@@ -163,6 +162,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET DEFAULT" do
@@ -175,6 +176,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just SetDefault
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE SET NULL" do
@@ -187,6 +190,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just SetNull
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE RESTRICT" do
@@ -199,6 +204,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE NO ACTION" do
@@ -211,6 +218,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. (without ON DELETE)" do
@@ -223,6 +232,8 @@ tests = do
                         , referenceColumn = "id"
                         , onDelete = Nothing
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
@@ -232,6 +243,8 @@ tests = do
                         { name = "check_title_length"
                         , checkExpression = NotEqExpression (VarExpression "title") (TextExpression "")
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse a complex ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
@@ -256,6 +269,8 @@ tests = do
                                     (IsExpression (VarExpression "price") (VarExpression "NULL"))
                                 )
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
 
@@ -269,6 +284,8 @@ tests = do
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
 
@@ -283,6 +300,8 @@ tests = do
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a >" do
@@ -295,6 +314,8 @@ tests = do
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
 
@@ -308,8 +329,153 @@ tests = do
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
                         }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING btree .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING btree (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Btree
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING gin .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING gin (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gin
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING gist .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING gist (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gist
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. WHERE .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =) WHERE (title = 'why');" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. WHERE .. with various operators" do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (i1 WITH =, i2 WITH <>, i3 WITH !=, i4 WITH AND, i5 WITH OR) WHERE (title = 'why');" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "i1", operator = "=" }
+                            , ExcludeConstraintElement { element = "i2", operator = "<>" }
+                            , ExcludeConstraintElement { element = "i3", operator = "!=" }
+                            , ExcludeConstraintElement { element = "i4", operator = "AND" }
+                            , ExcludeConstraintElement { element = "i5", operator = "OR" }
+                            ]
+                        , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE" do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT deferrable_unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE;" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "deferrable_unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE INITIALLY IMMEDIATE" do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT deferrable_unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE INITIALLY IMMEDIATE;" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "deferrable_unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyImmediate
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. DEFERRABLE INITIALLY DEFERRED" do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT deferrable_unique_title_by_author EXCLUDE (title WITH =) DEFERRABLE INITIALLY DEFERRED;" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "deferrable_unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Nothing
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyDeferred
+                    }
 
         it "should parse CREATE TYPE .. AS ENUM" do
             parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
@@ -835,6 +1001,8 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     { name = Just "source"
                     , checkExpression = EqExpression (CallExpression "num_nonnulls" [VarExpression "a",VarExpression "b",VarExpression "c"]) (IntExpression 1)
                     }
+                , deferrable = Nothing
+                , deferrableType = Nothing
                 }
 
         it "should parse 'CREATE TRIGGER .. AFTER INSERT ON .. FOR EACH ROW EXECUTE ..;' statements" do

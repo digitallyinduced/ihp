@@ -179,6 +179,18 @@ parseFuncs parseIdType = [
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
+            -- Try and parse a raw [UUID]
+            \queryValue -> case eqT :: Maybe (d :~: [UUID]) of
+                Just Refl -> case queryValue of
+                    Just queryValue -> queryValue
+                        |> cs
+                        |> Text.splitOn ","
+                        |> map (fromASCIIBytes . cs)
+                        |> catMaybes
+                        |> Right
+                    Nothing -> Right []
+                Nothing -> Left NotMatched,
+
             -- Try and parse a raw UUID
             \queryValue -> case eqT :: Maybe (d :~: UUID) of
                 Just Refl -> case queryValue of
@@ -441,6 +453,9 @@ instance QueryParam Int where
 instance QueryParam Integer where
     showQueryParam = show
 
+instance QueryParam UUID where
+    showQueryParam = show
+
 instance QueryParam a => QueryParam (Maybe a) where
     showQueryParam (Just val) = showQueryParam val
     showQueryParam Nothing = ""
@@ -500,12 +515,17 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                 \val -> (eqT :: Maybe (d :~: [Integer]))
                     >>= \Refl -> Just (showQueryParam val),
                 \val -> (eqT :: Maybe (d :~: Maybe Integer))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: UUID))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: Maybe UUID))
+                    >>= \Refl -> Just (showQueryParam val),
+                \val -> (eqT :: Maybe (d :~: [UUID]))
                     >>= \Refl -> Just (showQueryParam val)
-
                 ]
 
             arguments :: String
-            !arguments  = show action -- `SomeRecord { a = b, c = d }`
+            !arguments = show action -- `SomeRecord { a = b, c = d }`
                     |> List.filter (/= ' ')
                     |> List.break (== '{')
                     |> snd
@@ -618,12 +638,12 @@ post path action = do
 -- >
 -- >            updateRecordAction = do
 -- >                onlyAllowMethods [PATCH]
--- >                
+-- >
 -- >                table <- parseText
 -- >                string "/"
 -- >                id <- parseUUID
 -- >                pure UpdateRecordAction { table, id }
--- >        
+-- >
 -- > createRecordAction <|> updateRecordAction
 --
 onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()

@@ -168,4 +168,4 @@ instance View NewRowView where
                                     |]
 
                                     selectUrl :: Text
-                                    selectUrl = urlTo AutocompleteForeignKeyColumnAction { tableName, columnName = get #columnName col, term = "" }
+                                    selectUrl = pathTo AutocompleteForeignKeyColumnAction { tableName, columnName = get #columnName col, term = "" }

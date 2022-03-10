@@ -64,6 +64,7 @@
 , unagi-chan
 , with-utf8
 , nodejs
+, ihp-hsx
 }:
 mkDerivation {
   pname = "ihp";
@@ -133,6 +134,7 @@ mkDerivation {
     neat-interpolation
     unagi-chan
     with-utf8
+    ihp-hsx
   ];
   license = lib.licenses.mit;
   preBuild = ''

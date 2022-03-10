@@ -65,6 +65,7 @@ data TestController
   | TestInteger { p1 :: Integer, p2 :: Maybe Integer, p3 :: [Integer] }
   | TestIntegerId { integerId :: Id Band }
   | TestUUIDId { uuidId :: Id Performance }
+  | TestUUIDList { uuidList :: [UUID] }
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -103,6 +104,8 @@ instance Controller TestController where
         renderPlain (cs $ ClassyPrelude.show integerId)
     action TestUUIDId { .. } = do
         renderPlain (cs $ ClassyPrelude.show uuidId)
+    action TestUUIDList { .. } = do
+        renderPlain $ cs $ ClassyPrelude.show uuidList
 
 instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -186,6 +189,14 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             runSession (testGet "test/TestIntegerId?integerId=123") Server.application >>= assertSuccess "123"
         it "parses Id with UUID param" $ withContext do
             runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "parses [UUID] param: empty" $ withContext do
+            runSession (testGet "test/TestUUIDList") Server.application >>= assertSuccess "[]"
+        it "parses [UUID] param: one element" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
+        it "parses [UUID] param: multiple elements" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34]"
+        it "parses [UUID] param: multiple elements, ignoring non UUID" $ withContext do
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,423423432432432") Server.application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContext do
             pathTo TestAction `shouldBe` "/test/Test"
@@ -203,6 +214,10 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             pathTo (TestTextListAction ["hello", "there"]) `shouldBe` "/test/TestTextList?textList=hello%2Cthere"
         it "generates correct path for [Int] param" $ withContext do
             pathTo (TestIntListAction [1,2,3]) `shouldBe` "/test/TestIntList?intList=1%2C2%2C3"
+        it "generates correct path for UUID param" $ withContext do
+            pathTo (TestUUIDId "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "generates correct path for [UUID] param" $ withContext do
+            pathTo (TestUUIDList ["8dd57d19-490a-4323-8b94-6081ab93bf34", "fdb15f8e-2fe9-441a-ae0e-da56956b1722"]) `shouldBe` "/test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34%2Cfdb15f8e-2fe9-441a-ae0e-da56956b1722"
         it "generates correct path when used with Breadcrumbs" $ withContext do
             let breadcrumb = breadcrumbLink "Test" TestAction
             get #url breadcrumb `shouldBe` Just "/test/Test"

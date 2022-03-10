@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module IHP.View.ConvertibleStrings where
+module IHP.HSX.ConvertibleStrings where
 
 import Prelude
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)

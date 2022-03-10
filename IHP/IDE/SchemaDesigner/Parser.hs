@@ -133,15 +133,30 @@ addConstraint tableName = do
     constraint <- parseTableConstraint >>= \case
       Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { name = Nothing, primaryKeyConstraint }
       Right constraint -> pure constraint
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
     char ';'
-    pure AddConstraint { tableName, constraint }
+    pure AddConstraint { tableName, constraint, deferrable, deferrableType }
+
+parseDeferrable = do
+    isDeferrable <- lexeme "DEFERRABLE" <|> lexeme "NOT DEFERRABLE"
+    pure $ case isDeferrable of
+        "DEFERRABLE" -> True
+        "NOT DEFERRABLE" -> False
+
+parseDeferrableType = do
+    lexeme "INITIALLY"
+    dtype <- lexeme "IMMEDIATE" <|> lexeme "DEFERRED"
+    case dtype of
+        "IMMEDIATE" -> pure InitiallyImmediate
+        "DEFERRED" -> pure InitiallyDeferred
 
 parseTableConstraint = do
     name <- optional do
         lexeme "CONSTRAINT"
         identifier
     (Left <$> parsePrimaryKeyConstraint) <|>
-      (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name))
+      (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name <|> parseExcludeConstraint name))
 
 parsePrimaryKeyConstraint = do
     lexeme "PRIMARY"
@@ -171,6 +186,31 @@ parseCheckConstraint name = do
     lexeme "CHECK"
     checkExpression <- between (char '(' >> space) (char ')' >> space) expression
     pure CheckConstraint { name, checkExpression }
+
+parseExcludeConstraint name = do
+    lexeme "EXCLUDE"
+    indexType <- optional parseIndexType
+    excludeElements <- between (char '(' >> space) (char ')' >> space) $ excludeElement `sepBy` (char ',' >> space)
+    predicate <- optional do
+        lexeme "WHERE"
+        between (char '(' >> space) (char ')' >> space) expression
+    pure ExcludeConstraint { name, excludeElements, predicate, indexType }
+    where
+        excludeElement = do
+            element <- identifier
+            space
+            lexeme "WITH"
+            space
+            operator <- parseCommutativeInfixOperator
+            pure ExcludeConstraintElement { element, operator }
+
+        parseCommutativeInfixOperator = choice $ map lexeme
+            [ "="
+            , "<>"
+            , "!="
+            , "AND"
+            , "OR"
+            ]
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -507,20 +547,22 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- qualifiedIdentifier
-    indexType <- optional do
-        lexeme "USING"
-
-        let btree = do symbol' "btree"; pure Btree
-        let gin = do symbol' "gin"; pure Gin
-        let gist = do symbol' "gist"; pure Gist
-
-        btree <|> gin <|> gist
+    indexType <- optional parseIndexType
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
     pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
+
+parseIndexType = do
+    lexeme "USING"
+
+    choice $ map (\(s, v) -> do symbol' s; pure v)
+        [ ("btree", Btree)
+        , ("gin", Gin)
+        , ("gist", Gist)
+        ]
 
 createFunction = do
     lexeme "CREATE"
@@ -594,8 +636,10 @@ alterTable = do
             lexeme "ADD"
             let addUnique = do
                     unique <- parseUniqueConstraint Nothing
+                    deferrable <- optional parseDeferrable
+                    deferrableType <- optional parseDeferrableType
                     char ';'
-                    pure (AddConstraint tableName unique)
+                    pure (AddConstraint tableName unique deferrable deferrableType)
             addConstraint tableName <|> addColumn tableName <|> addUnique
     let drop = do
             lexeme "DROP"
