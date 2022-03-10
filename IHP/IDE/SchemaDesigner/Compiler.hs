@@ -64,13 +64,17 @@ compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
 compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
 compileConstraint CheckConstraint { checkExpression } = "CHECK (" <> compileExpression checkExpression <> ")"
-compileConstraint ExcludeConstraint { excludeElements, predicate } = "EXCLUDE (" <> compiledExcludeElements <> ")" <> case predicate of
+compileConstraint ExcludeConstraint { excludeElements, predicate, indexType } = "EXCLUDE" <> compiledIndexType <> " (" <> compiledExcludeElements <> ")" <> case predicate of
     Just expression -> " WHERE (" <> compileExpression expression <> ")"
     Nothing -> ""
     where
         compiledExcludeElements = intercalate ", " $ map compileExcludeElement excludeElements
 
         compileExcludeElement ExcludeConstraintElement { element, operator } = element <> " WITH " <> operator
+
+        compiledIndexType = case indexType of
+            Nothing -> ""
+            Just indexType -> " USING " <> compileIndexType indexType
 
 compileDeferrable :: Maybe Bool -> Maybe DeferrableType -> Text
 compileDeferrable deferrable deferrableType = Text.concat $ map ((<>) " ") $ catMaybes [compileIsDeferrable <$> deferrable, compileDeferrableType <$> deferrableType]

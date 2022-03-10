@@ -343,6 +343,7 @@ tests = do
                             , ExcludeConstraintElement { element = "author", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -358,6 +359,39 @@ tests = do
                             , ExcludeConstraintElement { element = "author", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Just Btree
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING gin .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING gin (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gin
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING gist .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING gist (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gist
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -373,6 +407,7 @@ tests = do
                             , ExcludeConstraintElement { element = "author", operator = "=" }
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -391,6 +426,7 @@ tests = do
                             , ExcludeConstraintElement { element = "i5", operator = "OR" }
                             ]
                         , predicate = Just $ EqExpression (VarExpression "title") (TextExpression "why")
+                        , indexType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -405,6 +441,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Nothing
@@ -419,6 +456,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyImmediate
@@ -433,6 +471,7 @@ tests = do
                             [ ExcludeConstraintElement { element = "title", operator = "=" }
                             ]
                         , predicate = Nothing
+                        , indexType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred
