@@ -189,11 +189,12 @@ parseCheckConstraint name = do
 
 parseExcludeConstraint name = do
     lexeme "EXCLUDE"
+    indexType <- optional parseIndexType
     excludeElements <- between (char '(' >> space) (char ')' >> space) $ excludeElement `sepBy` (char ',' >> space)
     predicate <- optional do
         lexeme "WHERE"
         between (char '(' >> space) (char ')' >> space) expression
-    pure ExcludeConstraint { name, excludeElements, predicate }
+    pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
             element <- identifier
@@ -546,20 +547,22 @@ createIndex = do
     indexName <- identifier
     lexeme "ON"
     tableName <- qualifiedIdentifier
-    indexType <- optional do
-        lexeme "USING"
-
-        let btree = do symbol' "btree"; pure Btree
-        let gin = do symbol' "gin"; pure Gin
-        let gist = do symbol' "gist"; pure Gist
-
-        btree <|> gin <|> gist
+    indexType <- optional parseIndexType
     expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
     pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
+
+parseIndexType = do
+    lexeme "USING"
+
+    choice $ map (\(s, v) -> do symbol' s; pure v)
+        [ ("btree", Btree)
+        , ("gin", Gin)
+        , ("gist", Gist)
+        ]
 
 createFunction = do
     lexeme "CREATE"
