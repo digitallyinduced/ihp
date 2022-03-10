@@ -189,6 +189,7 @@ parseCheckConstraint name = do
 
 parseExcludeConstraint name = do
     lexeme "EXCLUDE"
+    optional $ lexeme "USING btree"
     excludeElements <- between (char '(' >> space) (char ')' >> space) $ excludeElement `sepBy` (char ',' >> space)
     predicate <- optional do
         lexeme "WHERE"

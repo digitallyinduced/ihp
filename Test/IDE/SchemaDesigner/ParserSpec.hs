@@ -348,6 +348,21 @@ tests = do
                     , deferrableType = Nothing
                     }
 
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE USING btree .." do
+            parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE USING btree (title WITH =, author WITH =);" `shouldBe` AddConstraint
+                    { tableName = "posts"
+                    , constraint = ExcludeConstraint
+                        { name = "unique_title_by_author"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "title", operator = "=" }
+                            , ExcludeConstraintElement { element = "author", operator = "=" }
+                            ]
+                        , predicate = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. EXCLUDE .. WHERE .." do
             parseSql "ALTER TABLE posts ADD CONSTRAINT unique_title_by_author EXCLUDE (title WITH =, author WITH =) WHERE (title = 'why');" `shouldBe` AddConstraint
                     { tableName = "posts"
