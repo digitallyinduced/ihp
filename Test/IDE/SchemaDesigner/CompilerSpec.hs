@@ -22,7 +22,7 @@ tests = do
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
-        
+
         it "should compile a empty line comments" do
             compileSql [Comment { content = "" }, Comment { content = "" }] `shouldBe` "--\n--\n"
 
@@ -618,7 +618,7 @@ tests = do
                     , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
-        
+
         it "should compile a 'CREATE INDEX .. ON .. USING GIN' statement" do
             let sql = cs [plain|CREATE INDEX users_index ON users USING GIN (user_name);\n|]
             let statement = CreateIndex
@@ -695,6 +695,7 @@ tests = do
             let sql = cs [plain|CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
             let statement = CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
+                    , functionParameters = []
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
                     , returns = PTrigger
@@ -703,11 +704,24 @@ tests = do
 
             compileSql [statement] `shouldBe` sql
 
-
         it "should compile a CREATE FUNCTION ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
             let statement = CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
+                    , functionParameters = []
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
+            let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionParameters = [("param1", "TEXT"), ("param2", "INT")]
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
                     , returns = PTrigger
@@ -791,7 +805,7 @@ tests = do
             let sql = "ALTER TABLE tasks DROP COLUMN description;\n"
             let statements = [ DropColumn { tableName = "tasks", columnName = "description" } ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'DROP TABLE ..' statements" do
             let sql = "DROP TABLE tasks;\n"
             let statements = [ DropTable { tableName = "tasks" } ]
@@ -831,7 +845,7 @@ tests = do
             let sql = "ALTER TABLE users ALTER COLUMN email DROP NOT NULL;\n"
             let statements = [ DropNotNull { tableName = "users", columnName = "email" } ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL;' statements" do
             let sql = "ALTER TABLE users ALTER COLUMN email SET NOT NULL;\n"
             let statements = [ SetNotNull { tableName = "users", columnName = "email" } ]
@@ -851,7 +865,7 @@ tests = do
             let sql = "ALTER TABLE profiles RENAME TO users;\n"
             let statements = [ RenameTable { from = "profiles", to = "users" } ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'DROP POLICY .. ON ..;' statements" do
             let sql = "DROP POLICY \"Users can manage their todos\" ON todos;\n"
             let statements = [ DropPolicy { tableName = "todos", policyName = "Users can manage their todos" } ]
@@ -874,12 +888,12 @@ tests = do
                         }
                     ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'ALTER TYPE .. ADD VALUE ..;' statements" do
             let sql = "ALTER TYPE colors ADD VALUE 'blue';\n"
             let statements = [ AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = False } ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'CREATE TRIGGER .. AFTER INSERT ON .. FOR EACH ROW EXECUTE ..;' statements" do
             let sql = "CREATE TRIGGER call_test_function_for_new_users AFTER INSERT ON users FOR EACH ROW EXECUTE FUNCTION call_test_function('hello');\n"
             let statements = [ CreateTrigger
@@ -903,7 +917,7 @@ tests = do
             let sql = "COMMIT;\n"
             let statements = [ Commit ]
             compileSql statements `shouldBe` sql
-        
+
         it "should compile 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL;' statements" do
             let sql = "COMMIT;\n"
             let statements = [ Commit ]

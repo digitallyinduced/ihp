@@ -524,10 +524,10 @@ selectExpr = do
             whereClause (Just alias)
 
     whereClause Nothing <|> explicitAs <|> implicitAs
-    
-    
-    
-    
+
+
+
+
 
 identifier :: Parser Text
 identifier = do
@@ -569,7 +569,16 @@ createFunction = do
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
     functionName <- qualifiedIdentifier
-    lexeme "()"
+
+    let functionParameter = do
+        parameterName <- qualifiedIdentifier
+        space
+        parameterType <- qualifiedIdentifier
+        pure (parameterName, parameterType)
+
+    functionParameters <- between (char '(') (char ')') (functionParameter `sepBy` (char ',' >> space))
+
+    space
     lexeme "RETURNS"
     returns <- sqlType
 
@@ -588,7 +597,7 @@ createFunction = do
             lexeme "language" <|> lexeme "LANGUAGE"
             symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionBody, orReplace, returns, language }
+    pure CreateFunction { functionName, functionParameters, functionBody, orReplace, returns, language }
 
 createTrigger = do
     lexeme "CREATE"
@@ -682,7 +691,7 @@ alterColumn tableName = do
                     char ';'
                     pure DropDefaultValue { tableName, columnName }
             notNull <|> defaultValue
-    
+
     let set = do
             lexeme "SET"
             let notNull = do
@@ -698,9 +707,9 @@ alterColumn tableName = do
             notNull <|> defaultValue
 
     drop <|> set
-    
 
-    
+
+
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"
