@@ -640,7 +640,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -650,7 +650,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gin
                     }
@@ -660,7 +660,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Btree
                     }
@@ -670,7 +670,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gist
                     }
@@ -680,7 +680,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "user_name", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "project_id", columnOrder = [] }
+                        ]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -689,7 +692,7 @@ tests = do
                     { indexName = "users_email_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    , columns = [IndexColumn { column = CallExpression "LOWER" [VarExpression "email"], columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -698,7 +701,27 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+
+        it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name ASC NULLS FIRST);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+
+        it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name DESC NULLS LAST);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -770,7 +793,10 @@ $$;
                     { indexName = "unique_source_id"
                     , unique = True
                     , tableName = "listings"
-                    , expressions = [ VarExpression "source", VarExpression "source_id" ]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "source", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "source_id", columnOrder = [] }
+                        ]
                     , whereClause = Just (
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
