@@ -35,7 +35,7 @@ data Statement
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionParameters :: [(Text, Text)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;

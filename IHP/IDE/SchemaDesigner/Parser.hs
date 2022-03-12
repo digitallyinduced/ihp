@@ -569,7 +569,7 @@ createFunction = do
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
     functionName <- qualifiedIdentifier
-    functionParameters <- between (char '(') (char ')') (functionParameter `sepBy` (char ',' >> space))
+    functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
     returns <- sqlType
@@ -589,13 +589,13 @@ createFunction = do
             lexeme "language" <|> lexeme "LANGUAGE"
             symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionParameters, functionBody, orReplace, returns, language }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language }
     where
-        functionParameter = do
-            parameterName <- qualifiedIdentifier
+        functionArgument = do
+            argumentName <- qualifiedIdentifier
             space
-            parameterType <- qualifiedIdentifier
-            pure (parameterName, parameterType)
+            argumentType <- sqlType
+            pure (argumentName, argumentType)
 
 createTrigger = do
     lexeme "CREATE"

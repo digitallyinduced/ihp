@@ -706,7 +706,7 @@ tests = do
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
-                    , functionParameters = []
+                    , functionArguments = []
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
                     , returns = PTrigger
@@ -716,7 +716,7 @@ tests = do
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
-                    , functionParameters = []
+                    , functionArguments = []
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
                     , returns = PTrigger
@@ -726,7 +726,7 @@ tests = do
         it "should parse a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
             parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection(param1 INT, param2 TEXT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
-                    , functionParameters = [("param1", "INT"), ("param2", "TEXT")]
+                    , functionArguments = [("param1", PInt), ("param2", PText)]
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
                     , returns = PTrigger
@@ -744,7 +744,7 @@ $$;
             |]
             parseSql sql `shouldBe` CreateFunction
                     { functionName = "notify_did_change_projects"
-                    , functionParameters = []
+                    , functionArguments = []
                     , functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
                     , orReplace = False
                     , returns = PTrigger
