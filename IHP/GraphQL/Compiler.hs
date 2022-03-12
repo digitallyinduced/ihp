@@ -34,7 +34,7 @@ compileMutationDefinition ExecutableDefinition { operation = OperationDefinition
 
 compileSelection :: Document -> [Argument] -> Selection -> QueryPart
 compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
-        ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
+        ("(SELECT json_build_object(?, COALESCE(json_agg(?.*), '[]')) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
         <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
         <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
         <> joins
