@@ -9,7 +9,7 @@ import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple as PG
 import Control.Concurrent.MVar as MVar
 import qualified IHP.GraphQL.Types as GraphQL
-
+import qualified Data.Aeson as Aeson
 
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int, transactionId :: !(Maybe UUID) }
@@ -25,6 +25,8 @@ data DataSyncMessage
     | StartTransaction { requestId :: !Int }
     | RollbackTransaction { requestId :: !Int, id :: !UUID }
     | CommitTransaction { requestId :: !Int, id :: !UUID }
+    | CreateGraphQLLiveQuery { gql :: !Text, requestId :: !Int, variables :: !GraphQL.Variables }
+    | DeleteGraphQLLiveQuery { liveQueryId :: !UUID, requestId :: !Int }
     deriving (Eq, Show)
 
 data DataSyncResponse
@@ -45,6 +47,11 @@ data DataSyncResponse
     | DidStartTransaction { requestId :: !Int, transactionId :: !UUID }
     | DidRollbackTransaction { requestId :: !Int, transactionId :: !UUID }
     | DidCommitTransaction { requestId :: !Int, transactionId :: !UUID }
+    | DidCreateLiveQuery { requestId :: !Int, liveQueryId :: !UUID, graphQLResult :: !Aeson.Value }
+    | DidDeleteLiveQuery { requestId :: !Int, liveQueryId :: !UUID }
+    | LiveQueryDidInsert { liveQueryId :: !UUID, newRecord :: !Aeson.Value, table :: !Text }
+    | LiveQueryDidUpdate { liveQueryId :: !UUID, id :: UUID, changeSet :: !Value }
+    | LiveQueryDidDelete { liveQueryId :: !UUID, id :: !UUID, table :: !Text }
 
 data GraphQLResult = GraphQLResult { graphQLResult :: !UndecodedJSON, requestId :: !Int }
 

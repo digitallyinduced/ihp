@@ -32,6 +32,7 @@ import qualified Data.Pool as Pool
 import qualified IHP.GraphQL.Types as GraphQL
 import qualified IHP.GraphQL.Parser as GraphQL
 import qualified IHP.GraphQL.Compiler as GraphQL
+import qualified IHP.GraphQL.Analysis as GraphQL
 import IHP.GraphQL.JSON ()
 import qualified Data.Attoparsec.Text as Attoparsec
 
@@ -67,6 +68,8 @@ instance (
                 let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
                         Left parserError -> error (cs $ tshow parserError)
                         Right statements -> statements
+
+                ensureRLSEnabledForGraphQLDocument ensureRLSEnabled document
 
                 let [(theQuery, theParams)] = GraphQL.compileDocument variables document
 
@@ -153,6 +156,84 @@ instance (
                 modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                 sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+
+            handleMessage CreateGraphQLLiveQuery { requestId, gql, variables } = do
+                let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
+                        Left parserError -> error (cs $ tshow parserError)
+                        Right statements -> statements
+
+                tablesRLS <- ensureRLSEnabledForGraphQLDocument ensureRLSEnabled document
+
+                -- Fetch the initial data
+                let [(theQuery, theParams)] = GraphQL.compileDocument variables document
+                [PG.Only (UndecodedJSON graphQLResultText)] <- sqlQueryWithRLSAndTransactionId Nothing theQuery theParams
+
+                let (Just graphQLResult) = Aeson.decode (cs graphQLResultText)
+
+                -- We need to keep track of all the ids of entities we're watching to make
+                -- sure that we only send update notifications to clients that can actually
+                -- access the record (e.g. if a RLS policy denies access)
+                let watchedRecordIds = GraphQL.recordIds document graphQLResult
+
+                -- Store it in IORef as an INSERT requires us to add an id
+                watchedRecordIdsRef <- newIORef watchedRecordIds
+
+                -- Make sure the database triggers are there
+                forEach tablesRLS installTableChangeTriggers
+
+                liveQueryId <- UUID.nextRandom
+                
+                let callback table notification = case notification of
+                            ChangeNotifications.DidInsert { id } -> do
+                                -- The new record could not be accessible to the current user with a RLS policy
+                                -- E.g. it could be a new record in a 'projects' table, but the project belongs
+                                -- to a different user, and thus the current user should not be able to see it.
+                                --
+                                -- The new record could also be not part of the WHERE condition of the initial query.
+                                -- Therefore we need to use the subscriptions WHERE condition to fetch the new record here.
+                                --
+                                -- To honor the RLS policies we therefore need to fetch the record as the current user
+                                -- If the result set is empty, we know the record is not accesible to us
+                                [PG.Only (UndecodedJSON graphQLResultText)] <- sqlQueryWithRLSAndTransactionId Nothing theQuery theParams
+                                let (Just graphQLResult) = Aeson.decode (cs graphQLResultText)
+
+                                case GraphQL.extractRecordById id graphQLResult of
+                                    Just newRecord -> do
+                                        -- Add the new record to 'watchedRecordIdsRef'
+                                        -- Otherwise the updates and deletes will not be dispatched to the client
+                                        modifyIORef' watchedRecordIdsRef (HashMap.adjust (Set.insert id) table)
+
+                                        sendJSON LiveQueryDidInsert { liveQueryId, newRecord, table }
+                                    Nothing -> pure ()
+                            ChangeNotifications.DidUpdate { id, changeSet } -> do
+                                -- Only send the notifcation if the deleted record was part of the initial
+                                -- results set
+                                isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
+                                when isWatchingRecord do
+                                    sendJSON LiveQueryDidUpdate { liveQueryId, id, changeSet = changesToValue changeSet }
+                            ChangeNotifications.DidDelete { id } -> do
+                                -- Only send the notifcation if the deleted record was part of the initial
+                                -- results set
+                                isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
+                                when isWatchingRecord do
+                                    sendJSON LiveQueryDidDelete { liveQueryId, table, id }
+
+                let startWatchers tablesRLS = case tablesRLS of
+                        (tableNameRLS:rest) -> do
+                            let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) (callback (get #tableName tableNameRLS)) pgListener
+                            let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
+
+                            Exception.bracket subscribe unsubscribe (\_ -> startWatchers rest)
+                        [] -> do
+                            close <- MVar.newEmptyMVar
+                            modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert liveQueryId close))
+
+                            -- sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
+                            sendJSON DidCreateLiveQuery { liveQueryId, graphQLResult, requestId }
+
+                            MVar.takeMVar close
+
+                startWatchers tablesRLS
 
             handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
@@ -452,6 +533,13 @@ sqlExecWithRLSAndTransactionId ::
     , ?state :: IORef DataSyncController
     ) => Maybe UUID -> PG.Query -> parameters -> IO Int64
 sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlExecWithRLS theQuery theParams) transactionId
+
+ensureRLSEnabledForGraphQLDocument :: _ -> GraphQL.Document -> IO [TableWithRLS]
+ensureRLSEnabledForGraphQLDocument ensureRLSEnabled document = do
+    let tables = document
+            |> GraphQL.tablesUsedInDocument
+            |> Set.toList
+    mapM ensureRLSEnabled tables
 
 $(deriveFromJSON defaultOptions 'DataSyncQuery)
 $(deriveToJSON defaultOptions 'DataSyncResult)
