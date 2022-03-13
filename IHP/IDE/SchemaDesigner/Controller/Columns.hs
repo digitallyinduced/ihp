@@ -116,7 +116,7 @@ instance Controller ColumnsController where
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
         forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
         updateSchema (map (deleteColumnInTable tableName columnId))
-        
+
         redirectTo ShowTableAction { .. }
 
     action ToggleColumnUniqueAction { .. } = do
@@ -273,7 +273,7 @@ findIndicesReferencingColumn database (tableName, columnName) = database |> filt
         --
         -- An index references a table if it references the target table and one of the index expressions contains a reference to our column
         isReferenced :: Statement -> Bool
-        isReferenced CreateIndex { tableName = indexTableName, expressions } = indexTableName == tableName && expressionsReferencesColumn expressions
+        isReferenced CreateIndex { tableName = indexTableName, columns } = indexTableName == tableName && expressionsReferencesColumn (map (get #column) columns)
         isReferenced otherwise = False
 
         -- | Returns True if a list of expressions references the columnName

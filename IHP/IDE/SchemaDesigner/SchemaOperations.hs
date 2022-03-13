@@ -44,7 +44,7 @@ data AddColumnOptions = AddColumnOptions
     , primaryKey :: !Bool
     }
 addColumn :: AddColumnOptions -> Schema -> Schema
-addColumn options@(AddColumnOptions { .. }) = 
+addColumn options@(AddColumnOptions { .. }) =
     let
         column = newColumn options
         addColumnToTable :: Text -> Column -> Bool -> Statement -> Statement
@@ -101,7 +101,7 @@ newForeignKeyIndex tableName columnName =
     { indexName = tableName <> "_" <> columnName <> "_index"
     , unique = False
     , tableName
-    , expressions = [VarExpression columnName]
+    , columns = [IndexColumn { column = VarExpression columnName, columnOrder = [] }]
     , whereClause = Nothing
     , indexType = Nothing
     }
@@ -119,7 +119,7 @@ addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statemen
 addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, expressions = map VarExpression columnNames, whereClause = Nothing, indexType = Nothing }]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (\columnName -> IndexColumn { column = VarExpression columnName, columnOrder = [] }), whereClause = Nothing, indexType = Nothing }]
 
 -- | An enum is added after all existing enum statements, but right before @CREATE TABLE@ statements
 addEnum :: Text -> Schema -> Schema
@@ -127,7 +127,7 @@ addEnum enumName statements = a <> enum <> b
     where
         enum = [CreateEnumType { name = enumName, values = []}]
         (a, b) = List.splitAt insertionIndex statements
-        
+
         insertionIndex = findInsertionIndex statements 0
 
         -- Finds the index after comments and existing enum types, just before the CREATE TABLE statements
@@ -247,7 +247,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
         }
     where
         compareUserId = EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])
-suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, columns }) = 
+suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, columns }) =
             columnsWithFKAndRefTable
                 |> mapMaybe columnWithFKAndRefTableToPolicy
                 |> head

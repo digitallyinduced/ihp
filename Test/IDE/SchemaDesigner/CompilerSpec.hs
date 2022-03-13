@@ -613,7 +613,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -625,7 +625,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gin
                     }
@@ -637,7 +637,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Btree
                     }
@@ -649,7 +649,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gist
                     }
@@ -661,7 +661,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "user_name", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "project_id", columnOrder = [] }
+                        ]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -673,7 +676,7 @@ tests = do
                     { indexName = "users_email_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    , columns = [IndexColumn { column = CallExpression "LOWER" [VarExpression "email"], columnOrder = []}]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -685,7 +688,31 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = []}]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE INDEX with column order ASC NULLS FIRST statement" do
+            let sql = cs [plain|CREATE UNIQUE INDEX users_index ON users (user_name ASC NULLS FIRST);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst]}]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE INDEX with column order DESC NULLS LAST statement" do
+            let sql = cs [plain|CREATE UNIQUE INDEX users_index ON users (user_name DESC NULLS LAST);\n|]
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast]}]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -752,7 +779,10 @@ tests = do
                     { indexName = "unique_source_id"
                     , unique = True
                     , tableName = "listings"
-                    , expressions = [ VarExpression "source", VarExpression "source_id" ]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "source", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "source_id", columnOrder = [] }
+                        ]
                     , whereClause = Just (
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))

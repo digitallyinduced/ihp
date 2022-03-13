@@ -112,7 +112,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         otherwise                      -> False
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
-        
+
         -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
         -- the tables have no differences except the name.
         applyRenameTable :: [Statement] -> [Statement]
@@ -131,7 +131,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 (Just actualTable) = actualSchema |> find \case
                         StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
                         otherwise                                                            -> False
-                
+
                 actualTable' :: CreateTable
                 actualTable' = case actualTable of
                     StatementCreateTable { unsafeGetCreateTable = table } -> table
@@ -214,7 +214,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False                                
+                                    otherwise       -> False
 
                         updateConstraint = if get #isUnique dropColumn
                             then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
@@ -252,7 +252,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False                                
+                                    otherwise       -> False
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -282,7 +282,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False                                
+                                    otherwise       -> False
 
                         updateConstraint = if get #notNull dropColumn
                             then DropNotNull { tableName, columnName = get #name dropColumn }
@@ -307,7 +307,7 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
     where
         newValues :: [Text]
         newValues = targetValues \\ actualValues
-        
+
         addValue :: Text -> Statement
         addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
 
@@ -339,12 +339,12 @@ normalizeSchema statements = map normalizeStatement statements
 
 normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
-    where 
+    where
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
-normalizeStatement CreateIndex { expressions, indexType, .. } = [ CreateIndex { expressions = map normalizeExpression expressions, indexType = normalizeIndexType indexType, .. } ]
+normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, .. } ]
 normalizeStatement otherwise = [otherwise]
 
@@ -380,14 +380,14 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                     otherConstraint -> Right otherConstraint
 
         normalizedTableConstraints :: [Constraint]
-        normalizedTableConstraints = 
+        normalizedTableConstraints =
             normalizedCheckConstraints
             |> mapMaybe \case
                 Left _ -> Nothing
                 Right c -> Just c
 
         normalizedConstraintsStatements :: [Statement]
-        normalizedConstraintsStatements = 
+        normalizedConstraintsStatements =
             normalizedCheckConstraints
             |> mapMaybe \case
                 Right _ -> Nothing
@@ -508,7 +508,7 @@ migrationPathFromPlan plan =
 -- > CREATE TABLE a (
 -- >     id uuid DEFAULT uuid_generate_v4() NOT NULL
 -- > );
--- > 
+-- >
 -- > ALTER TABLE a ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 --
 -- This function basically removes the @ALTER TABLE@ statements and moves the primary key directly into the @CREATE TABLE@ statement:
@@ -600,3 +600,13 @@ disableTransactionWhileAddingEnumValues statements =
 normalizeIndexType :: Maybe IndexType -> Maybe IndexType
 normalizeIndexType (Just Btree) = Nothing
 normalizeIndexType indexType = indexType
+
+normalizeIndexColumn :: IndexColumn -> IndexColumn
+normalizeIndexColumn IndexColumn { column, columnOrder } =
+    IndexColumn
+        { column = normalizeExpression column
+        , columnOrder = normalizeIndexColumnOrder columnOrder
+        }
+
+normalizeIndexColumnOrder :: [IndexColumnOrder] -> [IndexColumnOrder]
+normalizeIndexColumnOrder columnOrder = columnOrder |> filter (/=Asc)

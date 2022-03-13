@@ -23,6 +23,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
 import Control.Monad.Combinators.Expr
+import Data.Functor
 
 schemaFilePath = "Application/Schema.sql"
 
@@ -548,12 +549,18 @@ createIndex = do
     lexeme "ON"
     tableName <- qualifiedIdentifier
     indexType <- optional parseIndexType
-    expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
+    columns <- between (char '(' >> space) (char ')' >> space) (parseIndexColumn `sepBy` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
+    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType }
+
+parseIndexColumn = do
+    column <- expression
+    orderOption1 <- optional $ space *> lexeme "ASC" $> Asc <|> space *> lexeme "DESC" $> Desc
+    orderOption2 <- optional $ space *> lexeme "NULLS FIRST" $> NullsFirst <|> space *> lexeme "NULLS LAST" $> NullsLast
+    pure IndexColumn { column, columnOrder = catMaybes [orderOption1, orderOption2] }
 
 parseIndexType = do
     lexeme "USING"
