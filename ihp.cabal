@@ -381,6 +381,7 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.GraphQL.Analysis
         , IHP.IDE.Graph.Controller
         , IHP.IDE.Graph.View.Explore
         , IHP.IDE.Graph.View.Schema
