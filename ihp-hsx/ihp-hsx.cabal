@@ -3,29 +3,32 @@ name:                ihp-hsx
 version:             0.18.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
-license:             NONE
+license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
-maintainer:          hello@digitallyinduced.com
--- copyright:
--- category:
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            HTML
 build-type:          Simple
+extra-source-files: README.md, changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
 
 library
     default-language: Haskell2010
     build-depends:
-        base
-        , classy-prelude
-        , string-conversions
-        , blaze-html
-        , blaze-markup
-        , text
-        , bytestring
-        , basic-prelude
-        , megaparsec
-        , template-haskell
-        , haskell-src-meta
-        , containers
+          base               >= 4.1 && <= 4.16
+        , blaze-html         >= 0.9.1 && < 0.10
+        , bytestring         >= 0.10.12 && < 0.11
+        , text               >= 1.2.4 && < 1.3
+        , containers         >= 0.6.5 && < 0.7
+        , template-haskell   >= 2.16.0 && < 2.17
+        , blaze-markup       >= 0.8.2 && < 0.9
+        , haskell-src-meta   >= 0.8.7 && < 0.9
+        , megaparsec         >= 9.0.1 && < 9.1
+        , string-conversions >= 0.4.0 && < 0.5
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
