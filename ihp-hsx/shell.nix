@@ -19,6 +19,7 @@ let
 
         # Development Specific Tools
         hspec
+        cabal-install
     ]);
 in
     pkgs.stdenv.mkDerivation {
