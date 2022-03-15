@@ -175,6 +175,178 @@ tests = do
                         }
 
                 SchemaOperations.suggestPolicy schema tasksTable `shouldBe` expectedPolicy
+        describe "addColumn" do
+            it "should add an index if withIndex = true" do
+                let inputSchema = [tableA]
+
+                let tableAWithCreatedAt = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "created_at"
+                                        , columnType = PTimestampWithTimezone
+                                        , defaultValue = Just (CallExpression "NOW" [])
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
+
+                let expectedSchema = [tableAWithCreatedAt, index]
+                
+                let options = SchemaOperations.AddColumnOptions
+                        { tableName = "a"
+                        , columnName = "created_at"
+                        , columnType = PTimestampWithTimezone
+                        , defaultValue = Just (CallExpression "NOW" [])
+                        , isArray = False
+                        , allowNull = False
+                        , isUnique = False
+                        , isReference = False
+                        , referenceTable = Nothing
+                        , primaryKey = False
+                        , withIndex = True
+                        }
+
+                (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
+            
+            it "should add a trigger to updated_at columns" do
+                let inputSchema = [tableA]
+
+                let tableAWithCreatedAt = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "updated_at"
+                                        , columnType = PTimestampWithTimezone
+                                        , defaultValue = Just (CallExpression "NOW" [])
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+
+                let function = CreateFunction
+                            { functionName = "set_updated_at_to_now"
+                            , functionArguments = []
+                            , functionBody = "\nBEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;\n"
+                            , orReplace = False
+                            , returns = PTrigger
+                            , language = "plpgsql"
+                            }
+                let trigger = CreateTrigger
+                            { name = "update_a_updated_at"
+                            , eventWhen = Before
+                            , event = TriggerOnUpdate
+                            , tableName = "a"
+                            , for = ForEachRow
+                            , whenCondition = Nothing
+                            , functionName = "set_updated_at_to_now"
+                            , arguments = []
+                            }
+
+                let expectedSchema = [function, tableAWithCreatedAt, trigger]
+                
+                let options = SchemaOperations.AddColumnOptions
+                        { tableName = "a"
+                        , columnName = "updated_at"
+                        , columnType = PTimestampWithTimezone
+                        , defaultValue = Just (CallExpression "NOW" [])
+                        , isArray = False
+                        , allowNull = False
+                        , isUnique = False
+                        , isReference = False
+                        , referenceTable = Nothing
+                        , primaryKey = False
+                        , withIndex = False
+                        }
+
+                (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
+
+        describe "deleteColumn" do
+            it "should delete an referenced index" do
+                let tableAWithCreatedAt = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "created_at"
+                                        , columnType = PTimestampWithTimezone
+                                        , defaultValue = Just (CallExpression "NOW" [])
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
+
+                let inputSchema = [tableAWithCreatedAt, index]
+                let expectedSchema = [tableA]
+                
+                let options = SchemaOperations.DeleteColumnOptions
+                        { tableName = "a"
+                        , columnName = "created_at"
+                        , columnId = 0
+                        }
+
+                (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
+            
+            it "should delete a updated_at trigger" do
+
+                let tableAWithCreatedAt = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "updated_at"
+                                        , columnType = PTimestampWithTimezone
+                                        , defaultValue = Just (CallExpression "NOW" [])
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+
+                let function = CreateFunction
+                            { functionName = "set_updated_at_to_now"
+                            , functionArguments = []
+                            , functionBody = "\nBEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;\n"
+                            , orReplace = False
+                            , returns = PTrigger
+                            , language = "plpgsql"
+                            }
+                let trigger = CreateTrigger
+                            { name = "update_a_updated_at"
+                            , eventWhen = Before
+                            , event = TriggerOnUpdate
+                            , tableName = "a"
+                            , for = ForEachRow
+                            , whenCondition = Nothing
+                            , functionName = "set_updated_at_to_now"
+                            , arguments = []
+                            }
+
+                let inputSchema = [function, tableAWithCreatedAt, trigger]
+                let expectedSchema = [function, tableA]
+                
+                let options = SchemaOperations.DeleteColumnOptions
+                        { tableName = "a"
+                        , columnName = "updated_at"
+                        , columnId = 0
+                        }
+
+                (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
 
 parseSqlStatements :: Text -> [Statement]
 parseSqlStatements sql =

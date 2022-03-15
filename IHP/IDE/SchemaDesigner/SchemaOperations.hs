@@ -405,6 +405,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
         |> (filter \case
                 AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
                 index@(CreateIndex {}) | isIndexStatementReferencingTableColumn index tableName columnName -> False
+                otherwise -> True
             )
         |> (if columnName == "updated_at"
                 then deleteTriggerIfExists (updatedAtTriggerName tableName)
