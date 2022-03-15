@@ -48,6 +48,7 @@ instance Controller ColumnsController where
                         , isReference = param "isReference"
                         , referenceTable = paramOrNothing "referenceTable"
                         , primaryKey = param "primaryKey"
+                        , withIndex = paramOrDefault False "withIndex"
                         }
                 updateSchema $ SchemaOperations.addColumn options
 
@@ -116,7 +117,7 @@ instance Controller ColumnsController where
         let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
         forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
         updateSchema (map (deleteColumnInTable tableName columnId))
-        
+
         redirectTo ShowTableAction { .. }
 
     action ToggleColumnUniqueAction { .. } = do
@@ -145,7 +146,7 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
         onDelete <- case (get #onDelete (get #constraint statement)) of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
@@ -214,7 +215,7 @@ deleteColumnInTable tableName columnId statement = statement
 
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName = filter \case
@@ -273,7 +274,7 @@ findIndicesReferencingColumn database (tableName, columnName) = database |> filt
         --
         -- An index references a table if it references the target table and one of the index expressions contains a reference to our column
         isReferenced :: Statement -> Bool
-        isReferenced CreateIndex { tableName = indexTableName, expressions } = indexTableName == tableName && expressionsReferencesColumn expressions
+        isReferenced CreateIndex { tableName = indexTableName, columns } = indexTableName == tableName && expressionsReferencesColumn (map (get #column) columns)
         isReferenced otherwise = False
 
         -- | Returns True if a list of expressions references the columnName

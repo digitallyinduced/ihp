@@ -60,7 +60,7 @@ migrationStatusOrNothing = if hasPendingMigrations
             else Nothing
     where
         (DatabaseNeedsMigration databaseNeedsMigration) = fromFrozenContext @DatabaseNeedsMigration
-        
+
         hasPendingMigrations :: Bool
         hasPendingMigrations = False
 
@@ -288,7 +288,7 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                         <input type="hidden" name="isUnique" value={inputValue False}/>
                         <input type="hidden" name="isReference" value={inputValue False}/>
                         <input type="hidden" name="withIndex" value={inputValue True}/>
-                        
+
                         <button type="submit" class="btn btn-suggested-table">
                             <table class="table table-sm mb-0">
                                 <tbody>
@@ -319,7 +319,7 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                         <input type="hidden" name="isUnique" value={inputValue False}/>
                         <input type="hidden" name="isReference" value={inputValue False}/>
                         <input type="hidden" name="withIndex" value={inputValue False}/>
-                        
+
                         <button type="submit" class="btn btn-suggested-table">
                             <table class="table table-sm mb-0">
                                 <tbody>
@@ -350,7 +350,7 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                     <input type="hidden" name="isUnique" value={inputValue False}/>
                     <input type="hidden" name="isReference" value={inputValue True}/>
                     <input type="hidden" name="referenceTable" value="users"/>
-                    
+
                     <button type="submit" class="btn btn-suggested-table">
                         <table class="table table-sm mb-0">
                             <tbody>
@@ -419,9 +419,13 @@ renderColumnIndexes tableName statements = forEach (findTableIndexes statements 
         |]
             where
                 unique = when (get #unique index) [hsx|UNIQUE|]
+                showColumnOrder columnOrder =
+                    columnOrder
+                        |> map (\case { Asc -> "ASC"; Desc -> "DESC"; NullsFirst -> "NULLS FIRST"; NullsLast -> "NULLS LAST" })
+                        |> unwords
                 expressions = index
-                    |> get #expressions
-                    |> map compileExpression
+                    |> get #columns
+                    |> map (\column -> (compileExpression $ get #column column) <> " " <> (showColumnOrder $ get #columnOrder column))
                     |> intercalate ", "
 
 
@@ -557,7 +561,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         tableStatements = statements |> filter \case
             (_, StatementCreateTable CreateTable {}) -> True
             otherwise -> False
-        
+
         enumStatements :: [(Int, Statement)]
         enumStatements = statements |> filter \case
             (_, CreateEnumType {}) -> True

@@ -1,8 +1,15 @@
-{-# LANGUAGE TemplateHaskell, UndecidableInstances, BangPatterns #-}
+{-# LANGUAGE TemplateHaskell, UndecidableInstances, BangPatterns, PackageImports, FlexibleInstances, OverloadedStrings #-}
 
+{-|
+Module: IHP.HSX.QQ
+Description: Defines the @[hsx||]@ syntax
+Copyright: (c) digitally induced GmbH, 2022
+-}
 module IHP.HSX.QQ (hsx) where
 
-import           ClassyPrelude
+import           Prelude
+import qualified Data.Text as Text
+import Data.Text (Text)
 import           IHP.HSX.Parser
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
@@ -18,6 +25,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.List (foldl')
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -77,7 +85,7 @@ compileToHaskell (CommentNode value) = [| Html5.textComment value |]
 toStringAttribute :: Attribute -> TH.ExpQ
 toStringAttribute (StaticAttribute name (TextValue value)) = do
     let nameWithSuffix = " " <> name <> "=\""
-    if null value
+    if Text.null value
         then [| \h -> h ! ((attribute (Html5.textTag name) (Html5.textTag nameWithSuffix)) mempty) |]
         else [| \h -> h ! ((attribute (Html5.textTag name) (Html5.textTag nameWithSuffix)) (Html5.preEscapedTextValue value)) |]
 

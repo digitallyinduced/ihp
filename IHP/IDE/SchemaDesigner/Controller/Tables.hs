@@ -105,6 +105,8 @@ referencingTableForeignKeyConstraints tableName statements =
                         , referenceColumn = (get #referenceColumn (get #constraint statement))
                         , onDelete = (get #onDelete (get #constraint statement))
                         }
+                , deferrable = Nothing
+                , deferrableType = Nothing
                 }
         ) statements
 

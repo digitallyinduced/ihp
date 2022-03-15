@@ -1,5 +1,6 @@
 :set prompt "\ESC[38;5;208m\STXIHP>\ESC[m\STX "
 :set -i.
+:set -iIHP/ihp-hsx
 :set -iConfig
 :set -ibuild
 :set -iIHP
