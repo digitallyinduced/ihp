@@ -70,7 +70,7 @@ addColumn options@(AddColumnOptions { .. }) =
             |> appendStatement foreignKeyConstraint
         else
             addTableOp
-            |> (if withIndex
+            . (if withIndex
                     then appendStatement index
                     else \schema -> schema)
 
