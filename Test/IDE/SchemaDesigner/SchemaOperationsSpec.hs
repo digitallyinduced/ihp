@@ -210,6 +210,7 @@ tests = do
                         , referenceTable = Nothing
                         , primaryKey = False
                         , withIndex = True
+                        , autoPolicy = False
                         }
 
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
@@ -266,6 +267,68 @@ tests = do
                         , referenceTable = Nothing
                         , primaryKey = False
                         , withIndex = False
+                        , autoPolicy = False
+                        }
+
+                (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
+            
+            it "should add a policy if autoPolicy = true" do
+                let inputSchema = [tableA]
+
+                let tableAWithCreatedAt = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "user_id"
+                                        , columnType = PUUID
+                                        , defaultValue = Nothing
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+
+                let index = CreateIndex
+                        { indexName = "a_user_id_index"
+                        , unique = False
+                        , tableName = "a"
+                        , columns = [IndexColumn { column = VarExpression "user_id", columnOrder = [] }]
+                        , whereClause = Nothing
+                        , indexType = Nothing
+                        }
+                let constraint = AddConstraint
+                        { tableName = "a"
+                        , constraint = ForeignKeyConstraint { name = Just "a_ref_user_id", columnName = "user_id", referenceTable = "users", referenceColumn = Just "id", onDelete = Just NoAction }
+                        , deferrable = Nothing
+                        , deferrableType = Nothing
+                        }
+                let enableRLS = EnableRowLevelSecurity { tableName = "a" }
+                let policy = CreatePolicy
+                        { name = "Users can manage their a"
+                        , tableName = "a"
+                        , action = Nothing
+                        , using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
+                        , check = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" []))
+                        }
+
+                let expectedSchema = [tableAWithCreatedAt, index, constraint, enableRLS, policy]
+                
+                let options = SchemaOperations.AddColumnOptions
+                        { tableName = "a"
+                        , columnName = "user_id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , isArray = False
+                        , allowNull = False
+                        , isUnique = False
+                        , isReference = True
+                        , referenceTable = Just "users"
+                        , primaryKey = False
+                        , withIndex = False
+                        , autoPolicy = True
                         }
 
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
@@ -301,7 +364,6 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
             
             it "should delete a updated_at trigger" do
-
                 let tableAWithCreatedAt = StatementCreateTable CreateTable
                             { name = "a"
                             , columns = [

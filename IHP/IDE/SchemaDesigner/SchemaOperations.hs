@@ -43,6 +43,7 @@ data AddColumnOptions = AddColumnOptions
     , referenceTable :: !(Maybe Text)
     , primaryKey :: !Bool
     , withIndex :: !Bool
+    , autoPolicy :: !Bool
     }
 addColumn :: AddColumnOptions -> Schema -> Schema
 addColumn options@(AddColumnOptions { .. }) =
@@ -62,12 +63,34 @@ addColumn options@(AddColumnOptions { .. }) =
 
         foreignKeyConstraint = newForeignKeyConstraint tableName columnName (fromJust referenceTable)
         index = newColumnIndex tableName columnName
+
+        handleAutoPolicy statements =
+            if autoPolicy
+                then
+                    let
+                        isTable (StatementCreateTable CreateTable { name }) = name == tableName
+                        isTable otherwise = False
+                        (Just table) = find isTable statements
+                        suggestedPolicy = suggestPolicy statements table
+                    in if (get #name suggestedPolicy /= "" && not (doesHaveExistingPolicies statements tableName))
+                            then
+                                statements
+                                |> enableRowLevelSecurity tableName
+                                |> addPolicy AddPolicyOptions
+                                        { tableName = tableName
+                                        , name = get #name suggestedPolicy
+                                        , using = get #using suggestedPolicy
+                                        , check = get #check suggestedPolicy
+                                        }
+                            else statements
+                else statements
     in
         if isReference then
             \statements -> statements
             |> addTableOp
             |> appendStatement index
             |> appendStatement foreignKeyConstraint
+            |> handleAutoPolicy
         else
             addTableOp
             . (if withIndex
@@ -465,3 +488,10 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             GreaterThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+
+doesHaveExistingPolicies :: [Statement] -> Text -> Bool
+doesHaveExistingPolicies statements tableName = statements
+                |> find \case
+                    CreatePolicy { tableName = tableName' } -> tableName' == tableName
+                    otherwise                               -> False
+                |> isJust

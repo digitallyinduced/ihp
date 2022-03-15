@@ -49,6 +49,7 @@ instance Controller ColumnsController where
                         , referenceTable = paramOrNothing "referenceTable"
                         , primaryKey = param "primaryKey"
                         , withIndex = paramOrDefault False "withIndex"
+                        , autoPolicy = paramOrDefault False "autoPolicy"
                         }
                 updateSchema $ SchemaOperations.addColumn options
 
