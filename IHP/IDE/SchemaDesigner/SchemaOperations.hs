@@ -42,6 +42,7 @@ data AddColumnOptions = AddColumnOptions
     , isReference :: !Bool
     , referenceTable :: !(Maybe Text)
     , primaryKey :: !Bool
+    , withIndex :: !Bool
     }
 addColumn :: AddColumnOptions -> Schema -> Schema
 addColumn options@(AddColumnOptions { .. }) =
@@ -60,15 +61,18 @@ addColumn options@(AddColumnOptions { .. }) =
         addTableOp :: Schema -> Schema = map (addColumnToTable tableName column primaryKey)
 
         foreignKeyConstraint = newForeignKeyConstraint tableName columnName (fromJust referenceTable)
-        foreignKeyIndex = newForeignKeyIndex tableName columnName
+        index = newColumnIndex tableName columnName
     in
         if isReference then
             \statements -> statements
             |> addTableOp
-            |> appendStatement foreignKeyIndex
+            |> appendStatement index
             |> appendStatement foreignKeyConstraint
         else
             addTableOp
+            . (if withIndex
+                    then appendStatement index
+                    else \schema -> schema)
 
 newColumn :: AddColumnOptions -> Column
 newColumn AddColumnOptions { .. } = Column
@@ -95,8 +99,8 @@ newForeignKeyConstraint tableName columnName referenceTable =
     , deferrableType = Nothing
     }
 
-newForeignKeyIndex :: Text -> Text -> Statement
-newForeignKeyIndex tableName columnName =
+newColumnIndex :: Text -> Text -> Statement
+newColumnIndex tableName columnName =
     CreateIndex
     { indexName = tableName <> "_" <> columnName <> "_index"
     , unique = False
