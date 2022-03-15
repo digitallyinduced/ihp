@@ -1,3 +1,14 @@
+{-# LANGUAGE PackageImports  #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE TypeFamilies  #-}
+{-|
+Module: IHP.HSX.Parser
+Description: Parser for HSX code
+Copyright: (c) digitally induced GmbH, 2022
+-}
 module IHP.HSX.Parser
 ( parseHsx
 , Node (..)
@@ -6,7 +17,9 @@ module IHP.HSX.Parser
 , collapseSpace
 ) where
 
-import CorePrelude
+import Prelude
+import Data.Text
+import Data.Set
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Void

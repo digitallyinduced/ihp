@@ -31,11 +31,11 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
-    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, expressions :: [Expression], whereClause :: Maybe Expression, indexType :: Maybe IndexType }
+    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, columns :: [IndexColumn], whereClause :: Maybe Expression, indexType :: Maybe IndexType }
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
-    -- | CREATE OR REPLACE FUNCTION functionName() RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
@@ -248,4 +248,12 @@ data PolicyAction
     deriving (Eq, Show)
 
 data IndexType = Btree | Gin | Gist
+    deriving (Eq, Show)
+
+data IndexColumn
+    = IndexColumn { column :: Expression, columnOrder :: [IndexColumnOrder] }
+    deriving (Eq, Show)
+
+data IndexColumnOrder
+    = Asc | Desc | NullsFirst | NullsLast
     deriving (Eq, Show)

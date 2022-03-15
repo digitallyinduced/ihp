@@ -23,6 +23,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
 import Control.Monad.Combinators.Expr
+import Data.Functor
 
 schemaFilePath = "Application/Schema.sql"
 
@@ -524,10 +525,10 @@ selectExpr = do
             whereClause (Just alias)
 
     whereClause Nothing <|> explicitAs <|> implicitAs
-    
-    
-    
-    
+
+
+
+
 
 identifier :: Parser Text
 identifier = do
@@ -548,12 +549,18 @@ createIndex = do
     lexeme "ON"
     tableName <- qualifiedIdentifier
     indexType <- optional parseIndexType
-    expressions <- between (char '(' >> space) (char ')' >> space) (expression `sepBy1` (char ',' >> space))
+    columns <- between (char '(' >> space) (char ')' >> space) (parseIndexColumn `sepBy` (char ',' >> space))
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, expressions, whereClause, indexType }
+    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType }
+
+parseIndexColumn = do
+    column <- expression
+    orderOption1 <- optional $ space *> lexeme "ASC" $> Asc <|> space *> lexeme "DESC" $> Desc
+    orderOption2 <- optional $ space *> lexeme "NULLS FIRST" $> NullsFirst <|> space *> lexeme "NULLS LAST" $> NullsLast
+    pure IndexColumn { column, columnOrder = catMaybes [orderOption1, orderOption2] }
 
 parseIndexType = do
     lexeme "USING"
@@ -569,7 +576,8 @@ createFunction = do
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
     functionName <- qualifiedIdentifier
-    lexeme "()"
+    functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
+    space
     lexeme "RETURNS"
     returns <- sqlType
 
@@ -588,7 +596,13 @@ createFunction = do
             lexeme "language" <|> lexeme "LANGUAGE"
             symbol "plpgsql" <|> symbol "SQL"
     char ';'
-    pure CreateFunction { functionName, functionBody, orReplace, returns, language }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language }
+    where
+        functionArgument = do
+            argumentName <- qualifiedIdentifier
+            space
+            argumentType <- sqlType
+            pure (argumentName, argumentType)
 
 createTrigger = do
     lexeme "CREATE"
@@ -682,7 +696,7 @@ alterColumn tableName = do
                     char ';'
                     pure DropDefaultValue { tableName, columnName }
             notNull <|> defaultValue
-    
+
     let set = do
             lexeme "SET"
             let notNull = do
@@ -698,9 +712,9 @@ alterColumn tableName = do
             notNull <|> defaultValue
 
     drop <|> set
-    
 
-    
+
+
 
 enableRowLevelSecurity tableName = do
     lexeme "ENABLE"

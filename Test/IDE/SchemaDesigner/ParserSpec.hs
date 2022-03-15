@@ -19,16 +19,16 @@ tests = do
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
-        
+
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
-        
+
         it "should parse an CREATE EXTENSION without quotes" do
             parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
-        
+
         it "should parse an empty comment" do
             parseSqlStatements "--\n--" `shouldBe` [ Comment { content = "" }, Comment { content = "" } ]
 
@@ -492,7 +492,7 @@ tests = do
 
         it "should parse ALTER TYPE .. ADD VALUE .." do
             parseSql "ALTER TYPE colors ADD VALUE 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = False }
-        
+
         it "should parse ALTER TYPE .. ADD VALUE IF NOT EXISTS .." do
             parseSql "ALTER TYPE colors ADD VALUE IF NOT EXISTS 'blue';" `shouldBe` AddValueToEnumType { enumName = "colors", newValue = "blue", ifNotExists = True }
 
@@ -640,7 +640,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -650,7 +650,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gin
                     }
@@ -660,7 +660,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Btree
                     }
@@ -670,7 +670,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Just Gist
                     }
@@ -680,7 +680,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name", VarExpression "project_id"]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "user_name", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "project_id", columnOrder = [] }
+                        ]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -689,7 +692,7 @@ tests = do
                     { indexName = "users_email_index"
                     , unique = False
                     , tableName = "users"
-                    , expressions = [CallExpression "LOWER" [VarExpression "email"]]
+                    , columns = [IndexColumn { column = CallExpression "LOWER" [VarExpression "email"], columnOrder = [] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -698,7 +701,27 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , expressions = [VarExpression "user_name"]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+
+        it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name ASC NULLS FIRST);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+
+        it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name DESC NULLS LAST);\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -706,6 +729,7 @@ tests = do
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
+                    , functionArguments = []
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
                     , returns = PTrigger
@@ -715,11 +739,23 @@ tests = do
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"
+                    , functionArguments = []
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
                     }
+
+        it "should parse a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
+            parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection(param1 INT, param2 TEXT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
+                    { functionName = "notify_did_insert_webrtc_connection"
+                    , functionArguments = [("param1", PInt), ("param2", PText)]
+                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    }
+
         it "should parse CREATE FUNCTION statements that are outputted by pg_dump" do
             let sql = cs [plain|
 CREATE FUNCTION public.notify_did_change_projects() RETURNS trigger
@@ -731,6 +767,7 @@ $$;
             |]
             parseSql sql `shouldBe` CreateFunction
                     { functionName = "notify_did_change_projects"
+                    , functionArguments = []
                     , functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
                     , orReplace = False
                     , returns = PTrigger
@@ -756,7 +793,10 @@ $$;
                     { indexName = "unique_source_id"
                     , unique = True
                     , tableName = "listings"
-                    , expressions = [ VarExpression "source", VarExpression "source_id" ]
+                    , columns =
+                        [ IndexColumn { column = VarExpression "source", columnOrder = [] }
+                        , IndexColumn { column = VarExpression "source_id", columnOrder = [] }
+                        ]
                     , whereClause = Just (
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
@@ -788,13 +828,13 @@ $$;
 
         it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
             parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
-        
+
         it "should parse 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
             parseSql "ALTER TABLE users RENAME COLUMN name TO full_name;" `shouldBe` RenameColumn { tableName = "users", from = "name", to = "full_name" }
-        
+
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
-        
+
         it "should parse 'DROP TYPE ..' statements" do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 
@@ -803,10 +843,10 @@ $$;
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
             parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
-        
+
         it "should parse 'CREATE SEQUENCE ..' statements with qualified name" do
             parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a" }
-        
+
         it "should parse 'CREATE SEQUENCE .. AS .. START WITH .. INCREMENT BY .. NO MINVALUE NO MAXVALUE CACHE ..;'" do
             let sql = [trimming|
                 CREATE SEQUENCE public.a
@@ -857,7 +897,7 @@ $$;
                     , constraints = []
                     }
             parseSql sql `shouldBe` statement
-        
+
         it "should parse empty binary strings" do
             let sql = cs [plain|
                 CREATE TABLE a (
@@ -941,13 +981,13 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
                     ]
             parseSqlStatements sql `shouldBe` statements
-        
+
         it "should parse 'DROP INDEX ..' statements" do
             parseSql "DROP INDEX a;" `shouldBe` DropIndex { indexName = "a" }
-        
+
         it "should parse 'ALTER TABLE .. ALTER COLUMN .. DROP NOT NULL' statements" do
             parseSql "ALTER TABLE a ALTER COLUMN b DROP NOT NULL;" `shouldBe` DropNotNull { tableName = "a", columnName = "b" }
-        
+
         it "should parse 'ALTER TABLE .. ALTER COLUMN .. SET NOT NULL' statements" do
             parseSql "ALTER TABLE a ALTER COLUMN b SET NOT NULL;" `shouldBe` SetNotNull { tableName = "a", columnName = "b" }
 
@@ -959,7 +999,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
         it "should parse 'ALTER TABLE .. RENAME TO ..' statements" do
             parseSql "ALTER TABLE profiles RENAME TO users;" `shouldBe` RenameTable { from = "profiles", to = "users" }
-        
+
         it "should parse 'DROP POLICY .. ON ..' statements" do
             parseSql "DROP POLICY \"Users can manage their todos\" ON todos;" `shouldBe` DropPolicy { tableName = "todos", policyName = "Users can manage their todos" }
 
@@ -982,7 +1022,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
                     , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
                     }
-        
+
         it "should parse policies with an EXISTS condition and a qualified table name" do
             let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));|]
             parseSql sql `shouldBe` CreatePolicy
@@ -1026,7 +1066,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
 
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
-        
+
         it "should parse positive DoubleExpression's" do
             parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
 
@@ -1053,7 +1093,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse 'BEGIN' statements" do
             let sql = cs [plain|BEGIN;|]
             parseSql sql `shouldBe` Begin
-        
+
         it "should parse 'COMMIT' statements" do
             let sql = cs [plain|COMMIT;|]
             parseSql sql `shouldBe` Commit

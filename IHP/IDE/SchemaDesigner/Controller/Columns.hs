@@ -48,6 +48,8 @@ instance Controller ColumnsController where
                         , isReference = param "isReference"
                         , referenceTable = paramOrNothing "referenceTable"
                         , primaryKey = param "primaryKey"
+                        , withIndex = paramOrDefault False "withIndex"
+                        , autoPolicy = paramOrDefault False "autoPolicy"
                         }
                 updateSchema $ SchemaOperations.addColumn options
 
@@ -109,14 +111,15 @@ instance Controller ColumnsController where
         let tableName = param "tableName"
         let columnId = param "columnId"
         let columnName = param "columnName"
-        case findForeignKey statements tableName columnName of
-            Just AddConstraint { constraint = constraint@(ForeignKeyConstraint { name = Just constraintName }) } -> updateSchema (deleteForeignKeyConstraint constraintName)
-            otherwise -> pure ()
 
-        let indicesToDelete = findIndicesReferencingColumn statements (tableName, columnName)
-        forEach indicesToDelete \CreateIndex { indexName } -> updateSchema (deleteTableIndex indexName)
-        updateSchema (map (deleteColumnInTable tableName columnId))
-        
+        let options = SchemaOperations.DeleteColumnOptions
+                { tableName
+                , columnName
+                , columnId
+                }
+
+        updateSchema $ SchemaOperations.deleteColumn options
+
         redirectTo ShowTableAction { .. }
 
     action ToggleColumnUniqueAction { .. } = do
@@ -249,54 +252,3 @@ referencingColumnForeignKeyConstraints tableName columnName =
     find \case
         AddConstraint { tableName = constraintTable, constraint = ForeignKeyConstraint { columnName = fkColumnName  }  } -> constraintTable == tableName && fkColumnName == columnName
         otherwise -> False
-
-
--- | Returns the list of CreateIndex statements that reference a specific column
---
--- E.g. given a schema like this:
--- > CREATE TABLE users (
--- >     email TEXT NOT NULL
--- > );
--- >
--- > CREATE UNIQUE INDEX users_email_index ON users (LOWER(email));
--- >
---
--- You can find all indices to the email column of the users table like this:
---
--- >>> findIndicesReferencingColumn database ("users", "email")
--- [CreateIndex { indexName = "users_email", unique = True, tableName = "users", expressions = [CallExpression "LOWER" [VarEpression "email"]] }]
---
-findIndicesReferencingColumn :: [Statement] -> (Text, Text) -> [Statement]
-findIndicesReferencingColumn database (tableName, columnName) = database |> filter isReferenced
-    where
-        -- | Returns True if a statement is an CreateIndex statement that references our specific column
-        --
-        -- An index references a table if it references the target table and one of the index expressions contains a reference to our column
-        isReferenced :: Statement -> Bool
-        isReferenced CreateIndex { tableName = indexTableName, expressions } = indexTableName == tableName && expressionsReferencesColumn expressions
-        isReferenced otherwise = False
-
-        -- | Returns True if a list of expressions references the columnName
-        expressionsReferencesColumn :: [Expression] -> Bool
-        expressionsReferencesColumn expressions = expressions
-                |> map expressionReferencesColumn
-                |> List.or
-
-        -- | Walks the expression tree and returns True if there's a VarExpression with the column name
-        expressionReferencesColumn :: Expression -> Bool
-        expressionReferencesColumn = \case
-            TextExpression _ -> False
-            VarExpression varName -> varName == columnName
-            CallExpression _ expressions -> expressions
-                    |> map expressionReferencesColumn
-                    |> List.or
-            NotEqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            EqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            AndExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            NotExpression a -> expressionReferencesColumn a
-            OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            LessThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            GreaterThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b

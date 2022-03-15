@@ -1,10 +1,18 @@
 {-# LANGUAGE  UndecidableInstances #-}
+{-# LANGUAGE  FlexibleInstances #-}
 
+{-|
+Module: IHP.HSX.ToHtml
+Description: Provides a few helper instances that convert data structures to HTML
+Copyright: (c) digitally induced GmbH, 2022
+-}
 module IHP.HSX.ToHtml where
 
+import Prelude
 import qualified Text.Blaze.Html5 as Html5
 import qualified Text.Blaze.Internal
-import ClassyPrelude
+import Data.Text
+import Data.ByteString
 import Data.String.Conversions (cs)
 import IHP.HSX.ConvertibleStrings ()
 
