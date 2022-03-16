@@ -47,6 +47,7 @@ data DynamicSQLQuery = DynamicSQLQuery
     , selectedColumns :: SelectedColumns
     , whereCondition :: !(Maybe ConditionExpression)
     , orderByClause :: ![OrderByClause]
+    , distinctOnColumn :: !(Maybe ByteString)
     , limit :: !(Maybe Int)
     , offset :: !(Maybe Int)
     } deriving (Show, Eq)
@@ -178,6 +179,7 @@ instance FromJSON DynamicSQLQuery where
         <*> v .: "selectedColumns"
         <*> v .: "whereCondition"
         <*> v .: "orderByClause"
+        <*> v .:? "distinctOnColumn" -- distinctOnColumn can be absent in older versions of ihp-datasync.js
         <*> v .:? "limit" -- Limit can be absent in older versions of ihp-datasync.js
         <*> v .:? "offset" -- Offset can be absent in older versions of ihp-datasync.js
 
@@ -194,4 +196,3 @@ instance FromJSON OrderByClause where
                     "OrderByTSRank" -> OrderByTSRank <$> v .: "tsvector" <*> v .: "tsquery"
                     otherwise -> error ("Invalid tag: " <> otherwise)
         tagged <|> oldFormat
-
