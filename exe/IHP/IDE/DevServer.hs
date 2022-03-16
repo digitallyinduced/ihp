@@ -312,9 +312,11 @@ startAppGHCI = do
                 dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
             else dispatch ReceiveAppOutput { line = ErrorOutput line }
 
-
     -- Compile Schema before loading the app
     SchemaCompiler.compile `catch` (\(e :: SomeException) -> Log.error (tshow e))
+
+    -- Generate TypeScript Declaration before loading the app
+    TypeScript.generateDeclarations
 
     forEach loadAppCommands (sendGhciCommand process)
 
