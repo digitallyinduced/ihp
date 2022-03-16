@@ -37,7 +37,7 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-  ihpDontCheckPackages = [];
+  ihpDontCheckPackages = ["aeson-typescript"];
   ihpDoJailbreakPackages = [];
   ihpDontHaddockPackages = [];
 

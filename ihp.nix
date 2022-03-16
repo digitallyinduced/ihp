@@ -64,6 +64,7 @@
 , unagi-chan
 , with-utf8
 , ihp-hsx
+, aeson-typescript
 }:
 mkDerivation {
   pname = "ihp";
@@ -134,6 +135,7 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    aeson-typescript
   ];
   license = lib.licenses.mit;
   postInstall = ''
