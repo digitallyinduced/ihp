@@ -22,14 +22,15 @@ formattingOptions = defaultFormattingOptions
     { numIndentSpaces = 4
     }
 
-generate :: IO ()
-generate = generate' declarationsFilePath
+generateDeclarations :: IO ()
+generateDeclarations = generateDeclarations' declarationsFilePath
 
-generate' :: Text -> IO ()
-generate' filePath = do
+generateDeclarations' :: Text -> IO ()
+generateDeclarations' filePath = do
     statements <- parseSchemaFile
     let compiled = commonDeclarations <> (statements |> map compileStatement |> catMaybes)
     let formatted = formatTSDeclarations' formattingOptions compiled
+    putStrLn ("Generating " <> cs filePath)
     writeFile (cs filePath) formatted
 
 parseSchemaFile :: IO [Statement]

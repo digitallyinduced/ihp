@@ -6,9 +6,11 @@ Copyright: (c) digitally induced GmbH, 2020
 module Main where
 
 import IHP.Prelude
-import IHP.SchemaCompiler
+import qualified IHP.SchemaCompiler as Schema
+import qualified IHP.TypeDefinitions.TypeScript as TypeScript
 import Main.Utf8 (withUtf8)
 
 main :: IO ()
 main = withUtf8 do
-    compile
+    Schema.compile
+    TypeScript.generateDeclarations

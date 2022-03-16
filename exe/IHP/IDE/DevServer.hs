@@ -16,6 +16,7 @@ import IHP.IDE.LiveReloadNotificationServer
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
+import qualified IHP.TypeDefinitions.TypeScript as TypeScript
 import qualified System.Environment as Env
 import Data.String.Conversions (cs)
 import qualified IHP.LibDir as LibDir
@@ -66,11 +67,11 @@ main = withUtf8 do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) =
     case postgresState of
         PostgresStarted {} -> do
             async (updateDatabaseIsOutdated state)
-            
+
             -- If the app is already running before the postgres started up correctly,
             -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
             case appGHCIState of
@@ -166,6 +167,7 @@ handleAction state SchemaChanged = do
         SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do Log.error (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
 
     async (updateDatabaseIsOutdated state)
+    async TypeScript.generateDeclarations
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
