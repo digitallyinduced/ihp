@@ -20,7 +20,6 @@ generatedDeclarationsFilePath = "build/Generated/Types.d.ts"
 formattingOptions :: FormattingOptions
 formattingOptions = defaultFormattingOptions
     { numIndentSpaces = 4
-    , exportMode = ExportEach
     }
 
 generateTypeScriptDeclarations :: IO ()
