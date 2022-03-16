@@ -55,7 +55,7 @@ instance (
                         |> map aesonValueToPostgresValue
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
-                
+
                 result :: Either EnhancedSqlError [[Field]] <- Exception.try do
                     sqlQueryWithRLS query params
 
@@ -87,14 +87,14 @@ instance (
                                 |> HashMap.elems
                                 |> map aesonValueToPostgresValue
                             )
-                        
+
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
 
                 result :: [[Field]] <- sqlQueryWithRLS query params
                 renderJson result
 
-        
+
 
     action UpdateRecordAction { table, id } = do
         ensureRLSEnabled table
@@ -170,6 +170,7 @@ buildDynamicQueryFromRequest table = DynamicSQLQuery
     , selectedColumns = paramOrDefault SelectAll "fields"
     , whereCondition = Nothing
     , orderByClause = paramList "orderBy"
+    , distinctOnColumn = paramOrNothing "distinctOnColumn"
     , limit = paramOrNothing "limit"
     , offset = paramOrNothing "offset"
     }
@@ -220,7 +221,7 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue object@(Object values) = 
+aesonValueToPostgresValue object@(Object values) =
     let
         tryDecodeAsPoint :: Maybe Point
         tryDecodeAsPoint = do
@@ -228,10 +229,10 @@ aesonValueToPostgresValue object@(Object values) =
                 yValue <- HashMap.lookup "y" values
                 x <- case xValue of
                         Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing 
+                        otherwise -> Nothing
                 y <- case yValue of
                         Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing 
+                        otherwise -> Nothing
                 pure Point { x, y }
     in
         -- This is really hacky and is mostly duck typing. We should refactor this in the future to

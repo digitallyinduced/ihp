@@ -19,6 +19,7 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Nothing
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
@@ -27,12 +28,13 @@ tests = do
                         ( "SELECT ? FROM ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts"]
                         )
-            
+
             it "compile a select query with order by" do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
                         , whereCondition = Nothing
+                        , distinctOnColumn = Nothing
                         , orderByClause = [OrderByClause { orderByColumn = "title", orderByDirection = Desc }]
                         , limit = Nothing
                         , offset = Nothing
@@ -42,7 +44,7 @@ tests = do
                         ( "SELECT ? FROM ? ORDER BY ? ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "title", PG.Plain "DESC"]
                         )
-            
+
             it "compile a select query with multiple order bys" do
                 let query = DynamicSQLQuery
                         { table = "posts"
@@ -52,6 +54,7 @@ tests = do
                             OrderByClause { orderByColumn = "createdAt", orderByDirection = Desc },
                             OrderByClause { orderByColumn = "title", orderByDirection = Asc }
                         ]
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
@@ -60,13 +63,14 @@ tests = do
                         ( "SELECT ? FROM ? ORDER BY ? ?, ? ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "created_at", PG.Plain "DESC", PG.EscapeIdentifier "title", PG.Plain ""]
                         )
-            
+
             it "compile a basic select query with a where condition" do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
@@ -82,6 +86,7 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = [ OrderByClause { orderByColumn = "createdAt", orderByDirection = Desc } ]
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
@@ -96,6 +101,7 @@ tests = do
                         { table = "posts"
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , distinctOnColumn = Nothing
                         , orderByClause = []
                         , limit = Just 50
                         , offset = Nothing
@@ -112,6 +118,7 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Just 50
                         }
@@ -127,25 +134,27 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Just 25
                         , offset = Just 50
                         }
-                
+
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ? OFFSET ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "25", PG.Plain "50"]
                         )
-            
+
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual NullExpression
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
-                
+
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) IS NULL"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
@@ -157,10 +166,11 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual NullExpression
                         , orderByClause = []
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
-                
+
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) IS NOT NULL"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
@@ -172,11 +182,28 @@ tests = do
                         , selectedColumns = SelectAll
                         , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "ts") OpTSMatch (CallExpression { functionCall = ToTSQuery { text = "test" }})
                         , orderByClause = [ OrderByTSRank { tsvector = "ts", tsquery = "test" } ]
+                        , distinctOnColumn = Nothing
                         , limit = Nothing
                         , offset = Nothing
                         }
-                
+
                 compileQuery query `shouldBe`
                         ( "SELECT ? FROM ? WHERE (?) @@ (to_tsquery('english', ?)) ORDER BY ts_rank(?, to_tsquery('english', ?))"
                         , [PG.Plain "*", PG.EscapeIdentifier "products", PG.EscapeIdentifier "ts", PG.Escape "test", PG.EscapeIdentifier "ts", PG.Escape "test"]
+                        )
+
+            it "compile a basic select query with distinctOn" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Nothing
+                        , orderByClause = []
+                        , distinctOnColumn = Just "groupId"
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT DISTINCT ON (?) ? FROM ?"
+                        , [PG.EscapeIdentifier "group_id", PG.Plain "*", PG.EscapeIdentifier "posts"]
                         )
