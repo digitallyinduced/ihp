@@ -104,6 +104,7 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
+            , jwt
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

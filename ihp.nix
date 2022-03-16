@@ -65,6 +65,7 @@
 , with-utf8
 , nodejs
 , ihp-hsx
+, jwt
 }:
 mkDerivation {
   pname = "ihp";
@@ -135,6 +136,7 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    jwt
   ];
   license = lib.licenses.mit;
   preBuild = ''
