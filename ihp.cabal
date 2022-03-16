@@ -382,7 +382,7 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
-        , IHP.TypeScript
+        , IHP.TypeDefinitions.TypeScript
 
 executable RunDevServer
     import: shared-properties

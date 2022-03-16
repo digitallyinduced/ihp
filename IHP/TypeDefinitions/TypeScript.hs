@@ -1,4 +1,4 @@
-module IHP.TypeScript where
+module IHP.TypeDefinitions.TypeScript where
 
 import Data.Aeson.TypeScript.Internal
 import Data.Aeson.TypeScript.Recursive
@@ -14,19 +14,19 @@ import qualified System.Directory as Directory
 import System.IO (writeFile)
 import qualified Text.Inflections as Inflector
 
-generatedDeclarationsFilePath :: Text
-generatedDeclarationsFilePath = "build/Generated/Types.d.ts"
+declarationsFilePath :: Text
+declarationsFilePath = "build/Generated/Types.d.ts"
 
 formattingOptions :: FormattingOptions
 formattingOptions = defaultFormattingOptions
     { numIndentSpaces = 4
     }
 
-generateTypeScriptDeclarations :: IO ()
-generateTypeScriptDeclarations = generateTypeScriptDeclarations' generatedDeclarationsFilePath
+generate :: IO ()
+generate = generate' declarationsFilePath
 
-generateTypeScriptDeclarations' :: Text -> IO ()
-generateTypeScriptDeclarations' filePath = do
+generate' :: Text -> IO ()
+generate' filePath = do
     statements <- parseSchemaFile
     let compiled = commonDeclarations <> (statements |> map compileStatement |> catMaybes)
     let formatted = formatTSDeclarations' formattingOptions compiled
