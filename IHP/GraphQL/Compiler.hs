@@ -16,13 +16,13 @@ data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
 compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) = 
     case definition of
-        ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
+        ExecutableDefinition { operation = OperationDefinition { operationType } } | operationType == Query || operationType == Subscription ->
             [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition document definition arguments <> ") AS _root") ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
 
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
-compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
+compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType, selectionSet } } variables | operationType == Query || operationType == Subscription =
     selectionSet
     |> map (compileSelection document variables)
     |> unionAll

@@ -5,6 +5,7 @@ module IHP.DataSync.RowLevelSecurity
 , makeCachedEnsureRLSEnabled
 , sqlQueryWithRLS
 , sqlExecWithRLS
+, sqlQueryWithRLS'
 )
 where
 
@@ -33,10 +34,20 @@ sqlQueryWithRLS ::
     , PG.ToField userId
     , FromRow result
     ) => PG.Query -> parameters -> IO [result]
-sqlQueryWithRLS query parameters = sqlQuery queryWithRLS parametersWithRLS
-    where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+sqlQueryWithRLS query parameters = sqlQueryWithRLS' (get #id <$> currentUserOrNothing) query parameters
 {-# INLINE sqlQueryWithRLS #-}
+
+sqlQueryWithRLS' ::
+    ( ?modelContext :: ModelContext
+    , PG.ToRow parameters
+    , PG.ToField userId
+    , FromRow result
+    , ?context :: ControllerContext
+    ) => Maybe userId -> PG.Query -> parameters -> IO [result]
+sqlQueryWithRLS' userId query parameters = sqlQuery queryWithRLS parametersWithRLS
+    where
+        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS userId query parameters
+{-# INLINE sqlQueryWithRLS' #-}
 
 sqlExecWithRLS ::
     ( ?modelContext :: ModelContext
@@ -52,26 +63,18 @@ sqlExecWithRLS ::
     ) => PG.Query -> parameters -> IO Int64
 sqlExecWithRLS query parameters = sqlExec queryWithRLS parametersWithRLS
     where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS (get #id <$> currentUserOrNothing) query parameters
 {-# INLINE sqlExecWithRLS #-}
 
 wrapStatementWithRLS ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    , HasNewSessionUrl CurrentUserRecord
-    , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
-    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
-    ) => PG.Query -> parameters -> (PG.Query, [PG.Action])
-wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
+    ) => Maybe userId -> PG.Query -> parameters -> (PG.Query, [PG.Action])
+wrapStatementWithRLS maybeUserId query parameters = (queryWithRLS, parametersWithRLS)
     where
         queryWithRLS = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query <> ";"
-
-        maybeUserId = get #id <$> currentUserOrNothing
 
         -- When the user is not logged in and maybeUserId is Nothing, we cannot
         -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.

@@ -233,6 +233,22 @@ tests = do
                                 }
                         ]
                         , variableDefinitions = [VariableDefinition {variableName = "user", variableType = NonNullType (NamedType "NewUser")}]}}]}
+        
+        it "should parse a subscription" do
+            parseGQL "subscription { users { id } }"  `shouldBe` Document
+                    { definitions =
+                        [ ExecutableDefinition
+                            { operation = OperationDefinition
+                                { operationType = Subscription
+                                , name = Nothing
+                                , variableDefinitions = []
+                                , selectionSet = [
+                                    (field "users") { selectionSet = [ field "id" ] }
+                                ] }
+                            }
+                        ]
+                    }
+
 
         describe "parseName" do
             it "should accept letters" do

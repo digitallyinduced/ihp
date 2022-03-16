@@ -126,3 +126,48 @@ extractRecordById id result =
             |> Vector.toList
             |> mapMaybe (extractRecordById id)
             |> headMay
+
+isSubscriptionDocument :: Document -> Bool
+isSubscriptionDocument Document { definitions } = foldl' (&&) True (map isSubscriptionDefinition definitions)
+    where
+        isSubscriptionDefinition ExecutableDefinition { operation = OperationDefinition { operationType } } = operationType == Subscription
+
+newtype Path = Path [Text]
+    deriving (Eq, Show)
+
+nodePathsForTable :: Text -> Document -> [Path]
+nodePathsForTable tableName Document { definitions } = reversePath <$> mconcat (map nodePathsForTableDefinition definitions)
+    where
+        -- e.g. "users" or "userProjects"
+        targetSelectionName = lcfirst $ tableNameToControllerName tableName
+
+        reversePath :: Path -> Path
+        reversePath (Path path) = (Path (reverse path))
+
+        nodePathsForTableDefinition :: Definition -> [Path]
+        nodePathsForTableDefinition ExecutableDefinition { operation } = nodePathsForTableOperation operation
+    
+        nodePathsForTableOperation :: OperationDefinition -> [Path]
+        nodePathsForTableOperation OperationDefinition { selectionSet } = nodePathsForTableSelectionSet [] selectionSet
+
+        nodePathsForTableSelectionSet :: [Text] -> [Selection] -> [Path]
+        nodePathsForTableSelectionSet path selectionSet = mconcat (map (nodePathsForTableSelection path) selectionSet)
+
+        nodePathsForTableSelection :: [Text] -> Selection -> [Path]
+        nodePathsForTableSelection path Field { selectionSet = [] } = []
+        nodePathsForTableSelection path Field { name, alias, selectionSet } =
+            let
+                nameOrAlias = (fromMaybe name alias)
+                cur = Path (nameOrAlias:path)
+                rec = nodePathsForTableSelectionSet (nameOrAlias:path) selectionSet
+            in
+                if name == targetSelectionName
+                    then cur:rec
+                    else rec
+
+applyFunctionAtNode :: (Aeson.Value -> Aeson.Value) -> Path -> Aeson.Value -> Aeson.Value
+applyFunctionAtNode function (Path path) json = applyFunctionAtNode' function path json
+    where
+        applyFunctionAtNode' function [] value = function value
+        applyFunctionAtNode' function (curPath:restPath) (Aeson.Object hashMap) = Aeson.Object (HashMap.adjust (applyFunctionAtNode' function restPath) curPath hashMap)
+        applyFunctionAtNode' function path (Aeson.Array vector) = Aeson.Array (Vector.map (applyFunctionAtNode' function path) vector)
