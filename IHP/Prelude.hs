@@ -61,7 +61,7 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import Data.Time.LocalTime
 import Data.Text (words, unwords, lines, unlines, intersperse, intercalate, toLower, toUpper, isInfixOf, isSuffixOf, isPrefixOf, splitAt)
-import qualified Data.String.Interpolate
+import qualified "interpolate" Data.String.Interpolate
 import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
