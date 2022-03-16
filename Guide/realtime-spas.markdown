@@ -689,7 +689,7 @@ const todos = await query('todos')
         .where('id', 'd94173ec-1d91-421e-8fdc-20a3161b7802')
         .or(where('id', '173ecd94-911d-1e42-dc8f-1b780320a316'))
         .fetch()
-	
+
 // SQL:
 // SELECT * FROM todos
 // WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
@@ -711,7 +711,7 @@ const todos = await query('todos')
             )
         )
         .fetch()
-	
+
 // SQL:
 // SELECT * FROM todos
 // WHERE id = 'd94173ec-1d91-421e-8fdc-20a3161b7802'
@@ -754,7 +754,7 @@ const todos = await query('todos')
             )
         )
         .fetch()
-	
+
 // SQL:
 // SELECT * FROM todos
 // WHERE user_id = '173ecd94-911d-1e42-dc8f-1b780320a316'
@@ -789,6 +789,17 @@ const latestTodos = await query('todos')
 const oldestTodos = await query('todos')
         .orderBy('createdAt') // 'orderBy' is an alias for 'orderByAsc'
         .fetchOne();
+````
+
+
+#### Unique/Distinct
+
+Use `distinctOn`, to get a unique result:
+
+```javascript
+const userTodos = await query('todos')
+        .distinctOn('userId')
+        .fetch();
 ````
 
 ### Create Record
