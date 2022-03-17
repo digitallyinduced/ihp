@@ -13,9 +13,9 @@ module IHP.RouterPrelude
 )
 where
 
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, takeByteString)
+import Data.Attoparsec.ByteString.Char8
 import IHP.RouterSupport
-import ClassyPrelude hiding (index, delete, show, take)
+import ClassyPrelude hiding (index, delete, show, take, takeWhile, try)
 import Data.String.Conversions (cs)
 import IHP.ModelSupport (Id, Id' (..))
 import Network.HTTP.Types.Method (StdMethod (..))
