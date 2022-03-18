@@ -255,6 +255,18 @@ instance HasPath PostsController where
     pathTo ShowPostAction { postId = Nothing, slug = Just slug } = "/posts/" <> slug
 ```
 
+### Helper Functions
+
+The [`IHP.RouterSupport`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html) module includes helpers functions such as:
+
+-   [`parseUUID`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseUUID) to parse and return an UUID
+
+-   [`parseId`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseId) to parse an UUID, afterwards wraps it in an Id
+
+-   [`parseText`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseText) to parse until the next `/` character
+
+-   [`routeParam`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:routeParam) to parse route query parameters
+
 ### Real-World Example
 
 Here is a real world example of a custom routing implementation for a custom Apple Web Service interface implemented at digitally induced:
