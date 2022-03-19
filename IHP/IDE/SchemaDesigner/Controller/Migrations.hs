@@ -63,7 +63,18 @@ instance Controller MigrationsController where
                 setSuccessMessage ("Migration generated: " <> path)
                 openEditor path 0 0
             else do
-                migrateAppDB revision
+                result <- Exception.try (migrateAppDB revision)
+                case result of
+                    Left (exception :: SomeException) -> do
+                        let errorMessage = case fromException exception of
+                                Just (exception :: EnhancedSqlError) -> cs $ get #sqlErrorMsg (get #sqlError exception)
+                                Nothing -> tshow exception
+                        
+                        setErrorMessage errorMessage
+                        redirectTo MigrationsAction
+                    Right _ -> do
+                        clearDatabaseNeedsMigration
+                        redirectTo MigrationsAction
 
         clearDatabaseNeedsMigration
 
