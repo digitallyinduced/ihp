@@ -45,14 +45,14 @@ instance Controller MigrationsController where
 
     action NewMigrationAction = do
         let description = paramOrDefault "" "description"
-        (_, plan) <- MigrationGenerator.buildPlan description Nothing
+        (_, plan) <- MigrationGenerator.buildPlan theDatabaseUrl description Nothing
         let runMigration = paramOrDefault True "runMigration"
         render NewView { .. }
 
     action CreateMigrationAction = do
         let description = paramOrDefault "" "description"
         let sqlStatements = paramOrNothing "sqlStatements"
-        (revision, plan) <- MigrationGenerator.buildPlan description sqlStatements
+        (revision, plan) <- MigrationGenerator.buildPlan theDatabaseUrl description sqlStatements
         let path = MigrationGenerator.migrationPathFromPlan plan
 
         executePlan plan
@@ -154,3 +154,9 @@ withAppModelContext inner =
 
         cleanupModelContext (frameworkConfig, logger, modelContext) = do
             logger |> cleanup
+
+theDatabaseUrl :: (?context :: ControllerContext) => ByteString
+theDatabaseUrl =
+    ?context
+    |> getFrameworkConfig
+    |> get #databaseUrl
