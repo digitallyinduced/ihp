@@ -81,10 +81,23 @@ function App({ schema }) {
 
 $(document).on('ready turbolinks:load', function () {
     const root = document.getElementById('graph-explorer-root');
+    if (!root) {
+        return;
+    }
+
     const schema = buildASTSchema(parse(root.dataset.schema));
-    console.log('Schema', schema)
 
     var port = (parseInt(document.location.port, 10) || 8000) - 1;
     initIHPBackend({ host: 'http://localhost:' + port });
+
     ReactDOM.render(<App schema={schema}/>, root);
+});
+
+$(document).on('turbolinks:before-render', function () {
+    const root = document.getElementById('graph-explorer-root');
+    if (!root) {
+        return;
+    }
+    
+    ReactDOM.unmountComponentAtNode(root);
 });
