@@ -3,9 +3,10 @@ import * as ReactDOM from 'react-dom'
 
 import { initIHPBackend, DataSyncController } from './../../../DataSync/index.js';
 import { query } from './../../../DataSync/graphql.js';
-import "./solarized.css";
+
 import "./graph.css";
 import "graphiql/graphiql.css";
+import "./solarized.css";
 import GraphiQL from "graphiql";
 import { parse, buildASTSchema } from "graphql";
 import GraphiQLExplorer from "graphiql-explorer";
