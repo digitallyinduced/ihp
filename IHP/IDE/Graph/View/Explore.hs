@@ -13,6 +13,8 @@ data ExploreView
 
 instance View ExploreView where
     html ExploreView { .. } = [hsx|
-        {headerNav}
-        <div id="graph-explorer-root" class="h-100" data-schema={GraphQL.toText schema}/>
+        <div class="d-flex flex-column h-100 w-100">
+            {headerNav}
+            <div id="graph-explorer-root" class="w-100 flex-grow-1" data-schema={GraphQL.toText schema}/>
+        </div>
     |]
