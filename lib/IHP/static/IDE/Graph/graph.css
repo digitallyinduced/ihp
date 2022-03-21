@@ -155,3 +155,15 @@
 .graphiql-explorer-root {
     font-family: Inter !important;
 }
+
+#user-selector {
+    position: absolute;
+    z-index: 1000;
+    margin-top: 12px;
+    min-width: 300px;
+}
+
+.toolbar-button {
+    text-overflow: ellipsis;
+    overflow: hidden; 
+}

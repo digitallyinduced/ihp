@@ -119,6 +119,8 @@ data MigrationsController
 data GraphController
     = ExploreAction
     | SchemaAction
+    | GraphUsersAction
+    | GetJWTForUserId { userId :: !UUID }
     deriving (Eq, Show, Data)
 
 data DynamicField = DynamicField
