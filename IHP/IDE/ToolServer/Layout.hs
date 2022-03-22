@@ -101,28 +101,25 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                 data-container="body"
                 data-toggle="popover"
                 data-placement="right"
-                data-title="Questions, or need help with Haskell type errors?"
+                data-title="Questions, or need help with GraphQL errors?"
                 data-trigger="focus"
                 id="nav-help"
             >
                 {helpIcon}
             </a>
             <div id="help-content" style="display: none">
-                <a class="btn btn-primary btn-block mb-1" href="https://github.com/digitallyinduced/ihp/discussions" target="_blank">
+                <a class="btn btn-dark btn-block mb-1" href="https://github.com/digitallyinduced/thin-backend/discussions" target="_blank">
                     → GitHub Discussions
-                </a>
-                <a class="btn btn-light border btn-block mb-1" href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">
-                    → StackOverflow
                 </a>
 
                 <p class="text-muted text-center">
                     <small>
-                        IHP Version: {Version.ihpVersion}
+                        Thin Version: {Version.ihpVersion}
                     </small>
                 </p>
 
                 <p class="text-muted email-support">
-                    If you're using <a href="https://ihp.digitallyinduced.com/Pricing" target="_blank">IHP Business</a>, you can also <a href="mailto:support@digitallyinduced.com">reach out to the digitally induced email support</a>.
+                    If you have a Support Subscription, you can also <a href="mailto:support@digitallyinduced.com">reach out to the digitally induced email support</a>.
                 </p>
             </div>
         |]

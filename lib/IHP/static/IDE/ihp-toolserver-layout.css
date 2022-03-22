@@ -352,3 +352,17 @@ a, a:hover {
 .btn-secondary:not(:disabled):not(.disabled).active, .btn-secondary:not(:disabled):not(.disabled):active, .show>.btn-secondary.dropdown-toggle {
     background-color: hsl(175deg 59% 33%);   
 }
+
+.popover {
+    background-color: #0A4151;
+    border: 2px solid #0B5163;
+}
+
+.popover p a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.bs-popover-auto[x-placement^=right] .arrow::after, .bs-popover-right .arrow::after {
+    border-right-color: #0B5163;
+}
