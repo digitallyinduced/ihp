@@ -25,6 +25,7 @@ CanRoute (..)
 , webSocketAppWithCustomPath
 , onlyAllowMethods
 , getMethod
+, routeParam
 ) where
 
 import qualified Prelude
@@ -63,6 +64,8 @@ import Data.Dynamic
 import IHP.Router.Types
 import IHP.WebSocket (WSApp)
 import GHC.TypeLits as T
+import IHP.Controller.Context
+import IHP.Controller.Param
 
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
@@ -807,6 +810,26 @@ parseIntegerId queryVal = let
     in
        rawValue >>= Just . unsafeCoerce
 
+-- | Parses and returns an integer
+-- parseRational :: (Integral a) => Parser a
+-- parseRational = Attoparsec.decimal
+
+-- | Parses a route query parameter
+--
+-- __Example:__
+--
+-- > let showPost = do
+-- >     string "/post"
+-- >     let postId = routeParam "postId"
+-- >     pure ShowPostAction { .. }
+-- Will parse the `postId` query in `/post?postId=09b545dd-9744-4ef8-87b8-8d227f4faa1e`
+--
+routeParam :: (?context::RequestContext, ParamReader paramType) => ByteString -> paramType
+routeParam paramName =
+    let requestContext = ?context
+    in
+        let ?context = FrozenControllerContext { requestContext = requestContext, customFields = mempty }
+        in param paramName
 
 -- | Display a better error when the user missed to pass an argument to an action.
 --

@@ -17,6 +17,14 @@ The parameters are: username, password, and authentication realm. The realm can 
 
 ## Introduction - Real Authentication
 
+--
+
+**[There's an IHP Casts Episode on this part of the Documentation](https://www.youtube.com/watch?v=vNaJZuVoeuc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=12)**
+
+[![](https://i.ytimg.com/vi/vNaJZuVoeuc/maxresdefault.jpg)](https://www.youtube.com/watch?v=vNaJZuVoeuc&list=PLenFm8BWuKlS0IaE31DmKB_PbkMLmwWmG&index=12)
+
+--
+
 The usual convention in IHP is to call your user record `User`. When there is an admin user, we usually call the record `Admin`. In general, the authentication can work with any kind of record. The only requirement is that it has an id field.
 
 To use the authentication module, your `users` table needs to have at least an `id`, `email`, `password_hash`, `locked_at` and `failed_login_attempts` field. Add this to `Schema.sql`:
