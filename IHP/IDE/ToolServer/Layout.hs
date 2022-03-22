@@ -14,7 +14,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
-    <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
+    <link rel="shortcut icon" type="image/x-icon" href="/icon.png"/>
     <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
     <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
     <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
@@ -54,7 +54,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
     <script src={assetPath "/IDE/Graph/public/app.js"}></script>
 
 
-    <title>IHP IDE</title>
+    <title>Thin Backend IDE</title>
 </head>
 <body class="d-flex h-100 flex-row">
     <div id="nav">
@@ -137,7 +137,7 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
         |]
 
         ihpEditionTitle = case Version.ihpEdition of
-            Version.Basic -> [hsx|IHP <br />GraphQL|]
+            Version.Basic -> [hsx|Thin Backend|]
             Version.Pro -> [hsx|IHP Pro|]
             Version.Business -> [hsx|IHP <br />Business|]
             Version.Enterprise -> [hsx|IHP <br />Enterprise|]
