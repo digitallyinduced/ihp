@@ -24,7 +24,7 @@ body, .modal-content {
     font-size: 10px;
     display: flex;
     flex-direction: column;
-    padding-bottom: 1rem;
+    padding-bottom: 0.5rem;
     border-right: 1px solid #0A4151;
 }
 
@@ -82,7 +82,8 @@ body, .modal-content {
     opacity: 0.5;
     color: hsla(196, 13%, 80%, 1);
     text-decoration: none !important;
-    margin-top: 1rem;
+    margin-top: auto;
+    margin-bottom: 0;
 }
 
 .nav-user {
