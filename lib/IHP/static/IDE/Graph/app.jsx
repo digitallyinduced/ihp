@@ -65,15 +65,15 @@ function App({ schema }) {
                 atom: '#CA9800',
             }}
             checkboxChecked={
-                <div class="custom-control custom-checkbox">
-                    <input id="allowNull" type="checkbox" class="mr-1 custom-control-input" checked/>
-                    <label class="custom-control-label"></label>
+                <div className="custom-control custom-checkbox">
+                    <input id="allowNull" type="checkbox" className="mr-1 custom-control-input" checked={true} onChange={() => null}/>
+                    <label className="custom-control-label"></label>
                 </div>
             }
             checkboxUnchecked={
-                <div class="custom-control custom-checkbox">
-                    <input id="allowNull" type="checkbox" class="mr-1 custom-control-input"/>
-                    <label class="custom-control-label"></label>
+                <div className="custom-control custom-checkbox">
+                    <input id="allowNull" type="checkbox" className="mr-1 custom-control-input" checked={false} onChange={() => null}/>
+                    <label className="custom-control-label"></label>
                 </div>
             }
         />
@@ -141,8 +141,8 @@ function UserSelector({ setHeaders }) {
         return options;
     }
 
-    return <div class="">
-        <button class="toolbar-button" onClick={() => setOpen(!isOpen)}>Auth: {user ? user.email : 'none'}</button>
+    return <div>
+        <button className="toolbar-button" onClick={() => setOpen(!isOpen)}>Auth: {user ? user.email : 'none'}</button>
         {isOpen && <div id="user-selector">
             <AsyncSelect
                 cacheOptions
