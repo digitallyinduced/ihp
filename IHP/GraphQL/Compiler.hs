@@ -17,30 +17,42 @@ compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
 compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) = 
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType } } | operationType == Query || operationType == Subscription ->
-            [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition document definition arguments <> ") AS _root") ]
+            [ unpackQueryPart (compileDefinition document definition arguments) ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
 
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
 compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType, selectionSet } } variables | operationType == Query || operationType == Subscription =
-    selectionSet
-    |> map (compileSelection document variables)
-    |> unionAll
+    "SELECT json_build_object(" <> commaSep aggregations <> ")"
+    <> " FROM "
+    <> commaSep selects
+    where
+        (selects, aggregations) = unzip $ map (compileSelection document variables) selectionSet
 
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
 compileMutationDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
     selectionSet
     |> map (compileMutationSelection arguments)
 
-compileSelection :: Document -> [Argument] -> Selection -> QueryPart
+compileSelection :: Document -> [Argument] -> Selection -> (QueryPart, QueryPart)
 compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
-        ("(SELECT json_build_object(?, COALESCE(json_agg(?.*), '[]')) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
-        <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
-        <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
-        <> joins
-        <> where_
-        <> (") AS ?)" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
+        (query, aggregation)
     where
+        query =
+            "(SELECT "
+            <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
+            <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
+            <> joins
+            <> where_
+            <> (") AS ?" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
+
+        -- | Builds a tuple as used in `json_build_object('users', json_agg(_users), 'tasks', json_agg(_tasks))`
+        aggregation = (
+                if isSingleResult
+                    then "?, ?"
+                    else "?, json_agg(?)") |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]
+        isSingleResult = isJust idArgument
+
         subqueryId = "_" <> fieldName
         nameOrAlias = fromMaybe fieldName alias
 
