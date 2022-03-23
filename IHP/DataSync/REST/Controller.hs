@@ -154,7 +154,7 @@ instance (
 
         renderJson result
 
-    action GraphQLQueryAction = do
+    action GraphQLQueryAction = handleGraphQLError do
         graphQLRequest :: GraphQL.GraphQLRequest <- case fromJSON requestBodyJSON of
                 Error errorMessage -> error (cs errorMessage)
                 Data.Aeson.Success value -> pure value
@@ -254,3 +254,12 @@ instance ToJSON GraphQLResult where
 instance ToJSON UndecodedJSON where
     toJSON (UndecodedJSON _) = error "Not implemented"
     toEncoding (UndecodedJSON json) = Aeson.unsafeToEncoding (ByteString.byteString json)
+
+handleGraphQLError runGraphQLHandler = do
+    result <- Exception.try runGraphQLHandler
+    case result of
+        Left (exception :: SomeException) ->
+            case Exception.fromException exception of
+                Just (exception :: EnhancedSqlError) -> renderJson GraphQL.GraphQLErrorResponse { errors = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
+                Nothing -> renderJson GraphQL.GraphQLErrorResponse { errors = [ tshow exception ] }
+        Right _ -> pure ()

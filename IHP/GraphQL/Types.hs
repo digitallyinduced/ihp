@@ -8,6 +8,20 @@ data GraphQLRequest = GraphQLRequest
     , variables :: !Variables
     }
 
+-- An error response that renders to JSON like this:
+--
+-- > {
+-- >   "data": null,
+-- >   "errors": [
+-- >     { "message": "error 1" }
+-- >   ]
+-- > }
+--
+-- We don't support partial responses, so @data@ will always be @null@ in an error case
+data GraphQLErrorResponse = GraphQLErrorResponse
+    { errors :: ![Text]
+    }
+
 -- https://spec.graphql.org/June2018/#sec-Appendix-Grammar-Summary.Document
 
 newtype Document = Document { definitions :: [Definition] }
