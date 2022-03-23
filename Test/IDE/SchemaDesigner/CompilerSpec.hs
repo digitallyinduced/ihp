@@ -814,6 +814,26 @@ tests = do
                         )
                     }
             compileSql [policy] `shouldBe` sql
+        
+        it "should compile 'CREATE POLICY' statements with a 'ihp_user_id() IS NOT NULL' expression" do
+            -- https://github.com/digitallyinduced/ihp/issues/1412
+            let sql = "CREATE POLICY \"Users can manage tasks if logged in\" ON tasks USING (ihp_user_id() IS NOT NULL) WITH CHECK (ihp_user_id() IS NOT NULL);\n"
+            let policy = CreatePolicy
+                    { name = "Users can manage tasks if logged in"
+                    , action = Nothing
+                    , tableName = "tasks"
+                    , using = Just (
+                        IsExpression
+                            (CallExpression "ihp_user_id" [])
+                            (NotExpression (VarExpression "NULL"))
+                        )
+                    , check = Just (
+                        IsExpression
+                            (CallExpression "ihp_user_id" [])
+                            (NotExpression (VarExpression "NULL"))
+                        )
+                    }
+            compileSql [policy] `shouldBe` sql
 
         it "should compile 'CREATE POLICY .. FOR SELECT' statements" do
             let sql = "CREATE POLICY \"Messages are public\" ON messages FOR SELECT USING (true);\n"

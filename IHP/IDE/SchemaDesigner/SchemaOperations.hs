@@ -43,6 +43,7 @@ data AddColumnOptions = AddColumnOptions
     , referenceTable :: !(Maybe Text)
     , primaryKey :: !Bool
     , withIndex :: !Bool
+    , autoPolicy :: !Bool
     }
 addColumn :: AddColumnOptions -> Schema -> Schema
 addColumn options@(AddColumnOptions { .. }) =
@@ -62,17 +63,42 @@ addColumn options@(AddColumnOptions { .. }) =
 
         foreignKeyConstraint = newForeignKeyConstraint tableName columnName (fromJust referenceTable)
         index = newColumnIndex tableName columnName
+
+        handleAutoPolicy statements =
+            if autoPolicy
+                then
+                    let
+                        isTable (StatementCreateTable CreateTable { name }) = name == tableName
+                        isTable otherwise = False
+                        (Just table) = find isTable statements
+                        suggestedPolicy = suggestPolicy statements table
+                    in if (get #name suggestedPolicy /= "" && not (doesHaveExistingPolicies statements tableName))
+                            then
+                                statements
+                                |> enableRowLevelSecurity tableName
+                                |> addPolicy AddPolicyOptions
+                                        { tableName = tableName
+                                        , name = get #name suggestedPolicy
+                                        , using = get #using suggestedPolicy
+                                        , check = get #check suggestedPolicy
+                                        }
+                            else statements
+                else statements
     in
         if isReference then
             \statements -> statements
             |> addTableOp
             |> appendStatement index
             |> appendStatement foreignKeyConstraint
+            |> handleAutoPolicy
         else
             addTableOp
             . (if withIndex
                     then appendStatement index
                     else \schema -> schema)
+            . (if columnName == "updated_at"
+                then addUpdatedAtTrigger tableName
+                else \schema -> schema)
 
 newColumn :: AddColumnOptions -> Column
 newColumn AddColumnOptions { .. } = Column
@@ -333,3 +359,139 @@ deleteTable tableName statements =
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         otherwise -> True
+
+updatedAtTriggerName :: Text -> Text
+updatedAtTriggerName tableName = "update_" <> tableName <> "_updated_at"
+
+addUpdatedAtTrigger :: Text -> [Statement] -> [Statement]
+addUpdatedAtTrigger tableName schema =
+        addFunctionOperator <> schema <> [trigger]
+    where
+        trigger :: Statement
+        trigger = CreateTrigger
+            { name = updatedAtTriggerName tableName
+            , eventWhen = Before
+            , event = TriggerOnUpdate
+            , tableName
+            , for = ForEachRow
+            , whenCondition = Nothing
+            , functionName = get #functionName setUpdatedAtToNowTrigger
+            , arguments = []
+            }
+
+        addFunctionOperator :: [Statement]
+        addFunctionOperator =
+            if hasFunction (get #functionName setUpdatedAtToNowTrigger)
+                then []
+                else [setUpdatedAtToNowTrigger]
+
+        hasFunction :: Text -> Bool
+        hasFunction name = schema
+                |> find \case
+                    CreateFunction { functionName = fnName } -> name == fnName
+                    otherwise -> False
+                |> isJust
+
+        setUpdatedAtToNowTrigger :: Statement
+        setUpdatedAtToNowTrigger = 
+            CreateFunction
+                { functionName = "set_updated_at_to_now"
+                , functionBody = "\n" <> [trimming|
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                |] <> "\n"
+                , functionArguments = []
+                , orReplace = False
+                , returns = PTrigger
+                , language = "plpgsql"
+                }
+
+deleteTriggerIfExists :: Text -> [Statement] -> [Statement]
+deleteTriggerIfExists triggerName statements = filter (not . isTheTriggerToBeDeleted) statements
+    where
+        isTheTriggerToBeDeleted CreateTrigger { name } = triggerName == name
+        isTheTriggerToBeDeleted _                      = False
+
+data DeleteColumnOptions
+    = DeleteColumnOptions
+    { tableName :: !Text
+    , columnName :: !Text
+    , columnId :: !Int
+    }
+
+deleteColumn :: DeleteColumnOptions -> Schema -> Schema
+deleteColumn DeleteColumnOptions { .. } schema =
+        schema
+        |> map deleteColumnInTable
+        |> (filter \case
+                AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
+                index@(CreateIndex {}) | isIndexStatementReferencingTableColumn index tableName columnName -> False
+                otherwise -> True
+            )
+        |> (if columnName == "updated_at"
+                then deleteTriggerIfExists (updatedAtTriggerName tableName)
+                else \schema -> schema
+            )
+    where
+        deleteColumnInTable :: Statement -> Statement
+        deleteColumnInTable (StatementCreateTable table@CreateTable { name, columns }) | name == tableName = StatementCreateTable $ table { columns = delete (columns !! columnId) columns}
+        deleteColumnInTable statement = statement
+
+-- | Returns True if a CreateIndex statement references a specific column
+--
+-- E.g. given a schema like this:
+-- > CREATE TABLE users (
+-- >     email TEXT NOT NULL
+-- > );
+-- >
+-- > CREATE UNIQUE INDEX users_email_index ON users (LOWER(email));
+-- >
+--
+-- You can find all indices to the email column of the users table like this:
+--
+-- >>> filter (isIndexStatementReferencingTableColumn "users" "email") database
+-- [CreateIndex { indexName = "users_email", unique = True, tableName = "users", expressions = [CallExpression "LOWER" [VarEpression "email"]] }]
+--
+isIndexStatementReferencingTableColumn :: Statement -> Text -> Text -> Bool
+isIndexStatementReferencingTableColumn statement tableName columnName = isReferenced statement
+    where
+        -- | Returns True if a statement is an CreateIndex statement that references our specific column
+        --
+        -- An index references a table if it references the target table and one of the index expressions contains a reference to our column
+        isReferenced :: Statement -> Bool
+        isReferenced CreateIndex { tableName = indexTableName, columns } = indexTableName == tableName && expressionsReferencesColumn (map (get #column) columns)
+        isReferenced otherwise = False
+
+        -- | Returns True if a list of expressions references the columnName
+        expressionsReferencesColumn :: [Expression] -> Bool
+        expressionsReferencesColumn expressions = expressions
+                |> map expressionReferencesColumn
+                |> List.or
+
+        -- | Walks the expression tree and returns True if there's a VarExpression with the column name
+        expressionReferencesColumn :: Expression -> Bool
+        expressionReferencesColumn = \case
+            TextExpression _ -> False
+            VarExpression varName -> varName == columnName
+            CallExpression _ expressions -> expressions
+                    |> map expressionReferencesColumn
+                    |> List.or
+            NotEqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            EqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            AndExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            NotExpression a -> expressionReferencesColumn a
+            OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            LessThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            GreaterThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+
+doesHaveExistingPolicies :: [Statement] -> Text -> Bool
+doesHaveExistingPolicies statements tableName = statements
+                |> find \case
+                    CreatePolicy { tableName = tableName' } -> tableName' == tableName
+                    otherwise                               -> False
+                |> isJust
