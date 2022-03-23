@@ -151,104 +151,111 @@ handleMessage userIdVar _ _ _ Ping = sendJSON Pong
 handleMessage userIdVar _ _ _ ConnectionInit { connectionInitPayload } = do
     initAuth userIdVar connectionInitPayload
     sendJSON ConnectionAck
-handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener Subscribe { id, operationName, query, variables, extensions } = do
-    let document = case AttoparsecText.parseOnly GraphQL.parseDocument query of
-            Left parserError -> error (cs $ tshow parserError)
-            Right statements -> statements
+handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener Subscribe { id, operationName, query, variables, extensions } =
+    let
+        handleEnhancedSqlError (exception :: EnhancedSqlError) = sendJSON Error { id = id, errorPayload = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
+        handleSomeException (exception :: SomeException) = sendJSON Error { id = id, errorPayload = [ tshow exception ] }
 
-    tablesRLS <- ensureRLSEnabledForGraphQLDocument ensureRLSEnabled document
+        handleError :: IO () -> IO ()
+        handleError inner = (inner `Exception.catch` handleEnhancedSqlError) `catch` handleSomeException
+    in handleError do
+        let document = case AttoparsecText.parseOnly GraphQL.parseDocument query of
+                Left parserError -> error (cs $ tshow parserError)
+                Right statements -> statements
 
-    let emptyVariables = GraphQL.Variables []
-    let [(theQuery, theParams)] = GraphQL.compileDocument (fromMaybe emptyVariables variables) document
+        tablesRLS <- ensureRLSEnabledForGraphQLDocument ensureRLSEnabled document
 
-    userId <- readIORef userIdVar
-    [PG.Only (graphQLResult :: UndecodedJSON)] <- sqlQueryWithRLS' userId theQuery theParams
+        let emptyVariables = GraphQL.Variables []
+        let [(theQuery, theParams)] = GraphQL.compileDocument (fromMaybe emptyVariables variables) document
 
-    if GraphQL.isSubscriptionDocument document
-        then do
-            ensureBelowSubscriptionsLimit
+        userId <- readIORef userIdVar
+        [PG.Only (graphQLResult :: UndecodedJSON)] <- sqlQueryWithRLS' userId theQuery theParams
 
-            let (UndecodedJSON graphQLResultText) = graphQLResult
-            let (Just decodedGraphQLResult) = Aeson.decode (cs graphQLResultText)
+        if GraphQL.isSubscriptionDocument document
+            then do
+                ensureBelowSubscriptionsLimit
 
-            -- We keep an in-memory version of the result to apply db changes to
-            graphVar <- newIORef decodedGraphQLResult
+                let (UndecodedJSON graphQLResultText) = graphQLResult
+                let (Just decodedGraphQLResult) = Aeson.decode (cs graphQLResultText)
 
-            -- We need to keep track of all the ids of entities we're watching to make
-            -- sure that we only send update notifications to clients that can actually
-            -- access the record (e.g. if a RLS policy denies access)
-            let watchedRecordIds = GraphQL.recordIds document decodedGraphQLResult
+                -- We keep an in-memory version of the result to apply db changes to
+                graphVar <- newIORef decodedGraphQLResult
 
-            -- Store it in IORef as an INSERT requires us to add an id
-            watchedRecordIdsRef <- newIORef watchedRecordIds
+                -- We need to keep track of all the ids of entities we're watching to make
+                -- sure that we only send update notifications to clients that can actually
+                -- access the record (e.g. if a RLS policy denies access)
+                let watchedRecordIds = GraphQL.recordIds document decodedGraphQLResult
 
-            -- Make sure the database triggers are there
-            forEach tablesRLS installTableChangeTriggers
-            
-            let callback table notification = case notification of
-                        ChangeNotifications.DidInsert { id } -> do
-                            -- The new record could not be accessible to the current user with a RLS policy
-                            -- E.g. it could be a new record in a 'projects' table, but the project belongs
-                            -- to a different user, and thus the current user should not be able to see it.
-                            --
-                            -- The new record could also be not part of the WHERE condition of the initial query.
-                            -- Therefore we need to use the subscriptions WHERE condition to fetch the new record here.
-                            --
-                            -- To honor the RLS policies we therefore need to fetch the record as the current user
-                            -- If the result set is empty, we know the record is not accesible to us
-                            [PG.Only (UndecodedJSON graphQLResultText)] <- sqlQueryWithRLS' userId theQuery theParams
-                            let (Just graphQLResult) = Aeson.decode (cs graphQLResultText)
+                -- Store it in IORef as an INSERT requires us to add an id
+                watchedRecordIdsRef <- newIORef watchedRecordIds
 
-                            case GraphQL.extractRecordById id graphQLResult of
-                                Just (Aeson.Object newRecord) -> do
-                                    -- Add the new record to 'watchedRecordIdsRef'
-                                    -- Otherwise the updates and deletes will not be dispatched to the client
-                                    modifyIORef' watchedRecordIdsRef (HashMap.adjust (Set.insert id) table)
+                -- Make sure the database triggers are there
+                forEach tablesRLS installTableChangeTriggers
+                
+                let callback table notification = case notification of
+                            ChangeNotifications.DidInsert { id } -> do
+                                -- The new record could not be accessible to the current user with a RLS policy
+                                -- E.g. it could be a new record in a 'projects' table, but the project belongs
+                                -- to a different user, and thus the current user should not be able to see it.
+                                --
+                                -- The new record could also be not part of the WHERE condition of the initial query.
+                                -- Therefore we need to use the subscriptions WHERE condition to fetch the new record here.
+                                --
+                                -- To honor the RLS policies we therefore need to fetch the record as the current user
+                                -- If the result set is empty, we know the record is not accesible to us
+                                [PG.Only (UndecodedJSON graphQLResultText)] <- sqlQueryWithRLS' userId theQuery theParams
+                                let (Just graphQLResult) = Aeson.decode (cs graphQLResultText)
 
-                                    modifyIORef' graphVar (GraphQL.insertRecord table id newRecord document)
+                                case GraphQL.extractRecordById id graphQLResult of
+                                    Just (Aeson.Object newRecord) -> do
+                                        -- Add the new record to 'watchedRecordIdsRef'
+                                        -- Otherwise the updates and deletes will not be dispatched to the client
+                                        modifyIORef' watchedRecordIdsRef (HashMap.adjust (Set.insert id) table)
 
-                                    nextPayload <- UndecodedJSON . cs .Aeson.encode <$> readIORef graphVar
+                                        modifyIORef' graphVar (GraphQL.insertRecord table id newRecord document)
+
+                                        nextPayload <- UndecodedJSON . cs .Aeson.encode <$> readIORef graphVar
+                                        sendJSON Next { id, nextPayload }
+                                    _ -> pure ()
+                            ChangeNotifications.DidUpdate { id, changeSet } -> do
+                                -- Only send the notifcation if the deleted record was part of the initial
+                                -- results set
+                                isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
+                                when isWatchingRecord do
+                                    let (Aeson.Object patch) = changesToValue changeSet
+                                    modifyIORef' graphVar (GraphQL.updateRecord table id patch document)
+
+                                    nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
                                     sendJSON Next { id, nextPayload }
-                                _ -> pure ()
-                        ChangeNotifications.DidUpdate { id, changeSet } -> do
-                            -- Only send the notifcation if the deleted record was part of the initial
-                            -- results set
-                            isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
-                            when isWatchingRecord do
-                                let (Aeson.Object patch) = changesToValue changeSet
-                                modifyIORef' graphVar (GraphQL.updateRecord table id patch document)
+                            ChangeNotifications.DidDelete { id } -> do
+                                -- Only send the notifcation if the deleted record was part of the initial
+                                -- results set
+                                isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
+                                when isWatchingRecord do
+                                    modifyIORef' graphVar (GraphQL.deleteRecord table id document)
+                                    nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
+                                    sendJSON Next { id, nextPayload }
 
-                                nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
-                                sendJSON Next { id, nextPayload }
-                        ChangeNotifications.DidDelete { id } -> do
-                            -- Only send the notifcation if the deleted record was part of the initial
-                            -- results set
-                            isWatchingRecord <- Set.member id . HashMap.lookupDefault Set.empty table <$> readIORef watchedRecordIdsRef
-                            when isWatchingRecord do
-                                modifyIORef' graphVar (GraphQL.deleteRecord table id document)
-                                nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
-                                sendJSON Next { id, nextPayload }
+                let startWatchers tablesRLS = case tablesRLS of
+                        (tableNameRLS:rest) -> do
+                            let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) (callback (get #tableName tableNameRLS)) pgListener
+                            let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-            let startWatchers tablesRLS = case tablesRLS of
-                    (tableNameRLS:rest) -> do
-                        let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) (callback (get #tableName tableNameRLS)) pgListener
-                        let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
+                            Exception.bracket subscribe unsubscribe (\_ -> startWatchers rest)
+                        [] -> do
+                            close <- MVar.newEmptyMVar
+                            modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert id close))
 
-                        Exception.bracket subscribe unsubscribe (\_ -> startWatchers rest)
-                    [] -> do
-                        close <- MVar.newEmptyMVar
-                        modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert id close))
+                            sendJSON Next { id, nextPayload = graphQLResult }
 
-                        sendJSON Next { id, nextPayload = graphQLResult }
+                            MVar.takeMVar close
 
-                        MVar.takeMVar close
+                startWatchers tablesRLS
+            else do
+                sendJSON Next { id, nextPayload = graphQLResult }
+                sendJSON Complete { id }
 
-            startWatchers tablesRLS
-        else do
-            sendJSON Next { id, nextPayload = graphQLResult }
-            sendJSON Complete { id }
-
-    pure ()
+        pure ()
 handleMessage _ _ _ _ message = do
     putStrLn (tshow message)
 
