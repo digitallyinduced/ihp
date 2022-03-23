@@ -154,16 +154,19 @@ instance (
 
         renderJson result
 
-    action GraphQLQueryAction = handleGraphQLError do
+    action GraphQLQueryAction = do
         graphQLRequest :: GraphQL.GraphQLRequest <- case fromJSON requestBodyJSON of
-                Error errorMessage -> error (cs errorMessage)
+                Error errorMessage -> do
+                    renderJson GraphQL.GraphQLErrorResponse { errors = [ cs errorMessage ] }
+                    pure undefined -- Unreachable
                 Data.Aeson.Success value -> pure value
 
         let [(theQuery, theParams)] = GraphQL.compileDocument (get #variables graphQLRequest) (get #query graphQLRequest)
 
-        [PG.Only graphQLResult] <- sqlQueryWithRLS theQuery theParams
-
-        renderJson (graphQLResult :: UndecodedJSON)
+        result <- handleGraphQLError (sqlQueryWithRLS theQuery theParams)
+        case result of
+            (Left error) -> renderJson error
+            (Right [PG.Only graphQLResult]) -> renderJson (graphQLResult :: UndecodedJSON)
 
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
@@ -257,9 +260,9 @@ instance ToJSON UndecodedJSON where
 
 handleGraphQLError runGraphQLHandler = do
     result <- Exception.try runGraphQLHandler
-    case result of
+    pure case result of
         Left (exception :: SomeException) ->
             case Exception.fromException exception of
-                Just (exception :: EnhancedSqlError) -> renderJson GraphQL.GraphQLErrorResponse { errors = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
-                Nothing -> renderJson GraphQL.GraphQLErrorResponse { errors = [ tshow exception ] }
-        Right _ -> pure ()
+                Just (exception :: EnhancedSqlError) -> Left GraphQL.GraphQLErrorResponse { errors = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
+                Nothing -> Left GraphQL.GraphQLErrorResponse { errors = [ tshow exception ] }
+        Right result -> Right result
