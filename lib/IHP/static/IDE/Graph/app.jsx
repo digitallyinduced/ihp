@@ -29,8 +29,16 @@ const defaultQuery = `
 }
 `;
 
+function getDefaultQuery() {
+    try {
+        return localStorage.getItem('graphiql:query') || defaultQuery;
+    } catch (e) {
+        return defaultQuery;
+    }
+}
+
 function App({ schema }) {
-    const [query, setQuery] = useState(defaultQuery);
+    const [query, setQuery] = useState(getDefaultQuery());
     const [explorerIsOpen, setExplorerOpen] = useState(true);
     const [headers, setHeaders] = useState('');
 
