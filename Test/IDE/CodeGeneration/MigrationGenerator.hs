@@ -921,6 +921,27 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should not detect changes if the LANGUAGE is in difference casing" do
+                let targetSchema = sql [trimming|
+                    CREATE FUNCTION ihp_user_id() RETURNS UUID AS $$$$
+                        SELECT NULLIF(current_setting('rls.ihp_user_id'), '')::uuid;
+                    $$$$ LANGUAGE SQL;
+                |]
+                let actualSchema = sql [trimming|
+                    --
+                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
+                    --
+
+                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
+                        LANGUAGE sql
+                        AS $$$$
+                        SELECT NULLIF(current_setting('rls.ihp_user_id'), '')::uuid;
+                    $$$$;
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

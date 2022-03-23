@@ -152,7 +152,6 @@ removeNoise = filter \case
         Comment {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } } -> False
         AddConstraint { tableName = "schema_migrations" }                                          -> False
-        CreateFunction { functionName = "ihp_user_id" }                                            -> False
         _                                                                                          -> True
 
 migrateTable :: Statement -> Statement -> [Statement]
@@ -345,7 +344,7 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, .. } ]
+normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, .. } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
