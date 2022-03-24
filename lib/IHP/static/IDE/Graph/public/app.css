@@ -143,6 +143,23 @@
   text-overflow: ellipsis;
   overflow: hidden;
 }
+.graphiql-container .search-box > input {
+  background-color: hsl(192deg 100% 17%);
+  border-radius: 9px;
+  margin-bottom: 6px;
+  color: #fff;
+}
+.graphiql-container .search-box .search-box-icon {
+  display: none;
+}
+.graphiql-container .docExplorerResizer {
+  background-color: #0A4151;
+}
+.graphiql-container .doc-type-description code,
+.graphiql-container .doc-category code {
+  background-color: rgb(131 148 150 / 30%) !important;
+  color: #859900 !important;
+}
 
 /* node_modules/graphiql/graphiql.css */
 .graphiql-container,
