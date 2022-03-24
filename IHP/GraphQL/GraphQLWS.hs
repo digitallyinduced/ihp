@@ -56,7 +56,7 @@ routeGraphQLWS ::
     , ?context :: RequestContext
     ) => Attoparsec.Parser (IO ResponseReceived)
 routeGraphQLWS = do
-    Attoparsec.string "/graphql-ws"
+    Attoparsec.string "/api/graphql-ws"
     Attoparsec.endOfInput
     
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
