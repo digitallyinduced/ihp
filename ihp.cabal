@@ -385,6 +385,8 @@ library
         , IHP.GraphQL.Analysis
         , IHP.GraphQL.Patch
         , IHP.GraphQL.GraphQLWS
+        , IHP.GraphQL.Introspection
+        , IHP.GraphQL.Resolver
         , IHP.IDE.Graph.Controller
         , IHP.IDE.Graph.View.Explore
         , IHP.IDE.Graph.View.Schema
