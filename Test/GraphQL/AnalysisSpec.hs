@@ -123,3 +123,18 @@ tests = do
                 let function (Aeson.Array _) = Aeson.Null
 
                 (applyFunctionAtNode function (Path ["a", "b"]) json) `shouldBe` output
+
+        describe "splitDocumentIntoResolvableUnits" do
+            it "should split into postgres and introspection resolvers" do
+                let document = parseGQL "{ users { id email tasks { id title } } projects { id name } __schema { queryType { name } } }"
+                let postgresDocument = parseGQL "{ users { id email tasks { id title } } projects { id name } }"
+                let introspectionDocument = parseGQL "{ __schema { queryType { name } } }"
+
+                (splitDocumentIntoResolvableUnits document) `shouldBe` [(PostgresResolver, postgresDocument), (IntrospectionResolver, introspectionDocument)]
+
+            it "should keep fragments in both output graphs" do
+                let document = parseGQL "{ users { id email tasks { id title } } projects { id name } __schema { queryType { name } } } fragment A { x }"
+                let postgresDocument = parseGQL "{ users { id email tasks { id title } } projects { id name } } fragment A { x }"
+                let introspectionDocument = parseGQL "{ __schema { queryType { name } } } fragment A { x }"
+
+                (splitDocumentIntoResolvableUnits document) `shouldBe` [(PostgresResolver, postgresDocument), (IntrospectionResolver, introspectionDocument)]

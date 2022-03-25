@@ -7,7 +7,6 @@ import IHP.IDE.SchemaDesigner.Types
 
 
 type SqlSchema = [Statement]
-type GraphQLSchema = [Definition]
 
 sqlSchemaToGraphQLSchema :: SqlSchema -> GraphQLSchema
 sqlSchemaToGraphQLSchema statements =

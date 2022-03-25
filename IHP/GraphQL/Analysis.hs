@@ -12,6 +12,7 @@ import qualified Data.Aeson.Internal as Aeson
 import Data.Aeson ((.:))
 import qualified Data.Vector as Vector
 import qualified Data.UUID as UUID
+import qualified Data.List as List
 
 type TableName = Text
 
@@ -171,3 +172,31 @@ applyFunctionAtNode function (Path path) json = applyFunctionAtNode' function pa
         applyFunctionAtNode' function [] value = function value
         applyFunctionAtNode' function (curPath:restPath) (Aeson.Object hashMap) = Aeson.Object (HashMap.adjust (applyFunctionAtNode' function restPath) curPath hashMap)
         applyFunctionAtNode' function path (Aeson.Array vector) = Aeson.Array (Vector.map (applyFunctionAtNode' function path) vector)
+
+documentIsExecutable :: Document -> Bool
+documentIsExecutable Document { definitions } = isJust (find isExecutableDefinition definitions)
+
+isExecutableDefinition :: Definition -> Bool
+isExecutableDefinition ExecutableDefinition {} = True
+isExecutableDefinition _ = False
+
+splitDocumentIntoResolvableUnits :: Document -> [(Resolver, Document)]
+splitDocumentIntoResolvableUnits Document { definitions } = removeEmptyResolvers $ split [] [] definitions
+    where
+        isPostgresSelection Field { name = "__schema" } = False
+        isPostgresSelection otherwise                   = True
+
+        removeEmptyResolvers :: [(Resolver, Document)] -> [(Resolver, Document)]
+        removeEmptyResolvers documentsWithResolver = filter (\(resolver, document) -> documentIsExecutable document) documentsWithResolver
+
+        split :: [Definition] -> [Definition] -> [Definition] -> [(Resolver, Document)]
+        split postgresDefinitions introspectionDefinitions (ed@(ExecutableDefinition { operation = od@(OperationDefinition { selectionSet }) }):rest) =
+            case List.partition isPostgresSelection selectionSet of
+                (postgresSelection, []) -> split (postgresDefinitions <> [ed]) introspectionDefinitions rest
+                ([], introspectionSelection) -> split postgresDefinitions (introspectionDefinitions <> [ed]) rest
+                (postgresSelection, introspectionSelection) -> split (postgresDefinitions <> [ ExecutableDefinition { operation = od { selectionSet = postgresSelection } } ]) (introspectionDefinitions <> [ ExecutableDefinition { operation = od { selectionSet = introspectionSelection } } ]) rest
+        split postgresDefinitions introspectionDefinitions (x:xs) =
+            if isExecutableDefinition x
+                then split (postgresDefinitions <> [x]) introspectionDefinitions xs
+                else split (postgresDefinitions <> [x]) (introspectionDefinitions <> [x]) xs -- E.g. fragments need to be in both queries
+        split postgresDefinitions introspectionDefinitions [] = [(PostgresResolver, Document postgresDefinitions), (IntrospectionResolver, Document introspectionDefinitions)]

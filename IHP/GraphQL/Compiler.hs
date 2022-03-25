@@ -2,12 +2,14 @@ module IHP.GraphQL.Compiler where
 
 import IHP.Prelude
 import IHP.GraphQL.Types
+import qualified IHP.GraphQL.Introspection as Introspection
 
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Prelude (Semigroup (..))
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.List as List
 
 data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 
@@ -24,8 +26,11 @@ compileDocument (Variables arguments) document@(Document { definitions = (defini
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
 compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType, selectionSet } } variables | operationType == Query || operationType == Subscription =
     "SELECT json_build_object(" <> commaSep aggregations <> ")"
-    <> " FROM "
-    <> commaSep selects
+    <>
+        if List.null (catMaybes selects)
+        then ""
+        else " FROM "
+            <> commaSep (catMaybes selects)
     where
         (selects, aggregations) = unzip $ map (compileSelection document variables) selectionSet
 
@@ -34,9 +39,9 @@ compileMutationDefinition ExecutableDefinition { operation = OperationDefinition
     selectionSet
     |> map (compileMutationSelection arguments)
 
-compileSelection :: Document -> [Argument] -> Selection -> (QueryPart, QueryPart)
+compileSelection :: Document -> [Argument] -> Selection -> (Maybe QueryPart, QueryPart)
 compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
-        (query, aggregation)
+        (Just query, aggregation)
     where
         query =
             "(SELECT "
@@ -118,16 +123,7 @@ selectQueryPieces document tableName field = field
                     |> map compileSelection
                     |> mconcat
             where
-                fragment :: Fragment
-                fragment = document
-                    |> get #definitions
-                    |> find (\case
-                            FragmentDefinition (Fragment { name }) -> name == fragmentName
-                            otherwise -> False
-                        )
-                    |> fromMaybe (error $ "Could not find fragment named " <> fragmentName)
-                    |> \case
-                        FragmentDefinition fragment -> fragment
+                fragment = findFragmentByName document fragmentName
 
 fieldToJoin :: Document -> Text -> Selection -> QueryPart
 fieldToJoin document rootTableName field@(Field { name }) =
@@ -325,11 +321,58 @@ resolveVariables (Variable varName) arguments =
             Nothing -> error ("Could not resolve variable " <> varName)
 resolveVariables otherwise _ = otherwise
 
+compileIntrospectionSelection :: GraphQLSchema -> Document -> [Argument] -> Selection -> (Maybe QueryPart, QueryPart)
+compileIntrospectionSelection schema document variables field@(Field { name, selectionSet }) = (Nothing, aggregation)
+    where
+
+        aggregation = ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> buildSchemaSelection <> ")"
+
+        buildSchemaSelection = commaSep (map (compileSchemaSelection (Introspection.introspectionGraph schema)) selectionSet)
+
+        compileSchemaSelection :: StaticGraph -> Selection -> QueryPart
+        compileSchemaSelection graph field@(Field { name, selectionSet = [] }) =
+            let
+                targetLeaf :: Value
+                targetLeaf = graph
+                        |> (\case
+                                ObjectNode { objectValues } -> objectValues
+                                otherwise -> error $ "expected object node, got " <> tshow otherwise
+                            )
+                        |> HashMap.lookup name
+                        |> \case
+                            Just (Leaf value) -> value
+                            otherwise -> error $ "expected leaf node at " <> name <> ", got " <> tshow otherwise <> " in graph " <> tshow graph
+            in
+                "?, ?" |> withParams [PG.toField (nameOrAlias field), PG.toField targetLeaf]
+        compileSchemaSelection graph field@(Field { name, selectionSet }) =
+            let
+                targetNode :: StaticGraph
+                targetNode = graph
+                        |> (\case
+                                ObjectNode { objectValues } -> objectValues
+                                otherwise -> error $ "expected object node, got " <> tshow otherwise
+                            )
+                        |> HashMap.lookup name
+                        |> fromMaybe (error $ "Could not find node " <> name)
+            in
+                case targetNode of
+                    ObjectNode {} -> ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> commaSep (map (compileSchemaSelection targetNode) selectionSet) <> ")"
+                    ArrayNode { arrayElements } -> ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> commaSep (map (\targetNode -> commaSep (map (compileSchemaSelection targetNode) selectionSet)) arrayElements) <> ")"
+                    Leaf { value = NullValue } -> "?, null" |> withParams [PG.toField (nameOrAlias field)]
+                    otherwise -> error $ "Expected object or array, got " <> tshow otherwise <> " while trying to access " <> name
+        compileSchemaSelection graph FragmentSpread { fragmentName } =
+            let
+                fragment = findFragmentByName document fragmentName
+                selectionSet = get #selectionSet fragment
+            in
+                commaSep (map (compileSchemaSelection graph) selectionSet)
+
+
 unionAll :: [QueryPart] -> QueryPart
 unionAll list = foldl' (\a b -> if get #sql a == "" then b else a <> " UNION ALL " <> b) "" list
 
 commaSep :: [QueryPart] -> QueryPart
-commaSep list = foldl' (\a b -> if get #sql a == "" then b else a <> ", " <> b) "" list
+commaSep list = foldl' (\a b -> if get #sql a == "" then b else (a <> ", " <> b)) "" list
 
 spaceSep :: [QueryPart] -> QueryPart
 spaceSep list = foldl' (\a b -> if get #sql a == "" then b else a <> " " <> b) "" list
@@ -347,3 +390,28 @@ unpackQueryPart QueryPart { sql, params } = (sql, params)
 
 withParams :: [PG.Action] -> QueryPart -> QueryPart
 withParams params queryPart = queryPart { params = (get #params queryPart) <> params }
+
+nameOrAlias :: Selection -> Text
+nameOrAlias field = fromMaybe (get #name field) (get #alias field)
+
+findFragmentByName :: Document -> Text -> Fragment
+findFragmentByName document name =
+    let
+        allFragmentNames = document
+                |> get #definitions
+                |> mapMaybe (\case FragmentDefinition (Fragment { name }) -> Just name; _ -> Nothing)
+        couldNotFindFragmentErrorMessage = "Could not find fragment named " <> name <> ". These fragments are defined: " <> Text.intercalate ", " allFragmentNames
+    in
+        document
+            |> get #definitions
+            |> find (\case
+                    FragmentDefinition (Fragment { name = fragmentName }) -> name == fragmentName
+                    otherwise -> False
+                )
+            |> fromMaybe (error couldNotFindFragmentErrorMessage)
+            |> \case
+                FragmentDefinition fragment -> fragment
+
+instance PG.ToField Value where
+    toField (StringValue string) = PG.toField string
+    toField NullValue = PG.toField (Nothing :: Maybe Int)

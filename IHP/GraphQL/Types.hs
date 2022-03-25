@@ -8,6 +8,8 @@ data GraphQLRequest = GraphQLRequest
     , variables :: !Variables
     }
 
+type GraphQLSchema = [Definition]
+
 -- An error response that renders to JSON like this:
 --
 -- > {
@@ -136,4 +138,15 @@ data Type
     = NamedType !Text
     | ListType !Type
     | NonNullType !Type
+    deriving (Eq, Show)
+
+data StaticGraph
+    = ObjectNode { objectValues :: !(HashMap Text StaticGraph) }
+    | ArrayNode { arrayElements :: ![StaticGraph] }
+    | Leaf { value :: !Value }
+    deriving (Eq, Show)
+
+data Resolver
+    = PostgresResolver
+    | IntrospectionResolver
     deriving (Eq, Show)

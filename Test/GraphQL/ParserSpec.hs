@@ -248,7 +248,106 @@ tests = do
                             }
                         ]
                     }
+        it "should parse the IntrospectionQuery" do
+            let introspectionQuery = [trimming|
+                query IntrospectionQuery {
+                  __schema {
 
+                    queryType { name }
+                    mutationType { name }
+                    subscriptionType { name }
+                    types {
+                      ...FullType
+                    }
+                    directives {
+                      name
+                      description
+
+                      locations
+                      args {
+                        ...InputValue
+                      }
+                    }
+                  }
+                }
+
+                fragment FullType on __Type {
+                  kind
+                  name
+                  description
+
+                  fields(includeDeprecated: true) {
+                    name
+                    description
+                    args {
+                      ...InputValue
+                    }
+                    type {
+                      ...TypeRef
+                    }
+                    isDeprecated
+                    deprecationReason
+                  }
+                  inputFields {
+                    ...InputValue
+                  }
+                  interfaces {
+                    ...TypeRef
+                  }
+                  enumValues(includeDeprecated: true) {
+                    name
+                    description
+                    isDeprecated
+                    deprecationReason
+                  }
+                  possibleTypes {
+                    ...TypeRef
+                  }
+                }
+
+                fragment InputValue on __InputValue {
+                  name
+                  description
+                  type { ...TypeRef }
+                  defaultValue
+
+
+                }
+
+                fragment TypeRef on __Type {
+                  kind
+                  name
+                  ofType {
+                    kind
+                    name
+                    ofType {
+                      kind
+                      name
+                      ofType {
+                        kind
+                        name
+                        ofType {
+                          kind
+                          name
+                          ofType {
+                            kind
+                            name
+                            ofType {
+                              kind
+                              name
+                              ofType {
+                                kind
+                                name
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            |]
+            parseGQL introspectionQuery `shouldBe` Document {definitions = [ExecutableDefinition {operation = OperationDefinition {operationType = Query, name = Just "IntrospectionQuery", selectionSet = [Field {alias = Nothing, name = "__schema", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "queryType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []}]},Field {alias = Nothing, name = "mutationType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []}]},Field {alias = Nothing, name = "subscriptionType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []}]},Field {alias = Nothing, name = "types", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "FullType"}]},Field {alias = Nothing, name = "directives", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "description", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "locations", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "args", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "InputValue"}]}]}]}], variableDefinitions = []}},FragmentDefinition (Fragment {name = "FullType", selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "description", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "fields", arguments = [Argument {argumentName = "includeDeprecated", argumentValue = BooleanValue True}], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "description", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "args", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "InputValue"}]},Field {alias = Nothing, name = "type", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "TypeRef"}]},Field {alias = Nothing, name = "isDeprecated", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "deprecationReason", arguments = [], directives = [], selectionSet = []}]},Field {alias = Nothing, name = "inputFields", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "InputValue"}]},Field {alias = Nothing, name = "interfaces", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "TypeRef"}]},Field {alias = Nothing, name = "enumValues", arguments = [Argument {argumentName = "includeDeprecated", argumentValue = BooleanValue True}], directives = [], selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "description", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "isDeprecated", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "deprecationReason", arguments = [], directives = [], selectionSet = []}]},Field {alias = Nothing, name = "possibleTypes", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "TypeRef"}]}]}),FragmentDefinition (Fragment {name = "InputValue", selectionSet = [Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "description", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "type", arguments = [], directives = [], selectionSet = [FragmentSpread {fragmentName = "TypeRef"}]},Field {alias = Nothing, name = "defaultValue", arguments = [], directives = [], selectionSet = []}]}),FragmentDefinition (Fragment {name = "TypeRef", selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "ofType", arguments = [], directives = [], selectionSet = [Field {alias = Nothing, name = "kind", arguments = [], directives = [], selectionSet = []},Field {alias = Nothing, name = "name", arguments = [], directives = [], selectionSet = []}]}]}]}]}]}]}]}]})]}
 
         describe "parseName" do
             it "should accept letters" do

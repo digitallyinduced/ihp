@@ -28,7 +28,10 @@ import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified IHP.GraphQL.Types as GraphQL
 import qualified IHP.GraphQL.Parser as GraphQL
 import qualified IHP.GraphQL.Compiler as GraphQL
+import qualified IHP.GraphQL.SchemaCompiler as GraphQL
 import IHP.GraphQL.JSON ()
+import qualified IHP.GraphQL.Resolver as GraphQL
+import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
@@ -161,12 +164,12 @@ instance (
                     pure undefined -- Unreachable
                 Data.Aeson.Success value -> pure value
 
-        let [(theQuery, theParams)] = GraphQL.compileDocument (get #variables graphQLRequest) (get #query graphQLRequest)
-
-        result <- handleGraphQLError (sqlQueryWithRLS theQuery theParams)
+        (Right sqlSchema) <- SchemaDesigner.parseSchemaSql
+        let schema = GraphQL.sqlSchemaToGraphQLSchema sqlSchema
+        result <- handleGraphQLError (GraphQL.resolve schema sqlQueryWithRLS graphQLRequest)
         case result of
             (Left error) -> renderJson error
-            (Right [PG.Only graphQLResult]) -> renderJson (graphQLResult :: UndecodedJSON)
+            (Right graphQLResult) -> renderJson graphQLResult
 
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
