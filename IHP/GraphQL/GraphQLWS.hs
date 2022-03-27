@@ -153,6 +153,7 @@ handleMessage userIdVar _ _ _ ConnectionInit { connectionInitPayload } = do
     sendJSON ConnectionAck
 handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener Subscribe { id, operationName, query, variables, extensions } =
     let
+        subscriptionId = id
         handleEnhancedSqlError (exception :: EnhancedSqlError) = sendJSON Error { id = id, errorPayload = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
         handleSomeException (exception :: SomeException) = sendJSON Error { id = id, errorPayload = [ tshow exception ] }
 
@@ -215,7 +216,7 @@ handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener S
                                         modifyIORef' graphVar (GraphQL.insertRecord table id newRecord document)
 
                                         nextPayload <- UndecodedJSON . cs .Aeson.encode <$> readIORef graphVar
-                                        sendJSON Next { id, nextPayload }
+                                        sendJSON Next { id = subscriptionId, nextPayload }
                                     _ -> pure ()
                             ChangeNotifications.DidUpdate { id, changeSet } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
@@ -226,7 +227,7 @@ handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener S
                                     modifyIORef' graphVar (GraphQL.updateRecord table id patch document)
 
                                     nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
-                                    sendJSON Next { id, nextPayload }
+                                    sendJSON Next { id = subscriptionId, nextPayload }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
@@ -234,7 +235,7 @@ handleMessage userIdVar ensureRLSEnabled installTableChangeTriggers pgListener S
                                 when isWatchingRecord do
                                     modifyIORef' graphVar (GraphQL.deleteRecord table id document)
                                     nextPayload <- UndecodedJSON . cs . Aeson.encode <$> readIORef graphVar
-                                    sendJSON Next { id, nextPayload }
+                                    sendJSON Next { id = subscriptionId, nextPayload }
 
                 let startWatchers tablesRLS = case tablesRLS of
                         (tableNameRLS:rest) -> do
@@ -296,16 +297,16 @@ instance ToJSON Message where
     toEncoding Next { id, nextPayload } = Aeson.econcat
         [ Aeson.unsafeToEncoding "{\"type\":\"next\",\"id\":"
         , Aeson.toEncoding id
-        , Aeson.unsafeToEncoding ",\"payload\":"
+        , Aeson.unsafeToEncoding ",\"payload\":{\"data\":"
         , toEncoding nextPayload
-        , Aeson.unsafeToEncoding "}"
+        , Aeson.unsafeToEncoding "}}"
         ]
     toEncoding Error { id, errorPayload } = Aeson.econcat
         [ Aeson.unsafeToEncoding "{\"type\":\"error\",\"id\":"
         , Aeson.toEncoding id
-        , Aeson.unsafeToEncoding ",\"payload\":"
+        , Aeson.unsafeToEncoding ",\"payload\":{\"data\":"
         , toEncoding errorPayload
-        , Aeson.unsafeToEncoding "}"
+        , Aeson.unsafeToEncoding "}}"
         ]
     toEncoding Complete { id } = Aeson.econcat
         [ Aeson.unsafeToEncoding "{\"type\":\"complete\",\"id\":"
