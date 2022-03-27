@@ -238,7 +238,7 @@ compileSelectionToInsertStatement document queryArguments field@(Field { alias, 
                 |> unzip
 
         returning :: QueryPart
-        returning = "json_build_object(" <> returnQueryPieces document tableName field <> ")"
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 -- | Turns a @update..@ mutation into a UPDATE SQL query
 --
@@ -289,7 +289,7 @@ compileSelectionToUpdateStatement document queryArguments field@(Field { alias, 
                 |> map (\(fieldName, value) -> ("? = ?" |> withParams [PG.toField (PG.Identifier (fieldNameToColumnName fieldName)), valueToSQL value]))
 
         returning :: QueryPart
-        returning = "json_build_object(" <> returnQueryPieces document tableName field <> ")"
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 -- | Turns a @delete..@ mutation into a DELETE SQL query
 --
@@ -322,7 +322,7 @@ compileSelectionToDeleteStatement document queryArguments field@(Field { alias, 
             Nothing -> error $ "Expected first argument to " <> fieldName <> " to be an ID, got no arguments"
         
         returning :: QueryPart
-        returning = "json_build_object(" <> returnQueryPieces document tableName field <> ")"
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 valueToSQL :: Value -> PG.Action
 valueToSQL (IntValue int) = PG.toField int
