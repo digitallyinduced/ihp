@@ -40,7 +40,7 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
     where
         query =
             "(SELECT "
-            <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
+            <> selectQueryPieces document tableName field
             <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
             <> joins
             <> where_
@@ -88,7 +88,7 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
                     joins -> " " <> spaceSep joins
 
 
-selectQueryPieces :: Document -> PG.Action -> Selection -> QueryPart
+selectQueryPieces :: Document -> Text -> Selection -> QueryPart
 selectQueryPieces document tableName field = field
         |> get #selectionSet
         |> map compileSelection
@@ -96,7 +96,7 @@ selectQueryPieces document tableName field = field
         |> commaSep
     where
         qualified field = if isEmpty (get #selectionSet field)
-                then "?." |> withParams [tableName]
+                then "?." |> withParams [PG.toField (PG.Identifier tableName)]
                 else ""
 
         compileSelection :: Selection -> [QueryPart]
@@ -104,6 +104,9 @@ selectQueryPieces document tableName field = field
         compileSelection fragmentSpread@(FragmentSpread {}) = compileFragmentSpread fragmentSpread
 
         compileField :: Selection -> QueryPart
+        compileField field@(Field { alias, name = "__typename" }) = "? as ?" |> withParams [ PG.toField typeName, PG.toField (PG.Identifier (fromMaybe "__typename" alias)) ]
+            where
+                typeName = tableNameToModelName tableName
         compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier alias) ]
         compileField field@(Field { alias = Nothing, name    }) =
             let
@@ -129,7 +132,7 @@ fieldToJoin document rootTableName field@(Field { name }) =
             <> "SELECT ARRAY("
                 <> "SELECT to_json(_sub) FROM ("
                     <> "SELECT "
-                    <> selectQueryPieces document foreignTable field
+                    <> selectQueryPieces document name field
                     <> (" FROM ?" |> withParams [foreignTable])
                     <> (" WHERE ?.? = ?.?" |> withParams [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey])
                 <> ") AS _sub"

@@ -123,6 +123,10 @@ tests = do
             compileGQL mutation arguments `shouldBe` [trimming|
                  UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('id', projects.id, 'title', projects.title)
             |]
+        it "should compile a __typename selection" do
+            compileGQL "{ users { id __typename } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, 'User' as __typename FROM users) AS _users))
+            |]
 
 compileGQL gql arguments = gql
         |> parseGQL
