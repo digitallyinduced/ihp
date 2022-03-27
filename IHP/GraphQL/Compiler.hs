@@ -26,22 +26,17 @@ compileDocument (Variables arguments) document@(Document { definitions = (defini
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
 compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType, selectionSet } } variables | operationType == Query || operationType == Subscription =
     "SELECT json_build_object(" <> commaSep aggregations <> ")"
-    <>
-        if List.null (catMaybes selects)
-        then ""
-        else " FROM "
-            <> commaSep (catMaybes selects)
     where
-        (selects, aggregations) = unzip $ map (compileSelection document variables) selectionSet
+        aggregations = map (compileSelection document variables) selectionSet
 
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
 compileMutationDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
     selectionSet
     |> map (compileMutationSelection arguments)
 
-compileSelection :: Document -> [Argument] -> Selection -> (Maybe QueryPart, QueryPart)
+compileSelection :: Document -> [Argument] -> Selection -> QueryPart
 compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
-        (Just query, aggregation)
+        aggregation
     where
         query =
             "(SELECT "
@@ -54,8 +49,11 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
         -- | Builds a tuple as used in `json_build_object('users', json_agg(_users), 'tasks', json_agg(_tasks))`
         aggregation = (
                 if isSingleResult
-                    then "?, ?"
-                    else "?, json_agg(?)") |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]
+                    then
+                        (("?, (SELECT coalesce(row_to_json(?), '[]'::json) FROM " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]) <> query <> ")")
+                    else
+                        (("?, (SELECT coalesce(json_agg(row_to_json(?)), '[]'::json) FROM " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]) <> query <> ")"))
+
         isSingleResult = isJust idArgument
 
         subqueryId = "_" <> fieldName
