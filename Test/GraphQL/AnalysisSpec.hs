@@ -23,6 +23,18 @@ tests = do
             it "should return the tables used in a complex query" do
                 let document = parseGQL "{ users { id email tasks { id title } } projects { id name } }"
                 (tablesUsedInDocument document) `shouldBe` (Set.fromList ["users", "tasks", "projects"])
+            
+            it "should return the tables used in a create mutation" do
+                let document = parseGQL "mutation { createUser(user: $user) { id } }"
+                (tablesUsedInDocument document) `shouldBe` (Set.fromList ["users"])
+            
+            it "should return the tables used in a delete mutation" do
+                let document = parseGQL "mutation { deleteUser(id: $userId) { id } }"
+                (tablesUsedInDocument document) `shouldBe` (Set.fromList ["users"])
+            
+            it "should return the tables used in a update mutation" do
+                let document = parseGQL "mutation { updateUser(id: $userId, patch: $patch) { id } }"
+                (tablesUsedInDocument document) `shouldBe` (Set.fromList ["users"])
 
         describe "recordIds" do
             it "should return the ids for all database records returned in a GraphQL query" do

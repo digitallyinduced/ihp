@@ -13,6 +13,7 @@ import Data.Aeson ((.:))
 import qualified Data.Vector as Vector
 import qualified Data.UUID as UUID
 import qualified Data.List as List
+import qualified Data.Text as Text
 
 type TableName = Text
 
@@ -24,14 +25,28 @@ tablesUsedInDocument Document { definitions } = mconcat (map tablesUsedInDefinit
         tablesUsedInDefinition ExecutableDefinition { operation } = tablesUsedInOperation operation
     
         tablesUsedInOperation :: OperationDefinition -> Set Text        
-        tablesUsedInOperation OperationDefinition { selectionSet } = tablesUsedInSelectionSet selectionSet
+        tablesUsedInOperation OperationDefinition { selectionSet, operationType } = tablesUsedInSelectionSet operationType selectionSet
 
-        tablesUsedInSelectionSet :: [Selection] -> Set Text
-        tablesUsedInSelectionSet selectionSet = mconcat (map tablesUsedInSelection selectionSet)
+        tablesUsedInSelectionSet :: OperationType -> [Selection] -> Set Text
+        tablesUsedInSelectionSet operationType selectionSet = mconcat (map (tablesUsedInSelection operationType) selectionSet)
 
-        tablesUsedInSelection :: Selection -> Set Text
-        tablesUsedInSelection Field { selectionSet = [] } = Set.empty
-        tablesUsedInSelection Field { name, selectionSet } = Set.singleton name <> tablesUsedInSelectionSet selectionSet
+        tablesUsedInSelection :: OperationType -> Selection -> Set Text
+        tablesUsedInSelection _ Field { selectionSet = [] } = Set.empty
+        tablesUsedInSelection operationType Field { name, selectionSet } = Set.singleton normalizedName <> tablesUsedInSelectionSet Query selectionSet
+            where
+                -- `createTask` => tasks
+                -- `deleteTask` => tasks
+                -- `updateTask` => tasks
+                normalizedName = case operationType of
+                    Mutation ->
+                        case Text.stripPrefix "create" name of
+                            Just suffix -> modelNameToTableName suffix
+                            Nothing -> case Text.stripPrefix "delete" name of
+                                Just suffix -> modelNameToTableName suffix
+                                Nothing -> case Text.stripPrefix "update" name of
+                                    Just suffix -> modelNameToTableName suffix
+                                    Nothing -> name
+                    _ -> name
 
 recordIds :: Document -> Aeson.Value -> HashMap TableName (Set UUID)
 recordIds Document { definitions } result = mconcat (map recordIdsInDefinition definitions)
