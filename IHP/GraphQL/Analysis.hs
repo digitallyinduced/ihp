@@ -32,7 +32,7 @@ tablesUsedInDocument Document { definitions } = mconcat (map tablesUsedInDefinit
 
         tablesUsedInSelection :: OperationType -> Selection -> Set Text
         tablesUsedInSelection _ Field { selectionSet = [] } = Set.empty
-        tablesUsedInSelection operationType Field { name, selectionSet } = Set.singleton normalizedName <> tablesUsedInSelectionSet Query selectionSet
+        tablesUsedInSelection operationType Field { name, selectionSet, arguments } = Set.singleton normalizedName <> tablesUsedInSelectionSet Query selectionSet
             where
                 -- `createTask` => tasks
                 -- `deleteTask` => tasks
@@ -46,7 +46,10 @@ tablesUsedInDocument Document { definitions } = mconcat (map tablesUsedInDefinit
                                 Nothing -> case Text.stripPrefix "update" name of
                                     Just suffix -> modelNameToTableName suffix
                                     Nothing -> name
-                    _ -> name
+                    _ -> case arguments of
+                        -- `project(id: $projectId)` => projects
+                        [Argument { argumentName = "id", argumentValue }] -> pluralize name
+                        otherwise -> name
 
 recordIds :: Document -> Aeson.Value -> HashMap TableName (Set UUID)
 recordIds Document { definitions } result = mconcat (map recordIdsInDefinition definitions)

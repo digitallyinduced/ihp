@@ -54,6 +54,17 @@ tests = do
             compileGQL "{ user(id: \"dde8fd2c-4941-4262-a8e0-cc4cd40bacba\") { id } }" [] `shouldBe` [trimming|
                 SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user))
             |]
+        it "should compile a 'user(id: $id)' selection with a variable" do
+            let arguments = [
+                    Argument
+                        { argumentName = "userId"
+                        , argumentValue = parseValue [trimming|
+                            "dde8fd2c-4941-4262-a8e0-cc4cd40bacba"
+                        |] }
+                    ]
+            compileGQL "{ user(id: $userId) { id } }" arguments `shouldBe` [trimming|
+                SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user))
+            |]
         it "should compile a single selection with a one-to-many relationship" do
             compileGQL "{ user(id: \"40f1dbb4-403c-46fd-8062-fcf5362f2154\") { id email tasks { id title } } }" [] `shouldBe` [trimming|
                 SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true WHERE id = '40f1dbb4-403c-46fd-8062-fcf5362f2154') AS _user))
