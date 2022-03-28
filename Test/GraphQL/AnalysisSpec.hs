@@ -86,6 +86,15 @@ tests = do
                         , ("tasks", Set.fromList ["093bf50a-45e2-46bb-9eb5-e0131a3e710b", "b30c70ba-821a-4e04-95ed-e0dae046c361", "374bdb8a-61ba-49ef-97c9-160383d82780", "ac22357e-a06f-4f6b-bad0-a4037158ca4f"])
                         , ("projects", Set.fromList ["c8ffab51-4ea6-412e-8f3e-58c62be76cf0", "98230bf9-2351-48a7-91cf-fca85a33355f"])
                     ])
+            it "should deal with single element nodes" do
+                let document = parseGQL "{ channel(id: $channelId) { id messages { id body userId createdAt updatedAt __typename }  __typename } }"
+                let (Just result) = Aeson.decode $ cs [trimming|
+                    {"channel" : {"id":"5cfac699-ec97-4d4b-b4bf-cae5ea5d5c94","messages":[{"id":"a91d7623-3a42-4c31-bd70-bc2d8a532e12","body":"test","userId":"c9dbe606-611e-48bd-8690-31d89e49d5c5","createdAt":"2022-03-28T18:55:57.906206+02:00","updatedAt":"2022-03-28T18:55:57.906206+02:00","__typename":"Message"},{"id":"a604abf3-3b78-4b1e-bbbe-efc9c10bfdf7","body":"asd","userId":"c9dbe606-611e-48bd-8690-31d89e49d5c5","createdAt":"2022-03-28T18:55:58.898494+02:00","updatedAt":"2022-03-28T18:55:58.898494+02:00","__typename":"Message"},{"id":"cf0c93fe-e6a2-413f-b502-319109253d49","body":"asd","userId":"c9dbe606-611e-48bd-8690-31d89e49d5c5","createdAt":"2022-03-28T18:56:02.743004+02:00","updatedAt":"2022-03-28T18:56:02.743004+02:00","__typename":"Message"},{"id":"a7cb3351-265d-460a-99e7-badf75060117","body":"test","userId":"c9dbe606-611e-48bd-8690-31d89e49d5c5","createdAt":"2022-03-28T19:01:07.88219+02:00","updatedAt":"2022-03-28T19:01:07.88219+02:00","__typename":"Message"},{"id":"6bf81565-515e-40c0-bdc0-583c755caeca","body":"asd","userId":"c9dbe606-611e-48bd-8690-31d89e49d5c5","createdAt":"2022-03-28T19:03:03.128652+02:00","updatedAt":"2022-03-28T19:03:03.128652+02:00","__typename":"Message"}],"__typename":"Channel"}}
+                |]
+                (recordIds document result) `shouldBe` (HashMap.fromList
+                        [ ("channels", Set.fromList ["5cfac699-ec97-4d4b-b4bf-cae5ea5d5c94"])
+                        , ("messages", Set.fromList ["6bf81565-515e-40c0-bdc0-583c755caeca","a604abf3-3b78-4b1e-bbbe-efc9c10bfdf7","a7cb3351-265d-460a-99e7-badf75060117","a91d7623-3a42-4c31-bd70-bc2d8a532e12","cf0c93fe-e6a2-413f-b502-319109253d49"])
+                        ])
         describe "nodePathsForTable" do
             it "should return the paths to table nodes" do
                 let document = parseGQL "{ users { id email tasks { id title users { id } } } projects { id name } }"

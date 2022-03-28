@@ -67,8 +67,10 @@ recordIds Document { definitions } result = mconcat (map recordIdsInDefinition d
         recordIdsInSelection :: Aeson.Value -> Selection -> HashMap TableName (Set UUID)
         recordIdsInSelection result Field { selectionSet = [] } = HashMap.empty
         recordIdsInSelection result Field { name, alias, selectionSet } = mconcat $
-                (HashMap.singleton name selectionIds):(map (recordIdsInSelection selectedResult) childNodes)
+                (HashMap.singleton tableName selectionIds):(map (recordIdsInSelection selectedResult) childNodes)
             where
+                (selectionIds, tableName) = selectionIdsAndName
+
                 aliasOrName :: Text
                 aliasOrName = fromMaybe name alias
 
@@ -98,8 +100,8 @@ recordIds Document { definitions } result = mconcat (map recordIdsInDefinition d
                                 |> Aeson.Array
                         otherwise -> error ("selectedResult at " <> name <> ": Expected an object here, got: " <> tshow otherwise)
 
-                selectionIds :: Set UUID
-                selectionIds = case selectedResult of
+                selectionIdsAndName :: (Set UUID, Text)
+                selectionIdsAndName = case selectedResult of
                     Aeson.Array vector ->
                         vector
                         |> Vector.toList
@@ -108,7 +110,9 @@ recordIds Document { definitions } result = mconcat (map recordIdsInDefinition d
                                 otherwise -> error ("selectionIds: unexpected " <> tshow selectedResult)
                             )
                         |> Set.fromList
-                    _ -> error "Expected an array here"
+                        |> \ids -> (ids, name)
+                    Aeson.Object hashMap -> (Set.singleton (extractId hashMap), pluralize name)
+                    _ -> error "unexpected object here"
 
                 extractId :: HashMap Text Aeson.Value -> UUID
                 extractId record = record
