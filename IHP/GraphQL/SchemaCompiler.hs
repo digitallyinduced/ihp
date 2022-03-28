@@ -55,15 +55,22 @@ mutationDefinition statements = TypeSystemDefinition { typeSystemDefinition = Ty
 
 statementToQueryField :: Statement -> [FieldDefinition]
 statementToQueryField (StatementCreateTable CreateTable { name }) = 
-        [ manyRecordsField ]
+        [ manyRecordsField, singleRecordField ]
     where
         manyRecordsField = FieldDefinition
             { description = Just ("Returns all records from the `" <> name <> "` table")
             , name = lcfirst (tableNameToControllerName name)
             , argumentsDefinition = []
-            , type_
+            , type_ = NonNullType (ListType (NonNullType (NamedType (tableNameToModelName name))))
             }
-        type_ = NonNullType (ListType (NonNullType (NamedType (tableNameToModelName name))))
+        singleRecordField = FieldDefinition
+            { description = Just ("Returns a single record from the `" <> name <> "` table")
+            , name = lcfirst (tableNameToModelName name)
+            , argumentsDefinition = [
+                ArgumentDefinition { name = "id", argumentType = NonNullType (NamedType "UUID"), defaultValue = Nothing }
+            ]
+            , type_ = NonNullType (NamedType (tableNameToModelName name))
+            }
 statementToQueryField _ = []
 
 statementToMutationFields :: Statement -> [FieldDefinition]
