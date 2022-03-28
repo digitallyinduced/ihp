@@ -51,6 +51,7 @@ tablesUsedInDocument Document { definitions } = mconcat (map tablesUsedInDefinit
                         [Argument { argumentName = "id", argumentValue }] -> pluralize name
                         otherwise -> name
 
+
 recordIds :: Document -> Aeson.Value -> HashMap TableName (Set UUID)
 recordIds Document { definitions } result = mconcat (map recordIdsInDefinition definitions)
     where
@@ -128,23 +129,25 @@ extractRecordById :: UUID -> Aeson.Value -> Maybe Aeson.Value
 extractRecordById id result =
     case result of
         record@(Aeson.Object hashMap) ->
-            case HashMap.lookup "id" hashMap of
-                Just (Aeson.String idString) ->
-                    case UUID.fromText idString of
-                        Just uuid -> if uuid == id
-                            then Just record
-                            else Nothing
-                        Nothing -> error "Failed to parse UUID"
-                otherwise ->
+            let traverseObjectKeys =
                     hashMap
                     |> HashMap.elems
                     |> mapMaybe (extractRecordById id)
                     |> headMay
+            in case HashMap.lookup "id" hashMap of
+                Just (Aeson.String idString) ->
+                    case UUID.fromText idString of
+                        Just uuid -> if uuid == id
+                            then Just record
+                            else traverseObjectKeys
+                        Nothing -> error "Failed to parse UUID"
+                otherwise -> traverseObjectKeys
         Aeson.Array vector ->
             vector
             |> Vector.toList
             |> mapMaybe (extractRecordById id)
             |> headMay
+        otherwise -> Nothing
 
 isSubscriptionDocument :: Document -> Bool
 isSubscriptionDocument Document { definitions } = foldl' (&&) True (map isSubscriptionDefinition definitions)
