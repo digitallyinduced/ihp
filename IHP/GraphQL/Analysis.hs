@@ -46,10 +46,9 @@ tablesUsedInDocument Document { definitions } = mconcat (map tablesUsedInDefinit
                                 Nothing -> case Text.stripPrefix "update" name of
                                     Just suffix -> modelNameToTableName suffix
                                     Nothing -> name
-                    _ -> case arguments of
-                        -- `project(id: $projectId)` => projects
-                        [Argument { argumentName = "id", argumentValue }] -> pluralize name
-                        otherwise -> name
+                    _ -> case selectionSet of
+                        [] -> name
+                        _ -> pluralize name -- `project(id: $projectId)` => projects
 
 
 recordIds :: Document -> Aeson.Value -> HashMap TableName (Set UUID)

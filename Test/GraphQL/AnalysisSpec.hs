@@ -39,6 +39,10 @@ tests = do
             it "should return the tables used in a single query" do
                 let document = parseGQL "{ project(id: $projectId) { id } }"
                 (tablesUsedInDocument document) `shouldBe` (Set.fromList ["projects"])
+            
+            it "should return the tables used in a single query" do
+                let document = parseGQL "{ project(id: $projectId) { id user { id name } } }"
+                (tablesUsedInDocument document) `shouldBe` (Set.fromList ["projects", "users"])
 
         describe "recordIds" do
             it "should return the ids for all database records returned in a GraphQL query" do
