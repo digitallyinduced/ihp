@@ -30,6 +30,7 @@ import IHP.IDE.SchemaDesigner.Controller.Migrations ()
 import IHP.IDE.Data.Controller ()
 import IHP.IDE.Logs.Controller ()
 import IHP.IDE.CodeGen.Controller ()
+import IHP.IDE.Graph.Controller ()
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
 import IHP.IDE.ToolServer.Routes ()
@@ -73,7 +74,7 @@ startToolServer' port isDebugMode = do
             Nothing -> pure ()
 
     session <- Vault.newKey
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+    store <- fmap clientsessionStore (ClientSession.getKeyEnv "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
     let modelContext = notConnectedModelContext undefined
     pgListener <- PGListener.init modelContext
@@ -92,7 +93,7 @@ startToolServer' port isDebugMode = do
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
     let warpSettings = Warp.defaultSettings
             |> Warp.setPort port
-            |> Warp.setBeforeMainLoop openAppUrl
+            -- |> Warp.setBeforeMainLoop openAppUrl
 
     let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
 
@@ -133,13 +134,14 @@ instance FrontController ToolServerApplication where
         , parseRoute @DataController
         , parseRoute @CodeGenController
         , parseRoute @MigrationsController
+        , parseRoute @GraphController
         , startPage TablesAction
         ]
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
     initContext = do
-        availableApps <- AvailableApps <$> findApplications
-        webControllers <- WebControllers <$> findWebControllers
+        let availableApps = AvailableApps ["Web"]
+        let webControllers = WebControllers []
 
         let defaultAppUrl = "http://localhost:" <> tshow Helper.appPort
         appUrl :: Text <- fromMaybe defaultAppUrl <$> fmap cs <$> Env.lookupEnv "IHP_BASEURL"

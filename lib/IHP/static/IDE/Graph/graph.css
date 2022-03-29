@@ -1,0 +1,189 @@
+.doc-explorer-title-bar {
+    opacity: 0;
+}
+
+.graphiql-container .secondary-editor-title {
+    background-color: inherit !important;
+    border-bottom: 1px solid #0A4151 !important;
+    border-top: 1px solid #0A4151 !important;
+}
+
+.docExplorerWrap {
+    border-right: 1px solid #0A4151;
+    background-color: rgb(6, 54, 66);
+}
+
+.editorWrap .title {
+    color: #fff;
+}
+
+.graphiql-container .variable-editor-title-text.active {
+    color: #fff !important;
+    opacity: 0.9;
+    font-weight: bold;
+}
+
+.graphiql-container .topBar {
+    border-bottom: 1px solid #0A4151 !important;
+    background: rgb(6, 54, 66) !important;
+}
+
+.CodeMirror-foldgutter {
+    border-left: 1px solid #0A4151 !important;
+    border-right: 1px solid #0A4151 !important;
+    background: rgb(6, 54, 66) !important;
+}
+
+.graphiql-container .resultWrap {
+    border-left: 1px solid #0A4151 !important;
+}
+
+.graphiql-explorer-node {
+    font-family: Inter;
+    font-size: 14px;
+}
+
+.graphiql-explorer-node .custom-checkbox .custom-control-input:checked~.custom-control-label::after {
+    top: 4px;
+}
+
+.graphiql-explorer-actions {
+    display: none !important;
+}
+
+.graphiql-operation-title-bar {
+    display: none;
+}
+
+.graphiql-container .toolbar-button {
+    background: transparent !important;
+    color: #D8D8D8 !important;
+    font-family: Inter;
+    box-shadow: none !important;
+    border: 1px solid #D8D8D8 !important;
+
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+    transition: all 0.2s;
+    outline: 0 !important;
+}
+
+.graphiql-container .toolbar-button:hover {
+    background: hsl(0deg 0% 85% / 20%) !important;
+}
+.graphiql-container .toolbar-button:active {
+    opacity: 0.8 !important;
+}
+
+.graphiql-container .execute-button {
+    box-shadow: none !important;
+    background: transparent !important;
+    border: 1px solid #D8D8D8 !important;
+    fill: #D8D8D8 !important;
+    outline: 0 !important;
+    transition: all 0.2s;
+}
+
+.graphiql-container .execute-button:hover {
+    background: hsl(0deg 0% 85% / 20%) !important;
+}
+
+.graphiql-container .execute-button:active {
+    opacity: 0.6 !important;
+}
+
+.CodeMirror-hints {
+    background-color: #052730 !important;
+    color: #93a1a1;
+}
+
+.CodeMirror-hints .CodeMirror-hint {
+    color: #93a1a1;
+    border: 0;
+}
+
+.CodeMirror-hints li.CodeMirror-hint-active {
+    background-color: #2aa198;
+    color: #fdf6e3;
+}
+
+.CodeMirror-hint-information .content {
+    color: #839496 !important;
+}
+
+.graphiql-container .docExplorerShow, .graphiql-container .historyShow {
+    background: rgb(6, 54, 66) !important;
+    color: #D8D8D8 !important;
+    border-bottom: 0 !important;
+    border-left: 1px solid #0A4151 !important;
+    outline: 0 !important;
+    transition: all 0.2s;
+}
+
+.graphiql-container .docExplorerShow:before {
+    border-left: 2px solid #D8D8D8 !important;
+    border-top: 2px solid #D8D8D8 !important;
+}
+.graphiql-container .docExplorerShow:hover, .graphiql-container .historyShow:hover {
+    background: hsl(0deg 0% 85% / 20%) !important;
+}
+
+.graphiql-container .docExplorerWrap, .graphiql-container .historyPaneWrap, .graphiql-container .doc-explorer {
+    background: #052730 !important;
+    color: #93a1a1;
+}
+
+.graphiql-container .doc-explorer-contents, .graphiql-container .history-contents {
+    background: #052730 !important;
+}
+
+.graphiql-container .doc-explorer-title-bar, .graphiql-container .history-title-bar {
+    opacity: 1;
+    height: initial !important;
+}
+
+.graphiql-container .docExplorerHide {
+    color: #93a1a1 !important;
+}
+
+.graphiql-explorer-node svg path {
+    fill: rgba(197, 207, 211, 0.8) !important;
+}
+
+.graphiql-explorer-root {
+    font-family: Inter !important;
+}
+
+#user-selector {
+    position: absolute;
+    z-index: 1000;
+    margin-top: 12px;
+    min-width: 300px;
+}
+
+.toolbar-button {
+    text-overflow: ellipsis;
+    overflow: hidden; 
+}
+
+.graphiql-container .search-box > input {
+    background-color: hsl(192deg 100% 17%);
+    border-radius: 9px;
+    margin-bottom: 6px;
+    color: #fff;
+}
+
+.graphiql-container .search-box .search-box-icon {
+    display: none;
+}
+
+.graphiql-container .docExplorerResizer {
+    background-color: #0A4151;
+}
+
+.graphiql-container .doc-type-description code, .graphiql-container .doc-category code {
+    background-color: rgb(131 148 150 / 30%) !important;
+    color: #859900 !important;
+}

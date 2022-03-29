@@ -12,7 +12,7 @@ import Data.Attoparsec.Text
 import qualified Data.HashMap.Strict as HashMap
 
 parseDocument :: Parser Document
-parseDocument = Document <$> many1 parseDefinition
+parseDocument = Document <$> (manyTill parseDefinition endOfInput)
 
 parseDefinition :: Parser Definition
 parseDefinition = skipSpace >> (executableDefinition <|> parseFragmentDefinition)
@@ -40,7 +40,13 @@ parseFragmentDefinition = do
     skipSpace
     name <- parseName
     skipSpace
-    selectionSet <- parseSelectionSet
+    on <- option Nothing do
+        string "on"
+        skipSpace
+        type_ <- parseType
+        skipSpace
+        pure (Just type_)
+    selectionSet <- parseSelectionSet <?> ("fragment " <> cs name)
     pure (FragmentDefinition Fragment { name, selectionSet })
 
 
@@ -125,6 +131,7 @@ parseArgument = do
     char ':'
     skipSpace
     argumentValue <- parseValue
+    skipSpace
     pure Argument { argumentName, argumentValue }
 
 parseValue :: Parser Value
@@ -142,13 +149,21 @@ parseValue = do
                     |> map (\Argument { argumentName, argumentValue } -> (argumentName, argumentValue))
                     |> HashMap.fromList
             pure (ObjectValue hashMap)
-    let string = do
+    let true = do
+            string "true" 
+            skipSpace
+            pure $ BooleanValue True
+    let false = do
+            string "false" 
+            skipSpace
+            pure $ BooleanValue False
+    let stringLit = do
             char '"'
             body <- takeTill (== '\"')
             char '"'
             skipSpace
             pure (StringValue body)
-    (variable <?> "Variable") <|> (object <?> "Object") <|> (string <?> "String")
+    (variable <?> "Variable") <|> (object <?> "Object") <|> (stringLit <?> "String") <|> true <|> false
 
 parseName :: Parser Text
 parseName = takeWhile1 isNameChar <?> "Name"

@@ -24,7 +24,7 @@ body, .modal-content {
     font-size: 10px;
     display: flex;
     flex-direction: column;
-    padding-bottom: 1rem;
+    padding-bottom: 0.5rem;
     border-right: 1px solid #0A4151;
 }
 
@@ -82,7 +82,8 @@ body, .modal-content {
     opacity: 0.5;
     color: hsla(196, 13%, 80%, 1);
     text-decoration: none !important;
-    margin-top: 1rem;
+    margin-top: auto;
+    margin-bottom: 0;
 }
 
 .nav-user {
@@ -350,4 +351,18 @@ a, a:hover {
 
 .btn-secondary:not(:disabled):not(.disabled).active, .btn-secondary:not(:disabled):not(.disabled):active, .show>.btn-secondary.dropdown-toggle {
     background-color: hsl(175deg 59% 33%);   
+}
+
+.popover {
+    background-color: #0A4151;
+    border: 2px solid #0B5163;
+}
+
+.popover p a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.bs-popover-auto[x-placement^=right] .arrow::after, .bs-popover-right .arrow::after {
+    border-right-color: #0B5163;
 }

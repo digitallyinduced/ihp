@@ -1,0 +1,23 @@
+{
+  "name": "ihp-graph",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "esbuild": "^0.13.1",
+    "graphiql": "^1.6.0",
+    "graphiql-explorer": "^0.9.0",
+    "graphql": "^16.3.0",
+    "punycode": "^2.1.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-select": "^5.2.2"
+  },
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev": "node server.js",
+    "build": " ./node_modules/.bin/esbuild app.jsx --bundle --outfile=public/app.js --define:global=window --watch"
+  }
+}

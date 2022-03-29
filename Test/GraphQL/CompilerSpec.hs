@@ -15,15 +15,17 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import Test.Postgres.Support
 import qualified Data.Text as Text
 import qualified Data.ByteString.Builder
+import Test.IDE.SchemaDesigner.ParserSpec (parseSqlStatements)
+import qualified IHP.GraphQL.SchemaCompiler as SchemaCompiler
 
 tests = do
     describe "The GraphQL Compiler" do
         it "should compile a trivial selection" do
-            compileGQL "{ users { id email } }" [] `shouldBe` "SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email FROM users) AS _users)) AS _root"
+            compileGQL "{ users { id email } }" [] `shouldBe` "SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, users.email FROM users) AS _users))"
 
         it "should compile a trivial selection with an alias" do
             compileGQL "{ users { id userEmail: email } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email AS "userEmail" FROM users) AS _users)) AS _root
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, users.email AS "userEmail" FROM users) AS _users))
             |]
         it "should compile a trivial selection with a fragment spread" do
             let query = [trimming|
@@ -37,28 +39,47 @@ tests = do
                 fragment userFragment { email }
             |]
             compileGQL query [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email FROM users) AS _users)) AS _root
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, users.email FROM users) AS _users))
             |]
         
         it "should compile a selection set accessing multiple tables" do
             compileGQL "{ users { id } tasks { id title } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id FROM users) AS _users) UNION ALL (SELECT json_build_object('tasks', json_agg(_tasks.*)) AS data FROM (SELECT tasks.id, tasks.title FROM tasks) AS _tasks)) AS _root
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id FROM users) AS _users), 'tasks', (SELECT coalesce(json_agg(row_to_json(_tasks)), '[]'::json) FROM (SELECT tasks.id, tasks.title FROM tasks) AS _tasks))
             |]
         it "should compile a named query" do
             compileGQL "query GetUsers { users { id } tasks { id title } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id FROM users) AS _users) UNION ALL (SELECT json_build_object('tasks', json_agg(_tasks.*)) AS data FROM (SELECT tasks.id, tasks.title FROM tasks) AS _tasks)) AS _root
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id FROM users) AS _users), 'tasks', (SELECT coalesce(json_agg(row_to_json(_tasks)), '[]'::json) FROM (SELECT tasks.id, tasks.title FROM tasks) AS _tasks))
             |]
         it "should compile a 'user(id: $id)' selection" do
             compileGQL "{ user(id: \"dde8fd2c-4941-4262-a8e0-cc4cd40bacba\") { id } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('user', json_agg(_user.*)) AS data FROM (SELECT users.id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user)) AS _root
+                SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user))
+            |]
+        it "should compile a 'user(id: $id)' selection with a variable" do
+            let arguments = [
+                    Argument
+                        { argumentName = "userId"
+                        , argumentValue = parseValue [trimming|
+                            "dde8fd2c-4941-4262-a8e0-cc4cd40bacba"
+                        |] }
+                    ]
+            compileGQL "{ user(id: $userId) { id } }" arguments `shouldBe` [trimming|
+                SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id FROM users WHERE id = 'dde8fd2c-4941-4262-a8e0-cc4cd40bacba') AS _user))
             |]
         it "should compile a single selection with a one-to-many relationship" do
             compileGQL "{ user(id: \"40f1dbb4-403c-46fd-8062-fcf5362f2154\") { id email tasks { id title } } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('user', json_agg(_user.*)) AS data FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true WHERE id = '40f1dbb4-403c-46fd-8062-fcf5362f2154') AS _user)) AS _root
+                SELECT json_build_object('user', (SELECT coalesce(row_to_json(_user), '[]'::json) FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true WHERE id = '40f1dbb4-403c-46fd-8062-fcf5362f2154') AS _user))
             |]
         it "should compile a multi selection with a one-to-many relationship" do
             compileGQL "{ users { id email tasks { id title } } }" [] `shouldBe` [trimming|
-                SELECT to_json(_root.data) FROM ((SELECT json_build_object('users', json_agg(_users.*)) AS data FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true) AS _users)) AS _root
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true) AS _users))
+            |]
+        it "should compile a has-one relationship" do
+            compileGQL "{ messages { id user { id email } } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('messages', (SELECT coalesce(json_agg(row_to_json(_messages)), '[]'::json) FROM (SELECT messages.id, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = messages.user_id) user ON true) AS _messages))
+            |]
+        it "should compile a has-one relationship in a deeply nested query" do
+            compileGQL "{ channels { id name messages { id body user { id email } } } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('channels', (SELECT coalesce(json_agg(row_to_json(_channels)), '[]'::json) FROM (SELECT channels.id, channels.name, messages FROM channels LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT messages.id, messages.body, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = channels.user_id) user ON true WHERE messages.channel_id = channels.id) AS _sub) AS messages) messages ON true) AS _channels))
             |]
         it "should compile a create mutation" do
             let mutation = [trimming|
@@ -78,7 +99,7 @@ tests = do
                         |] }
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
-                 INSERT INTO projects (user_id, title) VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World') RETURNING json_build_object('id', projects.id, 'title', projects.title)
+                 INSERT INTO projects (user_id, title) VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World') RETURNING json_build_object('createProject', json_build_object('id', projects.id, 'title', projects.title))
             |]
         it "should compile a delete mutation" do
             let mutation = [trimming|
@@ -96,7 +117,7 @@ tests = do
                         |] }
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
-                 DELETE FROM projects WHERE id = 'dc984c2f-d91c-4143-9091-400ad2333f83' RETURNING json_build_object('id', projects.id, 'title', projects.title)
+                 DELETE FROM projects WHERE id = 'dc984c2f-d91c-4143-9091-400ad2333f83' RETURNING json_build_object('deleteProject', json_build_object('id', projects.id, 'title', projects.title))
             |]
         it "should compile a update mutation" do
             let mutation = [trimming|
@@ -119,7 +140,34 @@ tests = do
                         , argumentValue = parseValue [trimming|"df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1"|] }
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
-                 UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('id', projects.id, 'title', projects.title)
+                 UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('updateProject', json_build_object('id', projects.id, 'title', projects.title))
+            |]
+        it "should compile a __typename selection" do
+            compileGQL "{ users { id __typename } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, 'User' AS __typename FROM users) AS _users))
+            |]
+        it "should compile a update mutation with a __typename" do
+            let mutation = [trimming|
+                mutation UpdateProject($$projectId: ProjectId, $$patch: ProjectPatch) {
+                    updateProject(id: $$projectId, set: $$patch) {
+                        id title __typename
+                    }
+                }
+            |]
+            let arguments = [
+                    Argument
+                        { argumentName = "patch"
+                        , argumentValue = parseValue [trimming|
+                            { title: "Hello World"
+                            , userId: "dc984c2f-d91c-4143-9091-400ad2333f83"
+                            }
+                        |] }
+                    , Argument
+                        { argumentName = "projectId"
+                        , argumentValue = parseValue [trimming|"df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1"|] }
+                    ]
+            compileGQL mutation arguments `shouldBe` [trimming|
+                 UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('updateProject', json_build_object('id', projects.id, 'title', projects.title, '__typename', 'Project'))
             |]
 
 compileGQL gql arguments = gql

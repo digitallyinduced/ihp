@@ -28,7 +28,10 @@ import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified IHP.GraphQL.Types as GraphQL
 import qualified IHP.GraphQL.Parser as GraphQL
 import qualified IHP.GraphQL.Compiler as GraphQL
+import qualified IHP.GraphQL.SchemaCompiler as GraphQL
 import IHP.GraphQL.JSON ()
+import qualified IHP.GraphQL.Resolver as GraphQL
+import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
@@ -156,14 +159,17 @@ instance (
 
     action GraphQLQueryAction = do
         graphQLRequest :: GraphQL.GraphQLRequest <- case fromJSON requestBodyJSON of
-                Error errorMessage -> error (cs errorMessage)
+                Error errorMessage -> do
+                    renderJson GraphQL.GraphQLErrorResponse { errors = [ cs errorMessage ] }
+                    pure undefined -- Unreachable
                 Data.Aeson.Success value -> pure value
 
-        let [(theQuery, theParams)] = GraphQL.compileDocument (get #variables graphQLRequest) (get #query graphQLRequest)
-
-        [PG.Only graphQLResult] <- sqlQueryWithRLS theQuery theParams
-
-        renderJson (graphQLResult :: UndecodedJSON)
+        (Right sqlSchema) <- SchemaDesigner.parseSchemaSql
+        let schema = GraphQL.sqlSchemaToGraphQLSchema sqlSchema
+        result <- handleGraphQLError (GraphQL.resolve schema sqlQueryWithRLS graphQLRequest)
+        case result of
+            (Left error) -> renderJson error
+            (Right graphQLResult) -> renderJson graphQLResult
 
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
@@ -254,3 +260,12 @@ instance ToJSON GraphQLResult where
 instance ToJSON UndecodedJSON where
     toJSON (UndecodedJSON _) = error "Not implemented"
     toEncoding (UndecodedJSON json) = Aeson.unsafeToEncoding (ByteString.byteString json)
+
+handleGraphQLError runGraphQLHandler = do
+    result <- Exception.try runGraphQLHandler
+    pure case result of
+        Left (exception :: SomeException) ->
+            case Exception.fromException exception of
+                Just (exception :: EnhancedSqlError) -> Left GraphQL.GraphQLErrorResponse { errors = [ cs $ get #sqlErrorMsg (get #sqlError exception) ] }
+                Nothing -> Left GraphQL.GraphQLErrorResponse { errors = [ tshow exception ] }
+        Right result -> Right result

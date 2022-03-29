@@ -52,6 +52,8 @@ import qualified Test.PGListenerSpec
 import qualified Test.GraphQL.ParserSpec
 import qualified Test.GraphQL.CompilerSpec
 import qualified Test.GraphQL.SchemaCompilerSpec
+import qualified Test.GraphQL.AnalysisSpec
+import qualified Test.GraphQL.PatchSpec
 
 main :: IO ()
 main = hspec do
@@ -91,3 +93,5 @@ main = hspec do
     Test.GraphQL.ParserSpec.tests
     Test.GraphQL.CompilerSpec.tests
     Test.GraphQL.SchemaCompilerSpec.tests
+    Test.GraphQL.AnalysisSpec.tests
+    Test.GraphQL.PatchSpec.tests

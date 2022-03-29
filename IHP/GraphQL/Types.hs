@@ -8,6 +8,22 @@ data GraphQLRequest = GraphQLRequest
     , variables :: !Variables
     }
 
+type GraphQLSchema = [Definition]
+
+-- An error response that renders to JSON like this:
+--
+-- > {
+-- >   "data": null,
+-- >   "errors": [
+-- >     { "message": "error 1" }
+-- >   ]
+-- > }
+--
+-- We don't support partial responses, so @data@ will always be @null@ in an error case
+data GraphQLErrorResponse = GraphQLErrorResponse
+    { errors :: ![Text]
+    }
+
 -- https://spec.graphql.org/June2018/#sec-Appendix-Grammar-Summary.Document
 
 newtype Document = Document { definitions :: [Definition] }
@@ -122,4 +138,15 @@ data Type
     = NamedType !Text
     | ListType !Type
     | NonNullType !Type
+    deriving (Eq, Show)
+
+data StaticGraph
+    = ObjectNode { objectValues :: !(HashMap Text StaticGraph) }
+    | ArrayNode { arrayElements :: ![StaticGraph] }
+    | Leaf { value :: !Value }
+    deriving (Eq, Show)
+
+data Resolver
+    = PostgresResolver
+    | IntrospectionResolver
     deriving (Eq, Show)

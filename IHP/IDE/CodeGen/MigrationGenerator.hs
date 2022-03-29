@@ -23,8 +23,8 @@ import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.LibDir as LibDir
 
-buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
-buildPlan description sqlStatements = do
+buildPlan :: ByteString -> Text -> Maybe Text -> IO (Int, [GeneratorAction])
+buildPlan databaseUrl description sqlStatements = do
     revision <- round <$> POSIX.getPOSIXTime
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
@@ -32,7 +32,7 @@ buildPlan description sqlStatements = do
     migrationSql <- case sqlStatements of
         Just sql -> pure sql
         Nothing -> do
-            appDiff <- diffAppDatabase
+            appDiff <- diffAppDatabase databaseUrl
             pure $ if isEmpty appDiff
                 then "-- Write your SQL migration code in here\n"
                 else compileSql appDiff
@@ -41,10 +41,10 @@ buildPlan description sqlStatements = do
             , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }
             ])
 
-diffAppDatabase = do
+diffAppDatabase databaseUrl = do
     (Right schemaSql) <- Parser.parseSchemaSql
     (Right ihpSchemaSql) <- parseIHPSchema
-    actualSchema <- getAppDBSchema
+    actualSchema <- getAppDBSchema databaseUrl
 
     let targetSchema = ihpSchemaSql <> schemaSql
 
@@ -310,9 +310,9 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
         addValue :: Text -> Statement
         addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
 
-getAppDBSchema :: IO [Statement]
-getAppDBSchema = do
-    sql <- dumpAppDatabaseSchema
+getAppDBSchema :: ByteString -> IO [Statement]
+getAppDBSchema databaseUrl = do
+    sql <- dumpAppDatabaseSchema databaseUrl
     case parseDumpedSql sql of
         Left error -> fail (cs error)
         Right result -> pure result
@@ -320,10 +320,10 @@ getAppDBSchema = do
 -- | Returns the DDL statements of the locally running dev db
 --
 -- Basically does the same as @make dumpdb@ but returns the output as a string
-dumpAppDatabaseSchema :: IO Text
-dumpAppDatabaseSchema = do
+dumpAppDatabaseSchema :: ByteString -> IO Text
+dumpAppDatabaseSchema databaseUrl = do
     projectDir <- Directory.getCurrentDirectory
-    cs <$> Process.readProcess "pg_dump" ["-s", "--no-owner", "--no-acl", "-h", projectDir <> "/build/db", "app"] []
+    cs <$> Process.readProcess "pg_dump" ["-s", "--no-owner", "--no-acl", cs databaseUrl] []
 
 parseDumpedSql :: Text -> (Either ByteString [Statement])
 parseDumpedSql sql =

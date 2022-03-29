@@ -104,6 +104,7 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
+            , jwt
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -381,6 +382,15 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.GraphQL.Analysis
+        , IHP.GraphQL.Patch
+        , IHP.GraphQL.GraphQLWS
+        , IHP.GraphQL.Introspection
+        , IHP.GraphQL.Resolver
+        , IHP.IDE.Graph.Controller
+        , IHP.IDE.Graph.View.Explore
+        , IHP.IDE.Graph.View.Schema
+        , IHP.IDE.Graph.View.Layout
 
 executable RunDevServer
     import: shared-properties

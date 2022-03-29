@@ -2,12 +2,14 @@ module IHP.GraphQL.Compiler where
 
 import IHP.Prelude
 import IHP.GraphQL.Types
+import qualified IHP.GraphQL.Introspection as Introspection
 
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Prelude (Semigroup (..))
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.List as List
 
 data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 
@@ -16,31 +18,44 @@ data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
 compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) = 
     case definition of
-        ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
-            [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition document definition arguments <> ") AS _root") ]
+        ExecutableDefinition { operation = OperationDefinition { operationType } } | operationType == Query || operationType == Subscription ->
+            [ unpackQueryPart (compileDefinition document definition arguments) ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
-            map unpackQueryPart $ compileMutationDefinition definition arguments
+            map unpackQueryPart $ compileMutationDefinition document definition arguments
 
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
-compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
-    selectionSet
-    |> map (compileSelection document variables)
-    |> unionAll
+compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType, selectionSet } } variables | operationType == Query || operationType == Subscription =
+    "SELECT json_build_object(" <> commaSep aggregations <> ")"
+    where
+        aggregations = map (compileSelection document variables) selectionSet
 
-compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
-compileMutationDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
+compileMutationDefinition :: Document -> Definition -> [Argument] -> [QueryPart]
+compileMutationDefinition document ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
     selectionSet
-    |> map (compileMutationSelection arguments)
+    |> map ((compileMutationSelection document) arguments)
 
 compileSelection :: Document -> [Argument] -> Selection -> QueryPart
 compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
-        ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
-        <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
-        <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
-        <> joins
-        <> where_
-        <> (") AS ?)" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
+        aggregation
     where
+        query =
+            "(SELECT "
+            <> selectQueryPieces document tableName field
+            <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
+            <> joins document variables tableName field
+            <> where_
+            <> (") AS ?" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
+
+        -- | Builds a tuple as used in `json_build_object('users', json_agg(_users), 'tasks', json_agg(_tasks))`
+        aggregation = (
+                if isSingleResult
+                    then
+                        (("?, (SELECT coalesce(row_to_json(?), '[]'::json) FROM " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]) <> query <> ")")
+                    else
+                        (("?, (SELECT coalesce(json_agg(row_to_json(?)), '[]'::json) FROM " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)]) <> query <> ")"))
+
+        isSingleResult = isJust idArgument
+
         subqueryId = "_" <> fieldName
         nameOrAlias = fromMaybe fieldName alias
 
@@ -58,79 +73,115 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
                 [Argument { argumentName = "id", argumentValue }] -> Just argumentValue
                 _ -> Nothing
 
-
+joins :: Document -> [Argument] -> Text -> Selection -> QueryPart
+joins document variables tableName field = field
+        |> get #selectionSet
+        |> filter isJoinField
+        |> map (fieldToJoin document variables tableName)
+        |> \case
+            [] -> ""
+            joins -> " " <> spaceSep joins
+    where
         isJoinField :: Selection -> Bool
         isJoinField Field { selectionSet } = not (null selectionSet)
         isJoinField FragmentSpread {} = False -- TODO: Also support fragment spreads in joined tables
 
-        joins :: QueryPart
-        joins = field
-                |> get #selectionSet
-                |> filter isJoinField
-                |> map (fieldToJoin document tableName)
-                |> \case
-                    [] -> ""
-                    joins -> " " <> spaceSep joins
 
 
-selectQueryPieces :: Document -> PG.Action -> Selection -> QueryPart
-selectQueryPieces document tableName field = field
+selectQueryPieces :: Document -> Text -> Selection -> QueryPart
+selectQueryPieces document tableName field =
+    selectFields document tableName field
+    |> map (\(left, right, isAlias) -> if isAlias
+            then left <> " AS ?" |> withParams [PG.toField (PG.Identifier right)]
+            else left
+        )
+    |> commaSep
+
+returnQueryPieces :: Document -> Text -> Selection -> QueryPart
+returnQueryPieces document tableName field =
+    selectFields document tableName field
+    |> map (\(left, right, isAlias) -> ("?, " |> withParams [PG.toField right]) <> left )
+    |> commaSep
+
+selectFields :: Document -> Text -> Selection -> [(QueryPart, Text, Bool)]
+selectFields document tableName field =
+        field
         |> get #selectionSet
         |> map compileSelection
         |> mconcat
-        |> commaSep
     where
+        qualified :: Selection -> QueryPart
         qualified field = if isEmpty (get #selectionSet field)
-                then "?." |> withParams [tableName]
+                then "?." |> withParams [PG.toField (PG.Identifier tableName)]
                 else ""
 
-        compileSelection :: Selection -> [QueryPart]
+        compileSelection :: Selection -> [(QueryPart, Text, Bool)]
         compileSelection field@(Field {}) = [compileField field]
         compileSelection fragmentSpread@(FragmentSpread {}) = compileFragmentSpread fragmentSpread
 
-        compileField :: Selection -> QueryPart
-        compileField field@(Field { alias = Just alias, name }) = qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier alias) ]
-        compileField field@(Field { alias = Nothing, name    }) =
+        compileField :: Selection -> (QueryPart, Text, Bool)
+        compileField field@(Field { alias, name = "__typename" }) =
+                ( "?" |> withParams [ PG.toField typeName ]
+                , fromMaybe "__typename" alias
+                , alias /= "__typename"
+                )
+            where
+                typeName = tableNameToModelName tableName
+        compileField field@(Field { alias = Just alias, name }) =
+                ( qualified field <> ("?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ])
+                , alias
+                , True
+                )
+        compileField field@(Field { alias = Nothing, name }) =
             let
                 columnName = fieldNameToColumnName name
             in
-                if columnName /= name
-                    then qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier name) ]
-                    else qualified field <> "?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ]
+                ( qualified field <> ("?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ])
+                , name
+                , columnName /= name
+                )
 
         
-        compileFragmentSpread :: Selection -> [QueryPart]
+        compileFragmentSpread :: Selection -> [(QueryPart, Text, Bool)]
         compileFragmentSpread FragmentSpread { fragmentName } = 
                 fragment
                     |> get #selectionSet
                     |> map compileSelection
                     |> mconcat
             where
-                fragment :: Fragment
-                fragment = document
-                    |> get #definitions
-                    |> find (\case
-                            FragmentDefinition (Fragment { name }) -> name == fragmentName
-                            otherwise -> False
-                        )
-                    |> fromMaybe (error $ "Could not find fragment named " <> fragmentName)
-                    |> \case
-                        FragmentDefinition fragment -> fragment
+                fragment = findFragmentByName document fragmentName
 
-fieldToJoin :: Document -> Text -> Selection -> QueryPart
-fieldToJoin document rootTableName field@(Field { name }) =
+fieldToJoin :: Document -> [Argument] -> Text -> Selection -> QueryPart
+fieldToJoin document variables rootTableName field@(Field { name }) =
         "LEFT JOIN LATERAL ("
-            <> "SELECT ARRAY("
-                <> "SELECT to_json(_sub) FROM ("
+            <> when isHasMany "SELECT ARRAY("
+                <> when isHasMany "SELECT to_json(_sub) FROM ("
                     <> "SELECT "
-                    <> selectQueryPieces document foreignTable field
+                    <> selectQueryPieces document foreignTableName field
                     <> (" FROM ?" |> withParams [foreignTable])
-                    <> (" WHERE ?.? = ?.?" |> withParams [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey])
-                <> ") AS _sub"
-            <> (") AS ?" |> withParams [aliasOrName])
+                    <> joins document variables rootTableName field
+                    <> (" WHERE ?.? = ?.?" |> withParams conditionParams)
+                <> when isHasMany ") AS _sub"
+            <> when isHasMany (") AS ?" |> withParams [aliasOrName])
         <> (") ? ON true" |> withParams [aliasOrName])
     where
-        foreignTable = PG.toField (PG.Identifier name)
+        isHasOne :: Bool
+        isHasOne = singularize name == name -- Is it a singular name, like `user` instead of `users`?
+
+        isHasMany = not isHasOne
+
+        conditionParams = if isHasMany
+            then [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey]
+            else [foreignTable, PG.toField (PG.Identifier "id"), rootTable, PG.toField (PG.Identifier $ (fieldNameToColumnName name) <> "_id" )]
+
+        when condition then_ = if condition then then_ else ""
+
+        foreignTable = PG.toField (PG.Identifier foreignTableName)
+        foreignTableName =
+            if isHasOne
+                then pluralize name
+                else name
+
         foreignTableForeignKey = PG.toField (PG.Identifier foreignTableForeignKeyName)
         foreignTableForeignKeyName = rootTableName
                 |> singularize
@@ -143,19 +194,19 @@ fieldToJoin document rootTableName field@(Field { name }) =
                     Just alias -> alias
                     Nothing -> get #name field
 
-compileMutationSelection :: [Argument] -> Selection -> QueryPart
-compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
+compileMutationSelection :: Document -> [Argument] -> Selection -> QueryPart
+compileMutationSelection document queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
         let create = do
                 modelName <- Text.stripPrefix "create" fieldName
-                pure $ compileSelectionToInsertStatement queryArguments field modelName
+                pure $ compileSelectionToInsertStatement document queryArguments field modelName
 
         let delete = do
                 modelName <- Text.stripPrefix "delete" fieldName
-                pure $ compileSelectionToDeleteStatement queryArguments field modelName
+                pure $ compileSelectionToDeleteStatement document queryArguments field modelName
         
         let update = do
                 modelName <- Text.stripPrefix "update" fieldName
-                pure $ compileSelectionToUpdateStatement queryArguments field modelName
+                pure $ compileSelectionToUpdateStatement document queryArguments field modelName
 
         create <|> delete <|> update
 
@@ -182,8 +233,8 @@ compileMutationSelection queryArguments field@(Field { alias, name = fieldName, 
 -- >     VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World')
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
-compileSelectionToInsertStatement :: [Argument] -> Selection -> Text -> QueryPart
-compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
+compileSelectionToInsertStatement :: Document -> [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToInsertStatement document queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("INSERT INTO ? (" |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep columns <> ") VALUES (" <> commaSep values <> ") RETURNING " <> returning
     where
         tableName = modelNameToTableName modelName
@@ -204,10 +255,7 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
                 |> unzip
 
         returning :: QueryPart
-        returning = "json_build_object(" <> returningArgs <> ")"
-        returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
-                |> commaSep
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 -- | Turns a @update..@ mutation into a UPDATE SQL query
 --
@@ -234,8 +282,8 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
 -- >     WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1'
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
-compileSelectionToUpdateStatement :: [Argument] -> Selection -> Text -> QueryPart
-compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
+compileSelectionToUpdateStatement :: Document -> [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToUpdateStatement document queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("UPDATE ? SET " |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep setValues <> where_ <> " RETURNING " <> returning
     where
         tableName = modelNameToTableName modelName
@@ -258,10 +306,7 @@ compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fi
                 |> map (\(fieldName, value) -> ("? = ?" |> withParams [PG.toField (PG.Identifier (fieldNameToColumnName fieldName)), valueToSQL value]))
 
         returning :: QueryPart
-        returning = "json_build_object(" <> returningArgs <> ")"
-        returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
-                |> commaSep
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 -- | Turns a @delete..@ mutation into a DELETE SQL query
 --
@@ -283,8 +328,8 @@ compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fi
 -- >     WHERE project_id = 'dc984c2f-d91c-4143-9091-400ad2333f83'
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
-compileSelectionToDeleteStatement :: [Argument] -> Selection -> Text -> QueryPart
-compileSelectionToDeleteStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
+compileSelectionToDeleteStatement :: Document -> [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToDeleteStatement document queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("DELETE FROM ? WHERE id = ?" |> withParams [PG.toField $ PG.Identifier tableName, recordId]) <> " RETURNING " <> returning
     where
         tableName = modelNameToTableName modelName
@@ -294,10 +339,7 @@ compileSelectionToDeleteStatement queryArguments field@(Field { alias, name = fi
             Nothing -> error $ "Expected first argument to " <> fieldName <> " to be an ID, got no arguments"
         
         returning :: QueryPart
-        returning = "json_build_object(" <> returningArgs <> ")"
-        returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
-                |> commaSep
+        returning = ("json_build_object(?, json_build_object(" |> withParams [PG.toField (nameOrAlias field) ]) <> returnQueryPieces document tableName field <> "))"
 
 valueToSQL :: Value -> PG.Action
 valueToSQL (IntValue int) = PG.toField int
@@ -313,11 +355,58 @@ resolveVariables (Variable varName) arguments =
             Nothing -> error ("Could not resolve variable " <> varName)
 resolveVariables otherwise _ = otherwise
 
+compileIntrospectionSelection :: GraphQLSchema -> Document -> [Argument] -> Selection -> (Maybe QueryPart, QueryPart)
+compileIntrospectionSelection schema document variables field@(Field { name, selectionSet }) = (Nothing, aggregation)
+    where
+
+        aggregation = ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> buildSchemaSelection <> ")"
+
+        buildSchemaSelection = commaSep (map (compileSchemaSelection (Introspection.introspectionGraph schema)) selectionSet)
+
+        compileSchemaSelection :: StaticGraph -> Selection -> QueryPart
+        compileSchemaSelection graph field@(Field { name, selectionSet = [] }) =
+            let
+                targetLeaf :: Value
+                targetLeaf = graph
+                        |> (\case
+                                ObjectNode { objectValues } -> objectValues
+                                otherwise -> error $ "expected object node, got " <> tshow otherwise
+                            )
+                        |> HashMap.lookup name
+                        |> \case
+                            Just (Leaf value) -> value
+                            otherwise -> error $ "expected leaf node at " <> name <> ", got " <> tshow otherwise <> " in graph " <> tshow graph
+            in
+                "?, ?" |> withParams [PG.toField (nameOrAlias field), PG.toField targetLeaf]
+        compileSchemaSelection graph field@(Field { name, selectionSet }) =
+            let
+                targetNode :: StaticGraph
+                targetNode = graph
+                        |> (\case
+                                ObjectNode { objectValues } -> objectValues
+                                otherwise -> error $ "expected object node, got " <> tshow otherwise
+                            )
+                        |> HashMap.lookup name
+                        |> fromMaybe (error $ "Could not find node " <> name)
+            in
+                case targetNode of
+                    ObjectNode {} -> ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> commaSep (map (compileSchemaSelection targetNode) selectionSet) <> ")"
+                    ArrayNode { arrayElements } -> ("?, json_build_object(" |> withParams [PG.toField (nameOrAlias field)]) <> commaSep (map (\targetNode -> commaSep (map (compileSchemaSelection targetNode) selectionSet)) arrayElements) <> ")"
+                    Leaf { value = NullValue } -> "?, null" |> withParams [PG.toField (nameOrAlias field)]
+                    otherwise -> error $ "Expected object or array, got " <> tshow otherwise <> " while trying to access " <> name
+        compileSchemaSelection graph FragmentSpread { fragmentName } =
+            let
+                fragment = findFragmentByName document fragmentName
+                selectionSet = get #selectionSet fragment
+            in
+                commaSep (map (compileSchemaSelection graph) selectionSet)
+
+
 unionAll :: [QueryPart] -> QueryPart
 unionAll list = foldl' (\a b -> if get #sql a == "" then b else a <> " UNION ALL " <> b) "" list
 
 commaSep :: [QueryPart] -> QueryPart
-commaSep list = foldl' (\a b -> if get #sql a == "" then b else a <> ", " <> b) "" list
+commaSep list = foldl' (\a b -> if get #sql a == "" then b else (a <> ", " <> b)) "" list
 
 spaceSep :: [QueryPart] -> QueryPart
 spaceSep list = foldl' (\a b -> if get #sql a == "" then b else a <> " " <> b) "" list
@@ -335,3 +424,28 @@ unpackQueryPart QueryPart { sql, params } = (sql, params)
 
 withParams :: [PG.Action] -> QueryPart -> QueryPart
 withParams params queryPart = queryPart { params = (get #params queryPart) <> params }
+
+nameOrAlias :: Selection -> Text
+nameOrAlias field = fromMaybe (get #name field) (get #alias field)
+
+findFragmentByName :: Document -> Text -> Fragment
+findFragmentByName document name =
+    let
+        allFragmentNames = document
+                |> get #definitions
+                |> mapMaybe (\case FragmentDefinition (Fragment { name }) -> Just name; _ -> Nothing)
+        couldNotFindFragmentErrorMessage = "Could not find fragment named " <> name <> ". These fragments are defined: " <> Text.intercalate ", " allFragmentNames
+    in
+        document
+            |> get #definitions
+            |> find (\case
+                    FragmentDefinition (Fragment { name = fragmentName }) -> name == fragmentName
+                    otherwise -> False
+                )
+            |> fromMaybe (error couldNotFindFragmentErrorMessage)
+            |> \case
+                FragmentDefinition fragment -> fragment
+
+instance PG.ToField Value where
+    toField (StringValue string) = PG.toField string
+    toField NullValue = PG.toField (Nothing :: Maybe Int)

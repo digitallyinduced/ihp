@@ -45,14 +45,14 @@ instance Controller MigrationsController where
 
     action NewMigrationAction = do
         let description = paramOrDefault "" "description"
-        (_, plan) <- MigrationGenerator.buildPlan description Nothing
+        (_, plan) <- MigrationGenerator.buildPlan theDatabaseUrl description Nothing
         let runMigration = paramOrDefault True "runMigration"
         render NewView { .. }
 
     action CreateMigrationAction = do
         let description = paramOrDefault "" "description"
         let sqlStatements = paramOrNothing "sqlStatements"
-        (revision, plan) <- MigrationGenerator.buildPlan description sqlStatements
+        (revision, plan) <- MigrationGenerator.buildPlan theDatabaseUrl description sqlStatements
         let path = MigrationGenerator.migrationPathFromPlan plan
 
         executePlan plan
@@ -63,7 +63,18 @@ instance Controller MigrationsController where
                 setSuccessMessage ("Migration generated: " <> path)
                 openEditor path 0 0
             else do
-                migrateAppDB revision
+                result <- Exception.try (migrateAppDB revision)
+                case result of
+                    Left (exception :: SomeException) -> do
+                        let errorMessage = case fromException exception of
+                                Just (exception :: EnhancedSqlError) -> cs $ get #sqlErrorMsg (get #sqlError exception)
+                                Nothing -> tshow exception
+                        
+                        setErrorMessage errorMessage
+                        redirectTo MigrationsAction
+                    Right _ -> do
+                        clearDatabaseNeedsMigration
+                        redirectTo MigrationsAction
 
         clearDatabaseNeedsMigration
 
@@ -154,3 +165,9 @@ withAppModelContext inner =
 
         cleanupModelContext (frameworkConfig, logger, modelContext) = do
             logger |> cleanup
+
+theDatabaseUrl :: (?context :: ControllerContext) => ByteString
+theDatabaseUrl =
+    ?context
+    |> getFrameworkConfig
+    |> get #databaseUrl

@@ -8,13 +8,15 @@ import IHP.IDE.ToolServer.Helper.Controller (openEditor)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
 import Main.Utf8 (withUtf8)
+import qualified IHP.FrameworkConfig as FrameworkConfig
 
 main :: IO ()
 main = withUtf8 do
     ensureIsInAppDirectory
+    databaseUrl <- FrameworkConfig.defaultDatabaseUrl
 
     let doCreateMigration description = do
-            (_, plan) <- MigrationGenerator.buildPlan description Nothing
+            (_, plan) <- MigrationGenerator.buildPlan databaseUrl description Nothing
             executePlan plan
             let path = MigrationGenerator.migrationPathFromPlan plan
             putStrLn $ "Created migration: " <> path

@@ -64,6 +64,7 @@ let
         neat-interpolation
         unagi-chan
         with-utf8
+        jwt
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

@@ -52,8 +52,12 @@ tests = do
                 type Query {
                     "Returns all records from the `users` table"
                     users: [User!]!
+                    "Returns a single record from the `users` table"
+                    user(id: UUID!): User!
                     "Returns all records from the `tasks` table"
                     tasks: [Task!]!
+                    "Returns a single record from the `tasks` table"
+                    task(id: UUID!): Task!
                 }
                 type Mutation {
                     createUser(user: NewUser!): User!

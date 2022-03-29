@@ -63,7 +63,9 @@
 , neat-interpolation
 , unagi-chan
 , with-utf8
+, nodejs
 , ihp-hsx
+, jwt
 }:
 mkDerivation {
   pname = "ihp";
@@ -134,8 +136,16 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    jwt
   ];
   license = lib.licenses.mit;
+  preBuild = ''
+    cd lib/IHP/static/IDE/Graph
+    HOME=/tmp npm ci
+    HOME=/tmp npm run build
+    rm -rf node_modules
+    cd ../../../../..
+  '';
   postInstall = ''
     cp exe/IHP/CLI/run-script $out/bin/run-script
 
@@ -147,7 +157,9 @@ mkDerivation {
 
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations
-  # configureFlags = [ "--flag FastBuild" ];
+  configureFlags = [ "--flag FastBuild" ];
   # Uncommenting will not generate documentation
-  # doHaddock = false;
+  doHaddock = false;
+
+  buildTools = [ nodejs ];
 }

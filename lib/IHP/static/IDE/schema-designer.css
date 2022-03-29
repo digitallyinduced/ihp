@@ -351,7 +351,7 @@
     background-color: #0A4151;
 }
 
-#migration-status-container .btn.btn-dark {
+.btn.btn-dark {
     background-color: #002B37;
     border: 1px solid hsla(192, 81%, 26%, 0.8);
 }
