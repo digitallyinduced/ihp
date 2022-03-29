@@ -79,7 +79,7 @@ tests = do
             |]
         it "should compile a has-one relationship in a deeply nested query" do
             compileGQL "{ channels { id name messages { id body user { id email } } } }" [] `shouldBe` [trimming|
-                SELECT json_build_object('channels', json_build_object('messages', (SELECT coalesce(json_agg(row_to_json(_messages)), '[]'::json) FROM (SELECT messages.id, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = messages.user_id) user ON true) AS _messages)))
+                SELECT json_build_object('channels', (SELECT coalesce(json_agg(row_to_json(_channels)), '[]'::json) FROM (SELECT channels.id, channels.name, messages FROM channels LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT messages.id, messages.body, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = channels.user_id) user ON true WHERE messages.channel_id = channels.id) AS _sub) AS messages) messages ON true) AS _channels))
             |]
         it "should compile a create mutation" do
             let mutation = [trimming|
