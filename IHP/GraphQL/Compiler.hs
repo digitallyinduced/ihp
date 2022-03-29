@@ -42,7 +42,7 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
             "(SELECT "
             <> selectQueryPieces document tableName field
             <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
-            <> joins
+            <> joins document variables tableName field
             <> where_
             <> (") AS ?" |> withParams [ PG.toField (PG.Identifier subqueryId) ])
 
@@ -73,19 +73,19 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
                 [Argument { argumentName = "id", argumentValue }] -> Just argumentValue
                 _ -> Nothing
 
-
+joins :: Document -> [Argument] -> Text -> Selection -> QueryPart
+joins document variables tableName field = field
+        |> get #selectionSet
+        |> filter isJoinField
+        |> map (fieldToJoin document variables tableName)
+        |> \case
+            [] -> ""
+            joins -> " " <> spaceSep joins
+    where
         isJoinField :: Selection -> Bool
         isJoinField Field { selectionSet } = not (null selectionSet)
         isJoinField FragmentSpread {} = False -- TODO: Also support fragment spreads in joined tables
 
-        joins :: QueryPart
-        joins = field
-                |> get #selectionSet
-                |> filter isJoinField
-                |> map (fieldToJoin document tableName)
-                |> \case
-                    [] -> ""
-                    joins -> " " <> spaceSep joins
 
 
 selectQueryPieces :: Document -> Text -> Selection -> QueryPart
@@ -151,20 +151,37 @@ selectFields document tableName field =
             where
                 fragment = findFragmentByName document fragmentName
 
-fieldToJoin :: Document -> Text -> Selection -> QueryPart
-fieldToJoin document rootTableName field@(Field { name }) =
+fieldToJoin :: Document -> [Argument] -> Text -> Selection -> QueryPart
+fieldToJoin document variables rootTableName field@(Field { name }) =
         "LEFT JOIN LATERAL ("
-            <> "SELECT ARRAY("
-                <> "SELECT to_json(_sub) FROM ("
+            <> when isHasMany "SELECT ARRAY("
+                <> when isHasMany "SELECT to_json(_sub) FROM ("
                     <> "SELECT "
-                    <> selectQueryPieces document name field
+                    <> selectQueryPieces document foreignTableName field
                     <> (" FROM ?" |> withParams [foreignTable])
-                    <> (" WHERE ?.? = ?.?" |> withParams [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey])
-                <> ") AS _sub"
-            <> (") AS ?" |> withParams [aliasOrName])
+                    <> joins document variables rootTableName field
+                    <> (" WHERE ?.? = ?.?" |> withParams conditionParams)
+                <> when isHasMany ") AS _sub"
+            <> when isHasMany (") AS ?" |> withParams [aliasOrName])
         <> (") ? ON true" |> withParams [aliasOrName])
     where
-        foreignTable = PG.toField (PG.Identifier name)
+        isHasOne :: Bool
+        isHasOne = singularize name == name -- Is it a singular name, like `user` instead of `users`?
+
+        isHasMany = not isHasOne
+
+        conditionParams = if isHasMany
+            then [foreignTable, foreignTableForeignKey, rootTable, rootTablePrimaryKey]
+            else [foreignTable, PG.toField (PG.Identifier "id"), rootTable, PG.toField (PG.Identifier $ (fieldNameToColumnName name) <> "_id" )]
+
+        when condition then_ = if condition then then_ else ""
+
+        foreignTable = PG.toField (PG.Identifier foreignTableName)
+        foreignTableName =
+            if isHasOne
+                then pluralize name
+                else name
+
         foreignTableForeignKey = PG.toField (PG.Identifier foreignTableForeignKeyName)
         foreignTableForeignKeyName = rootTableName
                 |> singularize

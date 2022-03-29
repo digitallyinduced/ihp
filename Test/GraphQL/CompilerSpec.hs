@@ -73,6 +73,14 @@ tests = do
             compileGQL "{ users { id email tasks { id title } } }" [] `shouldBe` [trimming|
                 SELECT json_build_object('users', (SELECT coalesce(json_agg(row_to_json(_users)), '[]'::json) FROM (SELECT users.id, users.email, tasks FROM users LEFT JOIN LATERAL (SELECT ARRAY(SELECT to_json(_sub) FROM (SELECT tasks.id, tasks.title FROM tasks WHERE tasks.user_id = users.id) AS _sub) AS tasks) tasks ON true) AS _users))
             |]
+        it "should compile a has-one relationship" do
+            compileGQL "{ messages { id user { id email } } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('messages', (SELECT coalesce(json_agg(row_to_json(_messages)), '[]'::json) FROM (SELECT messages.id, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = messages.user_id) user ON true) AS _messages))
+            |]
+        it "should compile a has-one relationship in a deeply nested query" do
+            compileGQL "{ channels { id name messages { id body user { id email } } } }" [] `shouldBe` [trimming|
+                SELECT json_build_object('channels', json_build_object('messages', (SELECT coalesce(json_agg(row_to_json(_messages)), '[]'::json) FROM (SELECT messages.id, user FROM messages LEFT JOIN LATERAL (SELECT users.id, users.email FROM users WHERE users.id = messages.user_id) user ON true) AS _messages)))
+            |]
         it "should compile a create mutation" do
             let mutation = [trimming|
                 mutation CreateProject($$project: Project) {
