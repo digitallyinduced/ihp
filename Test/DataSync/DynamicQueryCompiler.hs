@@ -207,3 +207,30 @@ tests = do
                         ( "SELECT DISTINCT ON (?) ? FROM ?"
                         , [PG.EscapeIdentifier "group_id", PG.Plain "*", PG.EscapeIdentifier "posts"]
                         )
+
+            it "compile a WHERE IN query" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "id") OpIn (ListExpression { values = [UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b", UUIDValue "bb88d55a-1ed0-44ad-be13-d768f4b3f9ca"] })
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) IN ?"
+                        ,
+                            [ PG.Plain "*"
+                            , PG.EscapeIdentifier "posts"
+                            , PG.EscapeIdentifier "id"
+                            , PG.Many
+                                [ PG.Plain "("
+                                , PG.Plain "'a5d7772f-c63f-4444-be69-dd9afd902e9b'"
+                                , PG.Plain ","
+                                , PG.Plain "'bb88d55a-1ed0-44ad-be13-d768f4b3f9ca'"
+                                , PG.Plain ")"
+                                ]
+                            ]
+                        )
