@@ -926,6 +926,13 @@ tests = do
                     CREATE FUNCTION ihp_user_id() RETURNS UUID AS $$$$
                         SELECT NULLIF(current_setting('rls.ihp_user_id'), '')::uuid;
                     $$$$ LANGUAGE SQL;
+
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$$$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                    $$$$ language PLPGSQL;
                 |]
                 let actualSchema = sql [trimming|
                     --
@@ -936,6 +943,15 @@ tests = do
                         LANGUAGE sql
                         AS $$$$
                         SELECT NULLIF(current_setting('rls.ihp_user_id'), '')::uuid;
+                    $$$$;
+
+                    CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$$$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
                     $$$$;
                 |]
                 let migration = sql [i|
