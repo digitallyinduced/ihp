@@ -594,7 +594,7 @@ createFunction = do
         Just language -> pure language
         Nothing -> do
             lexeme "language" <|> lexeme "LANGUAGE"
-            symbol "plpgsql" <|> symbol "SQL"
+            symbol' "plpgsql" <|> symbol' "SQL"
     char ';'
     pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language }
     where
