@@ -231,7 +231,7 @@ instance (
                 
                 case result of
                     [record] -> sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> error "Unexpected result in UpdateRecordMessage handler"
+                    otherwise -> error "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation."
 
                 pure ()
 
