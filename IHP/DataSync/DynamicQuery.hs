@@ -63,9 +63,14 @@ data OrderByClause
 data ConditionExpression
     = ColumnExpression { field :: !Text }
     | NullExpression
-    | InfixOperatorExpression { left :: !ConditionExpression, op :: !ConditionOperator, right :: !ConditionExpression }
+    | InfixOperatorExpression
+        { left :: !ConditionExpression
+        , op :: !ConditionOperator
+        , right :: !ConditionExpression
+        }
     | LiteralExpression { value :: !DynamicValue }
     | CallExpression { functionCall :: !FunctionCall }
+    | ListExpression { values :: ![DynamicValue] }
     deriving (Show, Eq)
 
 data FunctionCall
@@ -85,6 +90,7 @@ data ConditionOperator
     | OpIs -- ^ a IS b
     | OpIsNot -- ^ a IS NOT b
     | OpTSMatch -- ^ tsvec_a @@ tsvec_b
+    | OpIn -- ^ a IN b
     deriving (Show, Eq)
 
 data SelectedColumns
