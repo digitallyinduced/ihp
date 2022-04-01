@@ -96,18 +96,14 @@ compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") "
                 else queryB
 
         rightParentheses :: Bool
-        rightParentheses = b /= NullExpression
-compileCondition (LiteralExpression literal) = ("?", [toValue literal])
-    where
-        toValue (IntValue int) = PG.toField int
-        toValue (DoubleValue double) = PG.toField double
-        toValue (TextValue text) = PG.toField text
-        toValue (BoolValue bool) = PG.toField bool
-        toValue (UUIDValue uuid) = PG.toField uuid
-        toValue (DateTimeValue utcTime) = PG.toField utcTime
-        toValue (PointValue point) = PG.toField point
-        toValue Null = PG.toField PG.Null
+        rightParentheses =
+            case b of
+                NullExpression -> False
+                ListExpression {} -> False -- The () are inserted already via @PG.In@
+                _ -> True
+compileCondition (LiteralExpression literal) = ("?", [PG.toField literal])
 compileCondition (CallExpression { functionCall = ToTSQuery { text } }) = ("to_tsquery('english', ?)", [PG.toField text])
+compileCondition (ListExpression { values }) = ("?", [PG.toField (PG.In values)])
 
 compileOperator :: ConditionOperator -> PG.Query
 compileOperator OpEqual = "="
@@ -121,3 +117,14 @@ compileOperator OpOr = "OR"
 compileOperator OpIs = "IS"
 compileOperator OpIsNot = "IS NOT"
 compileOperator OpTSMatch = "@@"
+compileOperator OpIn = "IN"
+
+instance PG.ToField DynamicValue where
+    toField (IntValue int) = PG.toField int
+    toField (DoubleValue double) = PG.toField double
+    toField (TextValue text) = PG.toField text
+    toField (BoolValue bool) = PG.toField bool
+    toField (UUIDValue uuid) = PG.toField uuid
+    toField (DateTimeValue utcTime) = PG.toField utcTime
+    toField (PointValue point) = PG.toField point
+    toField Null = PG.toField PG.Null

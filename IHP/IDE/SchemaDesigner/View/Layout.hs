@@ -350,6 +350,7 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                     <input type="hidden" name="isUnique" value={inputValue False}/>
                     <input type="hidden" name="isReference" value={inputValue True}/>
                     <input type="hidden" name="referenceTable" value="users"/>
+                    <input type="hidden" name="autoPolicy" value={inputValue True}/>
 
                     <button type="submit" class="btn btn-suggested-table">
                         <table class="table table-sm mb-0">
