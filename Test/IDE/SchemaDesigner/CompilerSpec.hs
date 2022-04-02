@@ -618,6 +618,18 @@ tests = do
                     , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
+        
+        it "should escape an index name inside a 'CREATE INDEX' statement" do
+            let sql = cs [plain|CREATE INDEX "Some Index" ON "Some Table" ("Some Col");\n|]
+            let statement = CreateIndex
+                    { indexName = "Some Index"
+                    , unique = False
+                    , tableName = "Some Table"
+                    , columns = [IndexColumn { column = VarExpression "Some Col", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+            compileSql [statement] `shouldBe` sql
 
         it "should compile a 'CREATE INDEX .. ON .. USING GIN' statement" do
             let sql = cs [plain|CREATE INDEX users_index ON users USING GIN (user_name);\n|]
