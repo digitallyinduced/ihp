@@ -32,7 +32,7 @@ compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compil
 compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compileIdentifier tableName <> " RENAME COLUMN " <> compileIdentifier from <> " TO " <> compileIdentifier to <> ";"
 compileStatement DropTable { tableName } = "DROP TABLE " <> compileIdentifier tableName <> ";"
 compileStatement Comment { content } = "--" <> content
-compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> indexName <> " ON " <> tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
+compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> compileIdentifier indexName <> " ON " <> compileIdentifier tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
 compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments |> map (\(argName, argType) -> argName ++ " " ++ compilePostgresType argType) |> intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
@@ -116,7 +116,12 @@ compileDefaultValue value = "DEFAULT " <> compileExpression value
 
 compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> value <> "'"
-compileExpression (VarExpression name) = name
+compileExpression (VarExpression name) =
+        if nameContainsSpaces
+            then compileIdentifier name
+            else name
+    where
+        nameContainsSpaces = Text.any (== ' ') name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
 compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
