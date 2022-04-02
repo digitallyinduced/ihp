@@ -45,7 +45,7 @@ newSessionAction = do
 
 -- | Logs in a user when a valid email and password is given
 --
--- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttemps' to customize this.
+-- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttempts' to customize this.
 --
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action.
@@ -91,7 +91,7 @@ createSessionAction = do
                     user :: record <- user
                             |> incrementField #failedLoginAttempts
                             |> updateRecord
-                    when (get #failedLoginAttempts user >= maxFailedLoginAttemps user) do
+                    when (get #failedLoginAttempts user >= maxFailedLoginAttempts user) do
                         Lockable.lock user
                         pure ()
                     redirectTo buildNewSessionAction
@@ -154,8 +154,8 @@ class ( Typeable record
     afterLoginRedirectPath = "/"
 
     -- | After 10 failed login attempts the user will be locked for an hour
-    maxFailedLoginAttemps :: record -> Int
-    maxFailedLoginAttemps _ = 10
+    maxFailedLoginAttempts :: record -> Int
+    maxFailedLoginAttempts _ = 10
 
     -- | Callback that is executed just before the user is logged
     -- 
