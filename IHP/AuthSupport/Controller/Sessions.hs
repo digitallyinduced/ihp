@@ -113,7 +113,9 @@ deleteSessionAction :: forall record action id.
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of
-        Just user -> logout user
+        Just user -> do
+            beforeLogout user
+            logout user
         Nothing -> pure ()
     redirectToPath (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
@@ -160,7 +162,7 @@ class ( Typeable record
     maxFailedLoginAttempts :: record -> Int
     maxFailedLoginAttempts _ = 10
 
-    -- | Callback that is executed just before the user is logged
+    -- | Callback that is executed just before the user is logged in
     --
     -- This is called only after checking that the password is correct. When a wrong password is given this callback is not executed.
     --
@@ -172,6 +174,12 @@ class ( Typeable record
     -- >         redirectTo NewSessionAction
     beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
+
+    -- | Callback that is executed just before the user is logged out
+    --
+    -- This is called only if user session exists
+    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
+    beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.
     --
