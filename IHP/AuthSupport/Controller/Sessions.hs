@@ -100,7 +100,7 @@ createSessionAction = do
             redirectTo buildNewSessionAction
 {-# INLINE createSessionAction #-}
 
--- | Logs out the user and redirect back to the login page
+-- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?context :: ControllerContext
@@ -115,9 +115,8 @@ deleteSessionAction = do
     case currentUserOrNothing @record of
         Just user -> logout user
         Nothing -> pure ()
-    redirectTo buildNewSessionAction
+    redirectToPath (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
-
 
 currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
 currentUserOrNothing =
@@ -127,7 +126,7 @@ currentUserOrNothing =
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
-buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller
+buildNewSessionAction :: forall controller action. (?theAction :: controller, Data controller) => controller
 buildNewSessionAction = fromConstr createConstructor
     where
         createConstructor :: Constr
@@ -150,17 +149,21 @@ class ( Typeable record
     ) => SessionsControllerConfig record where
 
     -- | Your home page, where the user is redirect after login, by default it's @/@
-    afterLoginRedirectPath :: Text 
+    afterLoginRedirectPath :: Text
     afterLoginRedirectPath = "/"
+
+    -- | Where the user is redirected after logout, by default it's @/NewSession@
+    afterLogoutRedirectPath :: forall action. (?theAction :: action, Data action, HasPath action) => Text
+    afterLogoutRedirectPath = pathTo buildNewSessionAction
 
     -- | After 10 failed login attempts the user will be locked for an hour
     maxFailedLoginAttempts :: record -> Int
     maxFailedLoginAttempts _ = 10
 
     -- | Callback that is executed just before the user is logged
-    -- 
+    --
     -- This is called only after checking that the password is correct. When a wrong password is given this callback is not executed.
-    -- 
+    --
     -- __Example: Disallow login until user is confirmed__
     --
     -- > beforeLogin user = do
