@@ -1,5 +1,5 @@
 module IHP.ControllerPrelude
-    ( module IHP.Prelude 
+    ( module IHP.Prelude
     , module IHP.ControllerSupport
     , module IHP.Controller.Render
     , module IHP.Controller.Param
@@ -54,7 +54,7 @@ import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)
-import Network.Wai.Parse (FileInfo, fileContent)
+import Network.Wai.Parse (FileInfo(..))
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import IHP.Mail (sendMail)
