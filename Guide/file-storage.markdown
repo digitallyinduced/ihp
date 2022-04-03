@@ -130,6 +130,52 @@ export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
 RunDevServer
 ```
 
+### Filebase
+> Filebase provides an S3 compatible API on top of decentralized object storage systems such as Storj, Skynet, Sia and IPFS
+
+Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
+
+```haskell
+import IHP.FileStorage.Config
+```
+
+Then add a call to [`initFilebaseStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initFilebaseStorage):
+
+```haskell
+module Config where
+
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.FileStorage.Config
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+
+    initFilebaseStorage "my-bucket-name"
+```
+
+You need to replace `my-bucket-name` with the name of your bucket.
+
+The Filebase access key and secret key have to be provided using the `FILEBASE_KEY` and `FILEBASE_SECRET` env vars.
+
+For easy development you can add these env vars to your `./start` script:
+
+```bash
+#!/usr/bin/env bash
+# Script to start the local dev server
+
+# ...
+
+export FILEBASE_KEY="YOUR KEY"            # <---------
+export FILEBASE_SECRET="YOUR SECRET"     # <---------
+
+# Finally start the dev server
+RunDevServer
+```
+
 ## Uploading
 
 ### Saving a User Upload to the Storage
