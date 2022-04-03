@@ -382,6 +382,21 @@ To upload a file to this action you can use the following form:
 </form>
 ```
 
+### Accessing Uploaded File Name
+
+You can get the uploaded file name with `get #fileName file`
+
+```haskell
+action SubmitMarkdownAction = do
+    let fileName :: Text =
+            fileOrNothing "markdown"
+            |> fromMaybe (error "no file given")
+            |> get #fileName
+            |> cs
+
+    putStrLn fileName
+```
+
 ## Signed Temporary Download Urls
 
 When your S3 bucket is not configured for public read access, you need use a temporary download url to provide access to the file:
