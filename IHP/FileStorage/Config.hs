@@ -7,6 +7,7 @@ module IHP.FileStorage.Config
 ( initS3Storage
 , initStaticDirStorage
 , initMinioStorage
+, initFilebaseStorage
 ) where
 
 import IHP.Prelude
@@ -17,18 +18,21 @@ import Network.Minio
 
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
+import qualified System.Environment as Env
+import qualified Data.Text as Text
+import Control.Monad.Trans.Maybe
 
 -- | The AWS access key and secret key have to be provided using the @AWS_ACCESS_KEY_ID@ and @AWS_SECRET_ACCESS_KEY@ env vars.
 --
 -- __Example:__ Set up a s3 storage in @Config.hs@
 --
 -- > module Config where
--- > 
+-- >
 -- > import IHP.Prelude
 -- > import IHP.Environment
 -- > import IHP.FrameworkConfig
 -- > import IHP.FileStorage.Config
--- > 
+-- >
 -- > config :: ConfigBuilder
 -- > config = do
 -- >     option Development
@@ -78,12 +82,12 @@ initMinioStorage server bucket = do
 -- __Example:__ Store uploaded files in the @static/@ directory
 --
 -- > module Config where
--- > 
+-- >
 -- > import IHP.Prelude
 -- > import IHP.Environment
 -- > import IHP.FrameworkConfig
 -- > import IHP.FileStorage.Config
--- > 
+-- >
 -- > config :: ConfigBuilder
 -- > config = do
 -- >     option Development
@@ -92,3 +96,38 @@ initMinioStorage server bucket = do
 --
 initStaticDirStorage :: State.StateT TMap.TMap IO ()
 initStaticDirStorage = option StaticDirStorage
+
+-- | The Filebase access key and secret key have to be provided using the @FILEBASE_KEY@ and @FILEBASE_SECRET@ env vars.
+--
+-- __Example:__ Set up a Filebase storage in @Config.hs@
+--
+-- > module Config where
+-- >
+-- > import IHP.Prelude
+-- > import IHP.Environment
+-- > import IHP.FrameworkConfig
+-- > import IHP.FileStorage.Config
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option Development
+-- >     option (AppHostname "localhost")
+-- >     initFilebaseStorage "my-bucket-name"
+--
+initFilebaseStorage :: Text -> State.StateT TMap.TMap IO ()
+initFilebaseStorage bucket = do
+    connectInfo <- filebaseCI
+        |> setCredsFrom [fromFilebaseEnv]
+        |> liftIO
+
+    let baseUrl = "https://" <> bucket <> ".s3.filebase.com/"
+    option S3Storage { connectInfo, bucket, baseUrl }
+
+filebaseCI :: ConnectInfo
+filebaseCI = "https://s3.filebase.com" |> setRegion "us-east-1"
+
+fromFilebaseEnv :: Provider
+fromFilebaseEnv = runMaybeT $ do
+    filebaseKey <- MaybeT $ Env.lookupEnv "FILEBASE_KEY"
+    filebaseSecret <- MaybeT $ Env.lookupEnv "FILEBASE_SECRET"
+    pure $ Credentials (Text.pack filebaseKey) (Text.pack filebaseSecret)
