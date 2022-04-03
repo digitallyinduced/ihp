@@ -45,7 +45,7 @@ newSessionAction = do
 
 -- | Logs in a user when a valid email and password is given
 --
--- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttemps' to customize this.
+-- After 10 failed attempts, the user is locked for an hours. See 'maxFailedLoginAttempts' to customize this.
 --
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action.
@@ -91,7 +91,7 @@ createSessionAction = do
                     user :: record <- user
                             |> incrementField #failedLoginAttempts
                             |> updateRecord
-                    when (get #failedLoginAttempts user >= maxFailedLoginAttemps user) do
+                    when (get #failedLoginAttempts user >= maxFailedLoginAttempts user) do
                         Lockable.lock user
                         pure ()
                     redirectTo buildNewSessionAction
@@ -100,7 +100,7 @@ createSessionAction = do
             redirectTo buildNewSessionAction
 {-# INLINE createSessionAction #-}
 
--- | Logs out the user and redirect back to the login page
+-- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?context :: ControllerContext
@@ -113,11 +113,12 @@ deleteSessionAction :: forall record action id.
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of
-        Just user -> logout user
+        Just user -> do
+            beforeLogout user
+            logout user
         Nothing -> pure ()
-    redirectTo buildNewSessionAction
+    redirectToPath (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
-
 
 currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
 currentUserOrNothing =
@@ -127,7 +128,7 @@ currentUserOrNothing =
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
-buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller
+buildNewSessionAction :: forall controller action. (?theAction :: controller, Data controller) => controller
 buildNewSessionAction = fromConstr createConstructor
     where
         createConstructor :: Constr
@@ -150,17 +151,21 @@ class ( Typeable record
     ) => SessionsControllerConfig record where
 
     -- | Your home page, where the user is redirect after login, by default it's @/@
-    afterLoginRedirectPath :: Text 
+    afterLoginRedirectPath :: Text
     afterLoginRedirectPath = "/"
 
-    -- | After 10 failed login attempts the user will be locked for an hour
-    maxFailedLoginAttemps :: record -> Int
-    maxFailedLoginAttemps _ = 10
+    -- | Where the user is redirected after logout, by default it's @/NewSession@
+    afterLogoutRedirectPath :: forall action. (?theAction :: action, Data action, HasPath action) => Text
+    afterLogoutRedirectPath = pathTo buildNewSessionAction
 
-    -- | Callback that is executed just before the user is logged
-    -- 
+    -- | After 10 failed login attempts the user will be locked for an hour
+    maxFailedLoginAttempts :: record -> Int
+    maxFailedLoginAttempts _ = 10
+
+    -- | Callback that is executed just before the user is logged in
+    --
     -- This is called only after checking that the password is correct. When a wrong password is given this callback is not executed.
-    -- 
+    --
     -- __Example: Disallow login until user is confirmed__
     --
     -- > beforeLogin user = do
@@ -169,6 +174,12 @@ class ( Typeable record
     -- >         redirectTo NewSessionAction
     beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
+
+    -- | Callback that is executed just before the user is logged out
+    --
+    -- This is called only if user session exists
+    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()
+    beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.
     --
