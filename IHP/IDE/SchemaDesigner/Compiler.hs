@@ -50,6 +50,7 @@ compileStatement AddValueToEnumType { enumName, newValue } = "ALTER TYPE " <> co
 compileStatement CreateTrigger { name, eventWhen, event, tableName, for, whenCondition, functionName, arguments } = "CREATE TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> compileTriggerEvent event <> " ON " <> compileIdentifier tableName <> " " <> compileTriggerFor for <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
 compileStatement Begin = "BEGIN;"
 compileStatement Commit = "COMMIT;"
+compileStatement DropFunction { functionName } = "DROP FUNCTION " <> compileIdentifier functionName <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns

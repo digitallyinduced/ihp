@@ -68,6 +68,7 @@ data Statement
     | Begin
     -- | COMMIT;
     | Commit
+    | DropFunction { functionName :: !Text }
     deriving (Eq, Show)
 
 data DeferrableType

@@ -146,6 +146,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 Just constraintName -> Just DropConstraint { tableName, constraintName }
                 Nothing -> Nothing
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
+        toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement otherwise = Nothing
 
 removeNoise = filter \case
