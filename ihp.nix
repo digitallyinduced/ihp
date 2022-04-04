@@ -64,6 +64,8 @@
 , unagi-chan
 , with-utf8
 , ihp-hsx
+, xml-conduit
+, xml-hamlet
 }:
 mkDerivation {
   pname = "ihp";
@@ -134,6 +136,8 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    xml-conduit
+    xml-hamlet
   ];
   license = lib.licenses.mit;
   postInstall = ''

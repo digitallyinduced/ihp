@@ -4,6 +4,9 @@ import IHP.Prelude
 import IHP.RouterPrelude (string, endOfInput, CanRoute(..), HasPath(..))
 import IHP.ControllerPrelude
 import IHP.SeoSupport.Sitemap.Types
+import qualified Data.Map as Map
+import qualified Text.XML as XML
+import Text.Hamlet.XML
 
 data SitemapController
     = SitemapAction
@@ -20,17 +23,18 @@ instance CanRoute SitemapController where
 
 renderXmlSitemap :: (?context::ControllerContext) => Sitemap -> IO ()
 renderXmlSitemap Sitemap { links } = do
-    let sitemapStart
-            = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            <> "\n"
-            <> "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
-    let sitemapEnd = "</urlset>"
-    let sitemap = unlines $ [sitemapStart] ++ map renderSitemapLink links ++ [sitemapEnd]
-    renderXml (cs sitemap)
+    let xmlDocument = XML.Document (XML.Prologue [] Nothing []) sitemapLinks []
+    renderXml $ XML.renderLBS def xmlDocument
     where
-        renderSitemapLink SitemapLink { url, lastModified, changeFrequency } =
-            let
-                loc = "<loc>" <> url <> "</loc>"
-                lastMod = lastModified |> maybe mempty (\lM -> "<lastmod>" <> lM <> "</lastmod>")
-                changeFreq = changeFrequency |> maybe mempty (\cF -> "<changefreq>" <> show cF <> "</changefreq>")
-            in unlines ["<url>", loc, lastMod, changeFreq, "</url>"]
+        sitemapLinks = XML.Element "urlset" (Map.fromList [("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9")]) [xml|
+            $forall link <- links
+                ^{sitemapLink link}
+        |]
+        sitemapLink SitemapLink { url, lastModified, changeFrequency } = [xml|
+            <loc>#{url}
+            <lastmod>#{maybe mempty formatUTCTime lastModified}
+            <changefreq>#{maybe mempty show changeFrequency}
+        |]
+
+formatUTCTime :: UTCTime -> Text
+formatUTCTime utcTime = cs $ formatTime defaultTimeLocale "%Y-%m-%d" utcTime

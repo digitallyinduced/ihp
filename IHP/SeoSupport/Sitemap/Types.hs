@@ -13,7 +13,7 @@ data Sitemap
     deriving (Eq, Show, Data)
 
 data SitemapLink
-    = SitemapLink { url :: Text, lastModified :: Maybe Text, changeFrequency :: Maybe SitemapChangeFrequency }
+    = SitemapLink { url :: Text, lastModified :: Maybe UTCTime, changeFrequency :: Maybe SitemapChangeFrequency }
     deriving (Eq, Show, Data)
 
 data SitemapChangeFrequency
