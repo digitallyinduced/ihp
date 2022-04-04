@@ -1,9 +1,9 @@
-module IHP.SeoSupport.Sitemap.Controller where
+module IHP.SEO.Sitemap.Controller where
 
 import IHP.Prelude
 import IHP.RouterPrelude (string, endOfInput, CanRoute(..), HasPath(..))
 import IHP.ControllerPrelude
-import IHP.SeoSupport.Sitemap.Types
+import IHP.SEO.Sitemap.Types
 import qualified Data.Map as Map
 import qualified Text.XML as XML
 import Text.Hamlet.XML

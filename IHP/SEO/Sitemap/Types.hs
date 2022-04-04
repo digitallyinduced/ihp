@@ -1,4 +1,4 @@
-module IHP.SeoSupport.Sitemap.Types
+module IHP.SEO.Sitemap.Types
 ( Sitemap(..)
 , SitemapLink(..)
 , SitemapChangeFrequency(..)

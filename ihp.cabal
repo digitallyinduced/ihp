@@ -104,6 +104,8 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
+            , xml-conduit
+            , xml-hamlet
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -381,6 +383,8 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.SEO.Sitemap.Types
+        , IHP.SEO.Sitemap.Controller
 
 executable RunDevServer
     import: shared-properties
