@@ -5,7 +5,7 @@ module IHP.SchemaCompiler
 
 import ClassyPrelude
 import Data.String.Conversions (cs)
-import Data.String.Interpolate (i)
+import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, pluralize)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
