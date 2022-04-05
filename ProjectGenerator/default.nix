@@ -9,5 +9,5 @@ stdenv.mkDerivation rec {
     cp bin/ihp-new $out;
     makeWrapper $out/ihp-new $out/bin/ihp-new --prefix PATH ":" "${git}/bin";
   '';
-  buildInputs = [ git makeWrapper ];
+  buildInputs = [ git makeWrapper bash_5 ];
 }
