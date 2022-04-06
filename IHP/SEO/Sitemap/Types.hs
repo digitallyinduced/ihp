@@ -1,5 +1,6 @@
 module IHP.SEO.Sitemap.Types
-( Sitemap(..)
+( SitemapController(..)
+, Sitemap(..)
 , SitemapLink(..)
 , SitemapChangeFrequency(..)
 )
@@ -7,6 +8,10 @@ where
 
 import IHP.Prelude
 import Prelude (Show(..))
+
+data SitemapController
+    = SitemapAction
+    deriving (Eq, Show, Data)
 
 data Sitemap
     = Sitemap { links :: [SitemapLink] }

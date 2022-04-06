@@ -1,25 +1,11 @@
-module IHP.SEO.Sitemap.Controller where
+module IHP.SEO.Sitemap.ControllerFunctions where
 
 import IHP.Prelude
-import IHP.RouterPrelude (string, endOfInput, CanRoute(..), HasPath(..))
 import IHP.ControllerPrelude
 import IHP.SEO.Sitemap.Types
 import qualified Text.Blaze as Markup
 import qualified Text.Blaze.Internal as Markup
 import qualified Text.Blaze.Renderer.Utf8 as Markup
-
-data SitemapController
-    = SitemapAction
-    deriving (Eq, Show, Data)
-
-instance HasPath SitemapController where
-    pathTo SitemapAction = "/sitemap.xml"
-
-instance CanRoute SitemapController where
-    parseRoute' = do
-        string "/sitemap.xml"
-        endOfInput
-        pure SitemapAction
 
 renderXmlSitemap :: (?context::ControllerContext) => Sitemap -> IO ()
 renderXmlSitemap Sitemap { links } = do
