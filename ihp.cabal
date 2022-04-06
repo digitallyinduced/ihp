@@ -104,8 +104,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , xml-conduit
-            , xml-hamlet
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

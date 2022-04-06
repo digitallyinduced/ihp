@@ -64,8 +64,6 @@ let
         neat-interpolation
         unagi-chan
         with-utf8
-        xml-conduit
-        xml-hamlet
 
         # Development Specific Tools (not in ihp.nix)
         mmark-cli

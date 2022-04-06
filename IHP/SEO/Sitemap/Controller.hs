@@ -4,9 +4,9 @@ import IHP.Prelude
 import IHP.RouterPrelude (string, endOfInput, CanRoute(..), HasPath(..))
 import IHP.ControllerPrelude
 import IHP.SEO.Sitemap.Types
-import qualified Data.Map as Map
-import qualified Text.XML as XML
-import Text.Hamlet.XML
+import qualified Text.Blaze as Markup
+import qualified Text.Blaze.Internal as Markup
+import qualified Text.Blaze.Renderer.Utf8 as Markup
 
 data SitemapController
     = SitemapAction
@@ -23,18 +23,19 @@ instance CanRoute SitemapController where
 
 renderXmlSitemap :: (?context::ControllerContext) => Sitemap -> IO ()
 renderXmlSitemap Sitemap { links } = do
-    let xmlDocument = XML.Document (XML.Prologue [] Nothing []) sitemapLinks []
-    renderXml $ XML.renderLBS def xmlDocument
+    let sitemap = Markup.toMarkup [xmlDocument, sitemapLinks]
+    renderXml $ Markup.renderMarkup sitemap
     where
-        sitemapLinks = XML.Element "urlset" (Map.fromList [("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9")]) [xml|
-            $forall link <- links
-                ^{sitemapLink link}
-        |]
-        sitemapLink SitemapLink { url, lastModified, changeFrequency } = [xml|
-            <loc>#{url}
-            <lastmod>#{maybe mempty formatUTCTime lastModified}
-            <changefreq>#{maybe mempty show changeFrequency}
-        |]
+        xmlDocument = Markup.preEscapedText "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        urlSet = Markup.customParent "urlset" Markup.! Markup.customAttribute "xmlns" "http://www.sitemaps.org/schemas/sitemap/0.9"
+        sitemapLinks = urlSet (Markup.toMarkup (map sitemapLink links))
+        sitemapLink SitemapLink { url, lastModified, changeFrequency } =
+            let
+                loc = Markup.customParent "loc" (Markup.preEscapedText url)
+                lastMod =  Markup.customParent "lastmod" (Markup.preEscapedText (maybe mempty formatUTCTime lastModified))
+                changeFreq = Markup.customParent "changefreq" (Markup.preEscapedText (maybe mempty show changeFrequency))
+            in
+                Markup.toMarkup [loc, lastMod, changeFreq]
 
 formatUTCTime :: UTCTime -> Text
-formatUTCTime utcTime = cs $ formatTime defaultTimeLocale "%Y-%m-%d" utcTime
+formatUTCTime utcTime = cs (formatTime defaultTimeLocale "%Y-%m-%d" utcTime)
