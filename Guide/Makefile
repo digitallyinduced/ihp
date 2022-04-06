@@ -49,6 +49,7 @@ HTML_FILES+= examples.html
 HTML_FILES+= stripe.html
 HTML_FILES+= realtime-spas.html
 HTML_FILES+= config.html
+HTML_FILES+= seo.html
 
 all: $(HTML_FILES) bootstrap.css instantclick.js search.js search.css
 
