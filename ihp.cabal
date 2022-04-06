@@ -381,6 +381,9 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.SEO.Sitemap.Types
+        , IHP.SEO.Sitemap.ControllerFunctions
+        , IHP.SEO.Sitemap.Routes
 
 executable RunDevServer
     import: shared-properties
