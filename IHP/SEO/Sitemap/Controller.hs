@@ -31,9 +31,9 @@ renderXmlSitemap Sitemap { links } = do
         sitemapLinks = urlSet (Markup.toMarkup (map sitemapLink links))
         sitemapLink SitemapLink { url, lastModified, changeFrequency } =
             let
-                loc = Markup.customParent "loc" (Markup.preEscapedText url)
-                lastMod =  Markup.customParent "lastmod" (Markup.preEscapedText (maybe mempty formatUTCTime lastModified))
-                changeFreq = Markup.customParent "changefreq" (Markup.preEscapedText (maybe mempty show changeFrequency))
+                loc = Markup.customParent "loc" (Markup.text url)
+                lastMod =  Markup.customParent "lastmod" (Markup.text (maybe mempty formatUTCTime lastModified))
+                changeFreq = Markup.customParent "changefreq" (Markup.text (maybe mempty show changeFrequency))
             in
                 Markup.toMarkup [loc, lastMod, changeFreq]
 
