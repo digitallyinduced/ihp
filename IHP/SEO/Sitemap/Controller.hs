@@ -35,7 +35,7 @@ renderXmlSitemap Sitemap { links } = do
                 lastMod =  Markup.customParent "lastmod" (Markup.text (maybe mempty formatUTCTime lastModified))
                 changeFreq = Markup.customParent "changefreq" (Markup.text (maybe mempty show changeFrequency))
             in
-                Markup.toMarkup [loc, lastMod, changeFreq]
+                Markup.customParent "url" (Markup.toMarkup [loc, lastMod, changeFreq])
 
 formatUTCTime :: UTCTime -> Text
 formatUTCTime utcTime = cs (formatTime defaultTimeLocale "%Y-%m-%d" utcTime)
