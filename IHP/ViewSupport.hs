@@ -17,6 +17,7 @@ module IHP.ViewSupport
 , css
 , onClick
 , onLoad
+, unitHsx
 , theRequest
 , viewContext
 , addStyle
@@ -161,6 +162,13 @@ css = plain
 
 onClick = A.onclick
 onLoad = A.onload
+
+-- | when folding or otherwise recursing over hsx blocks it is useful to have an empty hsx block.
+-- Sometimes you may want to nest a fold in an hsx block e.g. when creating 
+-- table rows: 
+-- >>>  [hsx| <tr> {foldr ((<>) . renderTimeSlot) unitHsx timeSlots} </tr>|]
+-- unitHsx is so called because  [hsx|<p>An hsx block </p>|] <> unitHsx =  [hsx|<p>An hsx block </p>|] 
+unitHsx = [hsx||]
 
 -- | Returns the current request
 theRequest :: (?context :: ControllerContext) => Wai.Request
