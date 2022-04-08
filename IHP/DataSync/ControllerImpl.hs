@@ -67,18 +67,6 @@ runDataSyncController = do
 
                 sendJSON DataSyncResult { result, requestId }
             
-            -- TODO: remove this
-            handleMessage GraphQLRequest { gql, variables, requestId, transactionId } = do
-                let document = case Attoparsec.parseOnly GraphQL.parseDocument gql of
-                        Left parserError -> error (cs $ tshow parserError)
-                        Right statements -> statements
-
-                let [(theQuery, theParams)] = GraphQL.compileDocument variables document
-
-                [PG.Only graphQLResult] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
-
-                sendJSON GraphQLResult { graphQLResult, requestId }
-            
             handleMessage CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
