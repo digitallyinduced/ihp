@@ -49,6 +49,7 @@ import Data.Scientific
 import GHC.Stack
 import qualified Numeric
 import qualified Data.Text.Encoding as Text
+import qualified Data.ByteString.Builder as Builder
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
@@ -367,7 +368,7 @@ sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) =>
 sqlQuery theQuery theParameters = do
     measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.query connection theQuery theParameters
+            withRLSParams (PG.query connection) theQuery theParameters
         )
         theQuery
         theParameters
@@ -382,11 +383,32 @@ sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> 
 sqlExec theQuery theParameters = do
     measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.execute connection theQuery theParameters
+            withRLSParams (PG.execute connection) theQuery theParameters
         )
         theQuery
         theParameters
 {-# INLINABLE sqlExec #-}
+
+-- | Wraps the query with Row level security boilerplate, if a row level security context was provided
+--
+-- __Example:__
+--
+-- If a row level security context is given, this will turn a query like the following
+--
+-- > withRLSParams runQuery "SELECT * FROM projects WHERE id = ?" (Only "..")
+--
+-- Into the following equivalent:
+--
+-- > runQuery "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; SELECT * FROM projects WHERE id = ?" ["ihp_authenticated", "<user id>", .."]
+--
+withRLSParams :: (?modelContext :: ModelContext, PG.ToRow params) => (PG.Query -> [PG.Action] -> result) -> PG.Query -> params -> result
+withRLSParams runQuery query params = do
+    case get #rowLevelSecurity ?modelContext of
+        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> do
+            let query' = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query
+            let params' = [PG.toField (PG.Identifier rlsAuthenticatedRole), PG.toField rlsUserId] <> PG.toRow params
+            runQuery query' params'
+        Nothing -> runQuery query (PG.toRow params)
 
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
 withDatabaseConnection block =
@@ -394,16 +416,7 @@ withDatabaseConnection block =
         ModelContext { connectionPool, transactionConnection, rowLevelSecurity } = ?modelContext
     in case transactionConnection of
         Just transactionConnection -> block transactionConnection
-        Nothing ->
-            -- When row level security is enabled, we need to implicitly wrap the current query in a
-            -- transaction, as we need to make sure the @SET LOCAL ROLE ihp_authenticated@ and
-            -- @SET LOCAL rls.ihp_user_id = ..@ queries are executed on the same connection before
-            -- the actual query has been executed.
-            case rowLevelSecurity of
-                Just rowLevelSecurity -> withTransaction do
-                    let (Just connection) = ?modelContext |> get #transactionConnection
-                    block connection
-                Nothing -> Pool.withResource connectionPool block
+        Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
@@ -469,17 +482,7 @@ withTransaction block = withTransactionConnection do
             |> \case
                 Just connection -> connection
                 Nothing -> error "withTransaction: transactionConnection not set as expected"
-    case get #rowLevelSecurity ?modelContext of
-        -- When starting a new transaction while RLS is enabled, we switch the transaction over
-        -- to the @ihp_authenticated@ role and also set the @rls.ihp_user_id@ variable.
-        --
-        -- This branch is also called from @withDatabaseConnection@, as we
-        -- automatically wrap all queries in an implicit transaction when RLS is enabled.
-        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> PG.withTransaction connection do
-            sqlExec "SET LOCAL ROLE ?" [PG.Identifier rlsAuthenticatedRole]
-            sqlExec "SET LOCAL rls.ihp_user_id = ?" (PG.Only rlsUserId)
-            block
-        Nothing -> PG.withTransaction connection block
+    PG.withTransaction connection block
 {-# INLINABLE withTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
@@ -500,9 +503,7 @@ withTransaction block = withTransactionConnection do
 withRowLevelSecurityDisabled :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
 withRowLevelSecurityDisabled block = do
     let currentModelContext = ?modelContext
-    case get #rowLevelSecurity currentModelContext of
-        Just _ -> let ?modelContext = currentModelContext { rowLevelSecurity = Nothing, transactionConnection = Nothing } in block
-        Nothing -> block
+    let ?modelContext = currentModelContext { rowLevelSecurity = Nothing } in block
 {-# INLINABLE withRowLevelSecurityDisabled #-}
 
 -- | Returns the postgres connection when called within a 'withTransaction' block
@@ -589,7 +590,12 @@ logQuery query parameters time = do
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
         let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " " <> tshow parameters)
+        let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
+        let rlsInfo = case get #rowLevelSecurity ?context of
+                Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
+                Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
+                Nothing -> ""
+        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " " <> tshow parameters <> rlsInfo)
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
