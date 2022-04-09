@@ -46,5 +46,8 @@ instance (
     ) => WSApp DataSyncController where
     initialState = DataSyncController
 
-    run = runDataSyncController
+    run = do
+        ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
+        runDataSyncController ensureRLSEnabled installTableChangeTriggers
     onClose = cleanupAllSubscriptions

@@ -47,12 +47,9 @@ runDataSyncController ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    ) => IO ()
-runDataSyncController = do
+    ) => _ -> _ -> IO ()
+runDataSyncController ensureRLSEnabled installTableChangeTriggers = do
         setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty, asyncs = [] }
-
-        ensureRLSEnabled <- makeCachedEnsureRLSEnabled
-        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
 
         let pgListener = ?applicationContext |> get #pgListener
 
@@ -349,7 +346,7 @@ runDataSyncController = do
                         modifyIORef' ?state (\state -> state |> modify #asyncs (handlerProcess:))
                         pure ()
                 Left errorMessage -> sendJSON FailedToDecodeMessageError { errorMessage = cs errorMessage }
-
+{-# INLINE runDataSyncController #-}
 
 cleanupAllSubscriptions :: _ => (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
 cleanupAllSubscriptions = do
