@@ -24,12 +24,12 @@ To make file paths clickable inside the web browser (e.g. when a type error happ
 export IHP_EDITOR="code --goto"
 ```
 
-
 ### VSCode + Haskell Language Server Troubleshooting
 
 #### "Couldn't figure out what GHC version the project is using"
 
 If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
+
 1. Open the project in VS Code
 2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
 3. This will restart VS Code. After that Haskell Language Server should be working.
@@ -44,10 +44,22 @@ Works great already out of the box.
 
 Recommended packages:
 
--   `Nix` for syntax highlighting of nix files
--   `Direnv` to load the `.envrc` file of the project.
+-   [`Nix`](https://packagecontrol.io/packages/Nix) for syntax highlighting of nix files
+-   [`Haskell HSX`](https://packagecontrol.io/packages/Haskell%20HSX) for syntax highlighting of Haskell with HSX
+-   [`Direnv`](https://packagecontrol.io/packages/Direnv) to load the `.envrc` file of the project.
 -   [`LSP`](https://packagecontrol.io/packages/LSP) for smart IDE features. Use `LSP: Enable Language Server in Project -> Haskell Language Server` to activate.
-
+    In you don't have that option in the menu, select `Open Preferences > Package Settings > LSP > Settings` and add the `"haskell-language-server"` client configuration to the `"clients"`:
+    ```json
+    {
+        "clients": {
+            "haskell-language-server": {
+                "enabled": true,
+                "command": ["haskell-language-server-wrapper", "--lsp"],
+                "selector": "source.haskell"
+            }
+        }
+    }
+    ```
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
@@ -118,7 +130,6 @@ You can disable the auto-start of the browser completely using `echo` as your br
 export IHP_BROWSER=echo
 ```
 
-
 ### Running the IHP Dev Server On a Host Different From `localhost`
 
 If you run the IHP dev server on computer different from your local machine (e.g. a second computer in your network or a Cloud Dev Env like GitPod), you need to specify the right base url:
@@ -135,8 +146,10 @@ Next time you use the dev server via `./start` all links will use the right `IHP
 To quickly look up function type signatures you can use the built-in hoogle server.
 
 To install it:
+
 1. Open `default.nix`
 2. Add `withHoogle = true;` to the `haskellEnv` block, like this:
+
 ```nix
 let
     ihp = builtins.fetchGit {
