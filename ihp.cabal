@@ -290,6 +290,7 @@ library
         , IHP.DataSync.DynamicQueryCompiler
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
+        , IHP.DataSync.ControllerImpl
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
