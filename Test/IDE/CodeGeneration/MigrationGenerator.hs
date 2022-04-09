@@ -530,15 +530,6 @@ tests = do
                     COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
 
-                    --
-                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
-                    --
-
-                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
-                        LANGUAGE sql
-                        AS $$ SELECT current_setting('rls.ihp_user_id')::uuid; $$;
-
-
                     SET default_tablespace = '';
 
                     SET default_table_access_method = heap;
@@ -630,16 +621,6 @@ tests = do
                     --
 
                     COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
-
-
-                    --
-                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
-                    --
-
-                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
-                        LANGUAGE sql
-                        AS $$ SELECT current_setting('rls.ihp_user_id')::uuid; $$;
-
 
                     SET default_tablespace = '';
 
@@ -932,7 +913,7 @@ tests = do
                         NEW.updated_at = NOW();
                         RETURN NEW;
                     END;
-                    $$$$ language PLPGSQL;
+                    $$$$ language plpgsql;
                 |]
                 let actualSchema = sql [trimming|
                     --

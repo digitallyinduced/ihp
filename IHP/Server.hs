@@ -44,7 +44,7 @@ run configBuilder = do
     IO.setLocaleEncoding IO.utf8
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        modelContext <- initModelContext frameworkConfig
+        modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
         let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
 
         withPGListener \pgListener -> do
@@ -151,12 +151,6 @@ initCorsMiddleware :: FrameworkConfig -> Middleware
 initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePolicy of
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
-
-initModelContext :: FrameworkConfig -> IO ModelContext
-initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do
-    let isDevelopment = environment == Env.Development
-    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
-    pure modelContext
 
 application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application
 application request respond = do

@@ -67,7 +67,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> dropType <|> commentStatement <|> comment <|> begin <|> commit
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> dropType <|> commentStatement <|> comment <|> begin <|> commit
     space
     pure s
 
@@ -825,6 +825,13 @@ dropType = do
     name <- qualifiedIdentifier
     char ';'
     pure DropEnumType { name }
+
+dropFunction = do
+    lexeme "DROP"
+    lexeme "FUNCTION"
+    functionName <- qualifiedIdentifier
+    char ';'
+    pure DropFunction { functionName }
 
 dropIndex = do
     lexeme "DROP"
