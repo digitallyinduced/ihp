@@ -304,3 +304,4 @@ getAppConfig = ?context
         |> get #appConfig
         |> TypeMap.lookup @configParameter
         |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))
+{-# INLINE getAppConfig #-}
