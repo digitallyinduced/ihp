@@ -97,9 +97,12 @@ runActionWithNewContext controller = do
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
 
     try (initContext @application) >>= \case
-        Left exception -> do
-            -- Calling `initContext` might fail, so we provide a bit better error messages here
-            ErrorController.displayException exception controller " while calling initContext"
+        Left (exception :: SomeException) -> do
+            case fromException exception of
+                Just (ResponseException response) ->
+                    let respond = ?context |> get #requestContext |> get #respond
+                    in respond response
+                Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right context -> do
             runAction controller
 
