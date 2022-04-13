@@ -111,3 +111,7 @@ tests = do
             it "should make a slug string from a string" do
                 toSlug "IHP Release: 21.08.2020 (v21082020)" `shouldBe` "ihp-release-21-08-2020-v21082020"
                 toSlug "Hallo! @ Welt" `shouldBe` "hallo-welt"
+            
+            it "should deal with umlaute" do
+                toSlug "käuferpass" `shouldBe` "kauferpass"
+                toSlug "äöü" `shouldBe` "aou"

@@ -235,11 +235,16 @@ haskellKeywords = [ "_"
 -- "hallo-welt"
 toSlug :: Text -> Text
 toSlug text =
-    text
-    |> map (\char -> if Char.isAlphaNum char then char else ' ')
-    |> toLower
-    |> words
-    |> intercalate "-"
+        text
+        |> toLower
+        |> map replaceChar
+        |> words
+        |> intercalate "-"
+    where
+        replaceChar 'ä' = 'a'
+        replaceChar 'ö' = 'o'
+        replaceChar 'ü' = 'u'
+        replaceChar char = if Char.isAlphaNum char && Char.isAscii char then char else ' '
 
 
 -- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
