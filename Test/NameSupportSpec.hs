@@ -114,4 +114,4 @@ tests = do
             
             it "should deal with umlaute" do
                 toSlug "käuferpass" `shouldBe` "kauferpass"
-                toSlug "äöü" `shouldBe` "aou"
+                toSlug "äöüß" `shouldBe` "aous"
