@@ -11,6 +11,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
 import Data.Scientific (Scientific)
+import qualified Database.PostgreSQL.Simple.ToField as PG
 
 tests = do
     describe "ModelSupport" do
@@ -112,6 +113,26 @@ tests = do
             it "should return false for a changed field when set with the same value again" do
                 (project |> set #name "Test" |> didChange #name) `shouldBe` False
                 (project |> didChange #id) `shouldBe` False
+
+        describe "withRLSParams" do
+            it "should do nothing if RLS is disabled" do
+                let query = "select 1"
+                let params = ([] :: [PG.Action])
+                let ?modelContext = notConnectedModelContext undefined
+                (withRLSParams (\query params -> (query, params)) query params) `shouldBe` (query, params)
+            
+            it "should add the RLS boilerplate if RLS is enabled" do
+                let query = "select ?"
+                let params = [PG.toField (1337 :: Int)]
+                let rowLevelSecurity = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = PG.toField ("userId" :: Text) }
+                let ?modelContext = (notConnectedModelContext undefined) { rowLevelSecurity = Just rowLevelSecurity }
+                (withRLSParams (\query params -> (query, params)) query params) `shouldBe`
+                        ( "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; select ?"
+                        , [ PG.EscapeIdentifier "ihp_authenticated", PG.Escape "userId", PG.Plain "1337" ]
+                        )
+
+instance Eq PG.Action where
+    a == b = tshow a == tshow b
 
 data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
 instance SetField "id" Project Int where
