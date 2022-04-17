@@ -234,7 +234,7 @@ instance Default CSSFramework where
 
             styledSubmitButton cssFramework SubmitButton { label, buttonClass } =
                 let className :: Text = get #styledSubmitButtonClass cssFramework
-                in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]}>{label}</button>|]
+                in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} type="submit">{label}</button>|]
 
             styledInputClass _ _ = ""
             styledInputInvalidClass _ _ = "invalid"

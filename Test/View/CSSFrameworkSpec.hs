@@ -42,10 +42,10 @@ tests = do
             describe "submit button" do
                 let submitButton = SubmitButton { label = "Save Project" , buttonClass = "my-custom-button" , cssFramework }
                 it "should render" do
-                    styledSubmitButton cssFramework cssFramework submitButton `shouldRenderTo` "<button class=\"btn btn-primary my-custom-button\">Save Project</button>"
+                    styledSubmitButton cssFramework cssFramework submitButton `shouldRenderTo` "<button class=\"btn btn-primary my-custom-button\" type=\"submit\">Save Project</button>"
 
                 it "should render with empty class" do
-                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\">Save Project</button>"
+                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\" type=\"submit\">Save Project</button>"
 
 
             describe "text field" do
