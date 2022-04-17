@@ -503,12 +503,13 @@ colorField field = (textField field) { fieldType = ColorInput }
 -- </div>
 --
 -- See 'textField' for examples of possible form control options.
-emailField :: forall fieldName model.
+emailField :: forall fieldName model value.
     ( ?formContext :: FormContext model
-    , HasField fieldName model Text
+    , HasField fieldName model value
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , KnownSymbol (GetModelName model)
+    , InputValue value
     ) => Proxy fieldName -> FormField
 emailField field = (textField field) { fieldType = EmailInput }
 {-# INLINE emailField #-}
