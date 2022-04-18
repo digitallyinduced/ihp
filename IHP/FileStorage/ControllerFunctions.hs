@@ -102,9 +102,10 @@ storeFileWithOptions fileInfo options = do
             let destPath :: Text = "static/" <> objectPath
             Directory.createDirectoryIfMissing True (cs $ "static/" <> directory)
 
-            fileInfo
-                |> get #fileContent
-                |> LBS.writeFile (cs destPath)
+            trySaveFile <- Exception.try $ fileInfo |> get #fileContent |> LBS.writeFile (cs destPath)
+            case trySaveFile of
+                Left (Exception.SomeException e) -> throw e
+                Right _ -> pure ()
 
             let frameworkConfig = getFrameworkConfig ?context
             pure $ (get #baseUrl frameworkConfig) <> "/" <> objectPath
@@ -115,15 +116,18 @@ storeFileWithOptions fileInfo options = do
 
             let contentType = cs (Wai.fileContentType fileInfo)
             contentDisposition <- (get #contentDisposition options) fileInfo
-            runMinio connectInfo do
+            trySaveFile <- runMinio connectInfo do
                 let options :: PutObjectOptions = defaultPutObjectOptions { pooContentType = Just contentType, pooContentDisposition = contentDisposition }
                 putObject bucket objectPath payload Nothing options
+            case trySaveFile of
+                Left e -> throw e
+                Right _ -> pure ()
 
             pure $ baseUrl <> objectPath
 
     pure StoredFile { path = objectPath, url }
 
--- | Fetchs an url and uploads it to the storage.
+-- | Fetches an url and uploads it to the storage.
 --
 -- The stored file has the content type provided by @Content-Type@ header of the downloaded file.
 --
