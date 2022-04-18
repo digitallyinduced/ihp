@@ -102,10 +102,9 @@ storeFileWithOptions fileInfo options = do
             let destPath :: Text = "static/" <> objectPath
             Directory.createDirectoryIfMissing True (cs $ "static/" <> directory)
 
-            trySaveFile <- Exception.try $ fileInfo |> get #fileContent |> LBS.writeFile (cs destPath)
-            case trySaveFile of
-                Left (Exception.SomeException e) -> throw e
-                Right _ -> pure ()
+            fileInfo
+                |> get #fileContent
+                |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = getFrameworkConfig ?context
             pure $ (get #baseUrl frameworkConfig) <> "/" <> objectPath
