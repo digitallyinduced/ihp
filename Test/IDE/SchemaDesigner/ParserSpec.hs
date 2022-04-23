@@ -1097,6 +1097,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse 'COMMIT' statements" do
             let sql = cs [plain|COMMIT;|]
             parseSql sql `shouldBe` Commit
+        
+        it "should parse 'DROP FUNCTION ..' statements" do
+            let sql = cs [plain|DROP FUNCTION my_function;|]
+            parseSql sql `shouldBe` DropFunction { functionName = "my_function" }
 
 col :: Column
 col = Column

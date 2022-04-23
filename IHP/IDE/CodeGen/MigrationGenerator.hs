@@ -146,6 +146,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 Just constraintName -> Just DropConstraint { tableName, constraintName }
                 Nothing -> Nothing
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
+        toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement otherwise = Nothing
 
 removeNoise = filter \case
@@ -548,12 +549,18 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@(DropTable { tableName }):rest) = statement:(filter isImplicitlyDeleted rest)
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement:(filter isImplicitlyDeleted rest)
     where
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
-                Just CreateIndex { tableName = indexTableName } -> indexTableName /= tableName
+                Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
+                        case dropColumnName of
+                            Just dropColumnName -> indexColumns
+                                    |> find (\IndexColumn { column } -> column == VarExpression dropColumnName)
+                                    |> isNothing
+                            Nothing -> True
+                    )
                 Nothing -> True
-        isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= tableName
+        isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted otherwise = True
 
         findIndexByName :: Text -> Maybe Statement
@@ -562,6 +569,14 @@ removeImplicitDeletions actualSchema (statement@(DropTable { tableName }):rest) 
         isIndex :: Text -> Statement -> Bool
         isIndex name CreateIndex { indexName } = indexName == name
         isIndex _    _                         = False
+
+        isDropStatement DropTable {} = True
+        isDropStatement DropColumn {} = True
+        isDropStatement _ = False
+
+        (dropTableName, dropColumnName) = case dropStatement of
+            DropTable { tableName } -> (tableName, Nothing)
+            DropColumn { tableName, columnName } -> (tableName, Just columnName)
 removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
 removeImplicitDeletions actualSchema [] = []
 

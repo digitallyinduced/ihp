@@ -105,16 +105,20 @@ instance FromJSON PG.Action where
     parseJSON (String v) = pure (PG.Escape (cs v))
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
-    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)
+    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
+    toEncoding fields = pairs $ foldl' (<>) mempty encodedFields
         where
-            fieldValueToJSON (IntValue value) = toJSON value
-            fieldValueToJSON (DoubleValue value) = toJSON value
-            fieldValueToJSON (TextValue value) = toJSON value
-            fieldValueToJSON (BoolValue value) = toJSON value
-            fieldValueToJSON (UUIDValue value) = toJSON value
-            fieldValueToJSON (DateTimeValue value) = toJSON value
-            fieldValueToJSON (PointValue value) = toJSON value
-            fieldValueToJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
+            encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
+
+instance ToJSON DynamicValue where
+    toJSON (IntValue value) = toJSON value
+    toJSON (DoubleValue value) = toJSON value
+    toJSON (TextValue value) = toJSON value
+    toJSON (BoolValue value) = toJSON value
+    toJSON (UUIDValue value) = toJSON value
+    toJSON (DateTimeValue value) = toJSON value
+    toJSON (PointValue value) = toJSON value
+    toJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
 
 instance PG.FromField Field where
     fromField field fieldValue' = do

@@ -21,6 +21,7 @@ import qualified Network.Wai.Parse as WaiParse
 import qualified System.Posix.Env.ByteString as Posix
 import Data.String.Interpolate.IsString (i)
 import qualified Control.Exception as Exception
+import IHP.ModelSupport
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -533,3 +534,10 @@ defaultCorsResourcePolicy = Nothing
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
 withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig |> get #logger |> get #cleanup)
+
+initModelContext :: FrameworkConfig -> IO ModelContext
+initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do
+    let isDevelopment = environment == Development
+    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+    pure modelContext
+

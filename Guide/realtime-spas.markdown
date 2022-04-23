@@ -123,6 +123,12 @@ watch-frontend:
 This will allow us to run `make static/app.js` to bundle `Frontend/app.jsx` with esbuild and save it to `static/app.js`.
 The `make watch-frontend` command is a shorthand to run the bundler with the `--watch` flag.
 
+To get the JS automatically build on deployment, append the following somewhere at the top of the file, after the existing `JS_FILES` definitions:
+
+```Makefile
+JS_FILES += static/app.js
+```
+
 #### Running the Bundler
 
 Open a new terminal tab and start the dev bundler:

@@ -530,15 +530,6 @@ tests = do
                     COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
 
-                    --
-                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
-                    --
-
-                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
-                        LANGUAGE sql
-                        AS $$ SELECT current_setting('rls.ihp_user_id')::uuid; $$;
-
-
                     SET default_tablespace = '';
 
                     SET default_table_access_method = heap;
@@ -630,16 +621,6 @@ tests = do
                     --
 
                     COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
-
-
-                    --
-                    -- Name: ihp_user_id(); Type: FUNCTION; Schema: public; Owner: -
-                    --
-
-                    CREATE FUNCTION public.ihp_user_id() RETURNS uuid
-                        LANGUAGE sql
-                        AS $$ SELECT current_setting('rls.ihp_user_id')::uuid; $$;
-
 
                     SET default_tablespace = '';
 
@@ -932,7 +913,7 @@ tests = do
                         NEW.updated_at = NOW();
                         RETURN NEW;
                     END;
-                    $$$$ language PLPGSQL;
+                    $$$$ language plpgsql;
                 |]
                 let actualSchema = sql [trimming|
                     --
@@ -955,6 +936,35 @@ tests = do
                     $$$$;
                 |]
                 let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should not try dropping an index after already droping a column" do
+                let targetSchema = sql [trimming|
+                    CREATE TABLE tasks (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                    );
+                    CREATE INDEX tasks_updated_at_index ON tasks (updated_at);
+                |]
+                let actualSchema = sql [trimming|
+                    CREATE TABLE tasks (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                    );
+                    CREATE INDEX tasks_created_at_index ON tasks (created_at);
+                    CREATE INDEX tasks_updated_at_index ON tasks (updated_at);
+                |]
+                let migration = sql [i|
+                    ALTER TABLE tasks DROP COLUMN created_at;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration

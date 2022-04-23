@@ -1017,3 +1017,7 @@ tests = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+        it "should compile 'DROP FUNCTION ..;' statements" do
+            let sql = "DROP FUNCTION my_function;\n"
+            let statements = [ DropFunction { functionName = "my_function" } ]
+            compileSql statements `shouldBe` sql

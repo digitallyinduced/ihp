@@ -290,6 +290,7 @@ library
         , IHP.DataSync.DynamicQueryCompiler
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
+        , IHP.DataSync.ControllerImpl
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
@@ -381,6 +382,9 @@ library
         , IHP.GraphQL.SchemaCompiler
         , IHP.GraphQL.ToText
         , IHP.GraphQL.Types
+        , IHP.SEO.Sitemap.Types
+        , IHP.SEO.Sitemap.ControllerFunctions
+        , IHP.SEO.Sitemap.Routes
 
         -- IHP PRO
         , IHP.AuthSupport.Controller.PasswordResets
