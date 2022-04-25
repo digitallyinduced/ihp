@@ -49,5 +49,5 @@ instance (
     run = do
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled
         installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
-        runDataSyncController ensureRLSEnabled installTableChangeTriggers
+        runDataSyncController ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON
     onClose = cleanupAllSubscriptions
