@@ -192,6 +192,10 @@ Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.h
 
 Use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveController).
 
+### Check whether this view is called from a specific action
+
+Use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction).
+
 #### `timeAgo`
 
 ```haskell

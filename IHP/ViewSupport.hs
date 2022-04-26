@@ -25,6 +25,7 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
+, isActiveAction
 , nl2br
 , stripTags
 , theCSSFramework
@@ -156,6 +157,20 @@ isActiveController =
     in
         (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
 
+-- | Returns @True@ when the given action matches the path of the currently executed action
+--
+-- __Example:__ The browser has requested @\/PostsAction@.
+--
+-- >>> isActiveAction PostsAction
+-- True
+--
+-- Returns @True@ because the current path is the same as the path to the action
+isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
+isActiveAction controllerAction =
+    let
+        currentPath = Wai.rawPathInfo theRequest
+    in
+        currentPath == cs (pathTo controllerAction)
 
 css = plain
 
