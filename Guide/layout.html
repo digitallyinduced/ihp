@@ -350,6 +350,9 @@
             if (link.innerText.indexOf('Next: ') === 0) {
                 link.classList.add('next-button');
             }
+            if (link.href && link.href.indexOf('/api-docs/') > 0) {
+                link.target = '_blank';
+            }
         }
     </script>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
