@@ -142,6 +142,10 @@ There's more on the IHP website.
 
 [📧 To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
 
+## Install
+
+[See the documentation for installation instructions](https://ihp.digitallyinduced.com/Guide/installation.html)
+
 ## Community
 
 Questions, or need help with haskell type errors? [Join our Slack Community](https://ihp.digitallyinduced.com/Slack)
@@ -154,12 +158,8 @@ We are happy to merge your pull requests!😄
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 
-## IHP Stickers
-
-We're happy to send you Cool & Funky stickers via physical mail. [Get them here](https://forms.gle/hEgV4E7RakQBaKgY9)
-
 ## Releases
 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
 
-[📧 Subscribe to the IHP release emails to stay in the loop.](http://eepurl.com/g51zq1)
+[📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/)
