@@ -969,6 +969,51 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "ignore auto generated 'notify_...' functions" do
+                let targetSchema = sql [trimming|
+                |]
+                let actualSchema = sql [trimming|
+                    CREATE FUNCTION public.notify_did_change_todos() RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$$$
+                            BEGIN
+                                CASE TG_OP
+                                WHEN ''UPDATE'' THEN
+                                    PERFORM pg_notify(
+                                        ''did_change_todos'',
+                                        json_build_object(
+                                          ''UPDATE'', NEW.id::text,
+                                          ''CHANGESET'', (
+                                                SELECT json_agg(row_to_json(t))
+                                                FROM (
+                                                      SELECT pre.key AS "col", post.value AS "new"
+                                                      FROM jsonb_each(to_jsonb(OLD)) AS pre
+                                                      CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
+                                                      WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
+                                                ) t
+                                          )
+                                        )::text
+                                    );
+                                WHEN ''DELETE'' THEN
+                                    PERFORM pg_notify(
+                                        ''did_change_todos'',
+                                        (json_build_object(''DELETE'', OLD.id)::text)
+                                    );
+                                WHEN ''INSERT'' THEN
+                                    PERFORM pg_notify(
+                                        ''did_change_todos'',
+                                        json_build_object(''INSERT'', NEW.id)::text
+                                    );
+                                END CASE;
+                                RETURN new;
+                            END;
+                        $$$$;
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
