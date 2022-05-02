@@ -1,5 +1,5 @@
 .generators-list, .code-generator {
-    border: 1px solid #bdbdbd;
+    border: 1px solid #0A4151;
     border-radius: 8px;
     box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
     max-width: 650px;
@@ -22,14 +22,15 @@
 .generators-list .generator {
     display: flex;
     align-items: center;
-    color: #000000;
-    background-color: #ebebeb;
-    border-bottom: 1px solid #d4d4d4;
+    color: hsla(196, 13%, 80%, 1);
+    background-color: hsl(192deg 81% 24%);
+    border-bottom: 1px solid #0A4151;
     font-size: 14px;
     font-weight: 400;
     padding-top: 1rem;
     padding-bottom: 1rem;
     text-decoration: none !important;
+    transition: all 0.1s;
 }
 
 .generators-list .generator .generator-icon {
@@ -38,9 +39,8 @@
     color: white;
     margin-right: 1rem;
     margin-left: 1rem;
-    background-color: #5c95f7;
-    border: 1px solid #337bf7;
     border-radius: 4px;
+    transition: all 0.1s;
 }
 
 .generators-list .generator .generator-icon svg {
@@ -48,24 +48,25 @@
 }
 
 .generators-list .generator:hover {
-    background-color: #c5d4ec;
-    border-bottom: 1px solid #337bf6;
+    background-color: hsl(192deg 81% 34%);
+    border-bottom: 1px solid #0A4151;
+    color: hsla(196, 13%, 90%, 1);
 }
 
 .code-generator {
     min-height: 200px;
-    background-color: #ebebeb;
+    background-color: hsl(192deg 81% 24%);
 }
 
 .code-generator input[name="name"], .code-generator input[name="description"] {
     font-size: 24px;
     outline: none;
     border-top-left-radius: 0;
-    border-bottom: 1px solid #c0c0c0;
+    border-bottom: 1px solid rgba(0, 122, 153, 0.9);
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-top-right-radius: 0;
-    background-color: #ebebeb;
+    background-color: #063642;
 }
 
 .code-generator input[name="name"]:first-child, .code-generator input[name="description"]:first-child {
@@ -74,9 +75,7 @@
 
 .code-generator input[name="name"]:focus, .code-generator input[name="description"]:focus {
     outline: none !important;
-    border-bottom: 1px solid #c0c0c0;
     box-shadow: none;
-    background-color: #ebebeb;
 }
 
 .code-generator input[name="name"]::placeholder, .code-generator input[name="description"]::placeholder {
@@ -150,4 +149,8 @@
 
 .code-generator .generator-options input[type="checkbox"] {
     vertical-align: text-bottom;;
+}
+
+.generator-action .ace_editor {
+    filter: invert(100%);
 }
