@@ -589,6 +589,9 @@ renderObjectSelector statements activeObjectName = [hsx|
                 <a href={DeleteTableAction id name} class="js-delete">Delete Table</a>
                 <div></div>
                 <a href={ShowGeneratedCodeAction name}>Show Generated Haskell Code</a>
+                {when controllerDoesNotExist generateControllerLink}
+                {unless controllerDoesNotExist openControllerLink}
+                <div></div>
                 <a href={NewColumnAction name}>Add Column to Table</a>
                 <div></div>
                 <a href={NewTableAction}>Add Table</a>
