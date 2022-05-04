@@ -320,6 +320,33 @@ tests = do
                 it "should support show of BreadcrumbItem" do
                     let breadcrumbItem = breadcrumbText "First item"
                     show breadcrumbItem `shouldBe` "{ breadcrumbLabel = \"First item\", url = Nothing }"
+        
+        describe "tailwind" do
+            let cssFramework = tailwind
+
+            describe "textareaField" do
+                let baseTextField = FormField
+                        { fieldType = TextareaInput
+                        , fieldName = "body"
+                        , fieldLabel = "Body:"
+                        , fieldValue = "Hello\nWorld!"
+                        , fieldInputId = "body"
+                        , validatorResult = Nothing
+                        , additionalAttributes = []
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disabled = False
+                        , disableLabel = False
+                        , disableGroup = False
+                        , disableValidationResult = False
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = "Describe your issue"
+                        , required = False
+                        , autofocus = False
+                        }
+                it "should render tailwind label classes" do
+                    styledFormField cssFramework cssFramework baseTextField `shouldRenderTo` "<div class=\"flex flex-col my-6 space-y-2\" id=\"form-group-body\"><label class=\"font-medium text-gray-700\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"focus:ring-blue-500 focus:border-blue-500 block w-full border-gray-300 rounded-md\">Hello\nWorld!</textarea></div>"
 
 
 

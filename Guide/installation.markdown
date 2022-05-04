@@ -6,7 +6,7 @@
 
 ## 1. Dependency: Nix Package Manager
 
-The framework uses the nix package manager to manage the whole set of dependencies of your application
+The framework uses the nix package manager to manage the whole set of dependencies of your application. Nix is the equivalent of `npm`, but for Haskell and much more.
 
 For example, PostgreSQL and the Haskell compiler are both dependencies of your app, as well as all the Haskell or JavaScript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
 

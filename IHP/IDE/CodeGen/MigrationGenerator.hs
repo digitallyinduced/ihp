@@ -153,6 +153,7 @@ removeNoise = filter \case
         Comment {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } } -> False
         AddConstraint { tableName = "schema_migrations" }                                          -> False
+        CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                 -> False
         _                                                                                          -> True
 
 migrateTable :: Statement -> Statement -> [Statement]

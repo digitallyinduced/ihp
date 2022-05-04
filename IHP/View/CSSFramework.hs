@@ -57,7 +57,7 @@ instance Default CSSFramework where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
 
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
-            styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField} formField =
+            styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledTextareaFormField} formField =
                 formGroup renderInner
                 where
                     renderInner = case get #fieldType formField of
@@ -493,7 +493,7 @@ tailwind = def
                 >{fieldValue}</textarea>{validationResult}{helpText}
             |]
             where
-                twLabelClass = "font-medium text-gray-700" <> " " <> labelClass
+                twLabelClass = classes ["font-medium text-gray-700", (labelClass, not (null labelClass))]
                 label = unless (disableLabel || null fieldLabel) [hsx|<label class={twLabelClass} for={fieldInputId}>{fieldLabel}</label>|]
                 inputClass = (styledInputClass cssFramework formField, True)
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
