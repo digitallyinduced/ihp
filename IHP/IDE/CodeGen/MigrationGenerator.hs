@@ -346,7 +346,7 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, .. } ]
+normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = normalizeNewLines functionBody, .. } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
@@ -625,3 +625,9 @@ normalizeIndexColumn IndexColumn { column, columnOrder } =
 
 normalizeIndexColumnOrder :: [IndexColumnOrder] -> [IndexColumnOrder]
 normalizeIndexColumnOrder columnOrder = columnOrder |> filter (/=Asc)
+
+normalizeNewLines :: Text -> Text
+normalizeNewLines text =
+    text
+    |> Text.replace "\r\n" "\n"
+    |> Text.replace "\r" "\n"
