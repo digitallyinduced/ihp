@@ -62,19 +62,14 @@ instance Controller TablesController where
         statements <- readSchema
         let tableName = param "tableName"
         let tableId = param "tableId"
-        let oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
+
         let validationResult = tableName |> validateTable statements (Just oldTableName)
         case validationResult of
             Failure message -> do
                 setErrorMessage message
                 redirectTo ShowTableAction { tableName = oldTableName }
             Success -> do
-                let updateConstraintsStatement =
-                        referencingTableForeignKeyConstraints oldTableName statements
-                            |> map (\constraint -> updateReferenceTableOfForeignKeyConstraint constraint tableName statements)
-
-                forEach updateConstraintsStatement updateSchema
-                updateSchema (updateTable tableId tableName)
+                updateSchema (SchemaOperations.updateTable tableId tableName)
                 redirectTo ShowTableAction { .. }
 
     action DeleteTableAction { .. } = do
@@ -83,32 +78,8 @@ instance Controller TablesController where
         updateSchema (SchemaOperations.deleteTable tableName)
         redirectTo TablesAction
 
-
-
-updateTable :: Int -> Text -> [Statement] -> [Statement]
-updateTable tableId tableName list = replace tableId (StatementCreateTable CreateTable { name = tableName, columns = get #columns table, primaryKeyConstraint = get #primaryKeyConstraint table, constraints = get #constraints table }) list
-  where table = unsafeGetCreateTable (list !! tableId)
-
 validateTable :: [Statement] -> Maybe Text -> Validator Text
 validateTable statements = validateNameInSchema "table name" (getAllObjectNames statements)
-
-referencingTableForeignKeyConstraints tableName statements =
-    filter (\statement ->
-        statement ==
-            AddConstraint
-                { tableName = (get #tableName statement)
-                , constraint =
-                    ForeignKeyConstraint
-                        { name = Just (get #constraintName statement)
-                        , columnName = (get #columnName (get #constraint statement))
-                        , referenceTable = tableName
-                        , referenceColumn = (get #referenceColumn (get #constraint statement))
-                        , onDelete = (get #onDelete (get #constraint statement))
-                        }
-                , deferrable = Nothing
-                , deferrableType = Nothing
-                }
-        ) statements
 
 updateReferenceTableOfForeignKeyConstraint constraint newTableName statements =
     let Just constraintId = elemIndex constraint statements

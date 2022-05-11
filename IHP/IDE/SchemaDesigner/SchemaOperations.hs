@@ -454,6 +454,22 @@ deleteTable tableName statements =
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         otherwise -> True
 
+updateTable :: Int -> Text -> Schema -> Schema
+updateTable tableId tableName statements =
+    let
+        oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
+    in
+        statements
+        |> map \case
+            (StatementCreateTable table@(CreateTable { name })) | name == oldTableName -> StatementCreateTable (table { name = tableName })
+            constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName -> (constraint :: Statement) { tableName, constraint = c { name = Text.replace oldTableName tableName <$> (get #name c) } }
+            index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
+            rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
+            policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
+            trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
+            otherwise -> otherwise  
+
+
 updatedAtTriggerName :: Text -> Text
 updatedAtTriggerName tableName = "update_" <> tableName <> "_updated_at"
 
