@@ -71,39 +71,24 @@ instance Controller ColumnsController where
         let tableName = param "tableName"
         let columnName = param "name"
         let validationResult = columnName |> validateColumn
+
         case validationResult of
             Failure message ->
                 setErrorMessage message
             Success -> do
-                let defaultValue = param "defaultValue"
-                let table = findStatementByName tableName statements
-                let columns = maybe [] (get #columns . unsafeGetCreateTable) table
-                let columnId = param "columnId"
-                let column = Column
-                        { name = columnName
-                        , columnType = SchemaOperations.arrayifytype (param "isArray") (param "columnType")
-                        , defaultValue = defaultValue
-                        , notNull = (not (param "allowNull"))
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName
+                        , columnName
+                        , columnId = param "columnId"
+                        , defaultValue = param "defaultValue"
+                        , isArray = param "isArray"
+                        , columnType = param "columnType"
+                        , allowNull = param "allowNull"
                         , isUnique = param "isUnique"
-                        , generator = Nothing
+                        , primaryKey = param "primaryKey"
                         }
-                when ((get #name column) == "") do
-                    setErrorMessage ("Column Name can not be empty")
-                    redirectTo ShowTableAction { tableName }
-                updateSchema (map (updateColumnInTable tableName column (param "primaryKey") columnId))
 
-                -- Update Foreign Key Reference
-                let oldColumn = columns !! columnId
-                let oldColumnName = get #name oldColumn
-                let maybeConstraint = referencingColumnForeignKeyConstraints tableName oldColumnName statements
-                case maybeConstraint of
-                    Just constraint -> do
-                        let Just constraintId = elemIndex constraint statements
-                        let constraintName = tableName <> "_ref_" <> columnName
-                        let referenceTable = Text.splitOn "_id" columnName |> head |> Maybe.fromJust |> pluralize
-                        let Just onDelete = get #onDelete (get #constraint constraint)
-                        updateSchema (updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId)
-                    Nothing -> pure ()
+                updateSchema $ SchemaOperations.updateColumn options
         redirectTo ShowTableAction { .. }
 
     action DeleteColumnAction { .. } = do
@@ -184,24 +169,6 @@ instance Controller ColumnsController where
         statements <- readSchema
         updateSchema (deleteForeignKeyConstraint constraintName)
         redirectTo ShowTableAction { .. }
-
-updateColumnInTable :: Text -> Column -> Bool -> Int -> Statement -> Statement
-updateColumnInTable tableName column isPrimaryKey columnId (StatementCreateTable table@CreateTable { name, columns, primaryKeyConstraint })
-    | name == tableName = StatementCreateTable $
-        table
-            { columns = (replace columnId column columns)
-            , primaryKeyConstraint = updatePrimaryKeyConstraint column isPrimaryKey primaryKeyConstraint
-            }
-updateColumnInTable tableName column isPrimaryKey columnId statement = statement
-
--- | Add or remove a column from the primary key constraint
-updatePrimaryKeyConstraint :: Column -> Bool -> PrimaryKeyConstraint -> PrimaryKeyConstraint
-updatePrimaryKeyConstraint Column { name } isPrimaryKey primaryKeyConstraint@PrimaryKeyConstraint { primaryKeyColumnNames } =
-  case (isPrimaryKey, name `elem` primaryKeyColumnNames) of
-      (False, False) -> primaryKeyConstraint
-      (False, True) -> PrimaryKeyConstraint (filter (/= name) primaryKeyColumnNames)
-      (True, False) -> PrimaryKeyConstraint (primaryKeyColumnNames <> [name])
-      (True, True) -> primaryKeyConstraint
 
 toggleUniqueInColumn :: Text -> Int -> Statement -> Statement
 toggleUniqueInColumn tableName columnId (StatementCreateTable table@CreateTable { name, columns })

@@ -9,6 +9,7 @@ import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import Data.Maybe (fromJust)
 import qualified Data.List as List
+import qualified Data.Text as Text
 
 -- | A Schema.sql basically is just a list of sql DDL statements
 type Schema = [Statement]
@@ -99,6 +100,99 @@ addColumn options@(AddColumnOptions { .. }) =
             . (if columnName == "updated_at"
                 then addUpdatedAtTrigger tableName
                 else \schema -> schema)
+
+data UpdateColumnOptions = UpdateColumnOptions
+    { tableName :: !Text
+    , columnName :: !Text
+    , columnType :: !PostgresType
+    , defaultValue :: !(Maybe Expression)
+    , isArray :: !Bool
+    , allowNull :: !Bool
+    , isUnique :: !Bool
+    , primaryKey :: !Bool
+    , columnId :: !Int
+    }
+updateColumn :: UpdateColumnOptions -> Schema -> Schema
+updateColumn options@(UpdateColumnOptions { .. }) schema =
+    let
+        updateColumnAtIndex :: [Column] -> [Column]
+        updateColumnAtIndex columns = mapWithIndex updateColumnAtIndex' columns
+
+        mapWithIndex :: (a -> Int -> b) -> [a] -> [b]
+        mapWithIndex mapFn items = mapWithIndex' mapFn items 0
+            where
+                mapWithIndex' :: (a -> Int -> b) -> [a] -> Int -> [b]
+                mapWithIndex' mapFn [] _ = []
+                mapWithIndex' mapFn (item:rest) i = (mapFn item i):(mapWithIndex' mapFn rest (i + 1))
+
+        updateColumnAtIndex' :: Column -> Int -> Column
+        updateColumnAtIndex' column index | index == columnId = column
+                { name = columnName
+                , columnType = arrayifytype isArray columnType
+                , defaultValue = defaultValue
+                , notNull = not allowNull
+                , isUnique
+                }
+        updateColumnAtIndex' column index = column
+
+        updateTableOp :: [Statement] -> [Statement]
+        updateTableOp = map \case
+                (StatementCreateTable table@(CreateTable { name, columns, primaryKeyConstraint })) | name == tableName ->
+                    let
+                        oldColumn :: Column
+                        oldColumn = columns
+                                |> (\c -> zip c [0..])
+                                |> find ((\(c, index) -> index == columnId))
+                                |> fromMaybe (error "could not find column with id")
+                                |> fst
+                    in StatementCreateTable $ (table :: CreateTable)
+                            { columns = updateColumnAtIndex columns
+                            , primaryKeyConstraint = updatePrimaryKeyConstraint oldColumn primaryKey primaryKeyConstraint
+                            }
+                otherwise -> otherwise
+
+        -- | Add or remove a column from the primary key constraint
+        updatePrimaryKeyConstraint :: Column -> Bool -> PrimaryKeyConstraint -> PrimaryKeyConstraint
+        updatePrimaryKeyConstraint Column { name } isPrimaryKey primaryKeyConstraint@PrimaryKeyConstraint { primaryKeyColumnNames } =
+          case (isPrimaryKey, name `elem` primaryKeyColumnNames) of
+              (False, False) -> primaryKeyConstraint
+              (False, True) -> PrimaryKeyConstraint (filter (/= name) primaryKeyColumnNames)
+              (True, False) -> PrimaryKeyConstraint (primaryKeyColumnNames <> [name])
+              (True, True) -> primaryKeyConstraint
+
+        updateForeignKeyConstraints = map \case
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (get #name oldColumn) ->
+                    let newName = Text.replace (get #name oldColumn) columnName <$> fkName
+                    in statement { constraint = constraint { columnName, name = newName } }
+                index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
+                    let
+                        updateIndexColumn :: IndexColumn -> IndexColumn
+                        updateIndexColumn indexColumn@(IndexColumn { column = VarExpression varName }) | varName == (get #name oldColumn) = indexColumn { column = VarExpression columnName }
+                        updateIndexColumn otherwise = otherwise
+                    in
+                        (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (get #name oldColumn) columnName indexName }
+                otherwise -> otherwise
+        findOldColumn statements = mapMaybe findOldColumn' statements
+                |> head
+                |> fromMaybe (error "Could not find old column")
+        findOldColumn' (StatementCreateTable table@(CreateTable { name, columns, primaryKeyConstraint })) | name == tableName =
+                    let
+                        oldColumn :: Column
+                        oldColumn = columns
+                                |> (\c -> zip c [0..])
+                                |> find ((\(c, index) -> index == columnId))
+                                |> fromMaybe (error "could not find column with id")
+                                |> fst
+                    in
+                        Just oldColumn
+        findOldColumn' _ = Nothing
+
+        oldColumn :: Column
+        oldColumn = findOldColumn schema
+    in
+        schema
+        |> updateTableOp
+        |> updateForeignKeyConstraints
 
 newColumn :: AddColumnOptions -> Column
 newColumn AddColumnOptions { .. } = Column
