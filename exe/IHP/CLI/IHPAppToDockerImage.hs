@@ -23,7 +23,7 @@ main = do
     createAppNix
 
     removeFileIfExists "docker.tar.gz"    
-    exitCode <- Process.system "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build build/docker.nix -o docker.tar.gz"
+    exitCode <- Process.system "NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build build/docker.nix -o docker.tar.gz --option sandbox false"
 
     let isSuccess = exitCode == Exit.ExitSuccess
     if isSuccess
