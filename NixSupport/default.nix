@@ -67,12 +67,12 @@ in
 
           mv ${appBinary} $out/bin/RunProdServerWithoutOptions
           INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-          makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --chdir "$out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+          makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
           # Copy job runner binary to bin/ if we built it
           if [ -f ${jobsBinary} ]; then
             mv ${jobsBinary} $out/bin/RunJobsWithoutOptions;
-            makeWrapper $out/bin/RunJobsWithoutOptions $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --chdir "$out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+            makeWrapper $out/bin/RunJobsWithoutOptions $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
           fi;
 
           # Copy IHP Script binaries to bin/
