@@ -63,6 +63,7 @@ instance Controller TablesController where
         let tableName = param "tableName"
         let tableId = param "tableId"
 
+        let oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
         let validationResult = tableName |> validateTable statements (Just oldTableName)
         case validationResult of
             Failure message -> do
