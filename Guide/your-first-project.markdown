@@ -528,7 +528,7 @@ INSERT INTO public.posts VALUES ('fcbd2232-cdc2-4d0c-9312-1fd94448d90a', 'Hello 
 
 ```
 
-(If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Migrate DB -> Update DB` in the Schema Designer (or use `make db` from the command line).)
+(If you don't see an entry for your test post in `Application/Fixtures.sql`, then click `Migrate DB -> Update DB` in the Schema Designer (or use `make dumpdb` from the command line).)
 
 All our existing posts are saved here. You should also commit this file to git to share your fixtures with your teammates. We will need these saved fixtures in a moment when we want to update the database schema.
 

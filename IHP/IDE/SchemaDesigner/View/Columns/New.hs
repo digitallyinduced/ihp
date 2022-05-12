@@ -97,12 +97,15 @@ instance View NewColumnView where
                 </form>
             |]
                 where
-                    generateReferenceCheckboxes = [hsx|<span id="checkboxes">{forEach tableNames checkbox}</span>|]
+                    generateReferenceCheckboxes = [hsx|{forEach tableNames checkbox}|]
                         where checkbox tableName = [hsx|
-                                    <label class="mx-2 ref" style="font-size: 12px; display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName}>
-                                        <input id="reference" type="checkbox" name="isReference" class="mr-1"/>
-                                        <a id="refText">References {tableName}</a>
-                                    </label>|]
+                                <div class="custom-control custom-checkbox" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
+                                    <input id="reference" type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
+                                    <label class="mx-2 ref custom-control-label" id="refText">
+                                        References {tableName}
+                                    </label>
+                                </div>
+                                |]
                     defaultSelector = [hsx|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
                             <option value="" selected={True}>no default</option>
