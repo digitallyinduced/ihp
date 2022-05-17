@@ -1014,6 +1014,18 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should normalize unique constraint names with multiple columns" do
+                let targetSchema = sql $ cs [plain|
+                    ALTER TABLE days ADD UNIQUE (category_id, date);
+                |]
+                let actualSchema = sql $ cs [plain|
+                    ALTER TABLE ONLY public.days ADD CONSTRAINT days_category_id_date_key UNIQUE (category_id, date);
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
