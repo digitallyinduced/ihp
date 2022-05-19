@@ -95,7 +95,7 @@ currentViewId =
         moduleParts :: [Text]
         moduleParts = Text.splitOn "." moduleName
 
--- | Returns @True@ when the current request path matches the path given as argument.
+-- | Returns @True@ when the current request path matches the path given as argument. Takes into account the search query: `?name=value`
 --
 -- __Example:__ The browser has requested the url @\/Projects@.
 --
@@ -164,7 +164,8 @@ isActiveController =
 -- >>> isActiveAction PostsAction
 -- True
 --
--- Returns @True@ because the current path is the same as the path to the action
+-- Returns @True@ because the current path is the same as the path to the action, does not take into account the search query.
+-- Use `isActivePath` if you need to match path and search query.
 isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
 isActiveAction controllerAction =
     let
