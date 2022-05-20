@@ -63,7 +63,7 @@ action MyAction = do
 
 ### Reading Environment Variables
 
-Inside `Config/Config.hs` you can use `env` to read environment variables. 
+Inside `Config/Config.hs` you can use `env` to read environment variables.
 
 ```haskell
 module Config where
@@ -152,3 +152,55 @@ config = do
     option $ CustomMiddleware $ addHeaders [("X-My-Header", "Custom WAI Middleware!")] . realIp
 ```
 
+### Compression Middleware
+We can compress assets using gzip or brotli.
+First, let's add the required Haskell dependencies:
+In your `default.nix` file, add:
+```nix
+        haskellDeps = p: with p; [
+            ...
+
+            # Wai Middleware
+            wai-middleware-brotli # <-- Add This Dependency
+            wai-extra # <-- And This One
+        ];
+```
+Run, `nix-shell --run 'make -B .envrc'` to update the environment.
+Once that succeeds, we can use it in your `Config/Config.hs`:
+
+Add two imports, one for Gzip compression, another for Brotli compression:
+```haskell
+module Config where
+...
+import Network.Wai.Middleware.Brotli -- <-- Add This Import
+import Network.Wai.Middleware.Gzip -- <-- And This One
+```
+
+And then create a function `compressionMiddleware` that combines (composes) Gzip and Brotli compression middleware's into one middleware:
+```haskell
+-- | Gzip And Brotli Compression Middleware
+compressionMiddleware :: CustomMiddleware
+compressionMiddleware =
+    let
+        -- With `GzipCompress` and `BrotliCompress` options, it will compress per request.
+        gzipSettings = def { gzipFiles = GzipCompress }
+        brotliSettings = defaultSettings { brotliFilesBehavior = BrotliCompress }
+    in
+        CustomMiddleware (gzip gzipSettings . brotli brotliSettings)
+
+```
+Lastly, we can use it as:
+```haskell
+config :: ConfigBuilder
+config = do
+    ...
+    option compressionMiddleware -- <-- Here we add our middleware
+```
+
+The default behavior for `GzipCompress` and `BrotliCompress` is to compress files on the fly.
+You can customize this behavior, take a look at the [brotli config](https://github.com/iand675/hs-brotli/blob/master/wai-middleware-brotli/src/Network/Wai/Middleware/Brotli.hs#L53-L66) and [gzip config](https://github.com/yesodweb/wai/blob/master/wai-extra/Network/Wai/Middleware/Gzip.hs#L62-L73).
+
+Also notice `CustomMiddleware (gzip gzipSettings . brotli brotliSettings)`, It's [important that brotli middleware wraps the gzip middleware](https://github.com/iand675/hs-brotli/blob/master/wai-middleware-brotli/src/Network/Wai/Middleware/Brotli.hs#L15-L17), so the responses are not compressed by both, if the client supports brotli, compress with brotli, otherwise gzip, fallback to no compression.
+
+By default all `text/*` content types will be compressed, including `application/json`, `application/javascript`, `application/ecmascript` and `image/x-icon`.
+Simply put, html, text, css, javascript, json and icons.
