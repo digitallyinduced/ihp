@@ -47,6 +47,8 @@ githubConnectCallbackAction :: forall user.
     , Table user
     ) => IO ()
 githubConnectCallbackAction = do
+    handleGithubCallbackError @user
+
     let code = param @Text "code"
     state <- Github.verifyState
 
@@ -125,6 +127,21 @@ githubConnectCallbackAction = do
 
             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
             redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @user) redirectUrl)
+
+-- | See https://docs.github.com/en/developers/apps/managing-oauth-apps/troubleshooting-authorization-request-errors
+handleGithubCallbackError :: forall user.
+    ( HasNewSessionUrl user
+    , ?context :: ControllerContext
+    ) => IO ()
+handleGithubCallbackError = do
+    let errorType = paramOrNothing @Text "error"
+    let redirectToLoginPage = redirectToPath (newSessionUrl (Proxy @user))
+    case errorType of
+        Just "access_denied" -> redirectToLoginPage
+        Just otherError -> do
+            setErrorMessage (paramOrDefault otherError "error_description")
+            redirectToLoginPage
+        Nothing -> pure ()
 
 class GithubOAuthControllerConfig user where
     createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> IO user
