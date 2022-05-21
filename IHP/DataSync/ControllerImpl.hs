@@ -47,8 +47,8 @@ runDataSyncController ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    ) => _ -> _ -> _ -> _ -> IO ()
-runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON = do
+    ) => _ -> _ -> _ -> _ -> _ -> IO ()
+runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage = do
         setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty, asyncs = [] }
 
         let pgListener = ?applicationContext |> get #pgListener
@@ -318,7 +318,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
 
-
+            handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
         forever do
             message <- Aeson.eitherDecodeStrict' <$> receiveData
