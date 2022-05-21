@@ -24,6 +24,8 @@ data DataSyncMessage
     | StartTransaction { requestId :: !Int }
     | RollbackTransaction { requestId :: !Int, id :: !UUID }
     | CommitTransaction { requestId :: !Int, id :: !UUID }
+    | LoginWithEmailAndPassword { requestId :: !Int, email :: !Text, password :: !Text }
+    | LoginWithJWT { requestId :: !Int, jwt :: !Text }
     deriving (Eq, Show)
 
 data DataSyncResponse
@@ -44,6 +46,11 @@ data DataSyncResponse
     | DidStartTransaction { requestId :: !Int, transactionId :: !UUID }
     | DidRollbackTransaction { requestId :: !Int, transactionId :: !UUID }
     | DidCommitTransaction { requestId :: !Int, transactionId :: !UUID }
+
+    | LoginSuccessful { requestId :: !Int, userId :: !UUID, jwt :: !Text }
+    | UserLocked { requestId :: !Int }
+    | UserUnconfirmed { requestId :: !Int }
+    | InvalidCredentials { requestId :: !Int }
 
 data GraphQLResult = GraphQLResult { graphQLResult :: !UndecodedJSON, requestId :: !Int }
 
