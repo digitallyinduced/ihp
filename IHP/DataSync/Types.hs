@@ -26,6 +26,8 @@ data DataSyncMessage
     | CommitTransaction { requestId :: !Int, id :: !UUID }
     | LoginWithEmailAndPassword { requestId :: !Int, email :: !Text, password :: !Text }
     | LoginWithJWT { requestId :: !Int, jwt :: !Text }
+    | CreateUser { requestId :: !Int, email :: !Text, password :: !Text }
+    | ConfirmUser { requestId :: !Int, userId :: !UUID, token :: !Text }
     deriving (Eq, Show)
 
 data DataSyncResponse
@@ -51,6 +53,12 @@ data DataSyncResponse
     | UserLocked { requestId :: !Int }
     | UserUnconfirmed { requestId :: !Int }
     | InvalidCredentials { requestId :: !Int }
+
+    | DidCreateUser { requestId :: !Int, userId :: !UUID, emailConfirmationRequired :: !Bool, jwt :: !Text }
+    | CreateUserFailed { requestId :: !Int, validationFailures :: [(Text, Text)] }
+    | DidConfirmUser { requestId :: !Int, jwt :: !Text }
+    | DidConfirmUserAlready { requestId :: !Int }
+    | ConfirmUserFailed { requestId :: !Int }
 
 data GraphQLResult = GraphQLResult { graphQLResult :: !UndecodedJSON, requestId :: !Int }
 
