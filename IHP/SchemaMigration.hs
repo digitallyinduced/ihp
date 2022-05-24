@@ -43,18 +43,15 @@ runMigration :: (?modelContext :: ModelContext) => Migration -> IO ()
 runMigration migration@Migration { revision, migrationFile } = do
     migrationSql <- Text.readFile (cs $ migrationPath migration)
 
-    withTransaction do
-        sqlExec (fromString . cs $ migrationSql) ()
-        sqlExec "INSERT INTO schema_migrations (revision) VALUES (?)" [revision]
+    let fullSql = [trimming|
+        BEGIN;
+            ${migrationSql}
+            INSERT INTO schema_migrations (revision) VALUES (?);
+        COMMIT;
+    |]
+    sqlExec (fromString . cs $ fullSql) [revision]
 
     pure ()
-
-withTransaction :: (?modelContext :: ModelContext) => IO a -> IO a
-withTransaction block = do
-    _ <- sqlExec "BEGIN" ()
-    result <- block
-    _ <- sqlExec "COMMIT" ()
-    pure result
 
 -- | Creates the @schema_migrations@ table if it doesn't exist yet
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
