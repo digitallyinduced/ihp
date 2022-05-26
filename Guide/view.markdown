@@ -194,7 +194,7 @@ Use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSup
 
 ### Check whether this view is called from a specific action
 
-Use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction).
+Use [`isActiveAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction).
 
 #### `timeAgo`
 
