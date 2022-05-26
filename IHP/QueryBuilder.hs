@@ -939,7 +939,7 @@ orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder {
 -- __Example:__ Fetch the 10 newest projects (ordered by creation time).
 --
 -- > query @Project
--- >     |> orderBy #createdAt
+-- >     |> orderByDesc #createdAt
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM projects LIMIT 10 ORDER BY created_at DESC

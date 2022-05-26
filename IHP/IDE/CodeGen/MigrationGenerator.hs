@@ -342,7 +342,7 @@ normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
     where
         (normalizedTable, normalizeTableRest) = normalizeTable table
-normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint constraint, deferrable, deferrableType } ]
+normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint tableName constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
@@ -394,9 +394,36 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                 Right _ -> Nothing
                 Left c -> Just c
 
-normalizeConstraint :: Constraint -> Constraint
-normalizeConstraint ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
-normalizeConstraint otherwise = otherwise
+normalizeConstraint :: Text -> Constraint -> Constraint
+normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
+        -- Single column UNIQUE constraints like:
+        --
+        -- > ALTER TABLE ONLY public.users ADD CONSTRAINT users_github_user_id_key UNIQUE (github_user_id);
+        --
+        -- are packed into the CREATE TABLE definition:
+        --
+        -- > CREATE TABLE users (
+        -- >     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+        -- >     github_user_id INT DEFAULT NULL UNIQUE
+        -- > );
+        --
+        -- For multi columns we need to normalize the name, e.g.:
+        --
+        -- > ALTER TABLE days ADD UNIQUE (category_id, date);
+        --
+        -- Is the same as:
+        --
+        -- > ALTER TABLE ONLY public.days ADD CONSTRAINT days_category_id_date_key UNIQUE (category_id, date);
+        --
+        let
+            defaultName = ([tableName] <> columnNames <> ["key"])
+                    |> Text.intercalate "_" 
+        in
+            if uniqueName == defaultName
+                then constraint { name = Nothing }
+                else constraint
+normalizeConstraint _ otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
 normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)

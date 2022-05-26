@@ -62,3 +62,7 @@ tests = do
             let p = parseHsx position "<div {...variables}/>"
             -- We cannot easily construct the @VarE variables@ expression, therefore we use show here for comparison
             tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
+
+        it "should accept underscores in data attributes" do
+            let p = parseHsx position "<div data-client_id=\"test\"/>"
+            p `shouldBe` (Right (Children [Node "div" [StaticAttribute "data-client_id" (TextValue "test")] [] False]))
