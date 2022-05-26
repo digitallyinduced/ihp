@@ -195,7 +195,7 @@ hsxAttributeName = do
             || "hx-" `Text.isPrefixOf` name
             || name `Set.member` attributes
 
-        rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-')
+        rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-' || c == '_')
 
 
 hsxQuotedValue :: Parser AttributeValue
