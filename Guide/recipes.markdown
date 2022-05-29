@@ -54,7 +54,7 @@ Add the static controller to the `Web.FrontController`:
 instance FrontController WebApplication where
   controllers =
     [ startPage HomeAction,
-      parseRoute @StaticController
+      parseRoute @StaticController -- <-- Add this line
       -- Generator Marker
     ]
 ```
