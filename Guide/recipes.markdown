@@ -48,6 +48,17 @@ instance CanRoute StaticController where
 
 Now the terms can be reached at `/terms` instead of `/Terms`. The about is at `/about` now, instead of `/About`.
 
+Add the static controller to the `Web.FrontController`:
+
+```haskell
+instance FrontController WebApplication where
+  controllers =
+    [ startPage HomeAction,
+      parseRoute @StaticController -- <-- Add this line
+      -- Generator Marker
+    ]
+```
+
 ## Uploading a user profile picture
 
 You can easily upload a user profile picture using [`uploadImageWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-FileUpload.html#v:uploadImageWithOptions) inside your `UpdateUserAction`:
