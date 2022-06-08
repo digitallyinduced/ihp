@@ -52,6 +52,8 @@ compileStatement Begin = "BEGIN;"
 compileStatement Commit = "COMMIT;"
 compileStatement DropFunction { functionName } = "DROP FUNCTION " <> compileIdentifier functionName <> ";"
 compileStatement UnknownStatement { raw } = raw <> ";"
+compileStatement Set { name, value } = "SET " <> compileIdentifier name <> " = " <> compileExpression value <> ";"
+compileStatement SelectStatement { query } = "SELECT " <> query <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
 compilePrimaryKeyConstraint :: PrimaryKeyConstraint -> Maybe Text
