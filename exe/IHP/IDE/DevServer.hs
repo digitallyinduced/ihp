@@ -344,7 +344,7 @@ pauseAppGHCI _ = pure ()
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do
     databaseUrl <- cs <$> FrameworkConfig.defaultDatabaseUrl
-    diff <- MigrationGenerator.diffAppDatabase databaseUrl
+    diff <- MigrationGenerator.diffAppDatabase True databaseUrl
     pure (not (isEmpty diff))
 
 updateDatabaseIsOutdated state = ((do

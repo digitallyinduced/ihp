@@ -25,7 +25,13 @@ import qualified IHP.LibDir as LibDir
 import qualified IHP.FrameworkConfig as FrameworkConfig
 
 buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
-buildPlan description sqlStatements = do
+buildPlan description sqlStatements = buildPlan' True description sqlStatements
+
+buildPlanWithoutIHPSchema :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
+buildPlanWithoutIHPSchema description sqlStatements = buildPlan' False description sqlStatements
+
+buildPlan' :: Bool -> Text -> Maybe Text -> IO (Int, [GeneratorAction])
+buildPlan' includeIHPSchema description sqlStatements = do
     revision <- round <$> POSIX.getPOSIXTime
     let slug = NameSupport.toSlug description
     let migrationFile = tshow revision <> (if isEmpty slug then "" else "-" <> slug) <> ".sql"
@@ -34,7 +40,7 @@ buildPlan description sqlStatements = do
         Just sql -> pure sql
         Nothing -> do
             databaseUrl <- cs <$> FrameworkConfig.defaultDatabaseUrl
-            appDiff <- diffAppDatabase databaseUrl
+            appDiff <- diffAppDatabase includeIHPSchema databaseUrl
             pure $ if isEmpty appDiff
                 then "-- Write your SQL migration code in here\n"
                 else compileSql appDiff
@@ -43,9 +49,11 @@ buildPlan description sqlStatements = do
             , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }
             ])
 
-diffAppDatabase databaseUrl = do
+diffAppDatabase includeIHPSchema databaseUrl = do
     (Right schemaSql) <- Parser.parseSchemaSql
-    (Right ihpSchemaSql) <- parseIHPSchema
+    (Right ihpSchemaSql) <- if includeIHPSchema
+            then parseIHPSchema
+            else pure (Right [])
     actualSchema <- getAppDBSchema databaseUrl
 
     let targetSchema = ihpSchemaSql <> schemaSql
