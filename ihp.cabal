@@ -166,6 +166,7 @@ common shared-properties
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
+            -split-sections
 
 library
     import: shared-properties

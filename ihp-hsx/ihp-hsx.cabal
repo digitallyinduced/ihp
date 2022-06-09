@@ -74,6 +74,7 @@ library
         -Wmissed-specialisations
         -Wall-missed-specialisations
         -fexpose-all-unfoldings
+        -split-sections
     hs-source-dirs: .
     exposed-modules:
         IHP.HSX.Parser
