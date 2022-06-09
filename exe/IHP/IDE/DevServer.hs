@@ -28,6 +28,7 @@ import qualified IHP.Log as Log
 import Data.Default (def, Default (..))
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
+import qualified IHP.FrameworkConfig as FrameworkConfig
 
 main :: IO ()
 main = withUtf8 do
@@ -342,7 +343,8 @@ pauseAppGHCI _ = pure ()
 
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do
-    diff <- MigrationGenerator.diffAppDatabase
+    databaseUrl <- cs <$> FrameworkConfig.defaultDatabaseUrl
+    diff <- MigrationGenerator.diffAppDatabase databaseUrl
     pure (not (isEmpty diff))
 
 updateDatabaseIsOutdated state = ((do
