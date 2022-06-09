@@ -17,17 +17,7 @@ That's why we first need to make sure that you have nix installed.
 Run this command in your terminal to install nix on your machine:
 
 ```bash
-sh <(curl -L https://nixos.org/nix/install) --darwin-use-unencrypted-nix-store-volume --daemon
-```
-
-After this restart your terminal.
-
-**If the above command fails:**
-
-If the installation of nix with the above command fails, you're likely on an older macbook. Try out the following command which has a better support for older macs:
-
-```bash
-sh <(curl https://abathur-nix-install-tests.cachix.org/serve/yihf8zbs0jwph2rs9qfh80dnilijxdi2/install) --tarball-url-prefix https://abathur-nix-install-tests.cachix.org/serve
+sh <(curl -L https://nixos.org/nix/install)
 ```
 
 After this restart your terminal.

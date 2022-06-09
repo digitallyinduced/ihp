@@ -25,6 +25,7 @@ module IHP.ViewSupport
 , fetch
 , query
 , isActiveController
+, isActiveAction
 , nl2br
 , stripTags
 , theCSSFramework
@@ -94,7 +95,7 @@ currentViewId =
         moduleParts :: [Text]
         moduleParts = Text.splitOn "." moduleName
 
--- | Returns @True@ when the current request path matches the path given as argument.
+-- | Returns @True@ when the current request path matches the path given as argument. Takes into account the search query: @?name=value@
 --
 -- __Example:__ The browser has requested the url @\/Projects@.
 --
@@ -113,7 +114,7 @@ currentViewId =
 -- >>> isActivePath "/Projects/1"
 -- False
 --
--- This function returns @False@ when a sub-path is request. Uss 'isActivePathOrSub' if you want this example to return @True@.
+-- This function returns @False@ when a sub-path is request. Use 'isActivePathOrSub' if you want this example to return @True@.
 isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
 isActivePath route =
     let
@@ -156,6 +157,21 @@ isActiveController =
     in
         (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
 
+-- | Returns @True@ when the given action matches the path of the currently executed action
+--
+-- __Example:__ The browser has requested @\/PostsAction@.
+--
+-- >>> isActiveAction PostsAction
+-- True
+--
+-- Returns @True@ because the current path is the same as the path to the action, does not take into account the search query.
+-- Use 'isActivePath' if you need to match path and search query.
+isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
+isActiveAction controllerAction =
+    let
+        currentPath = Wai.rawPathInfo theRequest
+    in
+        currentPath == cs (pathTo controllerAction)
 
 css = plain
 
