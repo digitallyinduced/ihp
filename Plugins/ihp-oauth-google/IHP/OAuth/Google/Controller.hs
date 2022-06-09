@@ -70,7 +70,7 @@ googleConnectCallbackAction = do
             let standardClaims :: Jwt.JwtClaims = claimsString |> Aeson.decodeStrict |> fromMaybe (error "failed to decode claims")
             let googleClaims :: Google.GoogleClaims = claimsString |> Aeson.decodeStrict |> fromMaybe (error $ "failed to decode claims: " <> cs claimsString)
 
-            accessDeniedUnless (get #jwtIss standardClaims == Just "accounts.google.com")
+            accessDeniedUnless (get #jwtIss standardClaims == Just "https://accounts.google.com" || get #jwtIss standardClaims == Just "accounts.google.com")
             accessDeniedUnless (get #jwtAud standardClaims == Just [googleClientId])
 
             unless (get #emailVerified googleClaims) do
