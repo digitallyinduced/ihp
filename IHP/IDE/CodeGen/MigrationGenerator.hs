@@ -356,7 +356,7 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = normalizeExpression <$> using, check = normalizeExpression <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
@@ -668,3 +668,20 @@ normalizeNewLines text =
     text
     |> Text.replace "\r\n" "\n"
     |> Text.replace "\r" "\n"
+
+
+removeIndentation :: Text -> Text
+removeIndentation text =
+        lines
+        |> map (Text.drop spacesToDrop)
+        |> Text.unlines
+        |> Text.dropAround (\c -> c == '\n')
+    where
+        lines :: [Text]
+        lines = text
+                |> Text.lines
+        spaces :: [Int]
+        spaces = lines
+                |> filter (\line -> line /= "")
+                |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
+        spacesToDrop = spaces |> minimum

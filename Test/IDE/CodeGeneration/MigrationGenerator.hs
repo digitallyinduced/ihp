@@ -1026,6 +1026,31 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should not detect changes between functions where only the whitespace is different" do
+                let targetSchema = sql $ cs [plain|
+CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language PLPGSQL;
+                |]
+                let actualSchema = sql $ cs [plain|
+                    
+CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$;
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
