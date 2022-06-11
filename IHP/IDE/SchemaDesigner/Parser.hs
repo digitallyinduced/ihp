@@ -775,7 +775,7 @@ commentStatement = do
     pure Comment { content }
 
 qualifiedIdentifier = do
-    optional do
+    optional $ try do
         lexeme "public"
         char '.'
     identifier

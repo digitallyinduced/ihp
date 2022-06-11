@@ -1101,6 +1101,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse 'DROP FUNCTION ..' statements" do
             let sql = cs [plain|DROP FUNCTION my_function;|]
             parseSql sql `shouldBe` DropFunction { functionName = "my_function" }
+        
+        it "should parse 'CREATE TABLE ..' statements when the table name starts with public" do
+            let sql = cs [plain|CREATE TABLE public_variables (id UUID);|]
+            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = CreateTable {name = "public_variables", columns = [Column {name = "id", columnType = PUUID, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = []}, constraints = []}}
 
 col :: Column
 col = Column
