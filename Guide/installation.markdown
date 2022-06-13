@@ -131,7 +131,7 @@ MustBeRoot "Run command as root OR execute: $ echo \"trusted-users = root $USER\
 You have to add this to your NixOS configuration:
 
 ```bash
-nix.trustedUsers = [ "root" "USERNAME_HERE" ];
+nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
 ```
 
 [See the documentation for `nix.trustedUsers` to learn more about what this is doing](https://search.nixos.org/options?show=nix.trustedUsers&query=nix.trustedUsers).
