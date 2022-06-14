@@ -1051,6 +1051,32 @@ CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should replace functions if the body has changed" do
+                let targetSchema = sql $ cs [plain|
+CREATE FUNCTION a() RETURNS TRIGGER AS $$
+BEGIN
+    hello_world();
+END;
+$$ language PLPGSQL;
+                |]
+                let actualSchema = sql $ cs [plain|
+                    
+CREATE FUNCTION public.a() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        RETURN NEW;
+    END;
+    $$;
+                |]
+                let migration = sql [i|
+CREATE OR REPLACE FUNCTION a() RETURNS TRIGGER AS $$BEGIN
+    hello_world();
+END;$$ language PLPGSQL;|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
