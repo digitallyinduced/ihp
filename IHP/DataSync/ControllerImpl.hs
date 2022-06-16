@@ -114,7 +114,13 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                                 -- results set
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
-                                    sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changeSet }
+                                    -- The updated record could not be part of the query result set anymore
+                                    -- E.g. if it's not matched anymore by the WHERE condition after the update
+                                    [(PG.Only isRecordInResultSet)] <- sqlQueryWithRLS ("SELECT EXISTS(SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1)") (theParams <> [PG.toField id])
+
+                                    if isRecordInResultSet
+                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changeSet }
+                                        else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
