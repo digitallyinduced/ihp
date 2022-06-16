@@ -72,6 +72,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> applyRenameTable
             |> removeImplicitDeletions actualSchema
             |> disableTransactionWhileAddingEnumValues
+            |> applyReplaceFunction
     where
         create :: [Statement]
         create = targetSchema \\ actualSchema
@@ -158,6 +159,19 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement otherwise = Nothing
+
+
+        -- | Replaces 'DROP FUNCTION a; CREATE FUNCTION a ..;' DDL sequences with a more efficient 'CREATE OR REPLACE FUNCTION a' sequence if
+        -- the function have no differences except the body.
+        applyReplaceFunction :: [Statement] -> [Statement]
+        applyReplaceFunction (DropFunction { functionName }:statements) =
+            statements
+                |> map \case
+                    s@(CreateFunction { functionName = newFunctionName }) | newFunctionName == functionName -> (s { orReplace = True })
+                    otherwise -> otherwise
+                |> applyReplaceFunction
+        applyReplaceFunction (s:rest) = s:(applyReplaceFunction rest)
+        applyReplaceFunction [] = []
 
 removeNoise = filter \case
         Comment {} -> False
