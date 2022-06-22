@@ -99,9 +99,9 @@ instance View NewColumnView where
                 where
                     generateReferenceCheckboxes = [hsx|{forEach tableNames checkbox}|]
                         where checkbox tableName = [hsx|
-                                <div class="custom-control custom-checkbox" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
+                                <div class="custom-control custom-checkbox ref" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
                                     <input id="reference" type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 ref custom-control-label" id="refText">
+                                    <label class="mx-2 custom-control-label" id="refText">
                                         References {tableName}
                                     </label>
                                 </div>
