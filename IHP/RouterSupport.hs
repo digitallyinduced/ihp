@@ -72,6 +72,18 @@ import IHP.Controller.Param
 class FrontController application where
     controllers :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext) => [Parser (IO ResponseReceived)]
 
+    router
+        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
+        => [Parser (IO ResponseReceived)] -> Parser (IO ResponseReceived)
+    router = defaultRouter
+
+    defaultRouter
+        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
+        => [Parser (IO ResponseReceived)] -> Parser (IO ResponseReceived)
+    defaultRouter additionalControllers = choice $ map (\r -> r <* endOfInput) allControllers
+        where
+            allControllers = controllers <> additionalControllers
+
 class HasPath controller where
     -- | Returns the path to a given action
     --
@@ -768,13 +780,13 @@ runApp routes notFoundAction = do
 {-# INLINABLE runApp #-}
 
 frontControllerToWAIApp :: forall app. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [Parser (IO ResponseReceived)] -> IO ResponseReceived -> IO ResponseReceived
-frontControllerToWAIApp application additionalControllers notFoundAction = runApp (choice (map (\r -> r <* endOfInput) allControllers)) notFoundAction
+frontControllerToWAIApp application additionalControllers notFoundAction = runApp defaultRouter notFoundAction
     where
-        allControllers = (let ?application = application in controllers) <> additionalControllers
+        defaultRouter :: Parser (IO ResponseReceived) = (let ?application = application in router additionalControllers)
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser (IO ResponseReceived)
-mountFrontController application = let ?application = application in choice (map (\r -> r <* endOfInput) controllers)
+mountFrontController application = let ?application = application in router []
 {-# INLINABLE mountFrontController #-}
 
 parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => Parser (IO ResponseReceived)
