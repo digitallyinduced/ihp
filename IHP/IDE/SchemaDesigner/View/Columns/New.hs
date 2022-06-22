@@ -102,8 +102,8 @@ instance View NewColumnView where
                             checkbox tableName = [hsx|
                             <div>
                                 <div class="custom-control custom-checkbox ref" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
-                                    <input id="reference" type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 custom-control-label" id="refText">
+                                    <input id={"checkbox-ref-" <> tableName} type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
+                                    <label for={"checkbox-ref-" <> tableName} class="mx-2 custom-control-label" id="refText">
                                         References {tableName}
                                     </label>
                                 </div>
