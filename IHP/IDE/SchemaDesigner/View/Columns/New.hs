@@ -46,36 +46,36 @@ instance View NewColumnView where
 
                     <div class="form-group">
                         {typeSelector Nothing enumNames}
-
-                        <div class="mt-1 text-muted d-flex" id="column-options">
+                        <div class="mt-1 text-muted" id="column-options">
                             {generateReferenceCheckboxes}
+                            <div class="d-flex">
+                                <div class="custom-control custom-checkbox">
+                                    <input id="allowNull" type="checkbox" name="allowNull" class="mr-1 custom-control-input"/>
+                                    <label class="custom-control-label mr-2" for="allowNull">
+                                        Nullable
+                                    </label>
+                                </div>
 
-                            <div class="custom-control custom-checkbox">
-                                <input id="allowNull" type="checkbox" name="allowNull" class="mr-1 custom-control-input"/>
-                                <label class="custom-control-label mr-2" for="allowNull">
-                                    Nullable
-                                </label>
-                            </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" id="isUnique" name="isUnique" class="mr-1 custom-control-input"/>
+                                    <label class="mx-2 custom-control-label" for="isUnique">
+                                        Unique
+                                    </label>
+                                </div>
 
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" id="isUnique" name="isUnique" class="mr-1 custom-control-input"/>
-                                <label class="mx-2 custom-control-label" for="isUnique">
-                                    Unique
-                                </label>
-                            </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" name="primaryKey" id="primaryKey" class="mr-1 custom-control-input"/>
+                                    <label class="mx-2 custom-control-label" for="primaryKey">
+                                        Primary Key
+                                    </label>
+                                </div>
 
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" name="primaryKey" id="primaryKey" class="mr-1 custom-control-input"/>
-                                <label class="mx-2 custom-control-label" for="primaryKey">
-                                    Primary Key
-                                </label>
-                            </div>
-
-                            <div class="custom-control custom-checkbox">
-                                <input id="isArray" type="checkbox" name="isArray" class="mr-1 custom-control-input"/>
-                                <label class="mx-2 custom-control-label" for="isArray">
-                                    Array Type
-                                </label>
+                                <div class="custom-control custom-checkbox">
+                                    <input id="isArray" type="checkbox" name="isArray" class="mr-1 custom-control-input"/>
+                                    <label class="mx-2 custom-control-label" for="isArray">
+                                        Array Type
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -97,15 +97,18 @@ instance View NewColumnView where
                 </form>
             |]
                 where
-                    generateReferenceCheckboxes = [hsx|{forEach tableNames checkbox}|]
-                        where checkbox tableName = [hsx|
-                                <div class="custom-control custom-checkbox" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
-                                    <input id="reference" type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 ref custom-control-label" id="refText">
+                    generateReferenceCheckboxes = forEach tableNames checkbox
+                        where
+                            checkbox tableName = [hsx|
+                            <div>
+                                <div class="custom-control custom-checkbox ref" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
+                                    <input id={"checkbox-ref-" <> tableName} type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
+                                    <label for={"checkbox-ref-" <> tableName} class="mx-2 custom-control-label" id="refText">
                                         References {tableName}
                                     </label>
                                 </div>
-                                |]
+                            </div>
+                            |]
                     defaultSelector = [hsx|
                         <select id="defaultSelector" name="defaultValue" class="form-control select2">
                             <option value="" selected={True}>no default</option>
