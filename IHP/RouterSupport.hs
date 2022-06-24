@@ -27,6 +27,7 @@ CanRoute (..)
 , onlyAllowMethods
 , getMethod
 , routeParam
+, putContextRouter
 ) where
 
 import qualified Prelude
@@ -70,6 +71,12 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import qualified Data.TMap as TMap
 import qualified IHP.ApplicationContext as ApplicationContext
+
+putContextRouter :: forall value. (Typeable value) => value -> RouteParser -> RouteParser
+putContextRouter value parser = do
+    ioRouteResult <- parser
+    let ioRouteResult' = fmap (\(routeSetters, action) -> (routeSetters . TMap.insert value, action)) ioRouteResult
+    pure ioRouteResult'
 
 applyContextSetter :: (TMap.TMap -> TMap.TMap) -> ControllerContext -> IO ControllerContext
 applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
