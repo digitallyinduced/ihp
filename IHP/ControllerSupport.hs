@@ -17,6 +17,8 @@ module IHP.ControllerSupport
 , ControllerContext
 , InitControllerContext (..)
 , runActionWithNewContext
+, newContextForAction
+, runActionWithContext
 , respondAndExit
 , ResponseException (..)
 , jumpToAction
@@ -87,9 +89,13 @@ runAction controller = do
 
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
-{-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
-runActionWithNewContext controller = do
+{-# INLINE runActionWithContext #-}
+runActionWithContext :: forall application controller. (Controller controller, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => ControllerContext -> controller -> IO ResponseReceived
+runActionWithContext controllerContext controller = let ?context = controllerContext in runAction controller
+
+{-# INLINE newContextForAction #-}
+newContextForAction :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO (Either (IO ResponseReceived) ControllerContext)
+newContextForAction controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
@@ -99,13 +105,23 @@ runActionWithNewContext controller = do
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
-            case fromException exception of
+            pure $ Left $ case fromException exception of
                 Just (ResponseException response) ->
                     let respond = ?context |> get #requestContext |> get #respond
                     in respond response
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
+        Right _ -> pure $ Right ?context
+
+{-# INLINE runActionWithNewContext #-}
+runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
+runActionWithNewContext controller = do
+    contextOrResponse <- newContextForAction controller
+    case contextOrResponse of
+        Left response -> response
         Right context -> do
-            runAction controller
+            let ?modelContext = ApplicationContext.modelContext ?applicationContext
+            let ?requestContext = ?context
+            runActionWithContext context controller
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.

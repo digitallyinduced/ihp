@@ -27,7 +27,7 @@ routeComponent :: forall component controller application.
     , ?application :: application
     , ?applicationContext :: IHP.ApplicationContext.ApplicationContext
     , ?context :: RequestContext
-    ) => Parser (IO ResponseReceived)
+    ) => Parser (IO (TMap -> TMap, IO ResponseReceived))
 routeComponent = webSocketAppWithCustomPath @(ComponentsController component) @application ("SSC/" <> typeName)
     where
         typeName :: ByteString
