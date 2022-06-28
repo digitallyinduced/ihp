@@ -1075,6 +1075,26 @@ CREATE OR REPLACE FUNCTION a() RETURNS TRIGGER AS $$BEGIN
 END;$$ language PLPGSQL;|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should not detect changes in complex policies" do
+                -- https://github.com/digitallyinduced/ihp/issues/1480
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage servers they have access to" ON servers USING (user_id = ihp_user_id() OR (EXISTS (SELECT 1 FROM public.user_server_access WHERE user_server_access.user_id = user_id AND user_server_access.server_id = servers.id))) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let actualSchema = sql $ cs [plain|
+                    --
+                    -- Name: servers Users can manage servers they have access to; Type: POLICY; Schema: public; Owner: -
+                    --
+
+                    CREATE POLICY "Users can manage servers they have access to" ON public.servers USING (((user_id = public.ihp_user_id()) OR (EXISTS ( SELECT 1
+                       FROM public.user_server_access
+                      WHERE ((user_server_access.user_id = user_server_access.user_id) AND (user_server_access.server_id = servers.id)))))) WITH CHECK ((user_id = public.ihp_user_id()));
+
+                |]
+                let migration = sql [i|
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 
 sql :: Text -> [Statement]
