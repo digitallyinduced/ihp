@@ -1076,10 +1076,10 @@ END;$$ language PLPGSQL;|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
             
-            it "should not detect changes in complex policies" do
+            it "should normalize qualified identifiers in policy expressions" do
                 -- https://github.com/digitallyinduced/ihp/issues/1480
                 let targetSchema = sql $ cs [plain|
-                    CREATE POLICY "Users can manage servers they have access to" ON servers USING (user_id = ihp_user_id() OR (EXISTS (SELECT 1 FROM public.user_server_access WHERE user_server_access.user_id = user_id AND user_server_access.server_id = servers.id))) WITH CHECK (user_id = ihp_user_id());
+                    CREATE POLICY "Users can manage servers they have access to" ON servers USING (servers.user_id = ihp_user_id() OR (EXISTS (SELECT 1 FROM public.user_server_access WHERE user_server_access.user_id = ihp_user_id() AND user_server_access.server_id = servers.id)));
                 |]
                 let actualSchema = sql $ cs [plain|
                     --
@@ -1088,8 +1088,7 @@ END;$$ language PLPGSQL;|]
 
                     CREATE POLICY "Users can manage servers they have access to" ON public.servers USING (((user_id = public.ihp_user_id()) OR (EXISTS ( SELECT 1
                        FROM public.user_server_access
-                      WHERE ((user_server_access.user_id = user_server_access.user_id) AND (user_server_access.server_id = servers.id)))))) WITH CHECK ((user_id = public.ihp_user_id()));
-
+                      WHERE ((user_server_access.user_id = public.ihp_user_id()) AND (user_server_access.server_id = servers.id))))));
                 |]
                 let migration = sql [i|
                 |]
