@@ -630,7 +630,7 @@ instance CanSelect (Maybe ContentType) where
     type SelectValue (Maybe ContentType) = Maybe ContentType
     selectValue (Just value) = Just value
     selectValue Nothing = Nothing
-    selectLabel (Just groupType) = tshow contentType
+    selectLabel (Just contentType) = tshow contentType
     selectLabel Nothing = "none selected"
 ```
 
