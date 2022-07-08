@@ -219,6 +219,7 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
             , "ASSERTION"
             , "ASSIGNMENT"
             , "AT"
+            , "ALL"
             , "BACKWARD"
             , "BEFORE"
             , "BEGIN"
