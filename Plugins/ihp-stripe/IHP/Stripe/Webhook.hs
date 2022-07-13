@@ -20,12 +20,12 @@ import qualified IHP.Log as Log
 data StripeEvent
     = CheckoutSessionCompleted
         { checkoutSessionId :: Text
-        , subscriptionId :: Text
+        , maybeSubscriptionId :: Maybe Text
         , customer :: Text -- ^ The stripe customer id
         , metadata :: [(Text, Text)]
         } 
     | InvoiceFinalized
-        { subscriptionId :: Text
+        { maybeSubscriptionId :: Maybe Text
         , stripeInvoiceId :: Text
         , invoiceUrl :: Text
         , invoicePdf :: Text
@@ -56,12 +56,12 @@ instance FromJSON StripeEvent where
                 checkoutSession <- payload .: "object"
                 checkoutSessionId :: Text <- checkoutSession .: "id"
                 customer :: Text <- checkoutSession .: "customer"
-                subscriptionId :: Text <- checkoutSession .: "subscription"
+                maybeSubscriptionId :: Maybe Text <- checkoutSession .:? "subscription"
                 metadata :: Map.Map Text Text <- checkoutSession .: "metadata"
-                pure CheckoutSessionCompleted { checkoutSessionId, subscriptionId, metadata = Map.toList metadata, customer }
+                pure CheckoutSessionCompleted { checkoutSessionId, maybeSubscriptionId, metadata = Map.toList metadata, customer }
             "invoice.finalized" -> do
                 invoice <- payload .: "object"
-                subscriptionId :: Text <- invoice .: "subscription"
+                maybeSubscriptionId :: Maybe Text <- invoice .:? "subscription"
                 stripeInvoiceId :: Text <- invoice .: "id"
                 invoiceUrl :: Text <- invoice .: "hosted_invoice_url"
                 invoicePdf :: Text <- invoice .: "invoice_pdf"
@@ -69,7 +69,7 @@ instance FromJSON StripeEvent where
                 total :: Integer <- invoice .: "total"
                 currency :: Text <- invoice .: "currency"
                 let createdAt :: UTCTime = posixSecondsToUTCTime (fromInteger created)
-                pure InvoiceFinalized { subscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency }
+                pure InvoiceFinalized { maybeSubscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency }
             "customer.subscription.updated" -> do
                 subscription <- payload .: "object"
                 pure CustomerSubscriptionUpdated { .. }
