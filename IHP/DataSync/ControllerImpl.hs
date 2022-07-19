@@ -71,6 +71,12 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
                 subscriptionId <- UUID.nextRandom
 
+                -- Allocate the close handle as early as possible
+                -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
+                -- not fully set up yet
+                close <- MVar.newEmptyMVar
+                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+
                 let (theQuery, theParams) = compileQuery query
 
                 result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
@@ -132,9 +138,6 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
                 Exception.bracket subscribe unsubscribe \channelSubscription -> do
-                    close <- MVar.newEmptyMVar
-                    modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
-
                     sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
                     MVar.takeMVar close
