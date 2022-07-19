@@ -621,6 +621,29 @@ view to generate the list of select fields:
       allContentTypes = allEnumValues @ContentType
 ```
 
+### Select Inputs with Custom Nullable Enums
+
+Similar to [Select Inputs with Nullable Values](https://ihp.digitallyinduced.com/Guide/form.html#select-inputs-with-nullable-value) we can adjust the [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance to support Nullable Enums like this:
+
+```haskell
+instance CanSelect (Maybe ContentType) where
+    type SelectValue (Maybe ContentType) = Maybe ContentType
+    selectValue (Just value) = Just value
+    selectValue Nothing = Nothing
+    selectLabel (Just contentType) = tshow contentType
+    selectLabel Nothing = "none selected"
+```
+
+The `selectField` can be updated as follows:
+
+```haskell
+formFor subscription [hsx|
+    {(selectField #groupType (fmap Just allContentTypes)) }
+|]
+    where
+        allContentTypes = allEnumValues @ContentType
+```
+
 ### Select Inputs with Integers
 
 It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item. 

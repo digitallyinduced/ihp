@@ -414,3 +414,10 @@
     font-size: 14px;
     font-weight: 400;
 }
+
+.ref {
+    justify-content: start !important;
+    padding-left: 1rem;
+    margin-bottom: .25rem;
+    margin-top: .4rem;
+}

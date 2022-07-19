@@ -71,6 +71,12 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
                 subscriptionId <- UUID.nextRandom
 
+                -- Allocate the close handle as early as possible
+                -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
+                -- not fully set up yet
+                close <- MVar.newEmptyMVar
+                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+
                 let (theQuery, theParams) = compileQuery query
 
                 result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
@@ -132,23 +138,21 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
                 Exception.bracket subscribe unsubscribe \channelSubscription -> do
-                    close <- MVar.newEmptyMVar
-                    modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
-
                     sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
                     MVar.takeMVar close
 
             handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
-                let (Just closeSignalMVar) = HashMap.lookup subscriptionId subscriptions
-                
-                -- Cancel table watcher
-                MVar.putMVar closeSignalMVar ()
+                case HashMap.lookup subscriptionId subscriptions of
+                    Just closeSignalMVar -> do
+                        -- Cancel table watcher
+                        MVar.putMVar closeSignalMVar ()
 
-                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                        modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
-                sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+                        sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+                    Nothing -> error ("Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId)
 
             handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
