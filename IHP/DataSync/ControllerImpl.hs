@@ -144,14 +144,15 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
             handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
-                let (Just closeSignalMVar) = HashMap.lookup subscriptionId subscriptions
-                
-                -- Cancel table watcher
-                MVar.putMVar closeSignalMVar ()
+                case HashMap.lookup subscriptionId subscriptions of
+                    Just closeSignalMVar -> do
+                        -- Cancel table watcher
+                        MVar.putMVar closeSignalMVar ()
 
-                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                        modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
-                sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+                        sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
+                    Nothing -> error ("Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId)
 
             handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
