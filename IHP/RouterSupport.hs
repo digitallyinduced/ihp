@@ -23,6 +23,7 @@ CanRoute (..)
 , parseText
 , webSocketApp
 , webSocketAppWithCustomPath
+, webSocketAppWithHTTPFallback
 , onlyAllowMethods
 , getMethod
 , routeParam
@@ -63,6 +64,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Dynamic
 import IHP.Router.Types
 import IHP.WebSocket (WSApp)
+import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
 import IHP.Controller.Context
 import IHP.Controller.Param
@@ -683,6 +685,24 @@ webSocketApp = webSocketAppWithCustomPath @webSocketApp typeName
                 |> ByteString.pack
 {-# INLINABLE webSocketApp #-}
 
+webSocketAppWithHTTPFallback :: forall webSocketApp application.
+    ( WSApp webSocketApp
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?context :: RequestContext
+    , Typeable application
+    , Typeable webSocketApp
+    , Controller webSocketApp
+    ) => Parser (IO ResponseReceived)
+webSocketAppWithHTTPFallback = webSocketAppWithCustomPathAndHTTPFallback @webSocketApp @application typeName
+    where
+        typeName :: ByteString
+        typeName = Typeable.typeOf (error "unreachable" :: webSocketApp)
+                |> show
+                |> ByteString.pack
+{-# INLINABLE webSocketAppWithHTTPFallback #-}
+
 -- | Routes to a given WebSocket app if the path matches
 --
 -- __Example:__
@@ -706,8 +726,25 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
 webSocketAppWithCustomPath path = do
         Attoparsec.char '/'
         string path
-        pure (startWebSocketApp @webSocketApp)
+        pure (startWebSocketAppAndFailOnHTTP @webSocketApp)
 {-# INLINABLE webSocketAppWithCustomPath #-}
+
+webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
+    ( WSApp webSocketApp
+    , InitControllerContext application
+    , ?application :: application
+    , ?applicationContext :: ApplicationContext
+    , ?context :: RequestContext
+    , Typeable application
+    , Typeable webSocketApp
+    , Controller webSocketApp
+    ) => ByteString -> Parser (IO ResponseReceived)
+webSocketAppWithCustomPathAndHTTPFallback path = do
+        Attoparsec.char '/'
+        string path
+        pure (startWebSocketApp @webSocketApp (runActionWithNewContext (WS.initialState @webSocketApp)))
+{-# INLINABLE webSocketAppWithCustomPathAndHTTPFallback #-}
+
 
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser (IO ResponseReceived)
