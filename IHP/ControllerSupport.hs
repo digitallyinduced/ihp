@@ -22,6 +22,7 @@ module IHP.ControllerSupport
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
+, startWebSocketAppAndFailOnHTTP
 , setHeader
 , addResponseHeaders
 , addResponseHeadersFromContext
@@ -118,8 +119,8 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
-startWebSocketApp = do
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> IO ResponseReceived
+startWebSocketApp onHTTP = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let ?requestContext = ?context
     let respond = ?context |> get #respond
@@ -142,7 +143,12 @@ startWebSocketApp = do
         |> WebSockets.websocketsApp WebSockets.defaultConnectionOptions handleConnection
         |> \case
             Just response -> respond response
-            Nothing -> respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket"
+            Nothing -> onHTTP
+{-# INLINE startWebSocketAppAndFailOnHTTP #-}
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
+startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
+    where
+        respond = ?context |> get #respond
 
 
 jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
