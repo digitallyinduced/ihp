@@ -89,10 +89,6 @@ runAction controller = do
 
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
-{-# INLINE runActionWithContext #-}
-runActionWithContext :: forall application controller. (Controller controller, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => ControllerContext -> controller -> IO ResponseReceived
-runActionWithContext controllerContext controller = let ?context = controllerContext in runAction controller
-
 applyContextSetter :: (TypeMap.TMap -> TypeMap.TMap) -> ControllerContext -> IO ControllerContext
 applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
     modifyIORef customFieldsRef (applySetter setter)
@@ -143,7 +139,8 @@ runActionWithNewContext controller = do
         Right context -> do
             let ?modelContext = ApplicationContext.modelContext ?applicationContext
             let ?requestContext = ?context
-            runActionWithContext context controller
+            let ?context = context
+            runAction controller
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
