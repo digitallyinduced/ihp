@@ -29,6 +29,7 @@ CanRoute (..)
 , getMethod
 , routeParam
 , putContextRouter
+, RouteParser
 ) where
 
 import qualified Prelude

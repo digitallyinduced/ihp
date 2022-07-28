@@ -17,6 +17,7 @@ import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
 import IHP.ApplicationContext
+import IHP.RouterSupport (RouteParser)
 
 routeComponent :: forall component controller application.
     ( Typeable component
@@ -27,7 +28,7 @@ routeComponent :: forall component controller application.
     , ?application :: application
     , ?applicationContext :: IHP.ApplicationContext.ApplicationContext
     , ?context :: RequestContext
-    ) => Parser (IO (TMap -> TMap, IO ResponseReceived))
+    ) => RouteParser
 routeComponent = webSocketAppWithCustomPath @(ComponentsController component) @application ("SSC/" <> typeName)
     where
         typeName :: ByteString
