@@ -18,7 +18,6 @@ module IHP.ControllerSupport
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
-, runActionWithContext
 , respondAndExit
 , ResponseException (..)
 , jumpToAction
