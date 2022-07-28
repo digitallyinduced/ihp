@@ -10,6 +10,7 @@ CanRoute (..)
 , frontControllerToWAIApp
 , withPrefix
 , FrontController (..)
+, defaultRouter
 , parseRoute
 , catchAll
 , mountFrontController
@@ -137,13 +138,13 @@ class FrontController application where
         => [RouteParser] -> RouteParser
     router = defaultRouter
 
-    defaultRouter
-        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
-        => [RouteParser] -> RouteParser
-    defaultRouter additionalControllers = do
-        let allControllers = controllers <> additionalControllers
-        ioResponseReceived <- choice $ map (\r -> r <* endOfInput) allControllers
-        pure ioResponseReceived
+defaultRouter
+    :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext, FrontController application)
+    => [RouteParser] -> RouteParser
+defaultRouter additionalControllers = do
+    let allControllers = controllers <> additionalControllers
+    ioResponseReceived <- choice $ map (\r -> r <* endOfInput) allControllers
+    pure ioResponseReceived
 
 class HasPath controller where
     -- | Returns the path to a given action
