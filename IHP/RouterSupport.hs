@@ -97,7 +97,7 @@ runAction' controller contextSetter = do
     contextOrErrorResponse <- newContextForAction contextSetter controller
     case contextOrErrorResponse of
         Left res -> res
-        Right context -> runActionWithContext context controller
+        Right context -> let ?context = context in runAction controller
 
 type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> IO ResponseReceived)
 type RouteParser = Parser (RouteParseResult)
