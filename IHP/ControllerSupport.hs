@@ -90,7 +90,7 @@ runAction controller = do
 
 applyContextSetter :: (TypeMap.TMap -> TypeMap.TMap) -> ControllerContext -> IO ControllerContext
 applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
-    modifyIORef customFieldsRef (applySetter setter)
+    modifyIORef' customFieldsRef (applySetter setter)
     pure $ ctx { customFieldsRef }
     where
         fromSetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap
