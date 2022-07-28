@@ -79,17 +79,6 @@ putContextRouter value parser = do
     let ioRouteResult' = fmap (\(routeSetters, action) -> (routeSetters . TMap.insert value, action)) ioRouteResult
     pure ioRouteResult'
 
-applyContextSetter :: (TMap.TMap -> TMap.TMap) -> ControllerContext -> IO ControllerContext
-applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
-    modifyIORef customFieldsRef (applySetter setter)
-    pure $ ctx { customFieldsRef }
-    where
-        fromSetter :: (TMap.TMap -> TMap.TMap) -> TMap.TMap
-        fromSetter f = f TMap.empty
-
-        applySetter :: (TMap.TMap -> TMap.TMap) -> TMap.TMap -> TMap.TMap
-        applySetter f map = TMap.union (fromSetter f) map
-
 runAction'
     :: forall application controller
      . ( Controller controller
@@ -104,12 +93,10 @@ runAction'
 runAction' controller contextSetter = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let ?requestContext = ?context
-    contextOrErrorResponse <- newContextForAction controller
+    contextOrErrorResponse <- newContextForAction contextSetter controller
     case contextOrErrorResponse of
         Left res -> res
-        Right context -> do
-            context' <- applyContextSetter contextSetter context
-            runActionWithContext context' controller
+        Right context -> runActionWithContext context controller
 
 type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> IO ResponseReceived)
 type RouteParser = Parser (RouteParseResult)

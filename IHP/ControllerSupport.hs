@@ -49,7 +49,7 @@ import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
 import qualified IHP.Controller.Context as Context
-import IHP.Controller.Context (ControllerContext)
+import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -93,15 +93,37 @@ runAction controller = do
 runActionWithContext :: forall application controller. (Controller controller, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => ControllerContext -> controller -> IO ResponseReceived
 runActionWithContext controllerContext controller = let ?context = controllerContext in runAction controller
 
+applyContextSetter :: (TypeMap.TMap -> TypeMap.TMap) -> ControllerContext -> IO ControllerContext
+applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
+    modifyIORef customFieldsRef (applySetter setter)
+    pure $ ctx { customFieldsRef }
+    where
+        fromSetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap
+        fromSetter f = f TypeMap.empty
+
+        applySetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap -> TypeMap.TMap
+        applySetter f map = TypeMap.union (fromSetter f) map
+
 {-# INLINE newContextForAction #-}
-newContextForAction :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO (Either (IO ResponseReceived) ControllerContext)
-newContextForAction controller = do
+newContextForAction
+    :: forall application controller
+     . ( Controller controller
+       , ?applicationContext :: ApplicationContext
+       , ?context :: RequestContext
+       , InitControllerContext application
+       , ?application :: application
+       , Typeable application
+       , Typeable controller
+       )
+    => (TypeMap.TMap -> TypeMap.TMap) -> controller -> IO (Either (IO ResponseReceived) ControllerContext)
+newContextForAction contextSetter controller = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
+    applyContextSetter contextSetter controllerContext
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
@@ -115,7 +137,7 @@ newContextForAction controller = do
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
-    contextOrResponse <- newContextForAction controller
+    contextOrResponse <- newContextForAction (\t -> t) controller
     case contextOrResponse of
         Left response -> response
         Right context -> do
