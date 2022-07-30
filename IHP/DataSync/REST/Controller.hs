@@ -24,6 +24,8 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding.Internal as Aeson
+import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Aeson.Key as Aeson
 
 import qualified IHP.GraphQL.Types as GraphQL
 import qualified IHP.GraphQL.Parser as GraphQL
@@ -47,11 +49,11 @@ instance (
             Object hashMap -> do
                 let query = "INSERT INTO ? ? VALUES ? RETURNING *"
                 let columns = hashMap
-                        |> HashMap.keys
-                        |> map fieldNameToColumnName
+                        |> Aeson.keys
+                        |> map (fieldNameToColumnName . Aeson.toText)
 
                 let values = hashMap
-                        |> HashMap.elems
+                        |> Aeson.elems
                         |> map aesonValueToPostgresValue
 
                 let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
@@ -74,8 +76,8 @@ instance (
                         |> \case
                             Object hashMap -> hashMap
                             otherwise -> error "Expected object"
-                        |> HashMap.keys
-                        |> map fieldNameToColumnName
+                        |> Aeson.keys
+                        |> map (fieldNameToColumnName . Aeson.toText)
 
                 let values = objects
                         |> Vector.toList
@@ -84,7 +86,7 @@ instance (
                                 |> \case
                                     Object hashMap -> hashMap
                                     otherwise -> error "Expected object"
-                                |> HashMap.elems
+                                |> Aeson.elems
                                 |> map aesonValueToPostgresValue
                             )
 
@@ -104,12 +106,12 @@ instance (
                     Object hashMap -> hashMap
 
         let columns = payload
-                |> HashMap.keys
-                |> map fieldNameToColumnName
+                |> Aeson.keys
+                |> map (fieldNameToColumnName . Aeson.toText)
                 |> map PG.Identifier
 
         let values = payload
-                |> HashMap.elems
+                |> Aeson.elems
                 |> map aesonValueToPostgresValue
 
         let keyValues = zip columns values
@@ -225,8 +227,8 @@ aesonValueToPostgresValue object@(Object values) =
     let
         tryDecodeAsPoint :: Maybe Point
         tryDecodeAsPoint = do
-                xValue <- HashMap.lookup "x" values
-                yValue <- HashMap.lookup "y" values
+                xValue <- Aeson.lookup "x" values
+                yValue <- Aeson.lookup "y" values
                 x <- case xValue of
                         Number number -> pure (Scientific.toRealFloat number)
                         otherwise -> Nothing
@@ -237,7 +239,7 @@ aesonValueToPostgresValue object@(Object values) =
     in
         -- This is really hacky and is mostly duck typing. We should refactor this in the future to
         -- become more type aware by passing the DDL of the table to 'aesonValueToPostgresValue'.
-        if HashMap.size values == 2
+        if Aeson.size values == 2
             then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
             else PG.toField (toJSON object)
 

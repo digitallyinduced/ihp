@@ -19,6 +19,8 @@ import qualified IHP.QueryBuilder as QueryBuilder
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
+import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Aeson.Key as Aeson
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -167,21 +169,27 @@ recordIds result = result
 transformColumnNamesToFieldNames :: Value -> Value
 transformColumnNamesToFieldNames (Object hashMap) =
         hashMap
-        |> HashMap.toList
-        |> map (\(key, value) -> (columnNameToFieldName key, value))
-        |> HashMap.fromList
+        |> Aeson.toList
+        |> map (\(key, value) -> (applyKey columnNameToFieldName key, value))
+        |> Aeson.fromList
         |> Object
+    where
+        applyKey function key =
+            key
+                |> Aeson.toText
+                |> function
+                |> Aeson.fromText
 
 
+$(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
 $(deriveFromJSON defaultOptions 'QueryBuilder.Join)
+$(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)
 $(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Asc)
 $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
-$(deriveFromJSON defaultOptions ''ConditionExpression)
 $(deriveFromJSON defaultOptions ''DynamicValue)
-$(deriveFromJSON defaultOptions ''FunctionCall)
+$(deriveFromJSON defaultOptions ''ConditionExpression)
 
 instance FromJSON DynamicSQLQuery where
     parseJSON = withObject "DynamicSQLQuery" $ \v -> DynamicSQLQuery

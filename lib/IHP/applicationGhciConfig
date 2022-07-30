@@ -45,5 +45,6 @@
 :set -XStandaloneDeriving
 :set -XDerivingVia
 :set -XTemplateHaskell
+:set -XDeepSubsumption
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns

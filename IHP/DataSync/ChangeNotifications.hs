@@ -133,5 +133,5 @@ instance FromJSON Change where
         new <- values .: "new"
         pure Change { .. }
 
-$(deriveToJSON defaultOptions 'DidInsert)
 $(deriveToJSON defaultOptions 'Change)
+$(deriveToJSON defaultOptions 'DidInsert)

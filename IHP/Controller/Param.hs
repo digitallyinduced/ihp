@@ -21,7 +21,8 @@ import qualified GHC.Float as Float
 import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Aeson.Key as Aeson
 import qualified Data.Scientific as Scientific
 import qualified Data.Vector as Vector
 import qualified Control.DeepSeq as DeepSeq
@@ -255,7 +256,7 @@ paramOrError !name =
                     Right value -> Right value
                 Nothing -> Left ParamNotFoundException { name }
         JSONBody { jsonPayload } -> case jsonPayload of
-                (Just (Aeson.Object hashMap)) -> case HashMap.lookup (cs name) hashMap of
+                (Just (Aeson.Object hashMap)) -> case Aeson.lookup (Aeson.fromText $ cs name) hashMap of
                     Just value -> case readParameterJSON @paramType value of
                         Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
                         Right value -> Right value

@@ -35,4 +35,5 @@ mkDerivation {
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
   configureFlags = ["--enable-optimization=2"];
+  jailbreak = true;
 }
