@@ -5,7 +5,6 @@
 mkDerivation {
   pname = "relude";
   version = "1.1.0.0";
-  src = /Users/marc/Downloads/relude-1.1.0.0;
   libraryHaskellDepends = [
     base bytestring containers deepseq ghc-prim hashable mtl stm text
     transformers unordered-containers
