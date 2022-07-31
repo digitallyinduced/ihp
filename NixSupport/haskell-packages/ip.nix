@@ -8,6 +8,7 @@
 mkDerivation {
   pname = "ip";
   version = "1.7.5";
+  sha256 = "sha256-FZbZl2+C3A2+kMIgjgry85gxgQRy6W2BZ8FNzyP8Ts4";
   libraryHaskellDepends = [
     aeson attoparsec base bytebuild byteslice bytesmith bytestring
     deepseq hashable natural-arithmetic primitive text text-short
