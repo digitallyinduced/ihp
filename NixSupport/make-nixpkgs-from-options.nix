@@ -4,7 +4,7 @@
 { ihp
 , haskellPackagesDir
 , dontCheckPackages ? ["mmark" "mmark-ext" "mutable-containers" "hiedb"]
-, doJailbreakPackages ? ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th"]
+, doJailbreakPackages ? ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"]
 , dontHaddockPackages ? []
 , nixPkgsRev ? "093f236f30c3b82205355806043263a8d636f8c2"
 , nixPkgsSha256 ? "sha256-LT8T+dZhoZ7vLP8FYzXPUpvgC84Hw0IoAJvrLiIIk10"
