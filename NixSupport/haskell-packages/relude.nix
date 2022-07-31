@@ -5,6 +5,7 @@
 mkDerivation {
   pname = "relude";
   version = "1.1.0.0";
+  sha256 = "sha256-tR3wipPvEzHdVjieFY5nrHtoxizBVhwokNNXLHZKtgk";
   libraryHaskellDepends = [
     base bytestring containers deepseq ghc-prim hashable mtl stm text
     transformers unordered-containers
