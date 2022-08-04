@@ -6,6 +6,7 @@ import qualified Control.Exception as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding.Internal as Aeson
+import qualified Data.Aeson.Key as Aeson
 
 import Data.Aeson.TH
 import Data.Aeson
@@ -35,6 +36,9 @@ import qualified IHP.GraphQL.Compiler as GraphQL
 import IHP.GraphQL.JSON ()
 import qualified Data.Attoparsec.Text as Attoparsec
 import qualified Network.WebSockets as WS
+
+$(deriveFromJSON defaultOptions ''DataSyncMessage)
+$(deriveToJSON defaultOptions 'DataSyncResult)
 
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -384,7 +388,7 @@ cleanupAllSubscriptions = do
 changesToValue :: [ChangeNotifications.Change] -> Value
 changesToValue changes = object (map changeToPair changes)
     where
-        changeToPair ChangeNotifications.Change { col, new } = (columnNameToFieldName col) .= new
+        changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ columnNameToFieldName col) .= new
 
 runInModelContextWithTransaction :: (?state :: IORef DataSyncController, _) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
 runInModelContextWithTransaction function (Just transactionId) = do
@@ -465,9 +469,6 @@ sqlExecWithRLSAndTransactionId ::
     , ?state :: IORef DataSyncController
     ) => Maybe UUID -> PG.Query -> parameters -> IO Int64
 sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlExecWithRLS theQuery theParams) transactionId
-
-$(deriveFromJSON defaultOptions 'DataSyncQuery)
-$(deriveToJSON defaultOptions 'DataSyncResult)
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }

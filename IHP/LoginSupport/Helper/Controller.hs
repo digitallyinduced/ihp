@@ -34,6 +34,7 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import Data.Kind
 
 {-# INLINABLE currentUser #-}
 currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
@@ -71,7 +72,7 @@ currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSe
 currentAdminId = currentAdmin @admin |> get #id
 
 {-# INLINABLE ensureIsAdmin #-}
-ensureIsAdmin :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
+ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
 ensureIsAdmin =
     case currentAdminOrNothing @admin of
         Just _ -> pure ()

@@ -27,7 +27,7 @@ library
         , template-haskell   >= 2.16.0 && < 2.17
         , blaze-markup       >= 0.8.2 && < 0.9
         , haskell-src-meta   >= 0.8.7 && < 0.9
-        , megaparsec         >= 9.0.1 && < 9.1
+        , megaparsec         >= 9.0.1 && < 9.3
         , string-conversions >= 0.4.0 && < 0.5
     default-extensions:
         OverloadedStrings
