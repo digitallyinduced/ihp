@@ -461,3 +461,17 @@ footer currentTime = [hsx|
     © All Rights Reserved {formatTime defaultTimeLocale "%Y" currentTime}</footer>
 |]
 ```
+
+## Favicon
+
+To have a custom favicon, add a `<link rel="shortcut icon">` to the `metaTags` function `Web/View/Layout.hs`:
+
+```haskell
+metaTags :: Html
+metaTags = [hsx|
+    <!-- ... ->
+
+    <!-- Add this meta tag and adjust the `href` attribute: -->
+    <link rel="shortcut icon" type="image/x-icon" href="/icon.svg"/>
+|]
+```
