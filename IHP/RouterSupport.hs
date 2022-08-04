@@ -73,6 +73,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import qualified Data.TMap as TMap
 import qualified IHP.ApplicationContext as ApplicationContext
+import Data.Kind
 
 putContextRouter :: forall value. (Typeable value) => value -> RouteParser -> RouteParser
 putContextRouter value parser = do
@@ -432,7 +433,7 @@ class Data controller => AutoRoute controller where
 -- All controllers defined in the `Web/` directory don't have a prefix at all.
 --
 -- E.g. controllers in the `Admin/` directory are prefixed with @/admin/@.
-actionPrefix :: forall controller. Typeable controller => String
+actionPrefix :: forall (controller :: Type). Typeable controller => String
 actionPrefix =
         case moduleName of
             ('W':'e':'b':'.':_) -> "/"

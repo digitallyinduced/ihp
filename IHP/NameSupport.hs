@@ -173,7 +173,7 @@ ucfirst = applyFirst toUpper
 -- >>> escapeHaskellKeyword "type"
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
-escapeHaskellKeyword name = if toLower name `elem` haskellKeywords then name <> "_" else name
+escapeHaskellKeyword name = if toLower name `Prelude.elem` haskellKeywords then name <> "_" else name
 
 haskellKeywords :: [Text]
 haskellKeywords = [ "_"

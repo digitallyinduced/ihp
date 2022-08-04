@@ -38,5 +38,6 @@
 :set -XPartialTypeSignatures
 :set -XStandaloneDeriving
 :set -XDerivingVia
+:set -XDeepSubsumption
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
