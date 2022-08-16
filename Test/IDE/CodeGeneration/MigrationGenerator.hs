@@ -1104,6 +1104,9 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 let actualSchema = sql $ cs [plain|
                 |]
                 let migration = sql [i|
+CREATE POLICY "Users can read and edit their own record" ON public.users USING ((id IN ( SELECT id
+   FROM public.users
+  WHERE ((id = public.ihp_user_id()) OR (user_role = 'admin'))))) WITH CHECK ((id = public.ihp_user_id()));
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
