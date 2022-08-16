@@ -1095,6 +1095,23 @@ END;$$ language PLPGSQL;|]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should work with IN expressions" do
+                let targetSchema = sql $ cs [plain|
+CREATE POLICY "Users can read and edit their own record" ON public.users USING ((id IN ( SELECT users_1.id
+   FROM public.users users_1
+  WHERE ((users_1.id = public.ihp_user_id()) OR (users_1.user_role = 'admin'::text))))) WITH CHECK ((id = public.ihp_user_id()));
+                |]
+                let actualSchema = sql $ cs [plain|
+                |]
+                let migration = sql [i|
+CREATE POLICY "Users can read and edit their own record" ON public.users USING ((id IN ( SELECT id
+   FROM public.users
+  WHERE ((id = public.ihp_user_id()) OR (user_role = 'admin'))))) WITH CHECK ((id = public.ihp_user_id()));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

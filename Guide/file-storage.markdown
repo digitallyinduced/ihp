@@ -295,7 +295,7 @@ This accepts any kind of image file compatible with ImageMagick, converts it to 
 ```haskell
 action UpdateCompanyAction { companyId } = do
     let uploadLogo = uploadToStorageWithOptions $ def
-            { preprocess = applyImageMagick "png" "-resize '512x512^' -gravity north -extent 512x512 -quality 100% -strip"  }
+            { preprocess = applyImageMagick "png" ["-resize", "'512x512^'", "-gravity", "north", "-extent", "512x512", "-quality", "100%", "-strip"]  }
 
     company <- fetch companyId
     company
