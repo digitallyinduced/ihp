@@ -160,6 +160,8 @@ data Expression =
     | AndExpression Expression Expression
     -- | a IS b
     | IsExpression Expression Expression
+    -- | a IN b
+    | InExpression Expression Expression
     -- | NOT a
     | NotExpression Expression
     -- | EXISTS a

@@ -443,6 +443,7 @@ table = [
             , binary "||" ConcatenationExpression
 
             , binary "IS" IsExpression
+            , binary "IN" InExpression
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
             , typeCast
