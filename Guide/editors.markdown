@@ -34,6 +34,17 @@ If you get an error `Couldn't figure out what GHC version the project is using` 
 2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
 3. This will restart VS Code. After that Haskell Language Server should be working.
 
+#### "Failed to get project GHC executable path: CradleError"
+
+If you get an error `Failed to get project GHC executable path` with a `CradleError`, check your Haskell extension's settings and make sure you are using `"haskell.manageHLS": "PATH"`:
+
+1. Open the project in VS Code
+2. Click `Extensions` (`Ctrl + Shift + X`) -> Right-click `Haskell` -> `Extension Settings` -> `Haskell: Manage HLS` -> `PATH`
+
+This error happens because the `GHCup` setting ignores all `PATH` variables pointing to `HLS` and instead uses the `/home/$USER/.cache/ghcup` directory. This is contrary to IHP's usage of Nix which places the necessary tooling into your `PATH` whenever your Nix environment is selected.
+
+A caveat of this fix is that every time you want to use GHCup for tooling version management, you'll need to switch the setting back. The reason for this can be found in [this issue](https://github.com/haskell/vscode-haskell/issues/387).
+
 ### VSCode on Windows with Windows Subsystem for Linux
 
 It is important to not access the files within the WSL from Windows itself (however, the other way around is ok). You can seamlessly (including auto-save) work on your projects within WSL from VS Code in Windows by adding the [`Remote WSL`](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension from Microsoft.
