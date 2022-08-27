@@ -32,6 +32,9 @@ import Control.Monad (unless)
 import Prelude (show)
 import qualified Language.Haskell.Meta as Haskell
 import qualified Language.Haskell.TH.Syntax as Haskell
+import qualified Language.Haskell.Exts.Parser as Haskell hiding (parseExp)
+import qualified Language.Haskell.Exts.Extension as Haskell
+import Language.Haskell.Exts.Extension (KnownExtension (..))
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
@@ -150,10 +153,32 @@ hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
     name <- between (string "{...") (string "}") (takeWhile1P Nothing (\c -> c /= '}'))
     space
-    haskellExpression <- case Haskell.parseExp (cs name) of
+    haskellExpression <- case parseHaskellExpression (cs name) of
             Right expression -> pure expression
             Left error -> fail (show error)
     pure (SpreadAttributes haskellExpression)
+
+parseHaskellExpression = either Left (Right . Haskell.toExp) . parseHsExp
+    where
+        parseHsExp = Haskell.parseResultToEither . Haskell.parseExpWithMode parseMode
+        parseMode = Haskell.defaultParseMode
+            { Haskell.parseFilename = []
+            , Haskell.baseLanguage = Haskell.Haskell2010
+            , Haskell.extensions = Haskell.EnableExtension <$> extensions
+            }
+        extensions =
+            [ PostfixOperators
+            , QuasiQuotes
+            , UnicodeSyntax
+            , PatternSignatures
+            , ForeignFunctionInterface
+            , TemplateHaskell
+            , RankNTypes
+            , MultiParamTypeClasses
+            , RecursiveDo
+            , TypeApplications
+            , OverloadedLabels
+            ]
 
 hsxNodeAttribute = do
     key <- hsxAttributeName
@@ -206,7 +231,7 @@ hsxQuotedValue = do
 hsxSplicedValue :: Parser AttributeValue
 hsxSplicedValue = do
     value <- between (char '{') (char '}') (takeWhile1P Nothing (\c -> c /= '}'))
-    haskellExpression <- case Haskell.parseExp (cs value) of
+    haskellExpression <- case parseHaskellExpression (cs value) of
             Right expression -> pure expression
             Left error -> fail (show error)
     pure (ExpressionValue haskellExpression)
@@ -237,7 +262,7 @@ data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
         expression <- doParse
-        haskellExpression <- case Haskell.parseExp (cs expression) of
+        haskellExpression <- case parseHaskellExpression (cs expression) of
                 Right expression -> pure expression
                 Left error -> fail (show error)
         pure (SplicedNode haskellExpression)
