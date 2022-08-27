@@ -164,7 +164,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?modelContext = modelContext
 
     action <- Concurrent.newMVar JobAvailable
-    runners <- forM [0..(maxConcurrency @job)] \index -> async do
+    runners <- forM [1..(maxConcurrency @job)] \index -> async do
         let loop = do
                 receivedAction <- Concurrent.takeMVar action
 
