@@ -57,6 +57,7 @@ GHC_EXTENSIONS+= -Werror=missing-fields
 GHC_EXTENSIONS+= -fwarn-incomplete-patterns
 GHC_EXTENSIONS+= -XTemplateHaskell
 GHC_EXTENSIONS+= -XDeepSubsumption
+GHC_EXTENSIONS+= -XOverloadedRecordDot
 
 GHC_RTS_FLAGS := -A256m -n2m -N
 
