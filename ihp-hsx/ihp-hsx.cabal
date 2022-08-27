@@ -29,6 +29,7 @@ library
         , haskell-src-meta   >= 0.8.7 && < 0.9
         , megaparsec         >= 9.0.1 && < 9.3
         , string-conversions >= 0.4.0 && < 0.5
+        , haskell-src-exts
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
