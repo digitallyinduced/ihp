@@ -13,7 +13,7 @@ import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 
 tests = do
-    let position = Megaparsec.SourcePos "" (Megaparsec.mkPos 0) (Megaparsec.mkPos 0)
+    let position = Megaparsec.SourcePos "" (Megaparsec.mkPos 1) (Megaparsec.mkPos 1)
     let extensions = []
     describe "HSX Parser" do
         it "should fail on invalid html tags" do
