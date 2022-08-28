@@ -8,7 +8,6 @@ Copyright: (c) digitally induced GmbH, 2022
 module IHP.HSX.QQ (hsx) where
 
 import           Prelude
-import qualified Data.Text as Text
 import Data.Text (Text)
 import           IHP.HSX.Parser
 import qualified "template-haskell" Language.Haskell.TH           as TH
@@ -20,7 +19,6 @@ import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions
 import IHP.HSX.ToHtml
-import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
 import qualified Data.Text as Text
@@ -38,7 +36,8 @@ hsx = QuasiQuoter {
 quoteHsxExpression :: String -> TH.ExpQ
 quoteHsxExpression code = do
         hsxPosition <- findHSXPosition
-        expression <- case parseHsx hsxPosition (cs code) of
+        extensions <- TH.extsEnabled
+        expression <- case parseHsx hsxPosition extensions (cs code) of
                 Left error   -> fail (Megaparsec.errorBundlePretty error)
                 Right result -> pure result
         compileToHaskell expression
