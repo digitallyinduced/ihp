@@ -19,7 +19,6 @@ import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import Data.String.Conversions
 import IHP.HSX.ToHtml
-import Control.Monad.Fail
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
 import qualified Data.Text as Text
