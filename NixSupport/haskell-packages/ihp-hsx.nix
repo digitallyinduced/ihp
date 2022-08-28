@@ -14,7 +14,7 @@
 }:
 mkDerivation {
   pname = "ihp-hsx";
-  version = "v0.18.0";
+  version = "v0.19.0";
   src = ./../../ihp-hsx;
   isLibrary = true;
   isExecutable = false;
@@ -28,7 +28,6 @@ mkDerivation {
     basic-prelude
     megaparsec
     template-haskell
-    haskell-src-meta
     containers
   ];
   license = lib.licenses.mit;

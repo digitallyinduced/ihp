@@ -25,19 +25,14 @@ import Text.Megaparsec.Char
 import Data.Void
 import qualified Data.Char as Char
 import qualified Data.Text as Text
-import Control.Monad.Fail
 import Data.String.Conversions
 import qualified Data.List as List
 import Control.Monad (unless)
-import Prelude (show)
-import qualified Language.Haskell.Meta as Haskell
-import qualified Language.Haskell.TH.Syntax as Haskell
-import qualified Language.Haskell.Exts.Parser as Haskell hiding (parseExp)
-import qualified Language.Haskell.Exts.Extension as Haskell
-import Language.Haskell.Exts.Extension (KnownExtension (..))
+import qualified "template-haskell" Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
+import qualified IHP.HSX.HaskellParser as HaskellParser
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
@@ -61,11 +56,15 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 -- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 -- > let hsxText = "<strong>Hello</strong>"
 -- >
--- > let (Right node) = parseHsx position hsxText
-parseHsx :: SourcePos -> Text -> Either (ParseErrorBundle Text Void) Node
-parseHsx position code = runParser (setPosition position *> parser) "" code
+-- > let (Right node) = parseHsx position [] hsxText
+parseHsx :: SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
+parseHsx position extensions code =
+    let
+        ?extensions = extensions
+    in
+        runParser (setPosition position *> parser) "" code
 
-type Parser = Parsec Void Text
+type Parser a = (?extensions :: [TH.Extension]) => Parsec Void Text a
 
 setPosition pstateSourcePos = updateParserState (\state -> state {
         statePosState = (statePosState state) { pstateSourcePos }
@@ -79,12 +78,15 @@ parser = do
     eof
     pure node
 
+hsxElement :: Parser Node
 hsxElement = try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
 
+manyHsxElement :: Parser Node
 manyHsxElement = do
     children <- many hsxChild
     pure (Children (stripTextNodeWhitespaces children))
 
+hsxSelfClosingElement :: Parser Node
 hsxSelfClosingElement = do
     _ <- char '<'
     name <- hsxElementName
@@ -96,6 +98,7 @@ hsxSelfClosingElement = do
     space
     pure (Node name attributes [] isLeaf)
 
+hsxNormalElement :: Parser Node
 hsxNormalElement = do
     (name, attributes) <- hsxOpeningElement
     let parsePreEscapedTextChildren transformText = do
@@ -120,6 +123,7 @@ hsxNormalElement = do
             otherwise -> parseNormalHSXChildren
     pure (Node name attributes children False)
 
+hsxOpeningElement :: Parser (Text, [Attribute])
 hsxOpeningElement = do
     char '<'
     name <- hsxElementName
@@ -151,35 +155,24 @@ isStaticAttribute _ = False
 
 hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
-    name <- between (string "{...") (string "}") (takeWhile1P Nothing (\c -> c /= '}'))
+    (pos, name) <- between (string "{...") (string "}") do
+            pos <- getSourcePos
+            code <- takeWhile1P Nothing (\c -> c /= '}')
+            pure (pos, code)
     space
-    haskellExpression <- case parseHaskellExpression (cs name) of
-            Right expression -> pure expression
-            Left error -> fail (show error)
+    haskellExpression <- parseHaskellExpression pos (cs name)
     pure (SpreadAttributes haskellExpression)
 
-parseHaskellExpression = either Left (Right . Haskell.toExp) . parseHsExp
-    where
-        parseHsExp = Haskell.parseResultToEither . Haskell.parseExpWithMode parseMode
-        parseMode = Haskell.defaultParseMode
-            { Haskell.parseFilename = []
-            , Haskell.baseLanguage = Haskell.Haskell2010
-            , Haskell.extensions = Haskell.EnableExtension <$> extensions
-            }
-        extensions =
-            [ PostfixOperators
-            , QuasiQuotes
-            , UnicodeSyntax
-            , PatternSignatures
-            , ForeignFunctionInterface
-            , TemplateHaskell
-            , RankNTypes
-            , MultiParamTypeClasses
-            , RecursiveDo
-            , TypeApplications
-            , OverloadedLabels
-            ]
+parseHaskellExpression :: SourcePos -> Text -> Parser Haskell.Exp
+parseHaskellExpression sourcePos input = do
+    case HaskellParser.parseHaskellExpression sourcePos ?extensions (cs input) of
+        Right expression -> pure expression
+        Left (line, col, error) -> do
+            pos <- getSourcePos
+            setPosition pos { sourceLine = mkPos line, sourceColumn = mkPos col }
+            fail (show error)
 
+hsxNodeAttribute :: Parser Attribute
 hsxNodeAttribute = do
     key <- hsxAttributeName
     space
@@ -230,10 +223,11 @@ hsxQuotedValue = do
 
 hsxSplicedValue :: Parser AttributeValue
 hsxSplicedValue = do
-    value <- between (char '{') (char '}') (takeWhile1P Nothing (\c -> c /= '}'))
-    haskellExpression <- case parseHaskellExpression (cs value) of
-            Right expression -> pure expression
-            Left error -> fail (show error)
+    (pos, value) <- between (char '{') (char '}') do
+        pos <- getSourcePos
+        code <- takeWhile1P Nothing (\c -> c /= '}')
+        pure (pos, code)
+    haskellExpression <- parseHaskellExpression pos (cs value)
     pure (ExpressionValue haskellExpression)
 
 hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
@@ -245,6 +239,7 @@ hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
             char ('>')
             pure ()
 
+hsxChild :: Parser Node
 hsxChild = hsxElement <|> hsxSplicedNode <|> try (space >> hsxElement) <|> hsxText
 
 -- | Parses a hsx text node
@@ -261,19 +256,20 @@ data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
 
 hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
-        expression <- doParse
-        haskellExpression <- case parseHaskellExpression (cs expression) of
-                Right expression -> pure expression
-                Left error -> fail (show error)
+        (pos, expression) <- doParse
+        haskellExpression <- parseHaskellExpression pos (cs expression)
         pure (SplicedNode haskellExpression)
     where
         doParse = do
-            tree <- node
+            (pos, tree) <- node
             let value = (treeToString "" tree)
-            pure $ Text.init $ Text.tail value
+            pure (pos, Text.init $ Text.tail value)
 
-        parseTree = node <|> leaf
-        node = TokenNode <$> between (char '{') (char '}') (many parseTree)
+        parseTree = (snd <$> node) <|> leaf
+        node = between (char '{') (char '}') do
+                pos <- getSourcePos
+                tree <- many parseTree
+                pure (pos, TokenNode tree)
         leaf = TokenLeaf <$> takeWhile1P Nothing (\c -> c /= '{' && c /= '}')
         treeToString :: Text -> TokenTree -> Text
         treeToString acc (TokenLeaf value)  = acc <> value
