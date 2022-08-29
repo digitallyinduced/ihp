@@ -137,6 +137,7 @@ common shared-properties
         , LambdaCase
         , StandaloneDeriving
         , TemplateHaskell
+        , OverloadedRecordDot
     if flag(FastBuild)
         ghc-options:
             -j

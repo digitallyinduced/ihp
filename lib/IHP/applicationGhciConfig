@@ -46,5 +46,6 @@
 :set -XDerivingVia
 :set -XTemplateHaskell
 :set -XDeepSubsumption
+:set -XOverloadedRecordDot
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns

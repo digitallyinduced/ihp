@@ -14,7 +14,6 @@ let
         basic-prelude
         megaparsec
         template-haskell
-        haskell-src-meta
         containers
 
         # Development Specific Tools

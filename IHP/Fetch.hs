@@ -107,7 +107,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
 
 
 {-# INLINE commonFetch #-}
-commonFetch :: forall model table queryBuilderProvider joinRegister.(Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
+commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, PG.FromRow model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> toSQL
@@ -115,7 +115,7 @@ commonFetch !queryBuilder = do
     sqlQuery (Query $ cs theQuery) theParameters
 
 {-# INLINE commonFetchOneOrNothing #-}
-commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model) => queryBuilderProvider table -> IO (Maybe model)
+commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     let !(theQuery, theParameters) = queryBuilder
             |> buildQuery
@@ -126,7 +126,7 @@ commonFetchOneOrNothing !queryBuilder = do
     pure $ listToMaybe results
 
 {-# INLINE commonFetchOne #-}
-commonFetchOne :: forall model table queryBuilderProvider joinRegister.(?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model) => queryBuilderProvider table -> IO model
+commonFetchOne :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model) => queryBuilderProvider table -> IO model
 commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
