@@ -3,8 +3,8 @@
 # the project
 { ihp
 , haskellPackagesDir
-, dontCheckPackages ? ["mmark" "mmark-ext" "mutable-containers" "hiedb"]
-, doJailbreakPackages ? ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"]
+, dontCheckPackages ? []
+, doJailbreakPackages ? []
 , dontHaddockPackages ? []
 , nixPkgsRev ? "093f236f30c3b82205355806043263a8d636f8c2"
 , nixPkgsSha256 ? "sha256-LT8T+dZhoZ7vLP8FYzXPUpvgC84Hw0IoAJvrLiIIk10"
@@ -37,8 +37,8 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-  ihpDontCheckPackages = [];
-  ihpDoJailbreakPackages = [];
+  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb"];
+  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"];
   ihpDontHaddockPackages = [];
 
   config = {
