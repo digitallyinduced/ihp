@@ -204,9 +204,9 @@ buildPlan' schema config =
                 render${singularName} ${singularVariableName} = [hsx|
                     <tr>
                         <td>{${singularVariableName}}</td>
-                        <td><a href={Show${singularName}Action (get #id ${singularVariableName})}>Show</a></td>
-                        <td><a href={Edit${singularName}Action (get #id ${singularVariableName})} class="text-muted">Edit</a></td>
-                        <td><a href={Delete${singularName}Action (get #id ${singularVariableName})} class="js-delete text-muted">Delete</a></td>
+                        <td><a href={Show${singularName}Action ${singularVariableName}.id}>Show</a></td>
+                        <td><a href={Edit${singularName}Action ${singularVariableName}.id} class="text-muted">Edit</a></td>
+                        <td><a href={Delete${singularName}Action ${singularVariableName}.id} class="js-delete text-muted">Delete</a></td>
                     </tr>
                 ${qqClose}
             |]
