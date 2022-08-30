@@ -351,3 +351,47 @@ a, a:hover {
 .btn-secondary:not(:disabled):not(.disabled).active, .btn-secondary:not(:disabled):not(.disabled):active, .show>.btn-secondary.dropdown-toggle {
     background-color: hsl(175deg 59% 33%);   
 }
+
+.popover {
+    text-align: left;
+    background-color: #0B5163;
+    border: 1px solid hsl(175deg 59% 40% / 33%) !important;
+    border-radius: 4px;
+    font-size: 12px;
+
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+
+    box-shadow: 0 1rem 3rem rgba(0,0,0,.175)!important;
+}
+
+.popover .popover-header {
+    border-bottom: 0px;
+}
+
+.popover a {
+    color: hsla(196, 13%, 80%, 1);
+    text-decoration: underline;
+}
+
+.popover a.btn {
+    text-decoration: none;
+    background-color: #002B37;
+    border: 1px solid hsla(192, 81%, 26%, 0.8);
+}
+
+.popover a.btn:hover {
+    color: #fff;
+    background-color: hsl(193deg 90% 6%);
+}
+
+.popover a.btn:focus {
+    color: #fff;
+    background-color: hsl(193deg 80% 6%);
+}
+
+.bs-popover-auto[x-placement^=right]>.arrow::after, .bs-popover-right>.arrow::after {
+    border-right-color: #0B5163;
+}
