@@ -342,7 +342,7 @@ textToId text = case parsePrimaryKey (cs text) of
 
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, Show q) => IO a -> Query -> q -> IO a
+measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => IO a -> Query -> q -> IO a
 measureTimeIfLogging queryAction theQuery theParameters = do
     let currentLogLevel = get #logger ?modelContext |> get #level
     if currentLogLevel == Debug
@@ -364,7 +364,7 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 --
 -- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
-sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, Show q) => Query -> q -> IO [r]
+sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
     measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
@@ -379,7 +379,7 @@ sqlQuery theQuery theParameters = do
 -- __Example:__
 --
 -- > sqlExec "CREATE TABLE users ()" ()
-sqlExec :: (?modelContext :: ModelContext, PG.ToRow q, Show q) => Query -> q -> IO Int64
+sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
     measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
@@ -426,7 +426,7 @@ withDatabaseConnection block =
 -- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO value
+sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
@@ -446,7 +446,7 @@ sqlQueryScalar theQuery theParameters = do
 -- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, Show q, FromField value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
     result <- measureTimeIfLogging
         (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
@@ -584,7 +584,7 @@ class
     default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
     primaryKeyCondition record = [("id", toField (get #id record))]
 
-logQuery :: (?modelContext :: ModelContext, Show query, Show parameters) => query -> parameters -> NominalDiffTime -> IO ()
+logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
@@ -595,7 +595,14 @@ logQuery query parameters time = do
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
                 Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
                 Nothing -> ""
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " " <> tshow parameters <> rlsInfo)
+        let
+            -- We don't use the normal 'show' here as it adds lots of noise like 'Escape' or 'Plain' to the output
+            showAction (PG.Plain builder) = cs (Builder.toLazyByteString builder)
+            showAction (PG.Escape byteString) = cs byteString
+            showAction (PG.EscapeByteA byteString) = cs byteString
+            showAction (PG.EscapeIdentifier byteString) = cs byteString
+            showAction (PG.Many actions) = concatMap showAction actions
+        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " [" <> (intercalate ", " $ map showAction $ PG.toRow parameters) <> "]" <> rlsInfo)
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
