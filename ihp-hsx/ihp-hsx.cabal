@@ -29,7 +29,6 @@ library
         , ghc                >= 9.2.4 && < 9.3
         , megaparsec         >= 9.2.1 && < 9.3
         , string-conversions >= 0.4.0 && < 0.5
-        , ghc
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
