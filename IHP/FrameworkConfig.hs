@@ -548,13 +548,12 @@ initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnect
 --
 -- Inspired by https://maksbotan.github.io/posts/2021-01-20-callstacks.html
 --
-data ConfigException where
-    ConfigException :: HasCallStack => SomeException -> ConfigException
+data ExceptionWithCallStack = ExceptionWithCallStack CallStack SomeException
 
-instance Prelude.Show ConfigException where
-    show (ConfigException inner) = Prelude.show inner <> "\n" <> Stack.prettyCallStack Stack.callStack
+instance Prelude.Show ExceptionWithCallStack where
+    show (ExceptionWithCallStack callStack inner) = Prelude.show inner <> "\n" <> Stack.prettyCallStack callStack
 
-instance Exception ConfigException
+instance Exception ExceptionWithCallStack
 
 -- | Runs IO inside the config process
 --
@@ -565,6 +564,6 @@ instance Exception ConfigException
 --
 -- See https://github.com/digitallyinduced/ihp/issues/1503
 configIO :: (MonadIO monad, HasCallStack) => IO result -> monad result
-configIO action = liftIO (action `catch` catcher)
+configIO action = liftIO (action `catch` wrapWithCallStack)
     where
-        catcher exception = throwIO (ConfigException exception)
+        wrapWithCallStack exception = throwIO (ExceptionWithCallStack Stack.callStack exception)
