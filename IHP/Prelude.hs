@@ -40,6 +40,7 @@ module IHP.Prelude
 , module Control.Monad.Fail
 , module Control.Concurrent.Async
 , module NeatInterpolation
+, module GHC.Stack
 )
 where
 
@@ -75,6 +76,7 @@ import Control.Exception (throw, throwIO, catch)
 import Control.Monad.Fail (fail)
 import Control.Concurrent.Async
 import NeatInterpolation (trimming)
+import GHC.Stack (HasCallStack, CallStack)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
