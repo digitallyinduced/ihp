@@ -288,7 +288,6 @@ startAppGHCI = do
             [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
             , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
-            , ":l Main.hs"
             ]
 
     async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
