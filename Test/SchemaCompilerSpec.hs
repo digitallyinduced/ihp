@@ -92,7 +92,7 @@ tests = do
                         inputValue Newbrunswick = "NewBrunswick" :: Text
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
-                    instance DeepSeq.NFData Mood where rnf a = ()
+                    instance DeepSeq.NFData Province where rnf a = ()
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should deal with duplicate enum values" do
@@ -114,7 +114,7 @@ tests = do
                     instance InputValue PropertyType where
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
-                    instance DeepSeq.NFData Mood where rnf a = ()
+                    instance DeepSeq.NFData PropertyType where rnf a = ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
