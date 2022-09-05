@@ -38,7 +38,6 @@ tests = do
                         inputValue Sad = "sad" :: Text
                         inputValue VerySad = "very sad" :: Text
                     instance DeepSeq.NFData Mood where rnf a = ()
-
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should deal with enums that have no values" do
@@ -94,7 +93,6 @@ tests = do
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
                     instance DeepSeq.NFData Mood where rnf a = ()
-
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should deal with duplicate enum values" do
@@ -117,7 +115,6 @@ tests = do
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
                     instance DeepSeq.NFData Mood where rnf a = ()
-
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
