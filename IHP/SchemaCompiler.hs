@@ -339,7 +339,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> enumValueToConstructorName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
-        <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
+        <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) 
         <> "instance DeepSeq.NFData " <> modelName <> " where" <> " rnf a = ()" <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
     where
