@@ -37,6 +37,7 @@ tests = do
                         inputValue VeryHappy = "very happy" :: Text
                         inputValue Sad = "sad" :: Text
                         inputValue VerySad = "very sad" :: Text
+                    instance DeepSeq.NFData Mood where rnf a = ()
 
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
@@ -92,6 +93,7 @@ tests = do
                         inputValue Newbrunswick = "NewBrunswick" :: Text
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
+                    instance DeepSeq.NFData Mood where rnf a = ()
 
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
@@ -114,6 +116,7 @@ tests = do
                     instance InputValue PropertyType where
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
+                    instance DeepSeq.NFData Mood where rnf a = ()
 
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
