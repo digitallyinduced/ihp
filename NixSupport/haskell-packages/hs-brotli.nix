@@ -1,18 +1,15 @@
 { mkDerivation
 , base
-, binary
 , bytestring
-, directory
 , fetchgit
-, filepath
-, hs-brotli
-, http-types
+, ghc-prim
 , lib
-, unix
-, wai
 }:
+let
+  nixpkgs = import <nixpkgs> { };
+in
 mkDerivation {
-  pname = "wai-middleware-brotli";
+  pname = "hs-brotli";
   version = "0.1.0.0";
   src = fetchgit {
     url = "https://github.com/s0kil/hs-brotli";
@@ -20,21 +17,14 @@ mkDerivation {
     rev = "9f27b1f443d21d177100cd7d0906ad68020d9331";
     fetchSubmodules = true;
   };
-  postUnpack = "sourceRoot+=/wai-middleware-brotli; echo source root reset to $sourceRoot";
-  libraryHaskellDepends = [
-    base
-    binary
-    bytestring
-    directory
-    filepath
-    hs-brotli
-    http-types
-    unix
-    wai
-  ];
+  postUnpack = "sourceRoot+=/brotli; echo source root reset to $sourceRoot";
+  libraryHaskellDepends = [ base bytestring ghc-prim ];
+  librarySystemDepends = [ nixpkgs.brotli ];
+  libraryToolDepends = [ nixpkgs.pkg-config ];
+  libraryPkgconfigDepends = [ nixpkgs.brotli ];
   doHaddock = false;
   doCheck = false;
   homepage = "https://github.com/s0kil/hs-brotli#readme";
-  description = "WAI middleware for brotli compression";
+  description = "Compression and decompression in the brotli format";
   license = lib.licenses.bsd3;
 }
