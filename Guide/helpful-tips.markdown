@@ -29,6 +29,21 @@ So `#companyId` can be written as `fromLabel @"companyId"` which IHP turns into 
 
 Note that the `fromLabel @"companyId"` style syntax is currently not supported inside HSX expressions. See [this stackoverflow answer](https://stackoverflow.com/a/68962193/268581) for an explanation.
 
+### The dot notation \.
+
+IHP uses dot notation like `someRecord.someField` everywhere. You might not think of this as anything special, but this syntax was just recently added to Haskell. 
+
+The dot notation is provided by the [`OverloadedRecordDot` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/overloaded_record_dot.html).
+
+In IHP v0.19 and older IHP versions, the dot notation was not supported yet. So you might see `get #someField someRecord` instead in older projects. The `get #someField someRecord` notation is equivalent to `someRecord.someField` and is still supported:
+
+```haskell
+-- IHP v0.19 and before:
+get #title project
+
+-- IHP v0.20 and up:
+project.title
+```
 
 ### The at symbol @
 
