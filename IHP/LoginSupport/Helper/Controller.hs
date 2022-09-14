@@ -58,21 +58,21 @@ ensureIsUser =
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 
 {-# INLINABLE currentAdmin #-}
-currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => admin
+currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
 currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 
 {-# INLINABLE currentAdminOrNothing #-}
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => (Maybe admin)
+currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => (Maybe admin)
 currentAdminOrNothing = case unsafePerformIO (maybeFromContext @(Maybe admin)) of
     Just admin -> admin
     Nothing -> error "currentAdminOrNothing: initAuthentication @Admin has not been called in initContext inside FrontController of this application"
 
 {-# INLINABLE currentAdminId #-}
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin) => adminId
+currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
 currentAdminId = currentAdmin @admin |> get #id
 
 {-# INLINABLE ensureIsAdmin #-}
-ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
+ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin =
     case currentAdminOrNothing @admin of
         Just _ -> pure ()
