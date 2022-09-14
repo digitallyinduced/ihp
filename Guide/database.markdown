@@ -152,7 +152,7 @@ You can retrieve all records of a table using [`query`](https://ihp.digitallyind
 do
     users <- query @User |> fetch
     forEach users \user -> do
-        putStrLn (get #name user)
+        putStrLn user.name
 ```
 
 This will run a `SELECT * FROM users` query and put a list of `User` structures.
@@ -165,7 +165,7 @@ When you have the id of a record, you can also use [`fetch`](https://ihp.digital
 do
     let userId :: Id User = ...
     user <- fetch userId
-    putStrLn (get #name user)
+    putStrLn user.name
 ```
 
 This will run the SQL query `SELECT * FROM users WHERE id = ... LIMIT 1`.
@@ -201,7 +201,7 @@ In this case the field `assigned_user_id` can be null. In our action we want to 
 ```haskell
 action ShowTask { taskId } = do
     task <- fetch taskId
-    assignedUser <- case get #assignedUserId task of
+    assignedUser <- case task.assignedUserId of
             Just userId -> do
                 user <- fetch userId
                 pure (Just user)
@@ -213,7 +213,7 @@ This contains a lot of boilerplate for wrapping and unwrapping the [`Maybe`](htt
 ```haskell
 action ShowTask { taskId } = do
     task <- fetch taskId
-    assignedUser <- fetchOneOrNothing (get #assignedUserId task)
+    assignedUser <- fetchOneOrNothing task.assignedUserId
 ```
 
 ### Fetching `n` records (LIMIT)
@@ -803,11 +803,11 @@ withTransaction do
    company <- newRecord @Company |> createRecord
 
    user <- newRecord @User
-       |> set #companyId (get #id company)
+       |> set #companyId company.id
        |> createRecord
 
    company <- company
-       |> setJust #ownerId (get #id user)
+       |> setJust #ownerId user.id
        |> updateRecord
 ```
 

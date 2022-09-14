@@ -62,7 +62,7 @@ You can use [`accessDeniedUnless`](https://ihp.digitallyinduced.com/api-docs/IHP
 ```haskell
     action ShowPostAction { postId } = do
         post <- fetch postId
-        accessDeniedUnless (get #userId post == currentUserId)
+        accessDeniedUnless (post.userId == currentUserId)
 
         render ShowView { .. }
 ```

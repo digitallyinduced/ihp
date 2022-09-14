@@ -24,7 +24,7 @@ instance Controller SitemapController where
         -- Build an `SitemapLink` for all posts
         let sitemapLinks = posts |> map (\post ->
                 SitemapLink
-                    { url = urlTo $ ShowPostAction (get #id post)
+                    { url = urlTo $ ShowPostAction post.id
                     , lastModified = Nothing
                     , changeFrequency = Just Hourly
                     })

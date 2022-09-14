@@ -326,8 +326,8 @@ instance GithubOAuthControllerConfig User where
         -- Here you can e.g. set the app's profile picture to the one provided by github:
         --
         -- > user
-        -- >     |> setJust #profilePicture (get #avatarUrl githubUser)
-        -- >     |> setJust #githubName (get #login githubUser)
+        -- >     |> setJust #profilePicture githubUser.avatarUrl
+        -- >     |> setJust #githubName githubUser.login
         -- >     |> pure
         --
         pure user
