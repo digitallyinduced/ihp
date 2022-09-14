@@ -311,13 +311,13 @@ instance TableViewable (IncludeWrapper "bandId" InitialScrapeJob) where
     renderTableRow (IncludeWrapper job) =
         let
             table = tableName @InitialScrapeJob
-            linkToView :: Text = "/jobs/ViewJob?tableName=" <> table <> "&id=" <> tshow (get #id job)
-            link = "/jobs/CreateJob?tableName=" <> tableName @InitialScrapeJob  <> "&bandId=" <> get #bandId job |> get #id |> tshow
+            linkToView :: Text = "/jobs/ViewJob?tableName=" <> table <> "&id=" <> tshow job.id
+            link = "/jobs/CreateJob?tableName=" <> tableName @InitialScrapeJob  <> "&bandId=" <> job.bandId.id |> tshow
         in [hsx|
         <tr>
-            <td>{job |> get #bandId |> get #name}</td>
-            <td>{get #updatedAt job |> timeAgo}</td>
-            <td>{statusToBadge $ get #status job}</td>
+            <td>{job.bandId.name}</td>
+            <td>{job.updatedAt |> timeAgo}</td>
+            <td>{statusToBadge job.status}</td>
             <td><a href={linkToView} class="text-primary">Show</a></td>
             <td>
                 <form action={link} method="POST">
@@ -349,29 +349,29 @@ instance DisplayableJob InitialScrapeJob where
         withRelated <- fetchRelated #bandId job
         pure $ SomeView $ HtmlView $ [hsx|
             <br>
-                <h5>Viewing Job {get #id job} in {table}</h5>
+                <h5>Viewing Job {job.id} in {table}</h5>
             <br>
             <table class="table">
                 <tbody>
                     <tr>
                         <th>Band</th>
-                        <td>{get #bandId withRelated |> get #name}</td>
+                        <td>{withRelated.bandId.name}</td>
                     </tr>
                     <tr>
                         <th>Updated At</th>
-                        <td>{get #updatedAt job}</td>
+                        <td>{job.updatedAt}</td>
                     </tr>
                     <tr>
                         <th>Created At</th>
-                        <td>{get #createdAt job |> timeAgo}</td>
+                        <td>{job.createdAt |> timeAgo}</td>
                     </tr>
                     <tr>
                         <th>Status</th>
-                        <td>{statusToBadge (get #status job)}</td>
+                        <td>{statusToBadge job.status}</td>
                     </tr>
                     <tr>
                         <th>Last Error</th>
-                        <td>{fromMaybe "No error" (get #lastError job)}</td>
+                        <td>{fromMaybe "No error" job.lastError}</td>
                     </tr>
                 </tbody>
             </table>
@@ -379,12 +379,12 @@ instance DisplayableJob InitialScrapeJob where
             <div class="d-flex flex-row">
                 <form class="mr-2" action="/jobs/DeleteJob" method="POST">
                     <input type="hidden" id="tableName" name="tableName" value={table}>
-                    <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+                    <input type="hidden" id="id" name="id" value={tshow job.id}>
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
                 <form action="/jobs/CreateJob" method="POST">
                     <input type="hidden" id="tableName" name="tableName" value={table}>
-                    <input type="hidden" id="bandId" name="bandId" value={get #bandId job |> tshow}>
+                    <input type="hidden" id="bandId" name="bandId" value={job.bandId |> tshow}>
                     <button type="submit" class="btn btn-primary">Run again</button>
                 </form>
             </div>

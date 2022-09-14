@@ -9,7 +9,7 @@ IHP uses many "exotic" haskell features. Here's a short explanation of the most 
 IHP uses hash symbols `#` all over the place, like in this code:
 
 ```haskell
-set #companyId (get #companyId company)
+set #companyId company.id
 ```
 
 The hashes are provided by the [`OverloadedLabels` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/overloaded_labels.html).
@@ -169,7 +169,7 @@ Let's say you are working with a controller `ApplicationsAction` and most action
 
         -- Access Control
         jobPositions <- currentCompanyJobPositions
-        accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+        accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 
         ...
 
@@ -178,7 +178,7 @@ Let's say you are working with a controller `ApplicationsAction` and most action
 
         -- Access Control
         jobPositions <- currentCompanyJobPositions
-        accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+        accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 
         ...
 ```
@@ -188,7 +188,7 @@ We could start by refactoring the access control logic into a function:
 ```haskell
 accessDeniedUnlessJobPositionAllowed jobPosition = do
     jobPositions <- currentCompanyJobPositions
-    accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+    accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 ```
 
 And then add a type declaration:
@@ -197,7 +197,7 @@ And then add a type declaration:
 accessDeniedUnlessJobPositionAllowed :: JobPosition -> IO ()
 accessDeniedUnlessJobPositionAllowed jobPosition = do
     jobPositions <- currentCompanyJobPositions
-    accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+    accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 ```
 
 However, GHC will give us an error message stating:
@@ -212,11 +212,11 @@ Application/Helper/Controller.hs:51:21: error:
         jobPositions <- currentCompanyJobPositions
       In the expression:
         do jobPositions <- currentCompanyJobPositions
-           accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+           accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
       In an equation for `accessDeniedUnlessJobPositionAllowed':
           accessDeniedUnlessJobPositionAllowed jobPosition
             = do jobPositions <- currentCompanyJobPositions
-                 accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+                 accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
    |
 51 |     jobPositions <- currentCompanyJobPositions
    |

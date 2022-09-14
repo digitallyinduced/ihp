@@ -180,24 +180,24 @@ instance Controller CheckoutSessionsController where
                 , cancelUrl = urlTo CheckoutCancelAction
                 , mode = "subscription"
                 , paymentMethodTypes = ["card"]
-                , customer = get #stripeCustomerId currentUser
+                , customer = currentUser.stripeCustomerId
                 , lineItem = Stripe.LineItem
-                    { price = get #stripePriceId plan
+                    { price = plan.stripePriceId
                     , quantity = 1
                     , taxRate = Nothing
                     , adjustableQuantity = Nothing
                     }
                 , metadata =
                     [ ("userId", tshow currentUserId)
-                    , ("planId", tshow get #id plan)
+                    , ("planId", tshow plan.id)
                     ]
                 }
 
-        redirectToUrl (get #url stripeCheckoutSession)
+        redirectToUrl stripeCheckoutSession.url
 
     action CheckoutSuccessAction = do
-        plan <- fetchOne (get #planId currentUser)
-        setSuccessMessage ("You're on the " <> get #name plan <> " plan now!")
+        plan <- fetchOne currentUser.planId
+        setSuccessMessage ("You're on the " <> plan.name <> " plan now!")
 
         -- To keep things simple we just redirect the user to the app's start page
         -- after successful subscribing to our plan.
@@ -278,14 +278,14 @@ instance StripeEventController where
         case user of
             Just user -> do
                 subscription <- newRecord @Web.Controller.Prelude.Subscription
-                    |> set #userId (get #id user)
+                    |> set #userId user.id
                     |> set #stripeSubscriptionId subscriptionId
                     |> set #planId planId
                     |> set #quantity 1
                     |> createRecord
 
                 user
-                    |> setJust #subscriptionId (get #id subscription)
+                    |> setJust #subscriptionId subscription.id
                     |> setJust #planId planId
                     |> setJust #stripeCustomerId customer
                     |> updateRecord
@@ -339,13 +339,13 @@ To automatically deal with customers that unsubscribe, add the following handler
 ```haskell
 on CustomerSubscriptionUpdated { subscription = stripeSubscription } = do
     maybeSubscription <- query @Web.Controller.Prelude.Subscription
-            |> filterWhere (#stripeSubscriptionId, get #id stripeSubscription)
+            |> filterWhere (#stripeSubscriptionId, stripeSubscription.id)
             |> fetchOneOrNothing
     case maybeSubscription of
         Just subscription -> do
             subscription 
-                |> set #endsAt (if get #cancelAtPeriodEnd stripeSubscription
-                        then get #currentPeriodEnd stripeSubscription
+                |> set #endsAt (if stripeSubscription.cancelAtPeriodEnd
+                        then stripeSubscription.currentPeriodEnd
                         else Nothing)
                 |> updateRecord
             pure ()
@@ -363,7 +363,7 @@ on CustomerSubscriptionDeleted { subscriptionId } = do
                 |> set #isActive False
                 |> updateRecord
 
-            user <- fetch (get #userId subscription)
+            user <- fetch subscription.userId
             user
                 |> set #planId Nothing
                 |> set #subscriptionId Nothing
@@ -385,20 +385,16 @@ import qualified IHP.Stripe.Types as Stripe
 
 -- Then add this action:
     action OpenBillingPortalAction = do
-        subscription <- currentUser
-            |> get #subscriptionId
-            |> fetchOne
+        subscription <- fetchOne currentUser.subscriptionId
 
-        stripeSubscription <- Stripe.send Stripe.RetrieveSubscription { id = get #stripeSubscriptionId subscription }
+        stripeSubscription <- Stripe.send Stripe.RetrieveSubscription { id = subscription.stripeSubscriptionId }
 
         billingPortal <- Stripe.send Stripe.CreateBillingPortalSession
-                { customer = get #customer stripeSubscription
+                { customer = stripeSubscription.customer
                 , returnUrl = urlTo StartpageAction -- <- You might need to customize the return url here
                 }
 
-        billingPortal
-            |> get #url
-            |> redirectToUrl
+        redirectToUrl billingPortal.url
 ```
 
 Use a form to link to the billing portal:
@@ -461,7 +457,7 @@ Next open `Web/Controller/StripeWebhook.hs` and implement the `on InvoiceFinaliz
                         pure ()
                     Nothing -> do
                         invoice <- newRecord @Invoice
-                            |> set #subscriptionId (get #id subscription)
+                            |> set #subscriptionId subscription.id
                             |> set #stripeInvoiceId stripeInvoiceId
                             |> set #invoiceUrl invoiceUrl
                             |> set #createdAt createdAt
@@ -503,16 +499,16 @@ renderInvoice :: Invoice -> Html
 renderInvoice invoice = [hsx|
     <div class="card d-flex flex-row py-3 px-1 mb-1">
         <div class="col">
-            <a>{get #createdAt invoice |> date}</a>
+            <a>{invoice.createdAt |> date}</a>
         </div>
         <div class="col">
-            <a href={get #invoiceUrl invoice} target="_blank">Subscription</a>
+            <a href={invoice.invoiceUrl} target="_blank">Subscription</a>
         </div>
         <div class="col">
-            <a>{renderPrice (get #currency invoice) (get #total invoice)}</a>
+            <a>{renderPrice invoice.currency invoice.total}</a>
         </div>
         <div class="col-xs mr-3">
-            <a href={get #invoicePdf invoice}>Download</a>
+            <a href={invoice.invoicePdf}>Download</a>
         </div>
     </div>
 |]

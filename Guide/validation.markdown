@@ -356,9 +356,7 @@ This returns `Just "Field cannot be empty"` or `Nothing` when the post has a tit
 Access them from the `meta :: MetaBag` attribute like this:
 
 ```haskell
-record
-    |> get #meta
-    |> get #annotations
+record.meta.annotations
 ```
 
 This returns a `[(Text, Text)]`, e.g. `[("name", "This field cannot be empty")]`.

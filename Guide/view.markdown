@@ -131,7 +131,7 @@ initCompanyContext :: (?context :: ControllerContext, ?modelContext :: ModelCont
 initCompanyContext =
     case currentUserOrNothing of
         Just currentUser -> do
-            company <- fetch (get #companyId currentUser)
+            company <- fetch currentUser.companyId
 
             -- Here the magic happen: We put the company of the user into the context
             putContext company
@@ -158,7 +158,7 @@ defaultLayout inner = [hsx|
 renderCompany :: Html
 renderCompany = [hsx|
     <div class="company">
-        {get #name company}
+        {company.name}
     </div>
 |]
 
@@ -199,13 +199,13 @@ Use [`isActiveAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport
 #### `timeAgo`
 
 ```haskell
-timeAgo (get #createdAt post) -- "1 minute ago"
+timeAgo post.createdAt -- "1 minute ago"
 ```
 
 #### `dateTime`
 
 ```haskell
-dateTime (get #createdAt post) -- "10.6.2019, 15:58"
+dateTime post.createdAt -- "10.6.2019, 15:58"
 ```
 
 ### Customizing Delete Confirmation
@@ -213,13 +213,13 @@ dateTime (get #createdAt post) -- "10.6.2019, 15:58"
 By default, a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized.
 
 ```haskell
-<a href={DeleteToolAction (get #id tool)} class="js-delete" data-confirm="Deleting a tool will also delete all usage of the tool. Continue?">Delete Tool</a>
+<a href={DeleteToolAction tool.id} class="js-delete" data-confirm="Deleting a tool will also delete all usage of the tool. Continue?">Delete Tool</a>
 ```
 
 #### Suppressing Delete Confirmation
 
 ```haskell
-<a href={DeleteToolAction (get #id tool)} class="js-delete js-delete-no-confirm">Delete Tool</a>
+<a href={DeleteToolAction tool.id} class="js-delete js-delete-no-confirm">Delete Tool</a>
 ```
 
 ### Breadcrumbs
@@ -257,7 +257,7 @@ You can override the default page title by calling [`setTitle`](https://ihp.digi
 ```haskell
 instance View MyView where
     beforeRender MyView { post } = do
-        setTitle (get #title post)
+        setTitle post.title
 
     -- ...
 ```
@@ -273,7 +273,7 @@ import Web.View.Posts.Show
 instance Controller PostsController where
     action ShowPostAction { postId } = do
         post <- fetch postId
-        setTitle (get #title post)
+        setTitle post.title
         render ShowView { .. }
 ```
 
@@ -316,11 +316,11 @@ You can set the values for these meta tags from the [`beforeRender`](https://ihp
 ```haskell
 instance View MyView where
     beforeRender MyView { post } = do
-        setOGTitle (get #title post)
-        setOGDescription (get #summary post)
+        setOGTitle post.title
+        setOGDescription post.summary
         setOGUrl (urlTo ShowPostAction { .. })
 
-        case get #imageUrl post of
+        case post.imageUrl of
             Just url -> setOGImage url
             Nothing -> pure () -- When setOGImage is not called, the og:image tag will not be rendered
 
@@ -427,9 +427,9 @@ Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api
 ```haskell
 instance ToJSON Post where
     toJSON post = object
-        [ "id" .= get #id post
-        , "title" .= get #title post
-        , "body" .= get #body post
+        [ "id" .= post.id
+        , "title" .= post.title
+        , "body" .= post.body
         ]
 ```
 
@@ -469,17 +469,17 @@ instance View IndexView where
 
 instance ToJSON Post where
     toJSON post = object
-        [ "id" .= get #id post
-        , "title" .= get #title post
-        , "body" .= get #body post
+        [ "id" .= post.id
+        , "title" .= post.title
+        , "body" .= post.body
         ]
 
 renderPost post = [hsx|
     <tr>
         <td>{post}</td>
-        <td><a href={ShowPostAction (get #id post)}>Show</a></td>
-        <td><a href={EditPostAction (get #id post)} class="text-muted">Edit</a></td>
-        <td><a href={DeletePostAction (get #id post)} class="js-delete text-muted">Delete</a></td>
+        <td><a href={ShowPostAction post.id}>Show</a></td>
+        <td><a href={EditPostAction post.id} class="text-muted">Edit</a></td>
+        <td><a href={DeletePostAction post.id} class="js-delete text-muted">Delete</a></td>
     </tr>
 |]
 ```
@@ -522,9 +522,9 @@ instance Controller PostsController where
 -- The ToJSON instances still needs to be defined somewhere
 instance ToJSON Post where
     toJSON post = object
-        [ "id" .= get #id post
-        , "title" .= get #title post
-        , "body" .= get #body post
+        [ "id" .= post.id
+        , "title" .= post.title
+        , "body" .= post.body
         ]
 ```
 

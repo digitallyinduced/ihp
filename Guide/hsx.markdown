@@ -273,11 +273,11 @@ In HSX you usually write it like this:
 
 ```haskell
 render user = [hsx|
-    <p>Hi {get #name user}</p>
+    <p>Hi {user.name}</p>
     {renderCountry}
 |]
     where
-        renderCountry = case get #country user of
+        renderCountry = case user.country of
             Just country -> [hsx|<p><small>{country}</small></p>|]
             Nothing -> [hsx||]
 ```
@@ -285,7 +285,7 @@ render user = [hsx|
 What about if the country is a empty string? A simple solution could look like this:
 
 ```haskell
-renderCountry = case get #country user of
+renderCountry = case user.country of
     Just "" -> [hsx||]
     Just country -> [hsx|<p>from {country}!</p>|]
     Nothing -> [hsx||]

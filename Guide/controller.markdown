@@ -390,7 +390,7 @@ TODO
 Actions have access to the Request Context via the controller context:
 
 ```
-let requestContext = get #requestContext ?context
+let requestContext = ?context.requestContext
 ```
 
 The Request Context provides access to the Wai request as well as information like the request query and post parameters and the uploaded files. It's usually used by other functions to provide high-level functionality. E.g. the [`getHeader`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:getHeader) function uses the Request Context to access the request headers.

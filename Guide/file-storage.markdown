@@ -380,10 +380,10 @@ action UpdateLogoAction = do
             |> fromMaybe (error "No file given")
 
     storedFile <- storeFile file "logos"
-    let url = get #url storedFile
+    let url = storedFile.url
 ```
 
-This will upload the provided `<input type="file" name="logo"/>` to the `logos` directory. The [`storeFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFile) function returns [`StoredFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:StoredFile) structure. We use `get #url` to read the url where the file was saved to.
+This will upload the provided `<input type="file" name="logo"/>` to the `logos` directory. The [`storeFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFile) function returns [`StoredFile`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:StoredFile) structure. We use `storedFile.url` to read the url where the file was saved to.
 
 There's also a [`storeFileWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileWithOptions) to pass additional configuration:
 
@@ -397,7 +397,7 @@ let options :: StoreFileOptions = def
         }
 
 storedFile <- storeFileWithOptions file options
-let url = get #url storedFile
+let url = storedFile.url
 ```
 
 ### Accessing Uploaded Files without Storing them
@@ -409,7 +409,7 @@ action SubmitMarkdownAction = do
     let content :: Text =
             fileOrNothing "markdown"
             |> fromMaybe (error "no file given")
-            |> get #fileContent
+            |> (.fileContent)
             |> cs -- content is a LazyByteString, so we use `cs` to convert it to Text
 
     -- We can now do anything with the content of the uploaded file
@@ -430,14 +430,14 @@ To upload a file to this action you can use the following form:
 
 ### Accessing Uploaded File Name
 
-You can get the uploaded file name with `get #fileName file`
+You can get the uploaded file name with `file.fileName`
 
 ```haskell
 action SubmitMarkdownAction = do
     let fileName :: Text =
             fileOrNothing "markdown"
             |> fromMaybe (error "no file given")
-            |> get #fileName
+            |> (.fileName)
             |> cs
 
     putStrLn fileName
@@ -450,8 +450,8 @@ When your S3 bucket is not configured for public read access, you need use a tem
 ```haskell
 signedUrl <- createTemporaryDownloadUrlFromPath "logos/8ed22caa-11ea-4c45-a05e-91a51e72558d"
 
-let url :: Text = get #url signedUrl
-let expiredAt :: UTCTime = get #expiredAt signedUrl
+let url :: Text = signedUrl.url
+let expiredAt :: UTCTime = signedUrl.expiredAt
 ```
 
 If the [`StaticDirStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:FileStorage) is used, a unsigned normal URL will be returned, as these files are public anyways.

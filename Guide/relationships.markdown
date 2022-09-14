@@ -49,13 +49,13 @@ In the view we can just access the comments like this:
 
 ```haskell
 [hsx|
-    <h1>{get #title post}</h1>
+    <h1>{post.title}</h1>
     <h2>Comments:</h2>
-    {post |> get #comments}
+    {post.comments}
 |]
 ```
 
-The `post |> get #comments` returns a list of the comments belonging to the post.
+The `post.comments` returns a list of the comments belonging to the post.
 
 The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
@@ -88,13 +88,13 @@ This works because the `comments` field of a `Post` is just a [`QueryBuilder`](h
 This query builder is equivalent to:
 
 ```haskell
-query @Comment |> filterWhere (#postId, get #id post)
+query @Comment |> filterWhere (#postId, post.id)
 ```
 
 The call to `>>= pure . modify #comments (orderByDesc #createdAt)` just appends a [`|> orderByDesc #createdAt`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:orderByDesc) like this:
 
 ```haskell
-query @Comment |> filterWhere (#postId, get #id post) |> orderByDesc #createdAt
+query @Comment |> filterWhere (#postId, post.id) |> orderByDesc #createdAt
 ```
 
 Then the [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) basically just executes this query builder and puts the result back into the `comments` field of the `post` record.
@@ -130,15 +130,15 @@ render = [hsx|
 
 renderPost :: Include "comments" Post -> Html
 renderPost post = [hsx|
-    <h2>{get #title post}</h2>
+    <h2>{post.title}</h2>
     {forEach comments renderComment}
 |]
     where
-        comments = get #comments post
+        comments = post.comments
 
 renderComment :: Comment -> Html
 renderComment comment = [hsx|
-    <div class="comment">{get #body comment}</div>
+    <div class="comment">{comment.body}</div>
 |]
 ```
 
@@ -171,12 +171,12 @@ render = [hsx|
 
 renderComment :: Include "postId" Comment -> Html
 renderComment comment = [hsx|
-    <h2>{get #title post}</h2>
-    <div class="comment">{get #body comment}</div>
+    <h2>{post.title}</h2>
+    <div class="comment">{comment.body}</div>
 |]
     where
         -- The post is stored inside the postId field of the comment
-        post = get #postId comment
+        post = comment.postId
 ```
 
 
@@ -214,9 +214,9 @@ In the view we can just access the comments like this:
 
 ```haskell
 [hsx|
-    <h1>Comment to {comment |> get #postId |> get #title}</h1>
+    <h1>Comment to {comment.postId.title}</h1>
     <h2>Comments:</h2>
-    {comment |> get #body}
+    {comment.body}
 |]
 ```
 
@@ -327,8 +327,8 @@ the result data type can be unpacked and rendered using straight forward pattern
 data type/type constructor:
 ```
 renderStudentDesk :: (Desk :. Maybe StudentDeskCombo :. Student) -> Html
-renderStudentDesk (desk :. Just studentDeskCombo :. Just student) = [hsx|{get #name student} {get #id desk}|]
-renderStudentDesk (desk :. Nothing :. Nothing) = [hsx|<p>No student assigned to this Desk:  {get #id desk}.</p>|]
+renderStudentDesk (desk :. Just studentDeskCombo :. Just student) = [hsx|{student.name} {desk.id}|]
+renderStudentDesk (desk :. Nothing :. Nothing) = [hsx|<p>No student assigned to this Desk:  {desk.id}.</p>|]
 ```
 
 In the case of inner joins the process is even simpler and does not require
@@ -369,7 +369,7 @@ action PostsAction = do
         |> fetch
 
     tags <- query @Tag
-        |> filterWhereIn (#id, map (get #tagId) postsTags)
+        |> filterWhereIn (#id, map (.tagId) postsTags)
         |> fetch
 
     render PostsView { .. }
@@ -388,10 +388,10 @@ html PostsView { .. } = [hsx|
             where
                 thisTags :: [Tag]
                 thisTags = postsTags
-                    |> filter (\postTag -> get #postId postTag == get #id post)
-                    |> mapMaybe (\postTag -> find (\tag -> get #id tag == get #tagId postTag) tags)
+                    |> filter (\postTag -> postTag.postId == post.id)
+                    |> mapMaybe (\postTag -> find (\tag -> tag.id == postTag.tagId) tags)
 
         renderTag tag = [hsx|
-            <span>{get #name tag}</span>
+            <span>{tag.name}</span>
         |]
 ```
