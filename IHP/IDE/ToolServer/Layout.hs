@@ -104,9 +104,6 @@ toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
                 {helpIcon}
             </a>
             <div id="help-content" style="display: none">
-                <a class="btn btn-primary btn-block mb-1" href="https://github.com/digitallyinduced/ihp/discussions" target="_blank">
-                    → GitHub Discussions
-                </a>
                 <a class="btn btn-light border btn-block mb-1" href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">
                     → StackOverflow
                 </a>

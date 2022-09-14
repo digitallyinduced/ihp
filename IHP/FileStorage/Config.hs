@@ -39,12 +39,12 @@ import Control.Monad.Trans.Maybe
 -- >     option (AppHostname "localhost")
 -- >     initS3Storage "eu-central-1" "my-bucket-name"
 --
-initS3Storage :: Text -> Text -> State.StateT TMap.TMap IO ()
+initS3Storage :: HasCallStack => Text -> Text -> State.StateT TMap.TMap IO ()
 initS3Storage region bucket = do
     connectInfo <- awsCI
         |> setRegion region
         |> setCredsFrom [fromAWSEnv]
-        |> liftIO
+        |> configIO
 
     let baseUrl = "https://" <> bucket <> ".s3." <> region <> ".amazonaws.com/"
     option S3Storage { connectInfo, bucket, baseUrl }
@@ -66,13 +66,13 @@ initS3Storage region bucket = do
 -- >     option (AppHostname "localhost")
 -- >     initMinioStorage "https://minio.example.com" "my-bucket-name"
 --
-initMinioStorage :: Text -> Text -> State.StateT TMap.TMap IO ()
+initMinioStorage :: HasCallStack => Text -> Text -> State.StateT TMap.TMap IO ()
 initMinioStorage server bucket = do
     connectInfo <- server
         |> cs
         |> fromString
         |> setCredsFrom [fromMinioEnv]
-        |> liftIO
+        |> configIO
 
     let baseUrl = server <> "/" <> bucket <> "/"
     option S3Storage { connectInfo, bucket, baseUrl }
@@ -114,11 +114,11 @@ initStaticDirStorage = option StaticDirStorage
 -- >     option (AppHostname "localhost")
 -- >     initFilebaseStorage "my-bucket-name"
 --
-initFilebaseStorage :: Text -> State.StateT TMap.TMap IO ()
+initFilebaseStorage :: HasCallStack => Text -> State.StateT TMap.TMap IO ()
 initFilebaseStorage bucket = do
     connectInfo <- filebaseCI
         |> setCredsFrom [fromFilebaseEnv]
-        |> liftIO
+        |> configIO
 
     let baseUrl = "https://" <> bucket <> ".s3.filebase.com/"
     option S3Storage { connectInfo, bucket, baseUrl }

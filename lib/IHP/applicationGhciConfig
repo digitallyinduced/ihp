@@ -49,3 +49,5 @@
 :set -XOverloadedRecordDot
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
+:set -package ghc
+:l Main.hs

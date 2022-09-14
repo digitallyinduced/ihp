@@ -23,6 +23,9 @@ import Data.String.Interpolate.IsString (i)
 import qualified Control.Exception as Exception
 import IHP.ModelSupport
 
+import qualified Prelude
+import qualified GHC.Stack as Stack
+
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
 newtype BaseUrl = BaseUrl Text
@@ -104,13 +107,13 @@ ihpDefaultConfig = do
 
     environment <- findOption @Environment
 
-    defaultLogger <- liftIO (defaultLoggerForEnv environment)
+    defaultLogger <- configIO (defaultLoggerForEnv environment)
     option defaultLogger
     logger <- findOption @Logger
 
     requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
 
-    reqLoggerMiddleware <- liftIO $
+    reqLoggerMiddleware <- configIO $
             case environment of
                 Development -> do
                                     reqLogger <- (logger |> defaultRequestLogger)
@@ -126,7 +129,7 @@ ihpDefaultConfig = do
 
     option $ Sendmail
 
-    databaseUrl <- liftIO defaultDatabaseUrl
+    databaseUrl <- configIO defaultDatabaseUrl
 
     option $ DatabaseUrl databaseUrl
     option $ DBPoolIdleTime $
@@ -207,7 +210,7 @@ envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -
 envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
 
 envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
-envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
+envOrNothing name = configIO $ fmap parseString <$> Posix.getEnv name
     where
         parseString string = case envStringToValue string of
             Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
@@ -486,13 +489,13 @@ data RootApplication = RootApplication deriving (Eq, Show)
 defaultPort :: Int
 defaultPort = 8000
 
-defaultDatabaseUrl :: IO ByteString
+defaultDatabaseUrl :: HasCallStack => IO ByteString
 defaultDatabaseUrl = do
     currentDirectory <- getCurrentDirectory
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     envOrDefault "DATABASE_URL" defaultDatabaseUrl
 
-defaultLoggerForEnv :: Environment -> IO Logger
+defaultLoggerForEnv :: HasCallStack => Environment -> IO Logger
 defaultLoggerForEnv = \case
     Development -> defaultLogger
     Production -> newLogger def { level = Info }
@@ -541,3 +544,26 @@ initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnect
     modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
     pure modelContext
 
+-- | Wraps an Exception thrown during the config process, but adds a CallStack
+--
+-- Inspired by https://maksbotan.github.io/posts/2021-01-20-callstacks.html
+--
+data ExceptionWithCallStack = ExceptionWithCallStack CallStack SomeException
+
+instance Prelude.Show ExceptionWithCallStack where
+    show (ExceptionWithCallStack callStack inner) = Prelude.show inner <> "\n" <> Stack.prettyCallStack callStack
+
+instance Exception ExceptionWithCallStack
+
+-- | Runs IO inside the config process
+--
+-- It works like 'liftIO', but attaches a CallStack on error. Without this it would be hard to see where
+-- an error during the config setup comes from.
+--
+-- All call-sites of this function should also have a @HasCallStack@ constraint to provide helpful information in the call stack.
+--
+-- See https://github.com/digitallyinduced/ihp/issues/1503
+configIO :: (MonadIO monad, HasCallStack) => IO result -> monad result
+configIO action = liftIO (action `catch` wrapWithCallStack)
+    where
+        wrapWithCallStack exception = throwIO (ExceptionWithCallStack Stack.callStack exception)

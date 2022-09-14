@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             0.18.0
+version:             0.20.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -19,16 +19,16 @@ source-repository head
 library
     default-language: Haskell2010
     build-depends:
-          base               >= 4.1 && <= 4.16
+          base               >= 4.16.3 && < 4.17
         , blaze-html         >= 0.9.1 && < 0.10
-        , bytestring         >= 0.10.12 && < 0.11
-        , text               >= 1.2.4 && < 1.3
+        , bytestring         >= 0.11.3 && < 0.12
+        , template-haskell   >= 2.18.0 && < 2.19
+        , text               >= 1.2.5 && < 1.3
         , containers         >= 0.6.5 && < 0.7
-        , template-haskell   >= 2.16.0 && < 2.17
         , blaze-markup       >= 0.8.2 && < 0.9
-        , megaparsec         >= 9.0.1 && < 9.3
+        , ghc                >= 9.2.4 && < 9.3
+        , megaparsec         >= 9.2.1 && < 9.3
         , string-conversions >= 0.4.0 && < 0.5
-        , ghc
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -75,7 +75,6 @@ library
         -Wmissed-specialisations
         -Wall-missed-specialisations
         -fexpose-all-unfoldings
-        -split-sections
     hs-source-dirs: .
     exposed-modules:
         IHP.HSX.Parser
