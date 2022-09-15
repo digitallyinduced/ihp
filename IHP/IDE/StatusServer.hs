@@ -251,6 +251,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     (filePath, rest) = ByteString.breakSubstring ": " line
                     openEditor = "http://localhost:" <> tshow toolServerPort <> (pathTo OpenEditorAction) <> "?path=" <> cs plainFilePath <> "&line=" <> cs fileLine <> "&col=" <> cs fileCol
                     (plainFilePath, fileLine, fileCol) = case ByteString.split ':' filePath of
+                            [path, line, col, rest] -> (path, line, col) -- This happens for parser errors from the IHP.SchemaCompiler.compile function
                             [path, line, col] -> (path, line, col)
                             [path, line] -> (path, line, "0")
                             otherwise -> (filePath, "0", "0")
