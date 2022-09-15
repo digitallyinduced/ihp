@@ -158,6 +158,10 @@ We are happy to merge your pull requests!😄
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 
+### Contributing Documentation
+
+If you just want to improve docs, [you can find the markdown files in the Guide directory](https://github.com/digitallyinduced/ihp/tree/master/Guide).
+
 ## Releases
 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
