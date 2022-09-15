@@ -131,12 +131,14 @@ data AppState = AppState
     , fileWatcherState :: !FileWatcherState
     , toolServerState :: !ToolServerState
     , databaseNeedsMigration :: !(IORef Bool)
+    , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     } deriving (Show)
 
 emptyAppState :: IO AppState
 emptyAppState = do
     clients <- newIORef mempty
     databaseNeedsMigration <- newIORef False
+    lastSchemaCompilerError <- newIORef Nothing
     pure AppState
         { postgresState = PostgresNotStarted
         , appGHCIState = AppGHCINotStarted
@@ -145,6 +147,7 @@ emptyAppState = do
         , fileWatcherState = FileWatcherNotStarted
         , toolServerState = ToolServerNotStarted
         , databaseNeedsMigration
+        , lastSchemaCompilerError
         }
 
 data Context = Context
