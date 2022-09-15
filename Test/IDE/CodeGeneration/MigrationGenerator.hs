@@ -1110,7 +1110,15 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            it "should handle indexes with coalesce" do
+                -- https://github.com/digitallyinduced/ihp/issues/1451
+                let targetSchema = sql "CREATE UNIQUE INDEX user_invite_uniqueness ON user_invites (organization_id, email, coalesce(expires_at, '0001-01-01 01:01:01-04'));"
+                let actualSchema = sql ""
+                let migration = sql [i|
+                    CREATE UNIQUE INDEX user_invite_uniqueness ON user_invites (organization_id, email, coalesce(expires_at, '0001-01-01 01:01:01-04'));
+                |]
 
+                diffSchemas targetSchema actualSchema `shouldBe` migration 
 
 
 sql :: Text -> [Statement]
