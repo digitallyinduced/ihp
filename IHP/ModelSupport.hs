@@ -207,10 +207,7 @@ type FieldName = ByteString
 -- >>> isNew book
 -- False
 isNew :: forall model. (HasField "meta" model MetaBag) => model -> Bool
-isNew model = model
-        |> get #meta
-        |> get #originalDatabaseRecord
-        |> isNothing
+isNew model = isNothing model.meta.originalDatabaseRecord
 {-# INLINABLE isNew #-}
 
 type family GetModelName model :: Symbol
@@ -344,7 +341,7 @@ textToId text = case parsePrimaryKey (cs text) of
 -- If the log level is greater than debug, just perform the query action without measuring time.
 measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => IO a -> Query -> q -> IO a
 measureTimeIfLogging queryAction theQuery theParameters = do
-    let currentLogLevel = get #logger ?modelContext |> get #level
+    let currentLogLevel = ?modelContext.logger.level
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
@@ -403,7 +400,7 @@ sqlExec theQuery theParameters = do
 --
 withRLSParams :: (?modelContext :: ModelContext, PG.ToRow params) => (PG.Query -> [PG.Action] -> result) -> PG.Query -> params -> result
 withRLSParams runQuery query params = do
-    case get #rowLevelSecurity ?modelContext of
+    case ?modelContext.rowLevelSecurity of
         Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> do
             let query' = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query
             let params' = [PG.toField (PG.Identifier rlsAuthenticatedRole), PG.toField rlsUserId] <> PG.toRow params
@@ -469,16 +466,15 @@ sqlQueryScalarOrNothing theQuery theParameters = do
 -- >
 -- >    -- When creating the user fails, there will be no company left over
 -- >    user <- newRecord @User
--- >        |> set #companyId (get #id company)
+-- >        |> set #companyId company.id
 -- >        |> createRecord
 -- >
 -- >    company <- company
--- >        |> set #ownerId (get #id user)
+-- >        |> set #ownerId user.id
 -- >        |> updateRecord
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
 withTransaction block = withTransactionConnection do
-    let connection = ?modelContext
-            |> get #transactionConnection
+    let connection = ?modelContext.transactionConnection
             |> \case
                 Just connection -> connection
                 Nothing -> error "withTransaction: transactionConnection not set as expected"
@@ -510,8 +506,7 @@ withRowLevelSecurityDisabled block = do
 --
 -- Throws an error if called from outside a 'withTransaction'
 transactionConnectionOrError :: (?modelContext :: ModelContext) => Connection
-transactionConnectionOrError = ?modelContext
-            |> get #transactionConnection
+transactionConnectionOrError = ?modelContext.transactionConnection
             |> \case
                 Just connection -> connection
                 Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
@@ -582,7 +577,7 @@ class
     --
     primaryKeyCondition :: record -> [(Text, PG.Action)]
     default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
-    primaryKeyCondition record = [("id", toField (get #id record))]
+    primaryKeyCondition record = [("id", toField record.id)]
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -591,7 +586,7 @@ logQuery query parameters time = do
         -- To get around that we convert to and from a rational so we can format as desired.
         let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
-        let rlsInfo = case get #rowLevelSecurity ?context of
+        let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
                 Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
                 Nothing -> ""
@@ -614,7 +609,7 @@ logQuery query parameters time = do
 -- Use 'deleteRecords' if you want to delete multiple records.
 deleteRecord :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), GetModelByTableName table ~ record, Show (PrimaryKey table), ToField (PrimaryKey table)) => record -> IO ()
 deleteRecord record =
-    deleteRecordById @record (get #id record)
+    deleteRecordById @record record.id
 {-# INLINABLE deleteRecord #-}
 
 -- | Like 'deleteRecord' but using an Id
@@ -702,7 +697,7 @@ type NormalizeModel model = GetModelByTableName (GetTableName model)
 
 -- | Returns the ids for a list of models
 --
--- Shorthand for @map (get #id) records@.
+-- Shorthand for @map (.id) records@.
 --
 -- >>> users <- query @User |> fetch
 -- >>> ids users
@@ -755,11 +750,7 @@ instance SetField "touchedFields" MetaBag [Text] where
 -- >>> project |> set #name "New Name" |> didChangeRecord
 -- True
 didChangeRecord :: (HasField "meta" record MetaBag) => record -> Bool
-didChangeRecord record =
-    record
-    |> get #meta
-    |> get #touchedFields
-    |> isEmpty
+didChangeRecord record = isEmpty record.meta.touchedFields
 
 -- | Returns 'True' if the specific field of the record has unsaved changes
 --
@@ -785,9 +776,7 @@ didChange field record = didTouchField && didChangeField
     where
         didTouchField :: Bool
         didTouchField =
-            record
-            |> get #meta
-            |> get #touchedFields
+            record.meta.touchedFields
             |> includes (cs $! symbolVal field)
 
         didChangeField :: Bool
@@ -798,9 +787,7 @@ didChange field record = didTouchField && didChangeField
 
         originalFieldValue :: fieldValue
         originalFieldValue =
-            record
-            |> get #meta
-            |> get #originalDatabaseRecord
+            record.meta.originalDatabaseRecord
             |> fromMaybe (error "didChange called on a record without originalDatabaseRecord")
             |> fromDynamic @record
             |> fromMaybe (error "didChange failed to retrieve originalDatabaseRecord")
@@ -830,7 +817,7 @@ fieldWithDefault
   -> model
   -> FieldWithDefault value
 fieldWithDefault name model
-  | cs (symbolVal name) `elem` get #touchedFields (get #meta model) =
+  | cs (symbolVal name) `elem` model.meta.touchedFields =
     NonDefault (get name model)
   | otherwise = Default
 
@@ -862,7 +849,7 @@ fieldWithUpdate
   -> model
   -> FieldWithUpdate name value
 fieldWithUpdate name model
-  | cs (symbolVal name) `elem` get #touchedFields (get #meta model) =
+  | cs (symbolVal name) `elem` model.meta.touchedFields =
     Update (get name model)
   | otherwise = NoUpdate name
 
@@ -925,7 +912,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 --
 --
 trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
-trackTableRead tableName = case get #trackTableReadCallback ?modelContext of
+trackTableRead tableName = case ?modelContext.trackTableReadCallback of
     Just callback -> callback tableName
     Nothing -> pure ()
 {-# INLINABLE trackTableRead #-}
