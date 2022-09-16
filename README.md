@@ -140,7 +140,7 @@ There's more on the IHP website.
 
 [You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
-[📧 To stay in the loop, subscribe to the IHP release emails.](https://artisanal-founder-6256.ck.page/a010d28553) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
+[📧 To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
 
 ## Install
 
@@ -166,4 +166,4 @@ If you just want to improve docs, [you can find the markdown files in the Guide 
 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
 
-[📧 Subscribe to the IHP release emails to stay in the loop.]([https://ihp.digitallyinduced.com/](https://artisanal-founder-6256.ck.page/a010d28553))
+[📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/MailingList)

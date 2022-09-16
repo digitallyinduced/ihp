@@ -1155,7 +1155,7 @@ We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com
 You now understand enough of IHP and Haskell to be dangerous. The best way to continue your journey is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
 - [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
-- [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+- [To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList)
 - Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
 - Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
 
