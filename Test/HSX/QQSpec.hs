@@ -8,6 +8,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.HSX.QQ
 import qualified Text.Blaze.Renderer.Text as Blaze
+import Text.Blaze (preEscapedTextValue)
 
 tests = do
     describe "HSX" do
@@ -163,6 +164,12 @@ tests = do
             -- See https://github.com/digitallyinduced/ihp/issues/1226
 
             [hsx|<div {...[ ("data-hoge" :: Text, "Hello World!" :: Text) ]}></div>|] `shouldBeHtml` "<div data-hoge=\"Hello World!\"></div>"
+        
+        it "should support pre escaped class names" do
+            -- See https://github.com/digitallyinduced/ihp/issues/1527
+
+            let className = preEscapedTextValue "a&"
+            [hsx|<div class={className}></div>|] `shouldBeHtml` "<div class=\"a&\"></div>"
 
 data Project = Project { name :: Text }
 

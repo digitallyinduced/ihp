@@ -123,8 +123,12 @@ instance ApplyAttribute attribute => ApplyAttribute (Maybe attribute) where
     applyAttribute attr attr' (Just value) h = applyAttribute attr attr' value h
     applyAttribute attr attr' Nothing h = h
 
+instance ApplyAttribute Html5.AttributeValue where
+    applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') value)
+    {-# INLINE applyAttribute #-}
+
 instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
-    applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') (cs value))
+    applyAttribute attr attr' value h = applyAttribute attr attr' ((cs value) :: Html5.AttributeValue) h
     {-# INLINE applyAttribute #-}
 
 instance Show (MarkupM ()) where

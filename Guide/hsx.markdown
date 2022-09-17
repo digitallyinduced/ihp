@@ -338,6 +338,47 @@ The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelu
 {"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}
 ```
 
+#### HTML Attributes without Escaping
+
+Variable attributes are also escaped:
+
+```haskell
+html = [hsx|
+    <div class={style}>
+        Hello World
+    </div>
+|]
+    where
+        style = "someClassName&" :: Text
+```
+
+The above code will generate the following HTML, where the `&` symbol has been replaced with it's escpaed form `&amp;`:
+
+```html
+<div class="someClassName&amp;">Hello World</div>
+```
+
+You might want to have this `&` character not escaped. E.g. to use [Tailwind Arbitrary Variants](https://tailwindcss.com/blog/tailwindcss-v3-1#arbitrary-values-but-for-variants). In that case wrap the attribute value with a call to `preEscapedTextValue`:
+
+
+```haskell
+html = [hsx|
+    <div class={style}>
+        Hello World
+    </div>
+|]
+    where
+        style = preEscapedTextValue "someClassName&"
+```
+
+The HTML will now render without escaping the attribute:
+
+```html
+<div class="someClassName&">Hello World</div>
+```
+
+Keep in mind that you're now responsible for making sure that there's no bad input inside the string passed to `preEscapedTextValue`. You might accidentally open the door for XSS.
+
 ## Example: HSX and the equivalent BlazeHtml
 
 The following code using HSX:
