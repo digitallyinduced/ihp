@@ -146,11 +146,11 @@ If you want to try it out before making your own repo, use this button below:
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/gitpod-io/template-ihp)
 
-## 3. Next
+## 3. Setting up your editor
 
-Setting up your editor
+Also check this out if you're editor is already set up. You might miss a plugin that's recommended for IHP to work well.
 
--   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode)
+-   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode) **Don't have nix-env-selector installed? Read this link**
 -   [Sublime Text](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-sublime-text)
 -   [Emacs](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-emacs)
 -   [Vim / NeoVim](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-vim-neovim)
