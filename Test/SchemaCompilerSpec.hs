@@ -37,7 +37,7 @@ tests = do
                         inputValue VeryHappy = "very happy" :: Text
                         inputValue Sad = "sad" :: Text
                         inputValue VerySad = "very sad" :: Text
-                    instance DeepSeq.NFData Mood where rnf a = ()
+                    instance DeepSeq.NFData Mood where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should deal with enums that have no values" do
@@ -92,7 +92,7 @@ tests = do
                         inputValue Newbrunswick = "NewBrunswick" :: Text
                         inputValue Princeedwardisland = "PrinceEdwardIsland" :: Text
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
-                    instance DeepSeq.NFData Province where rnf a = ()
+                    instance DeepSeq.NFData Province where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
             it "should deal with duplicate enum values" do
@@ -114,7 +114,7 @@ tests = do
                     instance InputValue PropertyType where
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
-                    instance DeepSeq.NFData PropertyType where rnf a = ()
+                    instance DeepSeq.NFData PropertyType where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
@@ -172,7 +172,7 @@ tests = do
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
-                    type User = User' 
+                    type User = User'
 
                     instance FromRow User where
                         fromRow = do
@@ -231,7 +231,7 @@ tests = do
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
-                    type User = User' 
+                    type User = User'
 
                     instance FromRow User where
                         fromRow = do
@@ -290,7 +290,7 @@ tests = do
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
-                    type User = User' 
+                    type User = User'
 
                     instance FromRow User where
                         fromRow = do
@@ -352,4 +352,3 @@ getInstanceDecl instanceName full =
             | isEmpty line = []
             | otherwise = line : takeInstanceDecl rest
         takeInstanceDecl [] = error "never encountered newline?"
-
