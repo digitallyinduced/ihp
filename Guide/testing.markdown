@@ -84,8 +84,8 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 -- Fetch the new post.
                 post <- query @Post |> fetchOne
 
-                get #title post `shouldBe` "Post title"
-                get #body post `shouldBe` "Body of post"
+                post.title `shouldBe` "Post title"
+                post.body `shouldBe` "Body of post"
 
             it "can show posts" $ withContext do
                 post <- newRecord @Post
@@ -93,7 +93,7 @@ tests = aroundAll (withIHPApp WebApplication config) do
                     |> set #body "**Mark down**"
                     |> createRecord
 
-                response <- callAction ShowPostAction { postId = get #id post }
+                response <- callAction ShowPostAction { postId = post.id }
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Lorem Ipsum"
@@ -156,8 +156,8 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 -- Fetch the new post
                 post <- query @Post |> fetchOne
 
-                (get #title post) `shouldBe` "Post title"
-                (get #body post) `shouldBe` "Body of post"
+                post.title `shouldBe` "Post title"
+                post.body `shouldBe` "Body of post"
 ```
 
 

@@ -122,7 +122,7 @@ renderForm :: User -> Html
 renderForm user = [hsx|
     <form method="POST" action={CreateSessionAction}>
         <div class="form-group">
-            <input name="email" value={get #email user} type="email" class="form-control" placeholder="E-Mail" required="required" autofocus="autofocus" />
+            <input name="email" value={user.email} type="email" class="form-control" placeholder="E-Mail" required="required" autofocus="autofocus" />
         </div>
         <div class="form-group">
             <input name="password" type="password" class="form-control" placeholder="Password"/>
@@ -189,7 +189,7 @@ Inside your actions you can then use [`currentUser`](https://ihp.digitallyinduce
 
 ```haskell
 action MyAction = do
-    let text = "Hello " <> (get #email currentUser)
+    let text = "Hello " <> currentUser.email
     renderPlain text
 ```
 
@@ -201,18 +201,18 @@ You can use [`currentUserOrNothing`](https://ihp.digitallyinduced.com/api-docs/I
 action MyAction = do
     case currentUserOrNothing of
         Just currentUser -> do
-            let text = "Hello " <> (get #email currentUser)
+            let text = "Hello " <> currentUser.email
             renderPlain text
         Nothing -> renderPlain "Please login first"
 ```
 
-Additionally you can use [`currentUserId`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUserId) as a shortcut for `currentUser |> get #id`.
+Additionally you can use [`currentUserId`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUserId) as a shortcut for `currentUser.id`.
 
 You can also access the user using [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) inside your views:
 
 ```html
 [hsx|
-<h1>Hello {get #email currentUser}</h1>
+<h1>Hello {currentUser.email}</h1>
 |]
 ```
 
@@ -236,7 +236,7 @@ To block login (requires `isConfirmed` boolean field in `Users` table):
 ```haskell
 instance Sessions.SessionsControllerConfig User where
     beforeLogin user = do
-        unless (get #isConfirmed user) do
+        unless user.isConfirmed do
             setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
             redirectTo NewSessionAction
 ```
@@ -263,7 +263,7 @@ To create a user with a hashed password, you just need to call the hashing funct
             |> ifValid \case
                 Left user -> render NewView { .. }
                 Right user -> do
-                    hashed <- hashPassword (get #passwordHash user)
+                    hashed <- hashPassword user.passwordHash
                     user <- user
                         |> set #passwordHash hashed
                         |> createRecord
@@ -347,13 +347,13 @@ import IHP.AuthSupport.Confirm
 
 instance BuildMail (ConfirmationMail User) where
     subject = "Confirm your Account"
-    to ConfirmationMail { .. } = Address { addressName = Nothing, addressEmail = get #email user }
+    to ConfirmationMail { .. } = Address { addressName = Nothing, addressEmail = user.email }
     from = "someone@example.com"
     html ConfirmationMail { .. } = [hsx|
         Hey,
         just checking it's you.
 
-        <a href={urlTo (ConfirmUserAction (get #id user) confirmationToken)} target="_blank">
+        <a href={urlTo (ConfirmUserAction user.id confirmationToken)} target="_blank">
             Activate your Account
         </a>
     |]
@@ -381,7 +381,7 @@ To send out the confirmation mail, open your registration action. Typically this
             |> ifValid \case
                 Left user -> render NewView { .. }
                 Right user -> do
-                    hashed <- hashPassword (get #passwordHash user)
+                    hashed <- hashPassword user.passwordHash
                     user <- user
                         |> set #passwordHash hashed
                         |> createRecord
@@ -391,7 +391,7 @@ To send out the confirmation mail, open your registration action. Typically this
 
 
                     -- We can also customize the flash message text to let the user know that we have sent him an email
-                    setSuccessMessage $ "Welcome onboard! Before you can start, please quickly confirm your email address by clicking the link we've sent to " <> get #email user
+                    setSuccessMessage $ "Welcome onboard! Before you can start, please quickly confirm your email address by clicking the link we've sent to " <> user.email
                     
                     redirectTo NewSessionAction
     ```

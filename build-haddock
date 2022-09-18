@@ -43,6 +43,8 @@ haddock --html -t "IHP Api Reference" --hyperlinked-source --built-in-themes --q
     --optghc="-XDefaultSignatures" \
     --optghc="-XStandaloneDeriving" \
     --optghc="-XTemplateHaskell" \
+    --optghc="-XDeepSubsumption" \
+    --optghc="-XOverloadedRecordDot" \
     --optghc="-package-env -"
 
 cd haddock-build

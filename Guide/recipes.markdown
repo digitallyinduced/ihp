@@ -86,7 +86,7 @@ action UpdateUserAction { userId } = do
 
 This accepts any kind of image file compatible with ImageMagick, resize it, reduce the image quality, strip all meta information, and save it as JPG. The file is stored inside the `static/uploads` folder in the project (the directory will be created if it does not exist).
 
-In your view, just use the image URL like `<img src={get #pictureUrl currentUser}/>`.
+In your view, just use the image URL like `<img src={currentUser.pictureUrl}/>`.
 Note that when you define the `picture_url` field in your `users` table that you
 must check the `Nullable` select box with a default `Null`. This ensures your
 `pictureUrl` data has a `Maybe Text` type and can handle
@@ -105,7 +105,7 @@ instance View EditView where
     |]
         where
             picturePath :: Text
-            picturePath = get #pictureUrl user
+            picturePath = user.pictureUrl
 
             renderForm :: User -> Html
             renderForm user = formFor user [hsx|
@@ -138,7 +138,7 @@ Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupp
 ```haskell
 action EditPostAction { postId } = do
     post <- fetch postId
-    accessDeniedUnless (get #authorId post == currentUserId)
+    accessDeniedUnless (post.authorId == currentUserId)
 
     renderHtml EditView { .. }
 ```

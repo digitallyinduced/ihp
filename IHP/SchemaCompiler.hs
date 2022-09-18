@@ -15,12 +15,17 @@ import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import Control.Monad.Fail
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
+import qualified Control.Exception as Exception
+
+data CompileException = CompileException ByteString deriving (Show)
+instance Exception CompileException where
+    displayException (CompileException message) = cs message
 
 compile :: IO ()
 compile = do
     let options = fullCompileOptions
     SchemaDesigner.parseSchemaSql >>= \case
-        Left parserError -> fail (cs parserError)
+        Left parserError -> Exception.throwIO (CompileException parserError)
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))

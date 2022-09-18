@@ -95,8 +95,9 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
         AppGHCILoading { .. } -> do
             let appGHCIState' = AppGHCIModulesLoaded { .. }
 
+            hasSchemaCompilerError <- isJust <$> readIORef state.lastSchemaCompilerError
             case postgresState of
-                PostgresStarted {} -> do
+                PostgresStarted {} | not hasSchemaCompilerError -> do
                     stopStatusServer statusServerState
                     startLoadedApp appGHCIState
 
@@ -155,6 +156,11 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
     clearStatusServer statusServerState
 
+    lastSchemaCompilerError <- readIORef state.lastSchemaCompilerError
+    case lastSchemaCompilerError of
+        Just exception -> dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+        Nothing -> pure ()
+
     let appGHCIState' =
             case appGHCIState of
                 AppGHCILoading { .. } -> AppGHCILoading { .. }
@@ -163,9 +169,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
-    async do
-        SchemaCompiler.compile `catch` (\(exception :: SomeException) -> do Log.error (tshow exception); dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) }))
-
+    async tryCompileSchema
     async (updateDatabaseIsOutdated state)
     pure state
 
@@ -312,7 +316,7 @@ startAppGHCI = do
 
 
     -- Compile Schema before loading the app
-    SchemaCompiler.compile `catch` (\(e :: SomeException) -> Log.error (tshow e))
+    tryCompileSchema
 
     forEach loadAppCommands (sendGhciCommand process)
 
@@ -354,3 +358,17 @@ updateDatabaseIsOutdated state = ((do
             Log.error (tshow exception)
             dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) })
         ))
+
+tryCompileSchema :: (?context :: Context) => IO ()
+tryCompileSchema =
+    (do
+        SchemaCompiler.compile
+        state <- readIORef ?context.appStateRef
+        writeIORef state.lastSchemaCompilerError Nothing
+    ) `catch` (\(exception :: SomeException) -> do
+            Log.error (tshow exception)
+            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+
+            state <- readIORef ?context.appStateRef
+            writeIORef state.lastSchemaCompilerError (Just exception)
+        )

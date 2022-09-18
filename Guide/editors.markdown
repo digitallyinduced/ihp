@@ -24,26 +24,30 @@ To make file paths clickable inside the web browser (e.g. when a type error happ
 export IHP_EDITOR="code --goto"
 ```
 
+**Video Tutorial:**
+
+You can also [watch "IHP + Visual Studio Code: Autocompletion & Smart IDE Features with Haskell Language Server" on Youtube](https://www.youtube.com/watch?v=_8_8XYO6rgY)
+
 ### VSCode + Haskell Language Server Troubleshooting
 
-#### "Couldn't figure out what GHC version the project is using"
+- **`"Couldn't figure out what GHC version the project is using"`**
 
-If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
+    If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
 
-1. Open the project in VS Code
-2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
-3. This will restart VS Code. After that Haskell Language Server should be working.
+    1. Open the project in VS Code
+    2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
+    3. This will restart VS Code. After that Haskell Language Server should be working.
 
-#### "Failed to get project GHC executable path: CradleError"
+- **`"Failed to get project GHC executable path: CradleError"`**
 
-If you get an error `Failed to get project GHC executable path` with a `CradleError`, check your Haskell extension's settings and make sure you are using `"haskell.manageHLS": "PATH"`:
+    If you get an error `Failed to get project GHC executable path` with a `CradleError`, check your Haskell extension's settings and make sure you are using `"haskell.manageHLS": "PATH"`:
 
-1. Open the project in VS Code
-2. Click `Extensions` (`Ctrl + Shift + X`) -> Right-click `Haskell` -> `Extension Settings` -> `Haskell: Manage HLS` -> `PATH`
+    1. Open the project in VS Code
+    2. Click `Extensions` (`Ctrl + Shift + X`) -> Right-click `Haskell` -> `Extension Settings` -> `Haskell: Manage HLS` -> `PATH`
 
-This error happens because the `GHCup` setting ignores all `PATH` variables pointing to `HLS` and instead uses the `/home/$USER/.cache/ghcup` directory. This is contrary to IHP's usage of Nix which places the necessary tooling into your `PATH` whenever your Nix environment is selected.
+    This error happens because the `GHCup` setting ignores all `PATH` variables pointing to `HLS` and instead uses the `/home/$USER/.cache/ghcup` directory. This is contrary to IHP's usage of Nix which places the necessary tooling into your `PATH` whenever your Nix environment is selected.
 
-A caveat of this fix is that every time you want to use GHCup for tooling version management, you'll need to switch the setting back. The reason for this can be found in [this issue](https://github.com/haskell/vscode-haskell/issues/387).
+    A caveat of this fix is that every time you want to use GHCup for tooling version management, you'll need to switch the setting back. The reason for this can be found in [this issue](https://github.com/haskell/vscode-haskell/issues/387).
 
 ### VSCode on Windows with Windows Subsystem for Linux
 

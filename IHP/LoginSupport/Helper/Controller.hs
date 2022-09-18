@@ -35,48 +35,60 @@ import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import Data.Kind
+import Data.Typeable
 
-{-# INLINABLE currentUser #-}
-currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
-currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentUserOrNothing
-
-{-# INLINABLE currentUserOrNothing #-}
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
-currentUserOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
+currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
+currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
     Just user -> user
-    Nothing -> error "currentUserOrNothing: initAuthentication @User has not been called in initContext inside FrontController of this application"
+    Nothing -> error ("initAuthentication @" <> show (typeRep (Proxy @user)) <> " has not been called in initContext inside FrontController of this application")
+{-# INLINE currentRoleOrNothing #-}
 
-{-# INLINABLE currentUserId #-}
-currentUserId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = currentUser @user |> get #id
+currentRole :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => user
+currentRole = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) (currentRoleOrNothing @user)
+{-# INLINE currentRole #-}
 
-{-# INLINABLE ensureIsUser #-}
-ensureIsUser :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => IO ()
-ensureIsUser =
-    case currentUserOrNothing @user of
+currentRoleId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
+currentRoleId = (currentRole @user).id
+{-# INLINE currentRoleId #-}
+
+ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => IO ()
+ensureIsRole =
+    case currentRoleOrNothing @user of
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
+{-# INLINABLE ensureIsRole #-}
 
+currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
+currentUser = currentRole @user
+{-# INLINABLE currentUser #-}
+
+currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
+currentUserOrNothing = currentRoleOrNothing @user
+{-# INLINABLE currentUserOrNothing #-}
+
+currentUserId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
+currentUserId = currentRoleId @user
+{-# INLINABLE currentUserId #-}
+
+ensureIsUser :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser = ensureIsRole @user
+{-# INLINABLE ensureIsUser #-}
+
+currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
+currentAdmin = currentRole @admin
 {-# INLINABLE currentAdmin #-}
-currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => admin
-currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 
+currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => (Maybe admin)
+currentAdminOrNothing = currentRoleOrNothing @admin
 {-# INLINABLE currentAdminOrNothing #-}
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => (Maybe admin)
-currentAdminOrNothing = case unsafePerformIO (maybeFromContext @(Maybe admin)) of
-    Just admin -> admin
-    Nothing -> error "currentAdminOrNothing: initAuthentication @Admin has not been called in initContext inside FrontController of this application"
 
+currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
+currentAdminId = currentRoleId @admin
 {-# INLINABLE currentAdminId #-}
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin) => adminId
-currentAdminId = currentAdmin @admin |> get #id
 
+ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin = ensureIsRole @admin
 {-# INLINABLE ensureIsAdmin #-}
-ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin) => IO ()
-ensureIsAdmin =
-    case currentAdminOrNothing @admin of
-        Just _ -> pure ()
-        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 
 -- | Log's in a user
 --
@@ -106,9 +118,9 @@ logout :: forall user. (?context :: ControllerContext, KnownSymbol (ModelSupport
 logout user = Session.setSession (sessionKey @user) ("" :: Text)
 {-# INLINABLE logout #-}
 
-{-# INLINABLE sessionKey #-}
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
 sessionKey = "login." <> cs (ModelSupport.getModelName @user)
+{-# INLINABLE sessionKey #-}
 
 redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do

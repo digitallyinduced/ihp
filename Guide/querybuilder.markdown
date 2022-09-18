@@ -233,6 +233,6 @@ project <- projectId |> fetch
 For convenience there is also a [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) implementation for `Maybe SomeId`:
 
 ```haskell
-let assignedUserId :: Maybe UserId = project |> get #assignedUserId
+let assignedUserId :: Maybe UserId = project.assignedUserId
 assignedUser <- assignedUserId |> fetchOneOrNothing
 ```

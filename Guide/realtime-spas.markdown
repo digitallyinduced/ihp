@@ -459,7 +459,7 @@ Next we're going to add a todo form to create new todos:
             html WelcomeView = [hsx|
                  <div
                     id="hello-world"
-                    data-user-id={show (get #id currentUser)}
+                    data-user-id={show currentUser.id}
                 />
             |]
     ```

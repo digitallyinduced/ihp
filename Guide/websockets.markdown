@@ -249,7 +249,7 @@ import Web.Controller.Prelude
 
 instance WSApp HelloWorldController where
     run = do
-        let name = currentUser |> get #name
+        let name = currentUser.name
         sendTextData ("Hello " <> name <> "!")
 ```
 

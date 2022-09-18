@@ -273,11 +273,11 @@ In HSX you usually write it like this:
 
 ```haskell
 render user = [hsx|
-    <p>Hi {get #name user}</p>
+    <p>Hi {user.name}</p>
     {renderCountry}
 |]
     where
-        renderCountry = case get #country user of
+        renderCountry = case user.country of
             Just country -> [hsx|<p><small>{country}</small></p>|]
             Nothing -> [hsx||]
 ```
@@ -285,7 +285,7 @@ render user = [hsx|
 What about if the country is a empty string? A simple solution could look like this:
 
 ```haskell
-renderCountry = case get #country user of
+renderCountry = case user.country of
     Just "" -> [hsx||]
     Just country -> [hsx|<p>from {country}!</p>|]
     Nothing -> [hsx||]
@@ -337,6 +337,47 @@ The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelu
 ```html
 {"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}
 ```
+
+#### HTML Attributes without Escaping
+
+Variable attributes are also escaped:
+
+```haskell
+html = [hsx|
+    <div class={style}>
+        Hello World
+    </div>
+|]
+    where
+        style = "someClassName&" :: Text
+```
+
+The above code will generate the following HTML, where the `&` symbol has been replaced with it's escpaed form `&amp;`:
+
+```html
+<div class="someClassName&amp;">Hello World</div>
+```
+
+You might want to have this `&` character not escaped. E.g. to use [Tailwind Arbitrary Variants](https://tailwindcss.com/blog/tailwindcss-v3-1#arbitrary-values-but-for-variants). In that case wrap the attribute value with a call to `preEscapedTextValue`:
+
+
+```haskell
+html = [hsx|
+    <div class={style}>
+        Hello World
+    </div>
+|]
+    where
+        style = preEscapedTextValue "someClassName&"
+```
+
+The HTML will now render without escaping the attribute:
+
+```html
+<div class="someClassName&">Hello World</div>
+```
+
+Keep in mind that you're now responsible for making sure that there's no bad input inside the string passed to `preEscapedTextValue`. You might accidentally open the door for XSS.
 
 ## Example: HSX and the equivalent BlazeHtml
 
