@@ -172,7 +172,7 @@ tests = do
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
-                    type User = User'
+                    type User = User' 
 
                     instance FromRow User where
                         fromRow = do
@@ -231,7 +231,7 @@ tests = do
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
-                    type User = User'
+                    type User = User' 
 
                     instance FromRow User where
                         fromRow = do
