@@ -64,6 +64,29 @@ This is made possible because of the [she-bang line](https://en.wikipedia.org/wi
 
 In case you get a permission error, try to add the executable flag via `chmod +x Application/Script/HelloWorldToAllUsers.hs`.
 
+## Running a script from ghci
+
+You can also open a ghci prompt to test features in scripts interactively.
+
+```bash
+make ghci
+```
+
+Then you can load your script into the interpreter:
+```
+:l Application/Scripts/MyScript
+```
+
+and run the script from the IHP ghci command line:
+
+```haskell
+IHP> runScript ihpDefaultConfig runTestName
+```
+
+The `ihpDefaultConfig` is made available from the `Application.Script.Prelude` import but can be substituted
+with your own `Config` data structure. This is particularly useful for adjusting logging levels or
+testing new APIs that require certain configuration variables.
+
 ## Building a script
 
 In production, you might want to build a script to a binary for performance reasons. Use make like this:
