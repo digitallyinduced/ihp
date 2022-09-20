@@ -111,7 +111,7 @@ testConfig = do
 and then run the  script from ghci:
 
 ```haskell
-IHP> runScript appConfig runTestNamee
+IHP> runScript testConfig runTestNamee
 ```
 
 ## Building a script
