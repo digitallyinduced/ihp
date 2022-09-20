@@ -87,6 +87,33 @@ The `ihpDefaultConfig` is made available from the `Application.Script.Prelude` i
 with your own `Config` data structure. This is particularly useful for adjusting logging levels or
 testing new APIs that require certain configuration variables.
 
+You can define a custom configuration (or import one from Config.hs) in your Script
+with Logging set to Debug:
+
+```haskell
+...
+import qualified IHP.Log as Log
+import IHP.Log.Types
+
+
+testConfig :: ConfigBuilder
+testConfig = do
+    logger <- liftIO $ newLogger def {
+        level = Debug,
+        formatter = withTimeAndLevelFormatter,
+        destination = File "Log/App.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 4) defaultBufSize
+        }
+    option logger
+
+...
+```
+
+and then run the  script from ghci:
+
+```haskell
+IHP> runScript appConfig runTestNamee
+```
+
 ## Building a script
 
 In production, you might want to build a script to a binary for performance reasons. Use make like this:
