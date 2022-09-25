@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "093f236f30c3b82205355806043263a8d636f8c2"
-, nixPkgsSha256 ? "sha256-LT8T+dZhoZ7vLP8FYzXPUpvgC84Hw0IoAJvrLiIIk10"
-, compiler ? "ghc924"
+, nixPkgsRev ? "38db06836e9680686825f155b8fe5762ac7f32ac"
+, nixPkgsSha256 ? "sha256-5SUqhjQkpH8gawVssZ78seouF4qthhWwvb/HA+izGAg"
+, compiler ? "ghc942"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
@@ -37,9 +37,9 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb"];
-  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"];
-  ihpDontHaddockPackages = [];
+  ihpDontCheckPackages = ["mutable-containers" "primitive" "hspec-core" "hourglass" "shelly" "doctest" "with-utf8"];
+  ihpDoJailbreakPackages = ["base-compat" "postgresql-libpq" "ghc-bignum-orphans" "ghc-typelits-natnormalise" "cryptonite" "doctest" "lucid" "hedgehog" "tasty-hedgehog" "with-utf8"];
+  ihpDontHaddockPackages = ["hedgehog"];
 
   config = {
     allowBroken = true;

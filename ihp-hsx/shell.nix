@@ -3,7 +3,7 @@ let
         ihp = ./../.;
         haskellPackagesDir = ./../NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc924;
+    ghc = pkgs.haskell.packages.ghc942;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         classy-prelude
         string-conversions
