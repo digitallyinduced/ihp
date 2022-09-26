@@ -14,6 +14,7 @@ import GHC.Hs.Expr as Expr
 import GHC.Hs.Extension as Ext
 import GHC.Hs.Pat as Pat
 import GHC.Hs.Lit
+import qualified GHC.Hs.Utils as Utils
 import qualified Data.ByteString as B
 import qualified Language.Haskell.TH.Syntax as TH
 import GHC.Types.SrcLoc
@@ -27,6 +28,7 @@ import qualified GHC.Unit.Module as Module
 import GHC.Stack
 import qualified Data.List.NonEmpty as NonEmpty
 import Language.Haskell.Syntax.Type
+
 
 fl_value = rationalFromFractionalLit
 
@@ -72,6 +74,12 @@ toFieldExp = undefined
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
+toPat (ParPat xP lP) = (toPat . unLoc) lP --error "TH.ParPat not implemented"
+toPat (ConPat pat_con pat_args pat_con_ext) = TH.ConP (toName pat_con) () --error "TH.ConstructorPattern not implemented"
+toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
+toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
+toPat (WildPat _ ) = error "TH.WildPat not implemented"
+toPat (NPat _ _ _ _ ) = error "TH.NPat not implemented"
 toPat p = todo "toPat" p
 
 toExp :: Expr.HsExpr GhcPs -> TH.Exp
