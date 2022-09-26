@@ -71,11 +71,14 @@ toName n = case n of
 toFieldExp :: a
 toFieldExp = undefined
 
+-- Th.ConP Name [Type] [Pat]
+-- ConPat (XConPat p) (XRec p (ConLikeP p)) (HsConPatDetails p)
+-- type XConPat GhcRn = NoExtField see
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
 toPat (ParPat xP lP) = (toPat . unLoc) lP --error "TH.ParPat not implemented"
-toPat (ConPat pat_con pat_args pat_con_ext) = TH.ConP (toName pat_con) () --error "TH.ConstructorPattern not implemented"
+toPat (ConPat pat_con_ext pat_con pat_args) = TH.ConP (toName pat_con_ext) (map toType (pat_con)) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))  --error "TH.ConstructorPattern not implemented"
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
 toPat (WildPat _ ) = error "TH.WildPat not implemented"
