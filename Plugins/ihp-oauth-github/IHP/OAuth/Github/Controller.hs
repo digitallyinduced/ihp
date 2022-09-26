@@ -60,6 +60,7 @@ githubConnectCallbackAction = do
             , state }
 
     let accessToken = get #accessToken accessTokenResponse
+    let ?accessToken = accessToken
     githubUser <- Github.requestGithubUser accessToken
 
     case currentUserOrNothing of
@@ -144,16 +145,16 @@ handleGithubCallbackError = do
         Nothing -> pure ()
 
 class GithubOAuthControllerConfig user where
-    createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> IO user
+    createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> IO user
     createUser user githubUser = createRecord user
     
-    beforeCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> user
+    beforeCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> user
     beforeCreateUser user githubUser = user
 
-    afterCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> IO ()
+    afterCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> IO ()
     afterCreateUser user = pure ()
 
-    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> IO user
+    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> IO user
     beforeLogin user githubUser = pure user
 
 
