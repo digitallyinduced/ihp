@@ -65,8 +65,8 @@ toName :: RdrName -> TH.Name
 toName n = case n of
   (Unqual o) -> TH.mkName (occNameString o)
   (Qual m o) -> TH.mkName (Module.moduleNameString m <> "." <> occNameString o)
+  (Exact name) -> TH.mkName ((occNameString . rdrNameOcc . getRdrName) name) --error "exact"
   (Orig _ _) -> error "orig"
-  (Exact _) -> error "exact"
 
 toFieldExp :: a
 toFieldExp = undefined
