@@ -31,6 +31,16 @@ tests = do
             let project = Project { name = "Testproject" }
             [hsx|<h1>Project: {get #name project}</h1>|] `shouldBeHtml` "<h1>Project: Testproject</h1>"
 
+        it "should support lambdas and pattern matching on constructors" do
+            let placeData = PlaceId "Punches Cross"
+            [hsx|<h1>{(\(PlaceId x) -> x)(placeData)}</h1>|] `shouldBeHtml` "<h1>Punches Cross</h1>"
+
+        it "should support infix notation for standard constructors e.g. (:):" do
+            [hsx| <h1>{show $ (:) 1  [2,3,42]}</h1> |] `shouldBeHtml` "<h1>[1,2,3,42]</h1>"
+
+        it "should support infix notation for standard constructors e.g. (,):" do
+            [hsx|<h1>{((,) 1 2)}</h1>|] `shouldBeHtml` "<h1>(1,2)</h1>"
+
         it "should support self closing tags" do
             [hsx|<input>|] `shouldBeHtml` "<input>"
             [hsx|<br><br/>|] `shouldBeHtml` "<br><br>"
@@ -159,12 +169,12 @@ tests = do
                     ("hello", "world")
                     ]
             [hsx|<div {...customAttributes}></div>|] `shouldBeHtml` "<div hello=\"world\"></div>"
-        
+
         it "should handle spread attributes with a list" do
             -- See https://github.com/digitallyinduced/ihp/issues/1226
 
             [hsx|<div {...[ ("data-hoge" :: Text, "Hello World!" :: Text) ]}></div>|] `shouldBeHtml` "<div data-hoge=\"Hello World!\"></div>"
-        
+
         it "should support pre escaped class names" do
             -- See https://github.com/digitallyinduced/ihp/issues/1527
 
@@ -172,5 +182,14 @@ tests = do
             [hsx|<div class={className}></div>|] `shouldBeHtml` "<div class=\"a&\"></div>"
 
 data Project = Project { name :: Text }
+
+data PlaceId  = PlaceId Text
+data LocationId  = LocationId Int PlaceId
+newtype NewPlaceId = NewPlaceId Text
+
+newPlaceData = NewPlaceId "New Punches Cross"
+locationId = LocationId 17 (PlaceId "Punches Cross")
+
+
 
 shouldBeHtml hsx expectedHtml = (Blaze.renderMarkup hsx) `shouldBe` expectedHtml

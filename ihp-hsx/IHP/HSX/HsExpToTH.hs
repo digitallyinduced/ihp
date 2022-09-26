@@ -71,16 +71,11 @@ toName n = case n of
 toFieldExp :: a
 toFieldExp = undefined
 
--- Th.ConP Name [Type] [Pat]
--- ConPat (XConPat p) (XRec p (ConLikeP p)) (HsConPatDetails p)
--- type XConPat GhcRn = NoExtField see
--- Looks like we need the https://hackage.haskell.org/package/ghc-9.4.2/docs/GHC-Hs-Syn-Type.html hsLPatType :: LPat GhcTc -> Type
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
-toPat (ParPat xP lP) = (toPat . unLoc) lP --error "TH.ParPat not implemented"
-toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))  --error "TH.ConstructorPattern not implemented"
---toPat (ConPat pat_con_ext pat_con pat_args) = TH.ConP (toName pat_con_ext) (map (toType . unLoc) (hsPatSigType pat_args)) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))  --error "TH.ConstructorPattern not implemented"
+toPat (ParPat xP lP) = (toPat . unLoc) lP
+toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
 toPat (WildPat _ ) = error "TH.WildPat not implemented"
