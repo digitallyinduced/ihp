@@ -14,9 +14,10 @@ newSessionWithGithubAction :: forall user. (?context :: ControllerContext, HasPa
 newSessionWithGithubAction = do
     state <- Github.initState
     let options = Github.AuthorizeOptions
-            { clientId = githubOAuthConfig |> get #clientId
+            { clientId = githubOAuthConfig.clientId
             , redirectUrl = urlTo Github.GithubConnectCallbackAction
-            , state }
+            , state
+            , scope = githubOAuthScopeConfig.scope }
     Github.redirectToGithubConnect options
 
 githubConnectCallbackAction :: forall user.
@@ -54,8 +55,8 @@ githubConnectCallbackAction = do
 
 
     accessTokenResponse <- Github.requestGithubAccessToken Github.RequestAccessTokenOptions
-            { clientId = githubOAuthConfig |> get #clientId
-            , clientSecret = githubOAuthConfig |> get #clientSecret
+            { clientId = githubOAuthConfig.clientId
+            , clientSecret = githubOAuthConfig.clientSecret
             , code
             , state }
 
@@ -165,7 +166,12 @@ githubOAuthConfig = ?context
             |> TMap.lookup @Github.GithubOAuthConfig
             |> fromMaybe (error "Could not find GithubOAuthConfig in config. Did you forgot to call 'initGithubOAuth' inside your Config.hs?")
 
-
+githubOAuthScopeConfig :: (?context :: ControllerContext) => Github.GithubOAuthScopeConfig
+githubOAuthScopeConfig = ?context
+            |> getFrameworkConfig
+            |> get #appConfig
+            |> TMap.lookup @Github.GithubOAuthScopeConfig
+            |> fromMaybe Github.GithubOAuthScopeConfig { scope = ["user:email"] }
 
 ensureIsNotLocked :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
 ensureIsNotLocked user = do
