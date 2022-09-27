@@ -14,6 +14,7 @@ import GHC.Hs.Expr as Expr
 import GHC.Hs.Extension as Ext
 import GHC.Hs.Pat as Pat
 import GHC.Hs.Lit
+import qualified GHC.Hs.Utils as Utils
 import qualified Data.ByteString as B
 import qualified Language.Haskell.TH.Syntax as TH
 import GHC.Types.SrcLoc
@@ -27,6 +28,7 @@ import qualified GHC.Unit.Module as Module
 import GHC.Stack
 import qualified Data.List.NonEmpty as NonEmpty
 import Language.Haskell.Syntax.Type
+
 
 fl_value = rationalFromFractionalLit
 
@@ -63,8 +65,8 @@ toName :: RdrName -> TH.Name
 toName n = case n of
   (Unqual o) -> TH.mkName (occNameString o)
   (Qual m o) -> TH.mkName (Module.moduleNameString m <> "." <> occNameString o)
+  (Exact name) -> TH.mkName ((occNameString . rdrNameOcc . getRdrName) name) --error "exact"
   (Orig _ _) -> error "orig"
-  (Exact _) -> error "exact"
 
 toFieldExp :: a
 toFieldExp = undefined
@@ -72,6 +74,12 @@ toFieldExp = undefined
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
+toPat (ParPat xP lP) = (toPat . unLoc) lP
+toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
+toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
+toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
+toPat (WildPat _ ) = error "TH.WildPat not implemented"
+toPat (NPat _ _ _ _ ) = error "TH.NPat not implemented"
 toPat p = todo "toPat" p
 
 toExp :: Expr.HsExpr GhcPs -> TH.Exp
