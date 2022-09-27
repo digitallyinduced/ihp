@@ -19,6 +19,7 @@ library
         , uri-encode
         , wreq
         , lens
+        , text
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
