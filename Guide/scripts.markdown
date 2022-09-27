@@ -64,6 +64,100 @@ This is made possible because of the [she-bang line](https://en.wikipedia.org/wi
 
 In case you get a permission error, try to add the executable flag via `chmod +x Application/Script/HelloWorldToAllUsers.hs`.
 
+## Running a script from ghci
+
+You can also open a ghci prompt to test features in scripts interactively.
+
+```bash
+make ghci
+```
+
+Then you can load your script into the interpreter:
+```
+:l Application.Script.TestScript
+```
+
+and run the script from the IHP ghci command line:
+
+```haskell
+IHP> runScript ihpDefaultConfig run
+```
+
+The `ihpDefaultConfig` is made available from the `Application.Script.Prelude` import but can be substituted
+with your own configuration data structure defined in `Config`.
+
+The configuration type is `ConfigBuilder` which is an IHP internal data structure. It provides
+a number of configuration parameters stored as a record that tells IHP about your app's configuration:
+e.g. where to look for your database, or a place to store API keys.
+
+This is particularly useful for adjusting
+logging levels or testing new APIs.
+
+You can also define custom configurations in your Config.hs, e.g. for staging,
+local development, or simply use your production application configuration:
+
+```haskell
+-- Config.hs
+import qualified IHP.Log as Log
+import Config.hs
+import IHP.Log.Types
+
+appConfig :: ConfigBuilder
+appConfig = do
+    option Development
+
+   -- option Production
+   -- option (AppHostname "ihpapp.io")
+   -- option (BaseUrl "https://ihpapp.io")
+
+    option $ SES
+        {
+          accessKey = "myAccessKey"
+        , secretKey = "mySecretAccessKey"
+        , region = "eu-west-1" -- YOUR REGION
+        }
+
+
+testConfig :: ConfigBuilder
+testConfig = do
+    option Development
+
+    logger <- liftIO $ newLogger def {
+        level = Debug,
+        formatter = withTimeAndLevelFormatter,
+        destination = File "Log/App.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 4) defaultBufSize
+        }
+    option logger
+
+```
+
+Your app's configuration file `Config.hs` can then be imported in your Script:
+
+```haskell
+-- Application/Script/TestScript
+#!/usr/bin/env run-script
+module Application.Script.TestScript where
+
+import Application.Script.Prelude
+
+import Config
+
+
+run :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO ()
+run = do
+    user <- query @User |> filterWhere(#name, "Php") |> fetch
+    user |> set #name "Ihp" |> updateRecord
+    pure ()
+
+```
+
+and then run the script from ghci:
+
+```haskell
+IHP> :l Application.Script.TestScript
+IHP> runScript appConfig run
+```
+
 ## Building a script
 
 In production, you might want to build a script to a binary for performance reasons. Use make like this:
