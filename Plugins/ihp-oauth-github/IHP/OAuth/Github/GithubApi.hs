@@ -8,13 +8,13 @@ import IHP.OAuth.Github.Types
 import qualified Data.Text as Text
 
 githubConnectUrl :: AuthorizeOptions -> Text
-githubConnectUrl options =
+githubConnectUrl AuthorizeOptions { .. } =
         "https://github.com/login/oauth/authorize?scope=" <> encodedScope <> "&client_id="
-        <> URI.encodeText options.clientId
-        <> "&redirect_url=" <> URI.encodeText options.redirectUrl
-        <> "&state=" <> URI.encodeText options.state
+        <> URI.encodeText clientId
+        <> "&redirect_url=" <> URI.encodeText redirectUrl
+        <> "&state=" <> URI.encodeText state
     where
-        encodedScope = URI.encodeText (Text.intercalate " " options.scope)
+        encodedScope = URI.encodeText (Text.intercalate " " scope)
 
 redirectToGithubConnect :: (?context :: ControllerContext) => AuthorizeOptions -> IO ()
 redirectToGithubConnect options = do
