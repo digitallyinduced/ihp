@@ -407,7 +407,7 @@ This will render like:
 You can specify [`disableLabel`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the label element from being generated:
 
 ```haskell
-{(textField #title) { disableLabel = True }
+{(textField #title) { disableLabel = True } }
 ```
 
 Will render as:
