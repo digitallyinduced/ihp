@@ -30,6 +30,7 @@ import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
+import IHP.IDE.FileWatcher
 
 main :: IO ()
 main = withUtf8 do
@@ -60,14 +61,15 @@ main = withUtf8 do
     start
 
     withAsync consumeGhciOutput \_ -> do
-        async Telemetry.reportTelemetry
-        forever do
-            appState <- readIORef appStateRef
-            when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
-            action <- takeMVar actionVar
-            when isDebugMode (Log.debug $ tshow action)
-            nextAppState <- handleAction appState action
-            writeIORef appStateRef nextAppState
+        withFileWatcher do
+            async Telemetry.reportTelemetry
+            forever do
+                appState <- readIORef appStateRef
+                when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
+                action <- takeMVar actionVar
+                when isDebugMode (Log.debug $ tshow action)
+                nextAppState <- handleAction appState action
+                writeIORef appStateRef nextAppState
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
@@ -189,7 +191,6 @@ start = do
     async startStatusServer
     async startAppGHCI
     async startPostgres
-    async startFileWatcher
     pure ()
 
 stop :: (?context :: Context) => AppState -> IO ()
@@ -198,47 +199,7 @@ stop AppState { .. } = do
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
-    stopFileWatcher fileWatcherState
     stopToolServer toolServerState
-
-startFileWatcher :: (?context :: Context) => IO ()
-startFileWatcher = do
-        let fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
-        let fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
-        thread <- async $ FS.withManagerConf fileWatcherConfig $ \manager -> do
-            FS.watchTree manager "." shouldActOnFileChange handleFileChange
-            forever (threadDelay maxBound) `finally` FS.stopManager manager
-        dispatch (UpdateFileWatcherState (FileWatcherStarted { thread }))
-    where
-        handleFileChange event = do
-            let filePath = getEventFilePath event
-            if isHaskellFile filePath
-                then dispatch HaskellFileChanged
-                else if "Application/Schema.sql" `isSuffixOf` filePath
-                    then dispatch SchemaChanged
-                    else if isAssetFile filePath
-                        then dispatch AssetChanged
-                        else mempty
-
-        shouldActOnFileChange :: FS.ActionPredicate
-        shouldActOnFileChange event =
-            let path = getEventFilePath event
-            in isHaskellFile path || isAssetFile path || isSQLFile path
-
-        isHaskellFile = isSuffixOf ".hs"
-        isAssetFile = isSuffixOf ".css"
-        isSQLFile = isSuffixOf ".sql"
-
-        getEventFilePath :: FS.Event -> FilePath
-        getEventFilePath event = case event of
-                FS.Added filePath _ _ -> filePath
-                FS.Modified filePath _ _ -> filePath
-                FS.Removed filePath _ _ -> filePath
-                FS.Unknown filePath _ _ -> filePath
-
-stopFileWatcher :: FileWatcherState -> IO ()
-stopFileWatcher FileWatcherStarted { thread } = uninterruptibleCancel thread
-stopFileWatcher _ = pure ()
 
 startGHCI :: IO ManagedProcess
 startGHCI = do
