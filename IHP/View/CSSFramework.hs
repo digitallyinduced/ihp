@@ -371,9 +371,7 @@ bootstrap = def
 
 bootstrap4 :: CSSFramework
 bootstrap4 = def
-    { styledFlashMessage = \cssFramework -> \case
-            SuccessFlashMessage message -> [hsx|<div>{message}</div>|]
-            ErrorFlashMessage message -> [hsx|<div>{message}</div>|]
+    { styledFlashMessage
     , styledFormField
     , styledTextFormField
     , styledTextareaFormField
