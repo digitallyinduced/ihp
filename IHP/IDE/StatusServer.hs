@@ -1,4 +1,4 @@
-module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer, consumeGhciOutput) where
+module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, continueStatusServer, consumeGhciOutput) where
 
 import IHP.ViewPrelude hiding (catch)
 import qualified Network.Wai as Wai
@@ -67,7 +67,7 @@ clearStatusServer :: (?context :: Context) => StatusServerState -> IO ()
 clearStatusServer StatusServerStarted { .. } = do
     writeIORef standardOutput []
     writeIORef errorOutput []
-    async (notifyOutput (standardOutput, errorOutput) clients)
+    async (notifyOutput clients)
     pure ()
 clearStatusServer StatusServerPaused { .. } = do
     writeIORef standardOutput []
@@ -76,34 +76,27 @@ clearStatusServer StatusServerNotStarted = pure ()
 
 consumeGhciOutput :: (?context :: Context) => IO ()
 consumeGhciOutput = forever do
-    outputLine <- Queue.readChan ?context.ghciOutChan
+    line <- Queue.readChan ?context.ghciOutChan
     appState <- readIORef ?context.appStateRef
 
-    notifyBrowserOnApplicationOutput appState.statusServerState outputLine
-
-
-notifyBrowserOnApplicationOutput :: (?context :: Context) => StatusServerState -> OutputLine -> IO ()
-notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do
     let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
     unless shouldIgnoreLine do
-        case line of
-            StandardOutput line -> modifyIORef standardOutput (line:)
-            ErrorOutput line -> modifyIORef errorOutput (line:)
-        let payload = case line of
-                StandardOutput line -> "stdout" <> line
-                ErrorOutput line -> "stderr" <> line
+        let writeOutputLine standardOutput errorOutput = do
+                case line of
+                    StandardOutput line -> modifyIORef' standardOutput (line:)
+                    ErrorOutput line -> modifyIORef' errorOutput (line:)
 
-        async (notifyOutput (standardOutput, errorOutput) clients)
-        pure ()
-notifyBrowserOnApplicationOutput StatusServerPaused { serverRef, clients, standardOutput, errorOutput } line = do
-    case line of
-        StandardOutput line -> modifyIORef standardOutput (line:)
-        ErrorOutput line -> modifyIORef errorOutput (line:)
-    pure ()
-notifyBrowserOnApplicationOutput _ _ = putStrLn "StatusServer: Cannot notify clients as not in running state"
+        case appState.statusServerState of
+            StatusServerStarted { clients, standardOutput, errorOutput } -> do
+                writeOutputLine standardOutput errorOutput
+                notifyOutput clients
+            StatusServerPaused { standardOutput, errorOutput } -> do
+                writeOutputLine standardOutput errorOutput
+            otherwise -> pure ()
 
-notifyOutput :: (IORef [ByteString], IORef [ByteString]) -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
-notifyOutput (standardOutputRef, errorOutputRef) stateRef = do
+
+notifyOutput :: IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
+notifyOutput stateRef = do
     clients <- readIORef stateRef
 
     forM_ clients \(connection, didChangeMVar) -> do
