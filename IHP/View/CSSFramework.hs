@@ -54,13 +54,13 @@ instance Default CSSFramework where
                 , styledBreadcrumbItem
             }
         where
-            styledFlashMessages cssFramework flashMessages = forEach flashMessages (styledFlashMessage cssFramework cssFramework)
+            styledFlashMessages cssFramework flashMessages = forEach flashMessages (cssFramework.styledFlashMessage cssFramework)
 
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
             styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledTextareaFormField} formField =
                 formGroup renderInner
                 where
-                    renderInner = case get #fieldType formField of
+                    renderInner = case formField.fieldType of
                         TextInput -> styledTextFormField cssFramework "text" formField validationResult
                         NumberInput -> styledTextFormField cssFramework "number" formField validationResult
                         PasswordInput -> styledTextFormField cssFramework "password" formField validationResult
@@ -75,7 +75,7 @@ instance Default CSSFramework where
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
                     validationResult :: Blaze.Html
-                    validationResult = unless (get #disableValidationResult formField) (styledValidationResult cssFramework formField)
+                    validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)
 
                     -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
                     formGroup :: Blaze.Html -> Blaze.Html
@@ -222,7 +222,7 @@ instance Default CSSFramework where
             styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
             styledValidationResult cssFramework formField@FormField { validatorResult = Just violation } =
                 let
-                    className :: Text = get #styledValidationResultClass cssFramework
+                    className :: Text = cssFramework.styledValidationResultClass
                     message = case violation of
                         TextViolation text -> [hsx|{text}|]
                         HtmlViolation html -> Blaze.preEscapedToHtml html
@@ -233,7 +233,7 @@ instance Default CSSFramework where
             styledValidationResultClass = ""
 
             styledSubmitButton cssFramework SubmitButton { label, buttonClass } =
-                let className :: Text = get #styledSubmitButtonClass cssFramework
+                let className :: Text = cssFramework.styledSubmitButtonClass
                 in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} type="submit">{label}</button>|]
 
             styledInputClass _ _ = ""
@@ -253,16 +253,16 @@ instance Default CSSFramework where
                 <div class="d-flex justify-content-md-center">
                     <nav aria-label="Page Navigator" class="mr-2">
                         <ul class="pagination">
-                            {get #linkPrevious paginationView}
-                            {get #pageDotDotItems paginationView}
-                            {get #linkNext paginationView}
+                            {paginationView.linkPrevious}
+                            {paginationView.pageDotDotItems}
+                            {paginationView.linkNext}
                         </ul>
                     </nav>
 
                     <div class="form-row">
                         <div class="col-auto mr-2">
                             <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                                {get #itemsPerPageSelector paginationView}
+                                {paginationView.itemsPerPageSelector}
                             </select>
                         </div>
                     </div>
@@ -324,7 +324,7 @@ instance Default CSSFramework where
             styledBreadcrumb _ _ breadcrumbsView = [hsx|
                 <nav>
                     <ol class="breadcrumb">
-                        {get #breadcrumbItems breadcrumbsView}
+                        {breadcrumbsView.breadcrumbItems}
 
                     </ol>
                 </nav>
@@ -417,7 +417,7 @@ bootstrap4 = def
         styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledTextareaFormField} formField =
             formGroup renderInner
             where
-                renderInner = case get #fieldType formField of
+                renderInner = case formField.fieldType of
                     TextInput -> styledTextFormField cssFramework "text" formField validationResult
                     NumberInput -> styledTextFormField cssFramework "number" formField validationResult
                     PasswordInput -> styledTextFormField cssFramework "password" formField validationResult
@@ -432,7 +432,7 @@ bootstrap4 = def
                     FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
                 validationResult :: Blaze.Html
-                validationResult = unless (get #disableValidationResult formField) (styledValidationResult cssFramework formField)
+                validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)
 
                 -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
                 formGroup :: Blaze.Html -> Blaze.Html
@@ -579,7 +579,7 @@ bootstrap4 = def
         styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
         styledValidationResult cssFramework formField@FormField { validatorResult = Just violation } =
             let
-                className :: Text = get #styledValidationResultClass cssFramework
+                className :: Text = cssFramework.styledValidationResultClass
                 message = case violation of
                     TextViolation text -> [hsx|{text}|]
                     HtmlViolation html -> Blaze.preEscapedToHtml html
@@ -588,7 +588,7 @@ bootstrap4 = def
         styledValidationResult _ _ = mempty
 
         styledSubmitButton cssFramework SubmitButton { label, buttonClass } =
-            let className :: Text = get #styledSubmitButtonClass cssFramework
+            let className :: Text = cssFramework.styledSubmitButtonClass
             in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} type="submit">{label}</button>|]
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
@@ -598,16 +598,16 @@ bootstrap4 = def
             <div class="d-flex justify-content-md-center">
                 <nav aria-label="Page Navigator" class="mr-2">
                     <ul class="pagination">
-                        {get #linkPrevious paginationView}
-                        {get #pageDotDotItems paginationView}
-                        {get #linkNext paginationView}
+                        {paginationView.linkPrevious}
+                        {paginationView.pageDotDotItems}
+                        {paginationView.linkNext}
                     </ul>
                 </nav>
 
                 <div class="form-row">
                     <div class="col-auto mr-2">
                         <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                            {get #itemsPerPageSelector paginationView}
+                            {paginationView.itemsPerPageSelector}
                         </select>
                     </div>
                 </div>
@@ -669,7 +669,7 @@ bootstrap4 = def
         styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav>
                 <ol class="breadcrumb">
-                    {get #breadcrumbItems breadcrumbsView}
+                    {breadcrumbsView.breadcrumbItems}
 
                 </ol>
             </nav>
@@ -872,7 +872,7 @@ tailwind = def
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
         styledPagination _ paginationView@PaginationView {pageUrl, pagination} =
             let
-                currentPage = get #currentPage pagination
+                currentPage = pagination.currentPage
 
                 previousPageUrl = if hasPreviousPage pagination then pageUrl $ currentPage - 1 else "#"
                 nextPageUrl = if hasNextPage pagination then pageUrl $ currentPage + 1 else "#"
@@ -911,16 +911,16 @@ tailwind = def
                     <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                         <div class="text-sm text-gray-700">
                             <select class="px-4 py-3" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                                {get #itemsPerPageSelector paginationView}
+                                {paginationView.itemsPerPageSelector}
                             </select>
                         </div>
                         <div>
                         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                            {get #linkPrevious paginationView}
+                            {paginationView.linkPrevious}
 
-                            {get #pageDotDotItems paginationView}
+                            {paginationView.pageDotDotItems}
 
-                            {get #linkNext paginationView}
+                            {paginationView.linkNext}
                         </nav>
                         </div>
                     </div>
@@ -1009,7 +1009,7 @@ tailwind = def
         styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2" role="list">
-                    {get #breadcrumbItems breadcrumbsView}
+                    {breadcrumbsView.breadcrumbItems}
                 </ol>
             </nav>
         |]
