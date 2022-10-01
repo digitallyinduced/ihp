@@ -72,6 +72,7 @@ data SubmitButton = SubmitButton
 data FormContext model = FormContext
     { model :: model -- ^ The record this form is based on
     , formAction :: !Text -- ^ Url where the form is submitted to
+    , formMethod :: !Text -- ^ Usually "POST", sometimes set to "GET"
     , cssFramework :: !CSSFramework
     , formClass :: !Text -- ^ In the generated HTML, the @class@  attribute will be set to this value
     , formId :: !Text -- ^ In the generated HTML, the @id@ attribute will be set to this value
@@ -80,6 +81,7 @@ data FormContext model = FormContext
     }
 instance SetField "model" (FormContext record) record where setField value record = record { model = value }
 instance SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }
+instance SetField "formMethod" (FormContext record) Text where setField value record = record { formMethod = value }
 instance SetField "cssFramework" (FormContext record) CSSFramework where setField value record = record { cssFramework = value }
 instance SetField "formClass" (FormContext record) Text where setField value record = record { formClass = value }
 instance SetField "formId" (FormContext record) Text where setField value record = record { formId = value }

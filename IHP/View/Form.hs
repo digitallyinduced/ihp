@@ -193,6 +193,7 @@ createFormContext record =
     FormContext
         { model = record
         , formAction = ""
+        , formMethod = "POST"
         , cssFramework = theCSSFramework
         , formId = ""
         , formClass = if isNew record then "new-form" else "edit-form"
@@ -203,14 +204,20 @@ createFormContext record =
 
 -- | Used by 'formFor' to render the form
 buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
-buildForm formContext inner =
-    let
-        theModel = model formContext
-        action = formAction formContext
-        formInner = let ?formContext = formContext in inner
-        customFormAttributes = get #customFormAttributes formContext
-    in
-        [hsx|<form method="POST" action={action} id={get #formId formContext} class={get #formClass formContext} data-disable-javascript-submission={get #disableJavascriptSubmission formContext} {...customFormAttributes}>{formInner}</form>|]
+buildForm formContext inner = [hsx|
+        <form
+            method={formContext.formMethod}
+            action={formContext.formAction}
+            id={formContext.formId}
+            class={formContext.formClass}
+            data-disable-javascript-submission={formContext.disableJavascriptSubmission}
+            {...formContext.customFormAttributes}
+        >
+            {formInner}
+        </form>
+    |]
+        where
+            formInner = let ?formContext = formContext in inner
 {-# INLINE buildForm #-}
 
 -- | Renders a submit button

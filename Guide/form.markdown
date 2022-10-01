@@ -793,6 +793,27 @@ The generated HTML will look like this:
 <form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980">
 ```
 
+### GET Forms / Custom Form Method
+
+By default forms use `method="POST"`. You can submit your form using the `GET` request method by overriding [`formMethod`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formMethod):
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+        formContext
+        |> set #formMethod "GET"
+```
+
+The generated HTML will look like this:
+
+```html
+<form method="GET">
+```
+
+
 ### Disable Form Submission via JavaScript
 
 Your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
