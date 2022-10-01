@@ -60,16 +60,17 @@ main = withUtf8 do
 
     start
 
-    withAsync consumeGhciOutput \_ -> do
-        withFileWatcher do
-            async Telemetry.reportTelemetry
-            forever do
-                appState <- readIORef appStateRef
-                when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
-                action <- takeMVar actionVar
-                when isDebugMode (Log.debug $ tshow action)
-                nextAppState <- handleAction appState action
-                writeIORef appStateRef nextAppState
+    withToolServer do
+        withAsync consumeGhciOutput \_ -> do
+            withFileWatcher do
+                async Telemetry.reportTelemetry
+                forever do
+                    appState <- readIORef appStateRef
+                    when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
+                    action <- takeMVar actionVar
+                    when isDebugMode (Log.debug $ tshow action)
+                    nextAppState <- handleAction appState action
+                    writeIORef appStateRef nextAppState
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
@@ -88,7 +89,6 @@ handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresStat
                 otherwise -> pure state { postgresState }
         otherwise -> pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
-handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
@@ -186,7 +186,6 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
 
 start :: (?context :: Context) => IO ()
 start = do
-    async startToolServer
     async startStatusServer
     async startAppGHCI
     async startPostgres
@@ -198,7 +197,6 @@ stop AppState { .. } = do
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
-    stopToolServer toolServerState
 
 startGHCI :: IO ManagedProcess
 startGHCI = do

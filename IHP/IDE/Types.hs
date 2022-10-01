@@ -49,7 +49,6 @@ data Action =
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState
     | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
-    | UpdateToolServerState !ToolServerState
     | PauseApp
     deriving (Show)
 
@@ -101,14 +100,6 @@ instance Show StatusServerState where
     show StatusServerStarted { } = "Started"
     show StatusServerPaused { } = "Paused"
 
-data ToolServerState
-    = ToolServerNotStarted
-    | ToolServerStarted { thread :: !(Async ()) }
-
-instance Show ToolServerState where
-    show ToolServerNotStarted = "NotStarted"
-    show ToolServerStarted {} = "Started"
-
 
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
@@ -119,7 +110,6 @@ data AppState = AppState
     , appGHCIState :: !AppGHCIState
     , statusServerState :: !StatusServerState
     , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
-    , toolServerState :: !ToolServerState
     , databaseNeedsMigration :: !(IORef Bool)
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     } deriving (Show)
@@ -134,7 +124,6 @@ emptyAppState = do
         , appGHCIState = AppGHCINotStarted
         , statusServerState = StatusServerNotStarted
         , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
-        , toolServerState = ToolServerNotStarted
         , databaseNeedsMigration
         , lastSchemaCompilerError
         }
