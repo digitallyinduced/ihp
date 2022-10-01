@@ -92,7 +92,6 @@ handleAction state (UpdateToolServerState toolServerState) = pure state { toolSe
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do

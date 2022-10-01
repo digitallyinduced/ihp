@@ -49,7 +49,6 @@ data Action =
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState
     | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
-    | UpdateFileWatcherState !FileWatcherState
     | UpdateToolServerState !ToolServerState
     | PauseApp
     deriving (Show)
@@ -81,14 +80,6 @@ data LiveReloadNotificationServerState
 
 instance Show LiveReloadNotificationServerState where
     show LiveReloadNotificationServerState { } = "LiveReloadNotificationServerState"
-
-data FileWatcherState
-    = FileWatcherNotStarted
-    | FileWatcherStarted { thread :: !(Async ()) }
-
-instance Show FileWatcherState where
-    show FileWatcherNotStarted = "NotStarted"
-    show FileWatcherStarted { } = "Started"
 
 data StatusServerState
     = StatusServerNotStarted
@@ -128,7 +119,6 @@ data AppState = AppState
     , appGHCIState :: !AppGHCIState
     , statusServerState :: !StatusServerState
     , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
-    , fileWatcherState :: !FileWatcherState
     , toolServerState :: !ToolServerState
     , databaseNeedsMigration :: !(IORef Bool)
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
@@ -144,7 +134,6 @@ emptyAppState = do
         , appGHCIState = AppGHCINotStarted
         , statusServerState = StatusServerNotStarted
         , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
-        , fileWatcherState = FileWatcherNotStarted
         , toolServerState = ToolServerNotStarted
         , databaseNeedsMigration
         , lastSchemaCompilerError
