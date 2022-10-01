@@ -46,7 +46,8 @@ main = withUtf8 do
 
     logger <- Log.newLogger def
     (ghciInChan, ghciOutChan) <- Queue.newChan
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan }
+    liveReloadClients <- newIORef mempty
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, liveReloadClients }
 
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -119,7 +120,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
             when (get #isDebugMode ?context) (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
-handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
+handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
             async $ continueStatusServer s
@@ -133,22 +134,22 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState, l
                 RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
                 AppGHCINotStarted {} -> error "Modules cannot be loaded when ghci not in started state"
 
-    notifyHaskellChange liveReloadNotificationServerState
+    notifyHaskellChange
 
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
 
-handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
-    notifyHaskellChange liveReloadNotificationServerState
+handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
+    notifyHaskellChange
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
         RunningAppGHCI { } -> pure state
         otherwise -> pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
-    notifyAssetChange liveReloadNotificationServerState
+handleAction state AssetChanged = do
+    notifyAssetChange
     pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, statusServerState }) HaskellFileChanged = do
+handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileChanged = do
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> sendGhciCommand process ":r"
         RunningAppGHCI { .. } -> do

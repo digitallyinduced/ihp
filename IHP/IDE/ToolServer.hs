@@ -92,16 +92,11 @@ startToolServer' port isDebugMode = do
 
     let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
 
-    liveReloadNotificationServerState <- ?context
-            |> get #appStateRef
-            |> readIORef
-            >>= pure . get #liveReloadNotificationServerState
-
     Warp.runSettings warpSettings $
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
                 $ Websocket.websocketsOr
                     Websocket.defaultConnectionOptions
-                    (LiveReloadNotificationServer.app liveReloadNotificationServerState)
+                    LiveReloadNotificationServer.app
                     application
 
 openUrl :: Text -> IO ()

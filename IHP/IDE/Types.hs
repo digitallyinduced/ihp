@@ -48,7 +48,6 @@ data Action =
     | HaskellFileChanged
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState
-    | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
     | PauseApp
     deriving (Show)
 
@@ -73,12 +72,6 @@ instance Show AppGHCIState where
     show AppGHCILoading { } = "Loading"
     show AppGHCIModulesLoaded { } = "Loaded"
     show RunningAppGHCI { } = "Running"
-
-data LiveReloadNotificationServerState
-    = LiveReloadNotificationServerState { clients :: !(IORef (Map UUID Websocket.Connection)) }
-
-instance Show LiveReloadNotificationServerState where
-    show LiveReloadNotificationServerState { } = "LiveReloadNotificationServerState"
 
 data StatusServerState
     = StatusServerNotStarted
@@ -109,21 +102,18 @@ data AppState = AppState
     { postgresState :: !PostgresState
     , appGHCIState :: !AppGHCIState
     , statusServerState :: !StatusServerState
-    , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
     , databaseNeedsMigration :: !(IORef Bool)
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     } deriving (Show)
 
 emptyAppState :: IO AppState
 emptyAppState = do
-    clients <- newIORef mempty
     databaseNeedsMigration <- newIORef False
     lastSchemaCompilerError <- newIORef Nothing
     pure AppState
         { postgresState = PostgresNotStarted
         , appGHCIState = AppGHCINotStarted
         , statusServerState = StatusServerNotStarted
-        , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
         , databaseNeedsMigration
         , lastSchemaCompilerError
         }
@@ -136,6 +126,7 @@ data Context = Context
     , logger :: !Log.Logger
     , ghciInChan :: !(Queue.InChan OutputLine) -- ^ Output of the app ghci is written here
     , ghciOutChan :: !(Queue.OutChan OutputLine) -- ^ Output of the app ghci is consumed here
+    , liveReloadClients :: !(IORef (Map UUID Websocket.Connection))
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
