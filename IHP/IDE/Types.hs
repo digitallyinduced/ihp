@@ -12,6 +12,7 @@ import Data.UUID
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import qualified Data.ByteString.Builder as ByteString
+import qualified Control.Concurrent.Chan.Unagi as Queue
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -43,7 +44,6 @@ data Action =
     | UpdateAppGHCIState AppGHCIState
     | AppModulesLoaded { success :: !Bool }
     | AppStarted
-    | ReceiveAppOutput { line :: !OutputLine }
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
@@ -156,6 +156,8 @@ data Context = Context
     , appStateRef :: !(IORef AppState)
     , isDebugMode :: !Bool
     , logger :: !Log.Logger
+    , ghciInChan :: !(Queue.InChan OutputLine) -- ^ Output of the app ghci is written here
+    , ghciOutChan :: !(Queue.OutChan OutputLine) -- ^ Output of the app ghci is consumed here
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()

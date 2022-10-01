@@ -1,4 +1,4 @@
-module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer) where
+module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, notifyBrowserOnApplicationOutput, continueStatusServer, consumeGhciOutput) where
 
 import IHP.ViewPrelude hiding (catch)
 import qualified Network.Wai as Wai
@@ -17,6 +17,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import qualified Network.URI as URI
 import qualified Control.Exception as Exception
+import qualified Control.Concurrent.Chan.Unagi as Queue
 
 -- async (notifyOutput (standardOutput, errorOutput) clients)
 
@@ -41,10 +42,7 @@ continueStatusServer statusServerState@(StatusServerPaused { .. }) = do
                 (app clients statusServerState)
                 (statusServerApp (standardOutput, errorOutput))
 
-        let port = ?context
-                |> get #portConfig
-                |> get #appPort
-                |> fromIntegral
+        let port = ?context.portConfig.appPort |> fromIntegral
 
         server <- async $ Warp.run port warpApp
 
@@ -75,6 +73,14 @@ clearStatusServer StatusServerPaused { .. } = do
     writeIORef standardOutput []
     writeIORef errorOutput []
 clearStatusServer StatusServerNotStarted = pure ()
+
+consumeGhciOutput :: (?context :: Context) => IO ()
+consumeGhciOutput = forever do
+    outputLine <- Queue.readChan ?context.ghciOutChan
+    appState <- readIORef ?context.appStateRef
+
+    notifyBrowserOnApplicationOutput appState.statusServerState outputLine
+
 
 notifyBrowserOnApplicationOutput :: (?context :: Context) => StatusServerState -> OutputLine -> IO ()
 notifyBrowserOnApplicationOutput StatusServerStarted { serverRef, clients, standardOutput, errorOutput } line = do

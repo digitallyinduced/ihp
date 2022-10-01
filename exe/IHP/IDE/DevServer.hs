@@ -29,6 +29,7 @@ import Data.Default (def, Default (..))
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified Control.Concurrent.Chan.Unagi as Queue
 
 main :: IO ()
 main = withUtf8 do
@@ -43,7 +44,8 @@ main = withUtf8 do
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
     logger <- Log.newLogger def
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger }
+    (ghciInChan, ghciOutChan) <- Queue.newChan
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan }
 
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -56,14 +58,16 @@ main = withUtf8 do
     installHandler sigINT (Catch catchHandler) Nothing
 
     start
-    async Telemetry.reportTelemetry
-    forever do
-        appState <- readIORef appStateRef
-        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
-        action <- takeMVar actionVar
-        when isDebugMode (Log.debug $ tshow action)
-        nextAppState <- handleAction appState action
-        writeIORef appStateRef nextAppState
+
+    withAsync consumeGhciOutput \_ -> do
+        async Telemetry.reportTelemetry
+        forever do
+            appState <- readIORef appStateRef
+            when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
+            action <- takeMVar actionVar
+            when isDebugMode (Log.debug $ tshow action)
+            nextAppState <- handleAction appState action
+            writeIORef appStateRef nextAppState
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
@@ -87,9 +91,6 @@ handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (Up
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
-handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = do
-    notifyBrowserOnApplicationOutput statusServerState line
-    pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
@@ -158,7 +159,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
     lastSchemaCompilerError <- readIORef state.lastSchemaCompilerError
     case lastSchemaCompilerError of
-        Just exception -> dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+        Just exception -> receiveAppOutput (ErrorOutput (cs $ displayException exception))
         Nothing -> pure ()
 
     let appGHCIState' =
@@ -304,15 +305,15 @@ startAppGHCI = do
                             else if "modules loaded." `isInfixOf` line
                                 then do
                                     dispatch AppModulesLoaded { success = True }
-                                else dispatch ReceiveAppOutput { line = StandardOutput line }
+                                else receiveAppOutput (StandardOutput line)
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
         unless isDebugMode (Log.info line)
         if "cannot find object file for module" `isInfixOf` line
             then do
                 forEach loadAppCommands (sendGhciCommand process)
-                dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
-            else dispatch ReceiveAppOutput { line = ErrorOutput line }
+                receiveAppOutput (ErrorOutput "Linking Issue: Reloading Main")
+            else receiveAppOutput (ErrorOutput line)
 
 
     -- Compile Schema before loading the app
@@ -322,6 +323,8 @@ startAppGHCI = do
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
 
+receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
+receiveAppOutput line = Queue.writeChan ?context.ghciInChan line
 
 startLoadedApp :: (?context :: Context) => AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
@@ -356,7 +359,7 @@ updateDatabaseIsOutdated state = ((do
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
         ) `catch` (\(exception :: SomeException) -> do
             Log.error (tshow exception)
-            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) })
+            receiveAppOutput (ErrorOutput (cs $ tshow exception))
         ))
 
 tryCompileSchema :: (?context :: Context) => IO ()
@@ -367,7 +370,7 @@ tryCompileSchema =
         writeIORef state.lastSchemaCompilerError Nothing
     ) `catch` (\(exception :: SomeException) -> do
             Log.error (tshow exception)
-            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+            receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             state <- readIORef ?context.appStateRef
             writeIORef state.lastSchemaCompilerError (Just exception)
