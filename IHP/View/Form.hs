@@ -112,7 +112,7 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 -- > formOptions :: FormContext Post -> FormContext Post
 -- > formOptions formContext = formContext
 -- >     |> set #formId "post-form"
--- >     |> set #customFormAttributes [("data-post-id", show (get #id (get #model formContext)))]
+-- >     |> set #customFormAttributes [("data-post-id", show formContext.model.id)]
 --
 formForWithOptions :: forall record. (
     ?context :: ControllerContext
@@ -271,7 +271,7 @@ submitButton =
     in SubmitButton
     { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
-    , cssFramework = get #cssFramework ?formContext
+    , cssFramework = ?formContext.cssFramework
     }
 {-# INLINE submitButton #-}
 
@@ -429,7 +429,7 @@ textField field = FormField
         , disableGroup = False
         , disableValidationResult = False
         , additionalAttributes = []
-        , cssFramework = get #cssFramework ?formContext
+        , cssFramework = ?formContext.cssFramework
         , helpText = ""
         , placeholder = ""
         , required = False
@@ -644,7 +644,7 @@ checkboxField field = FormField
         , disableGroup = False
         , disableValidationResult = False
         , additionalAttributes = []
-        , cssFramework = get #cssFramework ?formContext
+        , cssFramework = ?formContext.cssFramework
         , helpText = ""
         , placeholder = ""
         , required = False
@@ -669,9 +669,9 @@ checkboxField field = FormField
 -- >     -- Here we specify that the <option> value should contain a `Id User`
 -- >     type SelectValue User = Id User
 -- >     -- Here we specify how to transform the model into <option>-value
--- >     selectValue = get #id
+-- >     selectValue user = user.id
 -- >     -- And here we specify the <option>-text
--- >     selectLabel = get #name
+-- >     selectLabel user = user.name
 --
 -- Given the above example, the rendered form will look like this:
 --
@@ -687,7 +687,7 @@ checkboxField field = FormField
 --
 -- > action NewProjectAction = do
 -- >     users <- query @User |> fetch
--- >     let userId = headMay users |> maybe def (get #id)
+-- >     let userId = headMay users |> maybe def (.id)
 -- >     let target = newRecord @Project |> set #userId userId
 -- >     render NewView { .. }
 selectField :: forall fieldName model item.
@@ -718,7 +718,7 @@ selectField field items = FormField
         , disableGroup = False
         , disableValidationResult = False
         , additionalAttributes = []
-        , cssFramework = get #cssFramework ?formContext
+        , cssFramework = ?formContext.cssFramework
         , helpText = ""
         , placeholder = "Please select"
         , required = False
@@ -775,10 +775,10 @@ instance
     -- to be defined
     modelFormAction record =
         let
-            path = theRequest |> get #pathInfo
+            path = theRequest.pathInfo
             action = if isNew record
                 then "Create" <> getModelName @record
-                else "Update" <> getModelName @record <> "?" <> lcfirst (getModelName @record) <> "Id=" <> tshow (get #id record)
+                else "Update" <> getModelName @record <> "?" <> lcfirst (getModelName @record) <> "Id=" <> tshow record.id
         in
             init path
                 |> (\path -> [""] <> (fromMaybe [] path) <> [action])
@@ -799,8 +799,8 @@ validationResult :: forall fieldName model fieldType.
 validationResult field = styledValidationResult cssFramework cssFramework (textField field)
     where
         result = getValidationFailure field model
-        model = ?formContext |> get #model
-        cssFramework = ?formContext |> get #cssFramework
+        model = ?formContext.model
+        cssFramework = ?formContext.cssFramework
 
 -- | Returns the validation failure for a field. If the field passed all validation, this returns 'Nothing'.
 --
@@ -813,6 +813,4 @@ validationResultMaybe :: forall fieldName model fieldType.
     , KnownSymbol fieldName
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> Maybe Text
-validationResultMaybe field = getValidationFailure field model
-    where
-        model = ?formContext |> get #model
+validationResultMaybe field = getValidationFailure field ?formContext.model
