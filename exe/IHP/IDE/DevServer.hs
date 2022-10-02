@@ -29,6 +29,8 @@ import Data.Default (def, Default (..))
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified Control.Concurrent.Chan.Unagi as Queue
+import IHP.IDE.FileWatcher
 
 main :: IO ()
 main = withUtf8 do
@@ -43,7 +45,9 @@ main = withUtf8 do
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
     logger <- Log.newLogger def
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger }
+    (ghciInChan, ghciOutChan) <- Queue.newChan
+    liveReloadClients <- newIORef mempty
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, liveReloadClients }
 
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -56,14 +60,18 @@ main = withUtf8 do
     installHandler sigINT (Catch catchHandler) Nothing
 
     start
-    async Telemetry.reportTelemetry
-    forever do
-        appState <- readIORef appStateRef
-        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
-        action <- takeMVar actionVar
-        when isDebugMode (Log.debug $ tshow action)
-        nextAppState <- handleAction appState action
-        writeIORef appStateRef nextAppState
+
+    withToolServer do
+        withAsync consumeGhciOutput \_ -> do
+            withFileWatcher do
+                async Telemetry.reportTelemetry
+                forever do
+                    appState <- readIORef appStateRef
+                    when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
+                    action <- takeMVar actionVar
+                    when isDebugMode (Log.debug $ tshow action)
+                    nextAppState <- handleAction appState action
+                    writeIORef appStateRef nextAppState
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
@@ -82,14 +90,9 @@ handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresStat
                 otherwise -> pure state { postgresState }
         otherwise -> pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
-handleAction state (UpdateToolServerState toolServerState) = pure state { toolServerState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state (UpdateFileWatcherState fileWatcherState) = pure state { fileWatcherState }
-handleAction state@(AppState { statusServerState }) ReceiveAppOutput { line } = do
-    notifyBrowserOnApplicationOutput statusServerState line
-    pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
@@ -117,7 +120,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
             when (get #isDebugMode ?context) (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
-handleAction state@(AppState { appGHCIState, statusServerState, postgresState, liveReloadNotificationServerState }) (AppModulesLoaded { success = False }) = do
+handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
             async $ continueStatusServer s
@@ -131,22 +134,22 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState, l
                 RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
                 AppGHCINotStarted {} -> error "Modules cannot be loaded when ghci not in started state"
 
-    notifyHaskellChange liveReloadNotificationServerState
+    notifyHaskellChange
 
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
 
-handleAction state@(AppState { statusServerState, appGHCIState, liveReloadNotificationServerState }) AppStarted = do
-    notifyHaskellChange liveReloadNotificationServerState
+handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
+    notifyHaskellChange
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
         RunningAppGHCI { } -> pure state
         otherwise -> pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState }) AssetChanged = do
-    notifyAssetChange liveReloadNotificationServerState
+handleAction state AssetChanged = do
+    notifyAssetChange
     pure state
 
-handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, statusServerState }) HaskellFileChanged = do
+handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileChanged = do
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> sendGhciCommand process ":r"
         RunningAppGHCI { .. } -> do
@@ -158,7 +161,7 @@ handleAction state@(AppState { liveReloadNotificationServerState, appGHCIState, 
 
     lastSchemaCompilerError <- readIORef state.lastSchemaCompilerError
     case lastSchemaCompilerError of
-        Just exception -> dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+        Just exception -> receiveAppOutput (ErrorOutput (cs $ displayException exception))
         Nothing -> pure ()
 
     let appGHCIState' =
@@ -184,11 +187,9 @@ handleAction state@(AppState { appGHCIState }) PauseApp =
 
 start :: (?context :: Context) => IO ()
 start = do
-    async startToolServer
     async startStatusServer
     async startAppGHCI
     async startPostgres
-    async startFileWatcher
     pure ()
 
 stop :: (?context :: Context) => AppState -> IO ()
@@ -197,47 +198,6 @@ stop AppState { .. } = do
     stopAppGHCI appGHCIState
     stopPostgres postgresState
     stopStatusServer statusServerState
-    stopFileWatcher fileWatcherState
-    stopToolServer toolServerState
-
-startFileWatcher :: (?context :: Context) => IO ()
-startFileWatcher = do
-        let fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
-        let fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
-        thread <- async $ FS.withManagerConf fileWatcherConfig $ \manager -> do
-            FS.watchTree manager "." shouldActOnFileChange handleFileChange
-            forever (threadDelay maxBound) `finally` FS.stopManager manager
-        dispatch (UpdateFileWatcherState (FileWatcherStarted { thread }))
-    where
-        handleFileChange event = do
-            let filePath = getEventFilePath event
-            if isHaskellFile filePath
-                then dispatch HaskellFileChanged
-                else if "Application/Schema.sql" `isSuffixOf` filePath
-                    then dispatch SchemaChanged
-                    else if isAssetFile filePath
-                        then dispatch AssetChanged
-                        else mempty
-
-        shouldActOnFileChange :: FS.ActionPredicate
-        shouldActOnFileChange event =
-            let path = getEventFilePath event
-            in isHaskellFile path || isAssetFile path || isSQLFile path
-
-        isHaskellFile = isSuffixOf ".hs"
-        isAssetFile = isSuffixOf ".css"
-        isSQLFile = isSuffixOf ".sql"
-
-        getEventFilePath :: FS.Event -> FilePath
-        getEventFilePath event = case event of
-                FS.Added filePath _ _ -> filePath
-                FS.Modified filePath _ _ -> filePath
-                FS.Removed filePath _ _ -> filePath
-                FS.Unknown filePath _ _ -> filePath
-
-stopFileWatcher :: FileWatcherState -> IO ()
-stopFileWatcher FileWatcherStarted { thread } = uninterruptibleCancel thread
-stopFileWatcher _ = pure ()
 
 startGHCI :: IO ManagedProcess
 startGHCI = do
@@ -304,15 +264,15 @@ startAppGHCI = do
                             else if "modules loaded." `isInfixOf` line
                                 then do
                                     dispatch AppModulesLoaded { success = True }
-                                else dispatch ReceiveAppOutput { line = StandardOutput line }
+                                else receiveAppOutput (StandardOutput line)
 
     async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
         unless isDebugMode (Log.info line)
         if "cannot find object file for module" `isInfixOf` line
             then do
                 forEach loadAppCommands (sendGhciCommand process)
-                dispatch ReceiveAppOutput { line = ErrorOutput "Linking Issue: Reloading Main" }
-            else dispatch ReceiveAppOutput { line = ErrorOutput line }
+                receiveAppOutput (ErrorOutput "Linking Issue: Reloading Main")
+            else receiveAppOutput (ErrorOutput line)
 
 
     -- Compile Schema before loading the app
@@ -322,6 +282,8 @@ startAppGHCI = do
 
     dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
 
+receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
+receiveAppOutput line = Queue.writeChan ?context.ghciInChan line
 
 startLoadedApp :: (?context :: Context) => AppGHCIState -> IO ()
 startLoadedApp (AppGHCIModulesLoaded { .. }) = do
@@ -356,7 +318,7 @@ updateDatabaseIsOutdated state = ((do
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
         ) `catch` (\(exception :: SomeException) -> do
             Log.error (tshow exception)
-            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ tshow exception) })
+            receiveAppOutput (ErrorOutput (cs $ tshow exception))
         ))
 
 tryCompileSchema :: (?context :: Context) => IO ()
@@ -367,7 +329,7 @@ tryCompileSchema =
         writeIORef state.lastSchemaCompilerError Nothing
     ) `catch` (\(exception :: SomeException) -> do
             Log.error (tshow exception)
-            dispatch (ReceiveAppOutput { line = ErrorOutput (cs $ displayException exception) })
+            receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             state <- readIORef ?context.appStateRef
             writeIORef state.lastSchemaCompilerError (Just exception)

@@ -12,6 +12,7 @@ import Data.UUID
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import qualified Data.ByteString.Builder as ByteString
+import qualified Control.Concurrent.Chan.Unagi as Queue
 
 data ManagedProcess = ManagedProcess
     { inputHandle :: !Handle
@@ -43,14 +44,10 @@ data Action =
     | UpdateAppGHCIState AppGHCIState
     | AppModulesLoaded { success :: !Bool }
     | AppStarted
-    | ReceiveAppOutput { line :: !OutputLine }
     | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState
-    | UpdateLiveReloadNotificationServerState !LiveReloadNotificationServerState
-    | UpdateFileWatcherState !FileWatcherState
-    | UpdateToolServerState !ToolServerState
     | PauseApp
     deriving (Show)
 
@@ -76,20 +73,6 @@ instance Show AppGHCIState where
     show AppGHCIModulesLoaded { } = "Loaded"
     show RunningAppGHCI { } = "Running"
 
-data LiveReloadNotificationServerState
-    = LiveReloadNotificationServerState { clients :: !(IORef (Map UUID Websocket.Connection)) }
-
-instance Show LiveReloadNotificationServerState where
-    show LiveReloadNotificationServerState { } = "LiveReloadNotificationServerState"
-
-data FileWatcherState
-    = FileWatcherNotStarted
-    | FileWatcherStarted { thread :: !(Async ()) }
-
-instance Show FileWatcherState where
-    show FileWatcherNotStarted = "NotStarted"
-    show FileWatcherStarted { } = "Started"
-
 data StatusServerState
     = StatusServerNotStarted
     | StatusServerStarted
@@ -110,14 +93,6 @@ instance Show StatusServerState where
     show StatusServerStarted { } = "Started"
     show StatusServerPaused { } = "Paused"
 
-data ToolServerState
-    = ToolServerNotStarted
-    | ToolServerStarted { thread :: !(Async ()) }
-
-instance Show ToolServerState where
-    show ToolServerNotStarted = "NotStarted"
-    show ToolServerStarted {} = "Started"
-
 
 instance Show (IORef x) where show _ = "(..)"
 instance Show ProcessHandle where show _ = "(..)"
@@ -127,25 +102,18 @@ data AppState = AppState
     { postgresState :: !PostgresState
     , appGHCIState :: !AppGHCIState
     , statusServerState :: !StatusServerState
-    , liveReloadNotificationServerState :: !LiveReloadNotificationServerState
-    , fileWatcherState :: !FileWatcherState
-    , toolServerState :: !ToolServerState
     , databaseNeedsMigration :: !(IORef Bool)
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     } deriving (Show)
 
 emptyAppState :: IO AppState
 emptyAppState = do
-    clients <- newIORef mempty
     databaseNeedsMigration <- newIORef False
     lastSchemaCompilerError <- newIORef Nothing
     pure AppState
         { postgresState = PostgresNotStarted
         , appGHCIState = AppGHCINotStarted
         , statusServerState = StatusServerNotStarted
-        , liveReloadNotificationServerState = LiveReloadNotificationServerState { clients }
-        , fileWatcherState = FileWatcherNotStarted
-        , toolServerState = ToolServerNotStarted
         , databaseNeedsMigration
         , lastSchemaCompilerError
         }
@@ -156,6 +124,9 @@ data Context = Context
     , appStateRef :: !(IORef AppState)
     , isDebugMode :: !Bool
     , logger :: !Log.Logger
+    , ghciInChan :: !(Queue.InChan OutputLine) -- ^ Output of the app ghci is written here
+    , ghciOutChan :: !(Queue.OutChan OutputLine) -- ^ Output of the app ghci is consumed here
+    , liveReloadClients :: !(IORef (Map UUID Websocket.Connection))
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()
