@@ -12,7 +12,7 @@ maintainer:          hello@digitallyinduced.com
 build-type:          Simple
 
 Flag FastBuild
-    Default: False
+    Default: True
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
@@ -291,7 +291,6 @@ library
         , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
         , IHP.Assets.ViewFunctions
-        -- Server Side Component Modules
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
@@ -308,8 +307,42 @@ library
         , IHP.SEO.Sitemap.ControllerFunctions
         , IHP.SEO.Sitemap.Routes
 
+        -- DataSync
+        , IHP.DataSync.Types
+        , IHP.DataSync.RowLevelSecurity
+        , IHP.DataSync.DynamicQuery
+        , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.ChangeNotifications
+        , IHP.DataSync.Controller
+        , IHP.DataSync.ControllerImpl
+        , IHP.DataSync.REST.Types
+        , IHP.DataSync.REST.Routes
+        , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Role
 
-library ihp-ide
+        -- GraphQL
+        , IHP.GraphQL.Compiler
+        , IHP.GraphQL.JSON
+        , IHP.GraphQL.Parser
+        , IHP.GraphQL.SchemaCompiler
+        , IHP.GraphQL.ToText
+        , IHP.GraphQL.Types
+
+        -- TODO: This should be moved to IDE
+        -- but the GraphQL modules depend on this
+        , IHP.IDE.SchemaDesigner.Types
+
+        -- SSC
+        , IHP.ServerSideComponent.Types
+        , IHP.ServerSideComponent.ViewFunctions
+        , IHP.ServerSideComponent.RouterFunctions
+        , IHP.ServerSideComponent.ControllerFunctions
+        , IHP.ServerSideComponent.Controller.ComponentsController
+        , IHP.ServerSideComponent.HtmlDiff
+        , IHP.ServerSideComponent.HtmlParser
+
+
+library IDE
     import: shared-properties
     hs-source-dirs: ihp-ide
     build-depends: ihp
@@ -392,47 +425,10 @@ library ihp-ide
         , IHP.SchemaCompiler
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Parser
-        , IHP.IDE.SchemaDesigner.Types
-
-library ihp-datasync
-    import: shared-properties
-    hs-source-dirs: ihp-datasync
-    build-depends: ihp, ihp-ide
-    exposed-modules:
-        IHP.DataSync.Types
-        , IHP.DataSync.RowLevelSecurity
-        , IHP.DataSync.DynamicQuery
-        , IHP.DataSync.DynamicQueryCompiler
-        , IHP.DataSync.ChangeNotifications
-        , IHP.DataSync.Controller
-        , IHP.DataSync.ControllerImpl
-        , IHP.DataSync.REST.Types
-        , IHP.DataSync.REST.Routes
-        , IHP.DataSync.REST.Controller
-        , IHP.DataSync.Role
-        , IHP.GraphQL.Compiler
-        , IHP.GraphQL.JSON
-        , IHP.GraphQL.Parser
-        , IHP.GraphQL.SchemaCompiler
-        , IHP.GraphQL.ToText
-        , IHP.GraphQL.Types
-
-library ihp-ssc
-    import: shared-properties
-    hs-source-dirs: ihp-ssc
-    build-depends: ihp
-    exposed-modules:
-        IHP.ServerSideComponent.Types
-        , IHP.ServerSideComponent.ViewFunctions
-        , IHP.ServerSideComponent.RouterFunctions
-        , IHP.ServerSideComponent.ControllerFunctions
-        , IHP.ServerSideComponent.Controller.ComponentsController
-        , IHP.ServerSideComponent.HtmlDiff
-        , IHP.ServerSideComponent.HtmlParser
 
 executable RunDevServer
     import: shared-properties
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
@@ -494,48 +490,48 @@ common executable
 
 executable new-application
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
 
 executable build-generated-code
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
 
 executable delete-controller
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
 
 executable new-script
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
 
 executable new-migration
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
 
 executable migrate
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/Migrate.hs
 
 executable hash-password
     import: executable
-    build-depends: ihp, ihp-ide
+    build-depends: ihp, IDE
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
