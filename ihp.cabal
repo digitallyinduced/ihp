@@ -12,7 +12,7 @@ maintainer:          hello@digitallyinduced.com
 build-type:          Simple
 
 Flag FastBuild
-    Default: True
+    Default: False
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
@@ -138,35 +138,6 @@ common shared-properties
         , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
-    if flag(FastBuild)
-        ghc-options:
-            -j
-            -O0
-            -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
-            -Wredundant-constraints
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-    else
-        ghc-options:
-            -fstatic-argument-transformation
-            -funbox-strict-fields
-            -haddock
-            -O1
-            -threaded
-            -Wredundant-constraints
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-            -split-sections
-            -fexpose-all-unfoldings
 
 library
     import: shared-properties
@@ -425,6 +396,34 @@ library IDE
         , IHP.SchemaCompiler
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Parser
+    if flag(FastBuild)
+        ghc-options:
+            -j
+            -O0
+            -threaded
+            +RTS -A256m -n4m -H512m -qg -N -RTS
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
+    else
+        ghc-options:
+            -fstatic-argument-transformation
+            -funbox-strict-fields
+            -O1
+            -threaded
+            -Wredundant-constraints
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
+            -split-sections
+            -fexpose-all-unfoldings
 
 executable RunDevServer
     import: shared-properties
