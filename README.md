@@ -167,3 +167,9 @@ If you just want to improve docs, [you can find the markdown files in the Guide 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
 
 [📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/MailingList)
+
+### Apple M1 Builds
+
+Binaries for Apple M1 Builds are sponsored by [MacStadium](https://www.macstadium.com/).
+
+<img src="https://uploads-ssl.webflow.com/5ac3c046c82724970fc60918/5c019d917bba312af7553b49_MacStadium-developerlogo.png" width="300px"/>
