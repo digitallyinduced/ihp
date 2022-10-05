@@ -74,6 +74,6 @@ in
     pkgs.stdenv.mkDerivation {
         name = "ihp-dev";
         src = ./.;
-        buildInputs = [haskellDeps pkgs.entr pkgs.nodejs];
+        buildInputs = [haskellDeps pkgs.entr pkgs.nodejs-18_x];
         shellHook = "eval $(egrep ^export ${haskellDeps}/bin/ghc)";
     }

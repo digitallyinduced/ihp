@@ -24,6 +24,7 @@ mkDerivation {
   libraryPkgconfigDepends = [ nixpkgs.brotli ];
   doHaddock = false;
   doCheck = false;
+  jailbreak = true;
   homepage = "https://github.com/s0kil/hs-brotli#readme";
   description = "Compression and decompression in the brotli format";
   license = lib.licenses.bsd3;
