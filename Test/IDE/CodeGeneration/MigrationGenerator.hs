@@ -1189,6 +1189,18 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
                 let migration = sql [i|
                     ALTER TABLE media RENAME TO artefacts;
+                    
+                    DROP INDEX media_created_at_index;
+                    DROP INDEX media_user_id_index;
+                    ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;
+                    DROP POLICY "Users can manage their media" ON artefacts;
+                    
+                    CREATE INDEX artefacts_created_at_index ON artefacts (created_at);
+                    CREATE TRIGGER update_artefacts_updated_at BEFORE UPDATE ON artefacts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
+                    CREATE INDEX artefacts_user_id_index ON artefacts (user_id);
+                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration

@@ -129,7 +129,12 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         applyRenameTable :: [Statement] -> [Statement]
         applyRenameTable ((s@DropTable { tableName }):statements) =
                 case createTable of
-                    Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) -> (RenameTable { from = tableName, to = get #name createTable' }):(applyRenameTable (delete createTable statements))
+                    Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) ->
+                        let
+                            from = tableName
+                            to = get #name createTable'
+                        in
+                            (RenameTable { from, to }):(applyRenameTable (fixIdentifiers from to (delete createTable statements)))
                     Nothing -> s:(applyRenameTable statements)
             where
                 createTable :: Maybe Statement
@@ -146,6 +151,14 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 actualTable' :: CreateTable
                 actualTable' = case actualTable of
                     StatementCreateTable { unsafeGetCreateTable = table } -> table
+
+                fixIdentifiers :: Text -> Text -> [Statement] -> [Statement]
+                fixIdentifiers tableFrom tableTo statements = map fixIdentifier statements
+                    where
+                        fixIdentifier :: Statement -> Statement
+                        fixIdentifier s@(DropConstraint { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(DropPolicy { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier o = o
         applyRenameTable (s:rest) = s:(applyRenameTable rest)
         applyRenameTable [] = []
 
