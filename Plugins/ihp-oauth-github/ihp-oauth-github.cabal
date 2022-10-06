@@ -19,6 +19,7 @@ library
         , uri-encode
         , wreq
         , lens
+        , text
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -51,6 +52,7 @@ library
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
+        , OverloadedRecordDot
     hs-source-dirs: .
     exposed-modules:
         IHP.OAuth.Github.Config

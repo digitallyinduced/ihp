@@ -13,10 +13,15 @@ data GithubOAuthConfig = GithubOAuthConfig
     , clientSecret :: !Text
     } deriving (Eq, Show)
 
+newtype GithubOAuthScopeConfig = GithubOAuthScopeConfig
+    { scope :: [Text] -- ^ List of scope values, by default should be set to ["user:email"]
+    } deriving (Eq, Show)
+
 data AuthorizeOptions = AuthorizeOptions
     { clientId :: Text -- ^ The client ID for your GitHub App
     , redirectUrl :: Text -- ^ The URL in your application where users will be sent after authorization.
     , state :: Text -- ^ This should contain a random string to protect against forgery attacks and could contain any other arbitrary data.
+    , scope :: [Text] -- ^ List of scope values, by default should be set to ["user:email"]
     }
 
 data RequestAccessTokenOptions = RequestAccessTokenOptions

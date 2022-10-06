@@ -14,9 +14,10 @@ newSessionWithGithubAction :: forall user. (?context :: ControllerContext, HasPa
 newSessionWithGithubAction = do
     state <- Github.initState
     let options = Github.AuthorizeOptions
-            { clientId = githubOAuthConfig |> get #clientId
+            { clientId = githubOAuthConfig.clientId
             , redirectUrl = urlTo Github.GithubConnectCallbackAction
-            , state }
+            , state
+            , scope = githubOAuthScopeConfig.scope }
     Github.redirectToGithubConnect options
 
 githubConnectCallbackAction :: forall user.
@@ -54,12 +55,13 @@ githubConnectCallbackAction = do
 
 
     accessTokenResponse <- Github.requestGithubAccessToken Github.RequestAccessTokenOptions
-            { clientId = githubOAuthConfig |> get #clientId
-            , clientSecret = githubOAuthConfig |> get #clientSecret
+            { clientId = githubOAuthConfig.clientId
+            , clientSecret = githubOAuthConfig.clientSecret
             , code
             , state }
 
     let accessToken = get #accessToken accessTokenResponse
+    let ?accessToken = accessToken
     githubUser <- Github.requestGithubUser accessToken
 
     case currentUserOrNothing of
@@ -144,16 +146,16 @@ handleGithubCallbackError = do
         Nothing -> pure ()
 
 class GithubOAuthControllerConfig user where
-    createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> IO user
+    createUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> IO user
     createUser user githubUser = createRecord user
     
-    beforeCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> user
+    beforeCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> user
     beforeCreateUser user githubUser = user
 
-    afterCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> IO ()
+    afterCreateUser :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> IO ()
     afterCreateUser user = pure ()
 
-    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user) => user -> Github.GithubUser -> IO user
+    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, CanCreate user, ?accessToken :: Text) => user -> Github.GithubUser -> IO user
     beforeLogin user githubUser = pure user
 
 
@@ -164,7 +166,12 @@ githubOAuthConfig = ?context
             |> TMap.lookup @Github.GithubOAuthConfig
             |> fromMaybe (error "Could not find GithubOAuthConfig in config. Did you forgot to call 'initGithubOAuth' inside your Config.hs?")
 
-
+githubOAuthScopeConfig :: (?context :: ControllerContext) => Github.GithubOAuthScopeConfig
+githubOAuthScopeConfig = ?context
+            |> getFrameworkConfig
+            |> get #appConfig
+            |> TMap.lookup @Github.GithubOAuthScopeConfig
+            |> fromMaybe Github.GithubOAuthScopeConfig { scope = ["user:email"] }
 
 ensureIsNotLocked :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
 ensureIsNotLocked user = do
