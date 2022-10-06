@@ -179,7 +179,7 @@ buildPlan' schema config =
                     html IndexView { .. } = [hsx|
                         {breadcrumb}
 
-                        <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ml-4">+ New</a></h1>
+                        <h1>${nameWithoutSuffix}<a href={pathTo New${singularName}Action} class="btn btn-primary ms-4">+ New</a></h1>
                         <div class="table-responsive">
                             <table class="table">
                                 <thead>

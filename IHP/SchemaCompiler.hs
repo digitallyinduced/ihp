@@ -15,12 +15,17 @@ import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
 import Control.Monad.Fail
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
+import qualified Control.Exception as Exception
+
+data CompileException = CompileException ByteString deriving (Show)
+instance Exception CompileException where
+    displayException (CompileException message) = cs message
 
 compile :: IO ()
 compile = do
     let options = fullCompileOptions
     SchemaDesigner.parseSchemaSql >>= \case
-        Left parserError -> fail (cs parserError)
+        Left parserError -> Exception.throwIO (CompileException parserError)
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
@@ -142,6 +147,7 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Database.PostgreSQL.Simple.Types\n"
                   <> "import IHP.Job.Types\n"
                   <> "import IHP.Job.Queue ()\n"
+                  <> "import qualified Control.DeepSeq as DeepSeq\n"
                   <> "import qualified Data.Dynamic\n"
                   <> "import Data.Scientific\n"
 
@@ -338,7 +344,8 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "    fromField field Nothing = returnError UnexpectedNull field \"Unexpected null for enum value\"\n"
         <> "instance Default " <> modelName <> " where def = " <> enumValueToConstructorName (unsafeHead values) <> "\n"
         <> "instance ToField " <> modelName <> " where\n" <> indent (unlines (map compileToFieldInstanceForValue values))
-        <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values)) <> "\n"
+        <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values))
+        <> "instance DeepSeq.NFData " <> modelName <> " where" <> " rnf a = seq a ()" <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
     where
         modelName = tableNameToModelName name

@@ -140,7 +140,7 @@ There's more on the IHP website.
 
 [You can also follow the written Guide to build your first project!](https://ihp.digitallyinduced.com/Guide/) 🚀
 
-[📧 To stay in the loop, subscribe to the IHP release emails.](https://artisanal-founder-6256.ck.page/a010d28553) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
+[📧 To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList) Or follow [![Follow digitally induced on Twitter](https://img.shields.io/twitter/follow/digitallyinduce)](https://twitter.com/digitallyinduce)
 
 ## Install
 
@@ -158,8 +158,18 @@ We are happy to merge your pull requests!😄
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 
+### Contributing Documentation
+
+If you just want to improve docs, [you can find the markdown files in the Guide directory](https://github.com/digitallyinduced/ihp/tree/master/Guide).
+
 ## Releases
 
 During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
 
-[📧 Subscribe to the IHP release emails to stay in the loop.]([https://ihp.digitallyinduced.com/](https://artisanal-founder-6256.ck.page/a010d28553))
+[📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/MailingList)
+
+### Apple M1 Builds
+
+Binaries for Apple M1 Builds are sponsored by [MacStadium](https://www.macstadium.com/).
+
+<img src="https://uploads-ssl.webflow.com/5ac3c046c82724970fc60918/5c019d917bba312af7553b49_MacStadium-developerlogo.png" width="300px"/>

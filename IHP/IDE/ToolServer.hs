@@ -1,4 +1,4 @@
-module IHP.IDE.ToolServer where
+module IHP.IDE.ToolServer (withToolServer) where
 
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -46,18 +46,14 @@ import qualified IHP.Version as Version
 import qualified IHP.IDE.Types
 import qualified IHP.PGListener as PGListener
 
-startToolServer :: (?context :: Context) => IO ()
-startToolServer = do
-    let port = ?context
-            |> get #portConfig
-            |> get #toolServerPort
-            |> fromIntegral
+withToolServer :: (?context :: Context) => IO () -> IO ()
+withToolServer inner = withAsyncBound async (\_ -> inner)
+    where
+        async = do
+            let port = ?context.portConfig.toolServerPort |> fromIntegral
+            let isDebugMode = ?context.isDebugMode
 
-    let isDebugMode = ?context |> get #isDebugMode
-
-    thread <- async (startToolServer' port isDebugMode)
-
-    dispatch (UpdateToolServerState (ToolServerStarted { thread }))
+            startToolServer' port isDebugMode
 
 startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
 startToolServer' port isDebugMode = do
@@ -96,20 +92,12 @@ startToolServer' port isDebugMode = do
 
     let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
 
-    liveReloadNotificationServerState <- ?context
-            |> get #appStateRef
-            |> readIORef
-            >>= pure . get #liveReloadNotificationServerState
-
     Warp.runSettings warpSettings $
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
                 $ Websocket.websocketsOr
                     Websocket.defaultConnectionOptions
-                    (LiveReloadNotificationServer.app liveReloadNotificationServerState)
+                    LiveReloadNotificationServer.app
                     application
-
-stopToolServer ToolServerStarted { thread } = uninterruptibleCancel thread
-stopToolServer ToolServerNotStarted = pure ()
 
 openUrl :: Text -> IO ()
 openUrl url = do

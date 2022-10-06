@@ -8,14 +8,15 @@ import qualified Control.Exception as Exception
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Map as Map
 
-notifyHaskellChange :: LiveReloadNotificationServerState -> IO ()
+notifyHaskellChange :: (?context :: Context) => IO ()
 notifyHaskellChange = broadcast "reload"
 
-notifyAssetChange :: LiveReloadNotificationServerState -> IO ()
+notifyAssetChange :: (?context :: Context) => IO ()
 notifyAssetChange = broadcast "reload_assets"
 
-broadcast :: ByteString -> LiveReloadNotificationServerState -> IO ()
-broadcast message LiveReloadNotificationServerState { clients } = do
+broadcast :: (?context :: Context) => ByteString -> IO ()
+broadcast message = do
+    let clients = ?context.liveReloadClients
     clients' <- readIORef clients
     
     let removeClient connectionId = modifyIORef clients (Map.delete connectionId)
@@ -25,8 +26,10 @@ broadcast message LiveReloadNotificationServerState { clients } = do
     forConcurrently connections sendMessage
     pure ()
 
-app :: LiveReloadNotificationServerState -> Websocket.ServerApp
-app LiveReloadNotificationServerState { clients } pendingConnection = do
+app :: (?context :: Context) => Websocket.ServerApp
+app pendingConnection = do
+    let clients = ?context.liveReloadClients
+    
     connection <- Websocket.acceptRequest pendingConnection
     connectionId <- UUID.nextRandom
 

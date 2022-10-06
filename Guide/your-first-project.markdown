@@ -438,7 +438,7 @@ Click `Save Post`. You should now see the new post listed on the `index` view.
 
 Let's first improve the `show` view. Right now the headline is "Show Post", and the actual post body is just a dump of the Post Data definition.
 
-Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{get #title post}</h1>`. Also add a `<div>{get #body post}</div>` below the `<h1>`.
+Open the `Web/View/Posts/Show.hs` and replace `<h1>Show Post</h1>` with `<h1>{post.title}</h1>`. Also add a `<div>{post.body}</div>` below the `<h1>`.
 
 The `Web/View/Posts/Show.hs` file should look like this:
 
@@ -456,8 +456,8 @@ instance View ShowView where
                 <li class="breadcrumb-item active">Show Post</li>
             </ol>
         </nav>
-        <h1>{get #title post}</h1>
-        <div>{get #body post}</div>
+        <h1>{post.title}</h1>
+        <div>{post.body}</div>
     |]
 ```
 
@@ -467,15 +467,15 @@ After you saved the changes, you should see that the changes have been reflected
 
 After creating your post, you should have already seen that the posts list is now displaying all the post fields. Let's change it to only display the post's title.
 
-Open the `Web/View/Posts/Index.hs` and replace `<td>{post}</td>` with `<td>{get #title post}</td>`.
+Open the `Web/View/Posts/Index.hs` and replace `<td>{post}</td>` with `<td>{post.title}</td>`.
 
-Let's also make it clickable by wrapping it in a link. We can just put a `<a href={ShowPostAction (get #id post)}>` around it. The line should now look like:
+Let's also make it clickable by wrapping it in a link. We can just put a `<a href={ShowPostAction post.id}>` around it. The line should now look like:
 
 ```haskell
-<td><a href={ShowPostAction (get #id post)}>{get #title post}</a></td>
+<td><a href={ShowPostAction post.id}>{post.title}</a></td>
 ```
 
-Now we can also remove the "Show" link. We can do that by removing the next line `<td><a href={ShowPostAction (get #id post)}>Show</a></td>`.
+Now we can also remove the "Show" link. We can do that by removing the next line `<td><a href={ShowPostAction post.id}>Show</a></td>`.
 
 Also remove the corresponding `<th></th>` from `thead` so that there are only three `th` tags:
 
@@ -558,7 +558,7 @@ action PostsAction = do
     render IndexView { .. }
 ```
 
-Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{get #createdAt post |> timeAgo}</p>` below the title:
+Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{post.createdAt |> timeAgo}</p>` below the title:
 
 ```haskell
 <nav>
@@ -567,9 +567,9 @@ Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`.
         <li class="breadcrumb-item active">Show Post</li>
     </ol>
 </nav>
-<h1>{get #title post}</h1>
-<p>{get #createdAt post |> timeAgo}</p>
-<div>{get #body post}</div>
+<h1>{post.title}</h1>
+<p>{post.createdAt |> timeAgo}</p>
+<div>{post.body}</div>
 ```
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgo) helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use [`dateTime`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:dateTime) instead of [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgod).
@@ -622,7 +622,7 @@ Now that we have [`mmark`](https://hackage.haskell.org/package/mmark) installed,
 import qualified Text.MMark as MMark
 ```
 
-Next change `{get #body post}` to `{get #body post |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course, we also have to define the function now.
+Next change `{post.body}` to `{post.body |> renderMarkdown}`. This pipes the body field through a function `renderMarkdown`. Of course, we also have to define the function now.
 
 Add the following to the bottom of the show view:
 
@@ -743,9 +743,9 @@ instance View ShowView where
                 <li class="breadcrumb-item active">Show Post</li>
             </ol>
         </nav>
-        <h1>{get #title post}</h1>
-        <p>{get #createdAt post |> timeAgo}</p>
-        <div>{get #body post |> renderMarkdown}</div>
+        <h1>{post.title}</h1>
+        <p>{post.createdAt |> timeAgo}</p>
+        <div>{post.body |> renderMarkdown}</div>
 
         <a href={NewCommentAction}>Add Comment</a>
     |]
@@ -785,7 +785,7 @@ After making this change, we can see some of the type errors in the browser. Thi
 Open `Web/View/Posts/Show.hs` and change `<a href={NewCommentAction}>Add Comment</a>` to:
 
 ```haskell
-<a href={NewCommentAction (get #id post)}>Add Comment</a>
+<a href={NewCommentAction post.id}>Add Comment</a>
 ```
 
 After that, another type error can be found in `Web/View/Comments/Index.hs`. In this auto-generated view we have an `Index` button at the top:
@@ -864,7 +864,7 @@ Because the error view is rendering our `NewView` in an error case, we also have
     action CreateCommentAction = do
         -- ...
                 Left comment -> do
-                    post <- fetch (get #postId comment) -- <---- NEW
+                    post <- fetch comment.postId -- <---- NEW
                     render NewView { .. }
                 Right comment -> - ....
 ```
@@ -883,7 +883,7 @@ This way the post is passed from the action to our view.
 Now we can use the `post` variable to show the post title. Change `<h1>New Comment</h1>` to:
 
 ```haskell
-<h1>New Comment for <q>{get #title post}</q></h1>
+<h1>New Comment for <q>{post.title}</q></h1>
 ```
 
 Let's also make the text field for `postId` a hidden field:
@@ -919,7 +919,7 @@ redirectTo CommentsAction
 Change this to:
 
 ```haskell
-redirectTo ShowPostAction { postId = get #postId comment }
+redirectTo ShowPostAction { postId = comment.postId }
 ```
 
 Open the browser and create a new comment to verify that this redirect is working:
@@ -931,7 +931,7 @@ Open the browser and create a new comment to verify that this redirect is workin
 Next we're going to display our comments below the post. Open `Web/View/Posts/Show.hs` and append the following code to the HSX block:
 
 ```haskell
-<div>{get #comments post}</div>
+<div>{post.comments}</div>
 ```
 
 It will display something like this:
@@ -978,10 +978,10 @@ The type error is fixed now. When opening the Show View of a post, you will see 
 
 Right now the view is displaying the comments as a string. Let's make it more beautiful. Open `Web/View/Posts/Show.hs`.
 
-Let's first change the `{get #comments post}` to make a `<div>` for each comment:
+Let's first change the `{post.comments}` to make a `<div>` for each comment:
 
 ```haskell
-<div>{forEach (get #comments post) renderComment}</div>
+<div>{forEach post.comments renderComment}</div>
 ```
 
 We also need to define the `renderComment` at the end of the file:
@@ -995,8 +995,8 @@ Let's also add some more structure for displaying the comments:
 ```haskell
 renderComment comment = [hsx|
         <div class="mt-4">
-            <h5>{get #author comment}</h5>
-            <p>{get #body comment}</p>
+            <h5>{comment.author}</h5>
+            <p>{comment.body}</p>
         </div>
     |]
 ```
@@ -1155,7 +1155,7 @@ We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com
 You now understand enough of IHP and Haskell to be dangerous. The best way to continue your journey is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
 - [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
-- [To stay in the loop, subscribe to the IHP release emails.](http://eepurl.com/g51zq1)
+- [To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList)
 - Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
 - Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
 

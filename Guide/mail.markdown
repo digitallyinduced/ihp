@@ -53,13 +53,13 @@ With this change, the new subject is `Confirm your Account`.
 We also need to change the email receiver. It's currently hard-coded to `fname.lname@example.com`. As we want our email sent to the email address of our user, we use the `email` field of the user:
 
 ```haskell
-to ConfirmationMail { .. } = Address { addressName = Just "F L", addressEmail = get #email user }
+to ConfirmationMail { .. } = Address { addressName = Just "F L", addressEmail = user.email }
 ```
 
 Because our user has a `name` field, we can also pass this information to our mail, like this:
 
 ```haskell
-to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+to ConfirmationMail { .. } = Address { addressName = Just user.name, addressEmail = user.email }
 ```
 
 ### Changing the Email Sender
@@ -80,7 +80,7 @@ Last we need to change the email text a little bit. The mail supports HSX so thi
 
 ```haskell
     html ConfirmationMail { .. } = [hsx|
-        Hey {get #name user}, <br/>
+        Hey {user.name}, <br/>
         Thanks for signing up! Please confirm your account by following this link: ... <br /><br />
     |]
 ```
@@ -233,11 +233,11 @@ text ConfirmationMail { .. } = cs [trimming|
     https://....
 |]
     where
-        userName = get #name user
+        userName = user.name
 ```
 
 Note a few differences to the `html` version here:
 
-- We use `[trimming| ... |]` instead of `[hsx| ... |]` so we can't use HSX's inline Haskell like `{get #userName user}` but have to live with simple substitution. Note the dollar sign in front of these substitutions: `${userName}`.
+- We use `[trimming| ... |]` instead of `[hsx| ... |]` so we can't use HSX's inline Haskell like `{user.userName}` but have to live with simple substitution. Note the dollar sign in front of these substitutions: `${userName}`.
 - The `[trimming||]` quasiquoter takes care of removing the whitespace that our indentations introduced, which we don't want in the actual emails.
 - We use `cs` to convert the `[Char]` to the required `Text` type.

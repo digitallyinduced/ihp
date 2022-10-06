@@ -407,7 +407,7 @@ This will render like:
 You can specify [`disableLabel`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the label element from being generated:
 
 ```haskell
-{(textField #title) { disableLabel = True }
+{(textField #title) { disableLabel = True } }
 ```
 
 Will render as:
@@ -539,9 +539,9 @@ instance CanSelect User where
     -- Here we specify that the <option> value should contain a `Id User`
     type SelectValue User = Id User
     -- Here we specify how to transform the model into <option>-value
-    selectValue = get #id
+    selectValue user = user.id
     -- And here we specify the <option>-text
-    selectLabel = get #name
+    selectLabel user = user.name
 ```
 
 Given the above example, the rendered form will look like this:
@@ -561,7 +561,7 @@ If you want a certain value to be preselected, set the value in the controller. 
 ```haskell
     action NewProjectAction = do
         users <- query @User |> fetch
-        let userId = headMay users |> maybe def (get #id)
+        let userId = headMay users |> maybe def (.id)
         let target = newRecord @Project |> set #userId userId
         render NewView { .. }
 ```
@@ -573,9 +573,9 @@ Sometimes we want to allow the user to specifically make a choice of missing/non
 ```haskell
 instance CanSelect (Maybe User) where
     type SelectValue (Maybe User) = Maybe (Id User)
-    selectValue (Just user) = Just (get #id user)
+    selectValue (Just user) = Just user.id
     selectValue Nothing = Nothing
-    selectLabel (Just user) = get #name user
+    selectLabel (Just user) = user.name
     selectLabel Nothing = "(none selected)"
 ```
 
@@ -783,8 +783,8 @@ options formContext =
         formContext
         |> set #customFormAttributes [ ("data-post-id", show postId) ]
     where
-        post = get #model formContext
-        postId = get #id post
+        post = formContext.model
+        postId = post.id
 ```
 
 The generated HTML will look like this:
@@ -792,6 +792,27 @@ The generated HTML will look like this:
 ```html
 <form data-post-id="bd20f13d-e04b-4ef2-be62-64707cbda980">
 ```
+
+### GET Forms / Custom Form Method
+
+By default forms use `method="POST"`. You can submit your form using the `GET` request method by overriding [`formMethod`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formMethod):
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formForWithOptions post options [hsx||]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+        formContext
+        |> set #formMethod "GET"
+```
+
+The generated HTML will look like this:
+
+```html
+<form method="GET">
+```
+
 
 ### Disable Form Submission via JavaScript
 
@@ -884,7 +905,7 @@ renderForm post = [hsx|
         <label>
             Title
         </label>
-        <input type="text" name="title" value={get #title post} class={classes ["form-control", ("is-invalid", isInvalidTitle)]}/>
+        <input type="text" name="title" value={post.title} class={classes ["form-control", ("is-invalid", isInvalidTitle)]}/>
         {titleFeedback}
     </div>
 
@@ -892,7 +913,7 @@ renderForm post = [hsx|
         <label>
             Body
         </label>
-        <input type="text" name="body" value={get #body post} class={classes ["form-control", ("is-invalid", isInvalidBody)]}/>
+        <input type="text" name="body" value={post.body} class={classes ["form-control", ("is-invalid", isInvalidBody)]}/>
         {bodyFeedback}
     </div>
 |]

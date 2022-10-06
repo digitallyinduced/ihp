@@ -10,6 +10,7 @@ import qualified System.Directory as Directory
 import qualified Data.Text as Text
 import qualified System.Process as Process
 import qualified System.Posix.Files as Files
+import qualified Control.Exception as Exception
 
 -- | Finds the lib
 --
@@ -52,4 +53,18 @@ ensureSymlink = do
                 putStrLn "Building build/ihp-lib. This might take a few seconds"
                 binDir <- cs <$> Process.readCreateProcess (Process.shell "nix-shell --run 'dirname $(which RunDevServer)'") ""
                 pure (Text.strip binDir <> "/../lib/IHP/")
-        Files.createSymbolicLink (cs libDir) "build/ihp-lib"
+
+
+        -- Below code could fail with 'createSymbolicLink: already exists (File exists)'
+        -- This happens when the symlink points to a non existing target
+        --
+        -- Therefore we retry this operation on error and try to remove a possible
+        -- existing symlink in that case.
+        let createLink = Files.createSymbolicLink (cs libDir) "build/ihp-lib"
+
+        result <- Exception.try createLink
+        case result of
+            Left (exception :: SomeException) -> do
+                Files.removeLink "build/ihp-lib"
+                createLink
+            Right ok -> pure ok

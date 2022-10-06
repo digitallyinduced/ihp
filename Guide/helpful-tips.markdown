@@ -9,7 +9,7 @@ IHP uses many "exotic" haskell features. Here's a short explanation of the most 
 IHP uses hash symbols `#` all over the place, like in this code:
 
 ```haskell
-set #companyId (get #companyId company)
+set #companyId company.id
 ```
 
 The hashes are provided by the [`OverloadedLabels` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/overloaded_labels.html).
@@ -27,8 +27,21 @@ instance IsLabel name (Proxy name') where
 
 So `#companyId` can be written as `fromLabel @"companyId"` which IHP turns into `Proxy @"companyId"`. The `Proxy` value is now a normal haskell value and is passed to functions such as `get` or `set`.
 
-Note that the `fromLabel @"companyId"` style syntax is currently not supported inside HSX expressions. See [this stackoverflow answer](https://stackoverflow.com/a/68962193/268581) for an explanation.
+### The dot notation \.
 
+IHP uses dot notation like `someRecord.someField` everywhere. You might not think of this as anything special, but this syntax was just recently added to Haskell. 
+
+The dot notation is provided by the [`OverloadedRecordDot` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/overloaded_record_dot.html).
+
+In IHP v0.19 and older IHP versions, the dot notation was not supported yet. So you might see `get #someField someRecord` instead in older projects. The `get #someField someRecord` notation is equivalent to `someRecord.someField` and is still supported:
+
+```haskell
+-- IHP v0.19 and before:
+get #title project
+
+-- IHP v0.20 and up:
+project.title
+```
 
 ### The at symbol @
 
@@ -169,7 +182,7 @@ Let's say you are working with a controller `ApplicationsAction` and most action
 
         -- Access Control
         jobPositions <- currentCompanyJobPositions
-        accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+        accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 
         ...
 
@@ -178,7 +191,7 @@ Let's say you are working with a controller `ApplicationsAction` and most action
 
         -- Access Control
         jobPositions <- currentCompanyJobPositions
-        accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+        accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 
         ...
 ```
@@ -188,7 +201,7 @@ We could start by refactoring the access control logic into a function:
 ```haskell
 accessDeniedUnlessJobPositionAllowed jobPosition = do
     jobPositions <- currentCompanyJobPositions
-    accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+    accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 ```
 
 And then add a type declaration:
@@ -197,7 +210,7 @@ And then add a type declaration:
 accessDeniedUnlessJobPositionAllowed :: JobPosition -> IO ()
 accessDeniedUnlessJobPositionAllowed jobPosition = do
     jobPositions <- currentCompanyJobPositions
-    accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+    accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
 ```
 
 However, GHC will give us an error message stating:
@@ -212,11 +225,11 @@ Application/Helper/Controller.hs:51:21: error:
         jobPositions <- currentCompanyJobPositions
       In the expression:
         do jobPositions <- currentCompanyJobPositions
-           accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+           accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
       In an equation for `accessDeniedUnlessJobPositionAllowed':
           accessDeniedUnlessJobPositionAllowed jobPosition
             = do jobPositions <- currentCompanyJobPositions
-                 accessDeniedUnless (get #id jobPosition `elem` (ids jobPositions))
+                 accessDeniedUnless (jobPosition.id `elem` (ids jobPositions))
    |
 51 |     jobPositions <- currentCompanyJobPositions
    |

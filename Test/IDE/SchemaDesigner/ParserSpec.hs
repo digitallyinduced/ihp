@@ -726,6 +726,20 @@ tests = do
                     , indexType = Nothing
                     }
 
+        it "should parse a CREATE INDEX with a coalesce expression" do
+            parseSql "CREATE UNIQUE INDEX user_invite_uniqueness ON user_invites (organization_id, email, coalesce(expires_at, '0001-01-01 01:01:01-04'));\n" `shouldBe` CreateIndex
+                    { indexName = "user_invite_uniqueness"
+                    , unique = True
+                    , tableName = "user_invites"
+                    , columns =
+                            [ IndexColumn { column = VarExpression "organization_id", columnOrder = [] }
+                            , IndexColumn { column = VarExpression "email", columnOrder = [] }
+                            , IndexColumn { column = CallExpression "coalesce" [VarExpression "expires_at", TextExpression "0001-01-01 01:01:01-04"], columnOrder = [] }
+                            ]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    }
+
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
                     { functionName = "notify_did_insert_webrtc_connection"

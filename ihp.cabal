@@ -371,6 +371,7 @@ library
         , IHP.IDE.CodeGen.MailGenerator
         , IHP.IDE.CodeGen.MigrationGenerator
         , IHP.IDE.LiveReloadNotificationServer
+        , IHP.IDE.FileWatcher
         , IHP.IDE.PortConfig
         , IHP.IDE.Postgres
         , IHP.IDE.StatusServer
