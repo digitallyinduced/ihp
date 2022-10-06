@@ -1120,6 +1120,91 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
 
+            it "should handle complex renames" do
+                -- See https://github.com/digitallyinduced/thin-backend/issues/66
+                let targetSchema = sql $ cs [plain|
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                    $$ language plpgsql;
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+                        failed_login_attempts INT DEFAULT 0 NOT NULL,
+                        access_token TEXT DEFAULT NULL,
+                        confirmation_token TEXT DEFAULT NULL,
+                        is_confirmed BOOLEAN DEFAULT false NOT NULL
+                    );
+                    CREATE POLICY "Users can read their own record" ON users USING (id = ihp_user_id()) WITH CHECK (false);
+                    ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+                    CREATE TABLE artefacts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL
+                    );
+                    CREATE INDEX artefacts_created_at_index ON artefacts (created_at);
+                    CREATE TRIGGER update_artefacts_updated_at BEFORE UPDATE ON artefacts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
+                    CREATE INDEX artefacts_user_id_index ON artefacts (user_id);
+                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let actualSchema = sql $ cs [plain|
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                    $$ language plpgsql;
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+                        failed_login_attempts INT DEFAULT 0 NOT NULL,
+                        access_token TEXT DEFAULT NULL,
+                        confirmation_token TEXT DEFAULT NULL,
+                        is_confirmed BOOLEAN DEFAULT false NOT NULL
+                    );
+                    CREATE POLICY "Users can read their own record" ON users USING (id = ihp_user_id()) WITH CHECK (false);
+                    ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+                    CREATE TABLE media (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL
+                    );
+                    CREATE INDEX media_created_at_index ON media (created_at);
+                    CREATE TRIGGER update_media_updated_at BEFORE UPDATE ON media FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
+                    CREATE INDEX media_user_id_index ON media (user_id);
+                    ALTER TABLE media ADD CONSTRAINT media_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE media ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their media" ON media USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+
+                |]
+                let migration = sql [i|
+                    ALTER TABLE media RENAME TO artefacts;
+                    
+                    DROP INDEX media_created_at_index;
+                    DROP INDEX media_user_id_index;
+                    ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;
+                    DROP POLICY "Users can manage their media" ON artefacts;
+                    
+                    CREATE INDEX artefacts_created_at_index ON artefacts (created_at);
+                    CREATE TRIGGER update_artefacts_updated_at BEFORE UPDATE ON artefacts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
+                    CREATE INDEX artefacts_user_id_index ON artefacts (user_id);
+                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
