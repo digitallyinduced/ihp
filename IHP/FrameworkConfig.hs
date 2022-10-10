@@ -205,9 +205,11 @@ ihpDefaultConfig = do
 --
 env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
 env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
+{-# INLINABLE env #-}
 
 envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
 envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
+{-# INLINABLE envOrDefault #-}
 
 envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
 envOrNothing name = configIO $ fmap parseString <$> Posix.getEnv name
@@ -215,6 +217,7 @@ envOrNothing name = configIO $ fmap parseString <$> Posix.getEnv name
         parseString string = case envStringToValue string of
             Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
             Right value -> value
+{-# INLINABLE envOrNothing #-}
 
 class EnvVarReader valueType where
     envStringToValue :: ByteString -> Either Text valueType
