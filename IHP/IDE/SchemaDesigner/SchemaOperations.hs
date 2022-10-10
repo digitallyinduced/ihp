@@ -230,6 +230,14 @@ newColumnIndex tableName columnName =
     , indexType = Nothing
     }
 
+data AddIndexOptions = AddIndexOptions
+    { tableName :: !Text
+    , columnName :: !Text
+    }
+addIndex :: AddIndexOptions -> Schema -> Schema
+addIndex AddIndexOptions { tableName, columnName } =
+    appendStatement (newColumnIndex tableName columnName)
+
 appendStatement :: Statement -> [Statement] -> [Statement]
 appendStatement statement statements = statements <> [statement]
 
@@ -605,3 +613,25 @@ doesHaveExistingPolicies statements tableName = statements
                     CreatePolicy { tableName = tableName' } -> tableName' == tableName
                     otherwise                               -> False
                 |> isJust
+
+
+deleteIndex :: Text -> Schema -> Schema
+deleteIndex indexName statements =
+    statements
+    |> filter \case
+        CreateIndex { indexName = name } | name == indexName -> False 
+        otherwise                                            -> True
+
+
+data UpdateIndexOptions = UpdateIndexOptions
+    { indexName :: !Text
+    , newIndexName :: !Text
+    , indexColumns :: ![IndexColumn]
+    }
+updateIndex :: UpdateIndexOptions -> Schema -> Schema
+updateIndex UpdateIndexOptions { indexName, newIndexName, indexColumns } schema =
+        map updateFn schema
+     where
+        updateFn :: Statement -> Statement
+        updateFn index@(CreateIndex { indexName = n }) | n == indexName = index { indexName = newIndexName, columns = indexColumns }
+        updateFn statement = statement

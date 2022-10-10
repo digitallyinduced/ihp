@@ -116,6 +116,13 @@ data MigrationsController
     | RunMigrationAction { migrationId :: !Int }
     deriving (Eq, Show, Data)
 
+data IndexesController
+    = EditIndexAction { tableName :: !Text, indexName :: !Text }
+    | UpdateIndexAction { tableName :: !Text, indexName :: !Text }
+    | DeleteIndexAction { tableName :: !Text, indexName :: !Text }
+    | CreateIndexAction { tableName :: !Text, columnName :: !Text }
+    deriving (Eq, Show, Data)
+
 data DynamicField = DynamicField
     { fieldValue :: Maybe ByteString
     , fieldName :: ByteString

@@ -11,6 +11,7 @@ module IHP.IDE.SchemaDesigner.Parser
 , expression
 , sqlType
 , removeTypeCasts
+, parseIndexColumns
 ) where
 
 import IHP.Prelude
@@ -550,12 +551,14 @@ createIndex = do
     lexeme "ON"
     tableName <- qualifiedIdentifier
     indexType <- optional parseIndexType
-    columns <- between (char '(' >> space) (char ')' >> space) (parseIndexColumn `sepBy` (char ',' >> space))
+    columns <- between (char '(' >> space) (char ')' >> space) parseIndexColumns
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
     pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType }
+
+parseIndexColumns = parseIndexColumn `sepBy` (char ',' >> space)
 
 parseIndexColumn = do
     column <- expression
