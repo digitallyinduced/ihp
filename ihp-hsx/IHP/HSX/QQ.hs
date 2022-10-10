@@ -93,6 +93,7 @@ toStringAttribute (SpreadAttributes expression) = [| spreadAttributes $(pure exp
 
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
 spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value) attributes
+{-# INLINE spreadAttributes #-}
 
 applyAttributes :: Html5.Html -> [Html5.Html -> Html5.Html] -> Html5.Html
 applyAttributes element attributes = foldl' (\element attribute -> attribute element) element attributes
@@ -122,6 +123,7 @@ instance ApplyAttribute Bool where
 instance ApplyAttribute attribute => ApplyAttribute (Maybe attribute) where
     applyAttribute attr attr' (Just value) h = applyAttribute attr attr' value h
     applyAttribute attr attr' Nothing h = h
+    {-# INLINE applyAttribute #-}
 
 instance ApplyAttribute Html5.AttributeValue where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') value)
