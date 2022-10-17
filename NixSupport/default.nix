@@ -7,6 +7,7 @@
 , additionalNixpkgsOptions ? {}
 , postgresExtensions ? (p: [])
 , optimized ? false
+, includeDevTools ? !optimized # Include Haskell Language Server and Postgres?
 }:
 
 let
@@ -16,9 +17,15 @@ let
       (if withHoogle
       then ghc.ghcWithHoogle
       else ghc.ghcWithPackages)
-        (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
-    allNativePackages = builtins.concatLists [ (otherDeps pkgs)
-    [(pkgs.postgresql_13.withPackages postgresExtensions) pkgs.makeWrapper] (if pkgs.stdenv.isDarwin then [] else []) ];
+        (p: builtins.concatLists [
+          (if includeDevTools then [p.haskell-language-server] else [])
+          (haskellDeps p)
+        ]
+      );
+    allNativePackages = builtins.concatLists [
+      (otherDeps pkgs)
+      (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions) pkgs.makeWrapper] else [])
+    ];
 
     appBinary = if optimized
       then "build/bin/RunOptimizedProdServer"
