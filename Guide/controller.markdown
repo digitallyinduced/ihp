@@ -159,7 +159,12 @@ This will render `Hello World, Unnamed!` when the `ExampleAction` is called with
 
 ### Accessing the FrameworkConfig inside Controllers and Views.
 
-The config defined in `Config/Config.hs` is available through the implicit parameter `context`, a [`ConfigProvider`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:ConfigProvider) that is available in controllers.
+The config defined in `Config/Config.hs` is available through the implicit parameter `?context` that is available in controllers:
+
+```haskell
+action MyAction = do
+    let config = ?context.frameworkConfig
+```
 
 There are helpers that use this implicit parameter, e.g. [`isDevelopment`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isDevelopment)/[`isProduction`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isProduction):
 
@@ -167,8 +172,6 @@ There are helpers that use this implicit parameter, e.g. [`isDevelopment`](https
 action MyAction = do
     when isDevelopment (putStrLn "Running in dev mode")
 ```
-
-or you can use the function [`getFrameworkConfig`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:getFrameworkConfig) if you need to access the config yourself.
 
 ### Advanced: Working with Custom Types
 

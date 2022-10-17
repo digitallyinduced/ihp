@@ -375,7 +375,7 @@ data FrameworkConfig = FrameworkConfig
     -- > import Config -- For accessing the RedisUrl data type
     -- > 
     -- > action MyAction = do
-    -- >     let appConfig = ?context |> getFrameworkConfig |> get #appConfig
+    -- >     let appConfig = ?context.frameworkConfig.appConfig
     -- >     let (RedisUrl redisUrl) = appConfig
     -- >                |> TMap.lookup @RedisUrl
     -- >                |> fromMaybe (error "Could not find RedisUrl in config")
