@@ -24,7 +24,7 @@ let
       );
     allNativePackages = builtins.concatLists [
       (otherDeps pkgs)
-      (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions) pkgs.makeWrapper] else [])
+      (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions)] else [])
     ];
 
     appBinary = if optimized
@@ -97,5 +97,6 @@ in
         dontFixup = true;
         src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] projectPath;
         buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
+        nativeBuildInputs = [ pkgs.makeWrapper ];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
     }
