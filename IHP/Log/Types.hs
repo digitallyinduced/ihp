@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-|
 Module: IHP.Log.Types
 Description:  Types for the IHP logging system

@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 module IHP.FrameworkConfig where
 
 import IHP.Prelude
