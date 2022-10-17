@@ -165,10 +165,8 @@ enableRowLevelSecurityIfLoggedIn ::
 enableRowLevelSecurityIfLoggedIn = do
     case currentUserOrNothing of
         Just user -> do
-            let rlsAuthenticatedRole = ?context
-                    |> FrameworkConfig.getFrameworkConfig
-                    |> get #rlsAuthenticatedRole
-            let rlsUserId = PG.toField (get #id user)
+            let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
+            let rlsUserId = PG.toField user.id
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             putContext rlsContext
         Nothing -> pure ()

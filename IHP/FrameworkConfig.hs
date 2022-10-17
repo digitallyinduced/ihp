@@ -457,25 +457,10 @@ data FrameworkConfig = FrameworkConfig
     , customMiddleware :: !CustomMiddleware
 }
 
-class ConfigProvider a where
-    getFrameworkConfig :: a -> FrameworkConfig
+instance HasField "frameworkConfig" FrameworkConfig FrameworkConfig where
+    getField frameworkConfig = frameworkConfig
 
-instance ConfigProvider FrameworkConfig where
-    getFrameworkConfig = id
-
-instance LoggingProvider FrameworkConfig where
-    getLogger = get #logger
-
-
--- | Proxies FrameworkConfig fields contained in some context that can provider a FrameworkConfig
-fromConfig :: (?context :: context, ConfigProvider context) => (FrameworkConfig -> a) -> a
-fromConfig selector = (selector . getFrameworkConfig) ?context
-{-# INLINE fromConfig #-}
-
--- | Get the current frameworkConfig
-getConfig :: (?context :: context, ConfigProvider context) => FrameworkConfig
-getConfig = fromConfig id
-{-# INLINE getConfig #-}
+type ConfigProvider context = HasField "frameworkConfig" context FrameworkConfig
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: Text -> Cookie.SetCookie
@@ -506,7 +491,7 @@ defaultLoggerForEnv = \case
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
-isEnvironment environment = (getFrameworkConfig ?context |> get #environment) == environment
+isEnvironment environment = ?context.frameworkConfig.environment == environment
 {-# INLINABLE isEnvironment #-}
 
 -- | Returns 'True'  when the application is running in Development mode

@@ -47,7 +47,7 @@ buildMail mail =
 --
 -- Uses the mail server provided in the controller context, configured in Config/Config.hs
 sendMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO ()
-sendMail mail = sendWithMailServer (fromConfig mailServer) (buildMail mail)
+sendMail mail = sendWithMailServer ?context.frameworkConfig.mailServer (buildMail mail)
 
 sendWithMailServer :: MailServer -> Mail -> IO ()
 sendWithMailServer SES { .. } mail = do

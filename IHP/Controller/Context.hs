@@ -133,9 +133,9 @@ putContext value = do
 
 newtype ActionType = ActionType Typeable.TypeRep
 
-instance ConfigProvider ControllerContext where
-    getFrameworkConfig context = getFrameworkConfig (get #requestContext context)
-    {-# INLINABLE getFrameworkConfig #-}
+instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
+    getField controllerContext = controllerContext.requestContext.frameworkConfig
+    {-# INLINABLE getField #-}
 
-instance LoggingProvider ControllerContext where
-    getLogger = getLogger . getFrameworkConfig
+instance HasField "logger" ControllerContext Logger where
+    getField controllerContext = controllerContext.frameworkConfig.logger

@@ -244,9 +244,7 @@ fromCSSFramework :: (?context :: ControllerContext, KnownSymbol field, HasField 
 fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
 theCSSFramework :: (?context :: ControllerContext) => CSSFramework
-theCSSFramework = ?context
-        |> FrameworkConfig.getFrameworkConfig
-        |> get #cssFramework
+theCSSFramework = ?context.frameworkConfig.cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --
@@ -258,17 +256,10 @@ nl2br content = content
     |> map (\line -> [hsx|{line}<br/>|])
     |> mconcat
 
-instance {-# OVERLAPPABLE #-} HasField "requestContext" viewContext RequestContext => FrameworkConfig.ConfigProvider viewContext where
-    getFrameworkConfig viewContext = viewContext
-            |> get #requestContext
-            |> get #frameworkConfig
-
 type Html = HtmlWithContext ControllerContext
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
 liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
-liveReloadWebsocketUrl = ?context
-    |> FrameworkConfig.getFrameworkConfig
-    |> get #ideBaseUrl
+liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"

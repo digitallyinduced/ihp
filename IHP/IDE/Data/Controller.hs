@@ -199,7 +199,7 @@ instance Controller DataController where
             Nothing -> renderNotFound
 
 connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
-connectToAppDb = PG.connectPostgreSQL $ fromConfig databaseUrl
+connectToAppDb = PG.connectPostgreSQL ?context.frameworkConfig.databaseUrl
 
 fetchTableNames :: PG.Connection -> IO [Text]
 fetchTableNames connection = do
