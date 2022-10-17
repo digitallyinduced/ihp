@@ -170,7 +170,7 @@ generateGenericApplication applicationName =
              <>"instance View WelcomeView where\n"
              <>"    html WelcomeView = [hsx|\n"
              <>"         <div style=\"background-color: #657b83; padding-top: 2rem; padding-bottom: 2rem; color:hsla(196, 13%, 96%, 1); border-radius: 4px\">\n"
-             <>"              <div style=\"max-width: 800px; margin-left: auto; margin-right: auto\">\n"
+             <>"              <div style=\"max-width: 800px; margin-left: auto; margin-right: auto; padding: 1rem\">\n"
              <>"                  <h1 style=\"margin-bottom: 2rem; font-size: 2rem; font-weight: 300; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1)\">\n"
              <>"                      IHP\n"
              <>"                  </h1>\n"
