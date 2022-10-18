@@ -33,6 +33,6 @@ mkDerivation {
   license = lib.licenses.mit;
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
-  configureFlags = ["--enable-optimization=2" "--enable-split-sections"];
+  configureFlags = ["--enable-optimization=2"];
   jailbreak = true;
 }
