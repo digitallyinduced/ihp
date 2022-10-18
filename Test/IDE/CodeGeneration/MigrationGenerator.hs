@@ -1204,8 +1204,33 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should delete policies when the column is deleted" do
+                -- https://github.com/digitallyinduced/ihp/issues/1480
+                let targetSchema = sql $ cs [plain|
+                    CREATE TABLE artefacts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                    );
+                    ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
+                |]
+                let actualSchema = sql $ cs [plain|
+                    CREATE TABLE artefacts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL
+                    );
+                    ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let migration = sql [i|
+                    ALTER TABLE artefacts DROP COLUMN user_id;
+                    DROP POLICY "Users can manage their artefacts" ON artefacts;
+                |]
 
-
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
