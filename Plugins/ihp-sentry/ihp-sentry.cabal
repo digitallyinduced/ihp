@@ -43,6 +43,7 @@ library
         , BlockArguments
         , LambdaCase
         , StandaloneDeriving
+        , OverloadedRecordDot
     hs-source-dirs: .
     exposed-modules:
         IHP.Sentry
