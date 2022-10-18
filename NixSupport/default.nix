@@ -7,6 +7,7 @@
 , additionalNixpkgsOptions ? {}
 , postgresExtensions ? (p: [])
 , optimized ? false
+, includeDevTools ? !optimized # Include Haskell Language Server and Postgres?
 }:
 
 let
@@ -16,9 +17,14 @@ let
       (if withHoogle
       then ghc.ghcWithHoogle
       else ghc.ghcWithPackages)
-        (p: builtins.concatLists [ [p.haskell-language-server] (haskellDeps p) ] );
-    allNativePackages = builtins.concatLists [ (otherDeps pkgs)
-    [(pkgs.postgresql_13.withPackages postgresExtensions) pkgs.makeWrapper] (if pkgs.stdenv.isDarwin then [] else []) ];
+        (p: builtins.concatLists [
+          (if includeDevTools then [p.haskell-language-server] else [])
+          (haskellDeps p)
+        ]
+      );
+    allNativePackages = builtins.concatLists [
+      (otherDeps pkgs)
+    ];
 
     appBinary = if optimized
       then "build/bin/RunOptimizedProdServer"
@@ -47,18 +53,18 @@ in
           # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
           export HOME=/tmp
 
-          make ${appBinary}
+          make -j ${appBinary}
 
           # Build job runner if there are any jobs
           if find -type d -iwholename \*/Job|grep .; then
-            make ${jobsBinary};
+            make -j ${jobsBinary};
           fi;
 
           # Build all scripts if there are any
           mkdir -p Application/Script
           SCRIPT_TARGETS=`find Application/Script -type f -iwholename '*.hs' -not -name 'Prelude.hs' -exec basename {} .hs ';' | sed 's#^#build/bin/Script/#' | tr "\n" " "`
           if [[ ! -z "$SCRIPT_TARGETS" ]]; then
-            make $SCRIPT_TARGETS;
+            make -j $SCRIPT_TARGETS;
           fi;
         '';
         installPhase = ''
@@ -90,5 +96,10 @@ in
         dontFixup = true;
         src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] projectPath;
         buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
+        nativeBuildInputs = builtins.concatLists [
+          [ pkgs.makeWrapper ]
+          (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions)] else [])
+        ];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
+        enableParallelBuilding = true;
     }
