@@ -345,12 +345,12 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                     <input type="hidden" name="columnType" value="UUID"/>
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="isArray" value={inputValue False}/>
-                    <input type="hidden" name="defaultValue" value="ihp_user_id()"/>
+                    <input type="hidden" name="defaultValue" value={if usesRLS then "ihp_user_id()" :: Text else ""}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
                     <input type="hidden" name="isReference" value={inputValue True}/>
                     <input type="hidden" name="referenceTable" value="users"/>
-                    <input type="hidden" name="autoPolicy" value={inputValue True}/>
+                    <input type="hidden" name="autoPolicy" value={inputValue usesRLS}/>
 
                     <button type="submit" class="btn btn-suggested-table">
                         <table class="table table-sm mb-0">
@@ -367,6 +367,10 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                     </button>
                 </form>
             |]
+
+        -- TODO: this should be set to True if the Schema.sql contains any RLS related code
+        usesRLS :: Bool
+        usesRLS = False
 
 
 renderColumn :: Column -> Int -> Text -> [Statement] -> Html
