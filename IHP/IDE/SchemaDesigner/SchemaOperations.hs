@@ -230,6 +230,14 @@ newColumnIndex tableName columnName =
     , indexType = Nothing
     }
 
+data AddIndexOptions = AddIndexOptions
+    { tableName :: !Text
+    , columnName :: !Text
+    }
+addIndex :: AddIndexOptions -> Schema -> Schema
+addIndex AddIndexOptions { tableName, columnName } =
+    appendStatement (newColumnIndex tableName columnName)
+
 appendStatement :: Statement -> [Statement] -> [Statement]
 appendStatement statement statements = statements <> [statement]
 
@@ -544,10 +552,42 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 then deleteTriggerIfExists (updatedAtTriggerName tableName)
                 else \schema -> schema
             )
+        |> filter deletePolicyReferencingPolicy
     where
         deleteColumnInTable :: Statement -> Statement
         deleteColumnInTable (StatementCreateTable table@CreateTable { name, columns }) | name == tableName = StatementCreateTable $ table { columns = delete (columns !! columnId) columns}
         deleteColumnInTable statement = statement
+
+        deletePolicyReferencingPolicy :: Statement -> Bool
+        deletePolicyReferencingPolicy CreatePolicy { tableName = policyTable, using, check } | policyTable == tableName = 
+            case (using, check) of
+                (Just using, Nothing) -> not (isRef using)
+                (Nothing, Just check) -> not (isRef check)
+                (Just using, Just check) -> not (isRef using && isRef check)
+            where
+                isRef :: Expression -> Bool
+                isRef (TextExpression {}) = False
+                isRef (VarExpression var) = var == columnName
+                isRef (CallExpression _ args) = foldl' (||) False (map isRef args)
+                isRef (NotEqExpression a b) = isRef a || isRef b
+                isRef (EqExpression a b) = isRef a || isRef b
+                isRef (AndExpression a b) = isRef a || isRef b
+                isRef (IsExpression a b) = isRef a || isRef b
+                isRef (InExpression a b) = isRef a || isRef b
+                isRef (NotExpression a) = isRef a
+                isRef (ExistsExpression a) = isRef a
+                isRef (OrExpression a b) = isRef a || isRef b
+                isRef (LessThanExpression a b) = isRef a || isRef b
+                isRef (LessThanOrEqualToExpression a b) = isRef a || isRef b
+                isRef (GreaterThanExpression a b) = isRef a || isRef b
+                isRef (GreaterThanOrEqualToExpression a b) = isRef a || isRef b
+                isRef (DoubleExpression _) = False
+                isRef (IntExpression _) = False
+                isRef (TypeCastExpression a _) = isRef a
+                isRef (SelectExpression _) = False
+                isRef (DotExpression a _) = isRef a
+                isRef (ConcatenationExpression a b) = isRef a || isRef b
+        deletePolicyReferencingPolicy otherwise = True
 
 -- | Returns True if a CreateIndex statement references a specific column
 --
@@ -605,3 +645,25 @@ doesHaveExistingPolicies statements tableName = statements
                     CreatePolicy { tableName = tableName' } -> tableName' == tableName
                     otherwise                               -> False
                 |> isJust
+
+
+deleteIndex :: Text -> Schema -> Schema
+deleteIndex indexName statements =
+    statements
+    |> filter \case
+        CreateIndex { indexName = name } | name == indexName -> False 
+        otherwise                                            -> True
+
+
+data UpdateIndexOptions = UpdateIndexOptions
+    { indexName :: !Text
+    , newIndexName :: !Text
+    , indexColumns :: ![IndexColumn]
+    }
+updateIndex :: UpdateIndexOptions -> Schema -> Schema
+updateIndex UpdateIndexOptions { indexName, newIndexName, indexColumns } schema =
+        map updateFn schema
+     where
+        updateFn :: Statement -> Statement
+        updateFn index@(CreateIndex { indexName = n }) | n == indexName = index { indexName = newIndexName, columns = indexColumns }
+        updateFn statement = statement

@@ -345,12 +345,12 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                     <input type="hidden" name="columnType" value="UUID"/>
                     <input type="hidden" name="primaryKey" value={inputValue False}/>
                     <input type="hidden" name="isArray" value={inputValue False}/>
-                    <input type="hidden" name="defaultValue" value="ihp_user_id()"/>
+                    <input type="hidden" name="defaultValue" value={if usesRLS then "ihp_user_id()" :: Text else ""}/>
                     <input type="hidden" name="allowNull" value={inputValue False}/>
                     <input type="hidden" name="isUnique" value={inputValue False}/>
                     <input type="hidden" name="isReference" value={inputValue True}/>
                     <input type="hidden" name="referenceTable" value="users"/>
-                    <input type="hidden" name="autoPolicy" value={inputValue True}/>
+                    <input type="hidden" name="autoPolicy" value={inputValue usesRLS}/>
 
                     <button type="submit" class="btn btn-suggested-table">
                         <table class="table table-sm mb-0">
@@ -368,6 +368,10 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
                 </form>
             |]
 
+        -- TODO: this should be set to True if the Schema.sql contains any RLS related code
+        usesRLS :: Bool
+        usesRLS = False
+
 
 renderColumn :: Column -> Int -> Text -> [Statement] -> Html
 renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tableName statements = [hsx|
@@ -381,8 +385,13 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
     <a href={EditColumnAction tableName id}>Edit Column</a>
     <a href={DeleteColumnAction tableName id name} class="js-delete">Delete Column</a>
     <div></div>
-    <form action={ToggleColumnUniqueAction tableName id}><button type="submit" class="link-button">{toggleButtonText}</button></form>
+    <form action={ToggleColumnUniqueAction tableName id}>
+        <button type="submit" class="link-button">
+            {toggleButtonText}
+        </button>
+    </form>
     {foreignKeyOption}
+    {addIndex}
     <div></div>
     <a href={NewColumnAction tableName}>Add Column</a>
 </div>
@@ -408,26 +417,58 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable}>Edit Foreign Key Constraint</a>
                 <a href={DeleteForeignKeyAction constraintName tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
             _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
+        
+        addIndex :: Html
+        addIndex = unless alreadyHasIndex [hsx|
+            <form method="POST" action={CreateIndexAction tableName name}>
+                <button type="submit" class="link-button">
+                    Add Index
+                </button>
+            </form>
+        |]
 
-renderColumnIndexes tableName statements = forEach (findTableIndexes statements tableName) renderIndex
+        alreadyHasIndex :: Bool
+        alreadyHasIndex =
+            statements
+            |> find \case
+                CreateIndex { tableName = tableName', columns } -> tableName' == tableName && (VarExpression name) `elem` (map (.column) columns)
+                otherwise -> False
+            |> isJust
+
+renderColumnIndexes tableName statements = forEachWithIndex (findTableIndexes statements tableName) renderIndex
     where
-        renderIndex index = [hsx|
+        renderIndex :: (Int, Statement) -> Html
+        renderIndex (id, index) = [hsx|
             <tr class="index">
-                <td class="index-name">{get #indexName index}</td>
-                <td class="index-expressions">{unique}</td>
-                <td class="index-expressions">{expressions}</td>
+                <td class="index-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+                    <a href={EditIndexAction tableName index.indexName} class="d-block text-body nounderline">
+                        {index.indexName}
+                    </a>
+                </td>
+                <td class="index-expressions" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+                    {unique}
+                </td>
+                <td class="index-expressions" oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+                    {expressions}
+                </td>
             </tr>
+            <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
+                <a href={EditIndexAction tableName index.indexName}>Edit Index</a>
+                <a href={DeleteIndexAction tableName index.indexName} class="js-delete">Delete Index</a>
+            </div>
         |]
             where
-                unique = when (get #unique index) [hsx|UNIQUE|]
+                unique = when index.unique [hsx|UNIQUE|]
                 showColumnOrder columnOrder =
                     columnOrder
                         |> map (\case { Asc -> "ASC"; Desc -> "DESC"; NullsFirst -> "NULLS FIRST"; NullsLast -> "NULLS LAST" })
                         |> unwords
                 expressions = index
                     |> get #columns
-                    |> map (\column -> (compileExpression $ get #column column) <> " " <> (showColumnOrder $ get #columnOrder column))
+                    |> map (\column -> (compileExpression column.column) <> " " <> (showColumnOrder column.columnOrder))
                     |> intercalate ", "
+
+                contextMenuId = "context-menu-index-" <> tshow id
 
 
 

@@ -3,7 +3,7 @@ Module: IHP.IDE.SchemaDesigner.Compiler
 Description: Compiles AST of SQL to DDL
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, compileIdentifier, compileExpression, compilePostgresType) where
+module IHP.IDE.SchemaDesigner.Compiler (compileSql, writeSchema, compileIdentifier, compileExpression, compilePostgresType, compileIndexColumn) where
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types

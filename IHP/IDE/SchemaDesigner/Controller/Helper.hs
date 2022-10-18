@@ -18,6 +18,11 @@ instance ParamReader Expression where
         Left parserError -> Left (cs $ Megaparsec.errorBundlePretty parserError)
         Right result -> Right result
 
+instance ParamReader [IndexColumn] where
+    readParameter byteString = case Megaparsec.runParser Parser.parseIndexColumns "" (cs byteString) of
+        Left parserError -> Left (cs $ Megaparsec.errorBundlePretty parserError)
+        Right result -> Right result
+
 readSchema ::
     ( ?context::ControllerContext
     , ?modelContext::ModelContext

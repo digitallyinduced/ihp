@@ -131,6 +131,3 @@ data Context = Context
 
 dispatch :: (?context :: Context) => Action -> IO ()
 dispatch = let Context { .. } = ?context in putMVar actionVar
-
-instance Log.LoggingProvider Context where
-    getLogger Context { logger } = logger

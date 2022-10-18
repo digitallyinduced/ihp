@@ -43,7 +43,7 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
-redirectToPath path = redirectToUrl (fromConfig baseUrl <> path)
+redirectToPath path = redirectToUrl (?context.frameworkConfig.baseUrl <> path)
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a url (given as a string)

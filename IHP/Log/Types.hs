@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-|
 Module: IHP.Log.Types
 Description:  Types for the IHP logging system
@@ -52,6 +53,7 @@ import System.Log.FastLogger (
     )
 
 import qualified System.Log.FastLogger as FastLogger (FormattedTime)
+import GHC.Records
 
 
 -- some functions brought over from IHP.Prelude
@@ -200,13 +202,12 @@ defaultDestination :: LogDestination
 defaultDestination = Stdout defaultBufSize
 
 -- | Used to get the logger for a given environment.
-class LoggingProvider a where
-    -- | Call in any instance of 'LoggingProvider' get the the environment's current logger.
-    -- Useful in controller and model actions, which both have logging contexts.
-    getLogger :: a -> Logger
+-- | Call in any instance of 'LoggingProvider' get the the environment's current logger.
+-- Useful in controller and model actions, which both have logging contexts.
+type LoggingProvider context = HasField "logger" context Logger
 
-instance {-# OVERLAPS #-} LoggingProvider Logger where
-    getLogger = id
+instance HasField "logger" Logger Logger where
+    getField logger = logger
 
 -- | Create a new 'FastLogger' and wrap it in an IHP 'Logger'.
 -- Use with the default logger settings and record update syntax for nice configuration:

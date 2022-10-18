@@ -409,6 +409,35 @@ tests = do
                         }
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
+            
+            it "should delete an referenced policy" do
+                let tableAWithUserId = StatementCreateTable CreateTable
+                            { name = "a"
+                            , columns = [
+                                    Column
+                                        { name = "user_id"
+                                        , columnType = PUUID
+                                        , defaultValue = Just (CallExpression "ihp_user_id" [])
+                                        , notNull = True
+                                        , isUnique = False
+                                        , generator = Nothing
+                                        }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , constraints = []
+                            }
+                let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
+
+                let inputSchema = [tableAWithUserId, policy]
+                let expectedSchema = [tableA]
+                
+                let options = SchemaOperations.DeleteColumnOptions
+                        { tableName = "a"
+                        , columnName = "user_id"
+                        , columnId = 0
+                        }
+
+                (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
         describe "update" do
             it "update a column's name, type, default value and not null" do
                 let tableAWithCreatedAt = StatementCreateTable CreateTable

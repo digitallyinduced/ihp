@@ -342,9 +342,7 @@ respondAndExit response = do
 -- >     putStrLn ("Stripe public key: " <> stripePublicKey)
 --
 getAppConfig :: forall configParameter context. (?context :: context, ConfigProvider context, Typeable configParameter) => configParameter
-getAppConfig = ?context
-        |> getFrameworkConfig
-        |> get #appConfig
+getAppConfig = ?context.frameworkConfig.appConfig
         |> TypeMap.lookup @configParameter
         |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))
 {-# INLINE getAppConfig #-}

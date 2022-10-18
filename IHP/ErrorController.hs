@@ -161,7 +161,7 @@ displayException exception action additionalInfo = do
             [ recordNotFoundExceptionHandlerProd
             ]
 
-    let allHandlers = if fromConfig environment == Environment.Development
+    let allHandlers = if ?context.frameworkConfig.environment == Environment.Development
             then devHandlers
             else prodHandlers
 
@@ -199,7 +199,7 @@ genericHandler exception controller additionalInfo = do
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]
 
-    let (errorMessage, errorTitle) = if fromConfig environment == Environment.Development
+    let (errorMessage, errorTitle) = if ?context.frameworkConfig.environment == Environment.Development
             then (devErrorMessage, devTitle)
             else (prodErrorMessage, prodTitle)
     let RequestContext { respond } = get #requestContext ?context
@@ -211,9 +211,7 @@ postgresHandler exception controller additionalInfo = do
     let
         handlePostgresOutdatedError :: Show exception => exception -> H.Html -> IO ResponseReceived
         handlePostgresOutdatedError exception errorText = do
-            let ihpIdeBaseUrl = ?context
-                    |> getFrameworkConfig
-                    |> get #ideBaseUrl
+            let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let title = [hsx|Database looks outdated. {errorText}|]
             let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>
@@ -234,10 +232,8 @@ postgresHandler exception controller additionalInfo = do
 
         handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
         handleSqlError exception = do
-            let ihpIdeBaseUrl = ?context
-                    |> getFrameworkConfig
-                    |> get #ideBaseUrl
-            let sqlError = get #sqlError exception
+            let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
+            let sqlError = exception.sqlError
             let title = [hsx|{get #sqlErrorMsg sqlError}|]
             let errorMessage = [hsx|
                         <h2>While running the following Query:</h2>
@@ -585,7 +581,7 @@ renderError errorTitle view = H.docTypeHtml ! A.lang "en" $ [hsx|
 </body>
     |]
         where
-            shouldShowHelpFooter = (fromConfig environment) == Environment.Development
+            shouldShowHelpFooter = ?context.frameworkConfig.environment == Environment.Development
             helpFooter = [hsx|
                 <div class="ihp-error-other-solutions">
                     <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
