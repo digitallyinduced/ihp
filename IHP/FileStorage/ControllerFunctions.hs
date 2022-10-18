@@ -106,8 +106,8 @@ storeFileWithOptions fileInfo options = do
                 |> get #fileContent
                 |> LBS.writeFile (cs destPath)
 
-            let frameworkConfig = getFrameworkConfig ?context
-            pure $ (get #baseUrl frameworkConfig) <> "/" <> objectPath
+            let frameworkConfig = ?context.frameworkConfig
+            pure $ frameworkConfig.baseUrl <> "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> get #fileContent
@@ -220,8 +220,8 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
     publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
     case storage of
         StaticDirStorage -> do
-            let frameworkConfig = getFrameworkConfig ?context
-            let url = (get #baseUrl frameworkConfig) <> "/" <> objectPath
+            let frameworkConfig = ?context.frameworkConfig
+            let url = frameworkConfig.baseUrl <> "/" <> objectPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
@@ -361,7 +361,6 @@ removeFileFromStorage StoredFile { path, url } = do
 
 -- | Returns the current storage configured in Config.hs
 storage :: (?context :: context, ConfigProvider context) => FileStorage
-storage = getFrameworkConfig ?context
-        |> get #appConfig
+storage = ?context.frameworkConfig.appConfig
         |> TMap.lookup @FileStorage
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")

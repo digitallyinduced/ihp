@@ -1,7 +1,6 @@
 module IHP.Controller.RequestContext
 ( RequestContext (..)
 , Respond
-, getConfig
 , RequestBody (..)
 ) where
 
@@ -28,6 +27,3 @@ data RequestContext = RequestContext
     , vault :: (Vault.Key (Session IO ByteString ByteString))
     , frameworkConfig :: FrameworkConfig
     }
-
-instance ConfigProvider RequestContext where
-    getFrameworkConfig = frameworkConfig

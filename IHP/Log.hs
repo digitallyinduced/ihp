@@ -36,8 +36,7 @@ import qualified System.Log.FastLogger as FastLogger
 -- function corresponding to the desired log level.
 log :: (?context :: context, LoggingProvider context, FastLogger.ToLogStr string) => LogLevel -> string -> IO ()
 log level text = do
-    let logger = getLogger ?context
-    writeLog level logger text
+    writeLog level ?context.logger text
 
 -- | Log a debug level message.
 --

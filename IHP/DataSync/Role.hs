@@ -70,6 +70,4 @@ grantPermissions role = do
     pure ()
 
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
-authenticatedRole = ?context
-        |> getFrameworkConfig
-        |> get #rlsAuthenticatedRole
+authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole

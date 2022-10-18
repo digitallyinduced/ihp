@@ -22,7 +22,7 @@ import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import qualified IHP.Controller.Context                    as Context
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
-import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), getFrameworkConfig)
+import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext, Id')
 import           IHP.Prelude
@@ -153,7 +153,7 @@ callActionWithParams controller params = do
 --
 callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
 callJob job = do
-    let frameworkConfig = getFrameworkConfig ?context
+    let frameworkConfig = ?context.frameworkConfig
     let ?context = frameworkConfig
     perform job
 

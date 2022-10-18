@@ -32,7 +32,5 @@ assetPath assetPath = assetPath <> "?v=" <> assetVersion
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
 assetVersion :: (?context :: ControllerContext) => Text
-assetVersion = ?context
-    |> Config.getFrameworkConfig
-    |> get #assetVersion
+assetVersion = ?context.frameworkConfig.assetVersion
 {-# INLINABLE assetVersion #-}
