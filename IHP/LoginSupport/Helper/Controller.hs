@@ -18,6 +18,10 @@ module IHP.LoginSupport.Helper.Controller
 , module IHP.AuthSupport.Authorization
 , module IHP.AuthSupport.Authentication
 , enableRowLevelSecurityIfLoggedIn
+, currentRoleOrNothing
+, currentRole
+, currentRoleId
+, ensureIsRole
 ) where
 
 import IHP.Prelude
