@@ -143,9 +143,7 @@ class GoogleOAuthControllerConfig user where
 
 
 googleOAuthConfig :: (?context :: ControllerContext) => Google.GoogleOAuthConfig
-googleOAuthConfig = ?context
-            |> getFrameworkConfig
-            |> get #appConfig
+googleOAuthConfig = ?context.frameworkConfig.appConfig
             |> TMap.lookup @Google.GoogleOAuthConfig
             |> fromMaybe (error "Could not find GoogleOAuthConfig in config. Did you forgot to call 'initGoogleOAuth' inside your Config.hs?")
 

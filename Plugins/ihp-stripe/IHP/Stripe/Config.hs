@@ -46,8 +46,6 @@ initStripe = do
 
 -- | Returns the stripe credentials configured with 'initStripe'
 stripeCredentials :: (?context :: context, ConfigProvider context) => StripeCredentials
-stripeCredentials = ?context
-            |> getFrameworkConfig
-            |> get #appConfig
+stripeCredentials = ?context.frameworkConfig.appConfig
             |> TMap.lookup @StripeCredentials
             |> fromMaybe (error "Could not find StripeCredentials in config. Did you forgot to call 'initStripe' inside your Config.hs?")

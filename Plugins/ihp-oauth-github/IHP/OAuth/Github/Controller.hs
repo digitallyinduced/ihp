@@ -160,16 +160,12 @@ class GithubOAuthControllerConfig user where
 
 
 githubOAuthConfig :: (?context :: ControllerContext) => Github.GithubOAuthConfig
-githubOAuthConfig = ?context
-            |> getFrameworkConfig
-            |> get #appConfig
+githubOAuthConfig = ?context.frameworkConfig.appConfig
             |> TMap.lookup @Github.GithubOAuthConfig
             |> fromMaybe (error "Could not find GithubOAuthConfig in config. Did you forgot to call 'initGithubOAuth' inside your Config.hs?")
 
 githubOAuthScopeConfig :: (?context :: ControllerContext) => Github.GithubOAuthScopeConfig
-githubOAuthScopeConfig = ?context
-            |> getFrameworkConfig
-            |> get #appConfig
+githubOAuthScopeConfig = ?context.frameworkConfig.appConfig
             |> TMap.lookup @Github.GithubOAuthScopeConfig
             |> fromMaybe Github.GithubOAuthScopeConfig { scope = ["user:email"] }
 
