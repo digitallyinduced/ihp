@@ -151,7 +151,11 @@ handleAction state AssetChanged = do
 
 handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileChanged = do
     case appGHCIState of
-        AppGHCIModulesLoaded { .. } -> sendGhciCommand process ":r"
+        AppGHCIModulesLoaded { .. } -> do
+            -- The app might already have been triggered
+            -- but the the "Server started" message might not have been received yet
+            sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
+            sendGhciCommand process ":r"
         RunningAppGHCI { .. } -> do
             sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
             sendGhciCommand process ":r"
