@@ -2,6 +2,46 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to Beta 1.0.0-rc1 from Beta 0.20.0
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v0.19.0";
+        +ref = "refs/tags/v1.0.0-rc1";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.0.0-rc1 URL into your `default.nix`.
+
+2. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    nix-shell --run 'make -B .envrc'
+    nix-shell --run 'make -B build/ihp-lib'
+    ```
+
+    Now you can start your project as usual with `./start`.
+
+3. **Fix Type Errors:**
+    You might see some type errors after upgrading. Here's how to fix them:
+    
+    - The function `getFrameworkConfig` has been removed:
+
+        ```haskell
+        -- Old way:
+        ?context |> getFrameworkConfig |> get #appConfig
+
+        -- New way:
+        ?context.frameworkConfig.appConfig
+        ```
+
 # Upgrade to Beta 0.20.0 from Beta 0.19.0
 1. **Switch IHP version**
 
