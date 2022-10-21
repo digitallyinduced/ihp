@@ -120,6 +120,7 @@ You can now install IHP by running:
 nix-env --install ihp-new
 ```
 
+If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages.
 
 #### Package not Found?
 
