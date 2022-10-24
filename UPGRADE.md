@@ -2,7 +2,7 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to Beta 1.0.0-rc1 from Beta 0.20.0
+# Upgrade to 1.0.0 from Beta 0.20.0
 1. **Switch IHP version**
 
     - **IHP Basic**
@@ -11,7 +11,7 @@ After updating your project, please consult the segments from your current relea
 
         ```diff
         -ref = "refs/tags/v0.19.0";
-        +ref = "refs/tags/v1.0.0-rc1";
+        +ref = "refs/tags/v1.0.0";
         ```
 
     - **IHP Pro & IHP Business**
@@ -28,6 +28,8 @@ After updating your project, please consult the segments from your current relea
     ```
 
     Now you can start your project as usual with `./start`.
+    
+    If you've been using a release candidate before, you need to run `nix-store --gc` before. Otherwise nix might use the cached release candidate.
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
@@ -41,6 +43,24 @@ After updating your project, please consult the segments from your current relea
         -- New way:
         ?context.frameworkConfig.appConfig
         ```
+
+    - `Couldn't match type 'CurrentAdminRecord' with 'Admin' arising from a use of 'currentAdminOrNothing'`
+
+      To make `currentAdmin` etc. more consistent with `currentUser` functions, we have removed the explicit type argument passed to these functions.
+      
+      E.g. the following:
+      ```haskell
+      currentAdminOrNothing @Admin
+      ```
+      Needs to be changed to this:
+      ```haskell
+      currentAdminOrNothing
+      ```
+      Additionally you need to specify the `CurrentAdminRecord` inside your `Web/Types.hs`:
+      
+      ```haskell
+      type instance CurrentAdminRecord = Admin
+      ```
 
 # Upgrade to Beta 0.20.0 from Beta 0.19.0
 1. **Switch IHP version**
