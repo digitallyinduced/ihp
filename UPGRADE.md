@@ -2,7 +2,7 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to Beta 1.0.0-rc1 from Beta 0.20.0
+# Upgrade to 1.0.0 from Beta 0.20.0
 1. **Switch IHP version**
 
     - **IHP Basic**
