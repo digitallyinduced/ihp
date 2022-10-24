@@ -42,6 +42,24 @@ After updating your project, please consult the segments from your current relea
         ?context.frameworkConfig.appConfig
         ```
 
+    - `Couldn't match type 'CurrentAdminRecord' with 'Admin' arising from a use of 'currentAdminOrNothing'`
+
+      To make `currentAdmin` etc. more consistent with `currentUser` functions, we have removed the explicit type argument passed to these functions.
+      
+      E.g. the following:
+      ```haskell
+      currentAdminOrNothing @Admin
+      ```
+      Needs to be changed to this:
+      ```haskell
+      currentAdminOrNothing
+      ```
+      Additionally you need to specify the `CurrentAdminRecord` inside your `Web/Types.hs`:
+      
+      ```haskell
+      type instance CurrentAdminRecord = Admin
+      ```
+
 # Upgrade to Beta 0.20.0 from Beta 0.19.0
 1. **Switch IHP version**
 
