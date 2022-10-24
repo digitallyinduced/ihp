@@ -11,7 +11,7 @@ After updating your project, please consult the segments from your current relea
 
         ```diff
         -ref = "refs/tags/v0.19.0";
-        +ref = "refs/tags/v1.0.0-rc1";
+        +ref = "refs/tags/v1.0.0";
         ```
 
     - **IHP Pro & IHP Business**
