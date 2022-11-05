@@ -14,7 +14,7 @@
 }:
 mkDerivation {
   pname = "ihp-hsx";
-  version = "v0.20.0";
+  version = "v1.0.0";
   src = ./../../ihp-hsx;
   isLibrary = true;
   isExecutable = false;

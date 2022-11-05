@@ -11,7 +11,7 @@ After updating your project, please consult the segments from your current relea
 
         ```diff
         -ref = "refs/tags/v0.19.0";
-        +ref = "refs/tags/v1.0.0-rc1";
+        +ref = "refs/tags/v1.0.0";
         ```
 
     - **IHP Pro & IHP Business**
@@ -28,6 +28,8 @@ After updating your project, please consult the segments from your current relea
     ```
 
     Now you can start your project as usual with `./start`.
+    
+    If you've been using a release candidate before, you need to run `nix-store --gc` before. Otherwise nix might use the cached release candidate.
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
