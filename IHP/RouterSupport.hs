@@ -757,7 +757,7 @@ webSocketAppWithHTTPFallback :: forall webSocketApp application.
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
-    ) => Parser (IO ResponseReceived)
+    ) => RouteParser
 webSocketAppWithHTTPFallback = webSocketAppWithCustomPathAndHTTPFallback @webSocketApp @application typeName
     where
         typeName :: ByteString
@@ -801,8 +801,8 @@ webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
-    ) => ByteString -> Parser (IO ResponseReceived)
-webSocketAppWithCustomPathAndHTTPFallback path = do
+    ) => ByteString -> RouteParser
+webSocketAppWithCustomPathAndHTTPFallback path = toRouteParser do
         Attoparsec.char '/'
         string path
         pure (startWebSocketApp @webSocketApp (runActionWithNewContext (WS.initialState @webSocketApp)))
