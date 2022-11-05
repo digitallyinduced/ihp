@@ -32,6 +32,7 @@ data DynamicValue
     | UUIDValue !UUID
     | DateTimeValue !UTCTime
     | PointValue !Point
+    | ArrayValue ![DynamicValue]
     | Null
     deriving (Show, Eq)
 
@@ -120,16 +121,21 @@ instance ToJSON DynamicValue where
     toJSON (UUIDValue value) = toJSON value
     toJSON (DateTimeValue value) = toJSON value
     toJSON (PointValue value) = toJSON value
+    toJSON (ArrayValue value) = toJSON value
     toJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
 
 instance PG.FromField Field where
     fromField field fieldValue' = do
-            fieldValue <- fieldValue
+            fieldValue <- PG.fromField field fieldValue'
             pure Field { .. }
         where
             fieldName = (PG.name field)
                 |> fmap (columnNameToFieldName . cs)
                 |> fromMaybe ""
+
+instance PG.FromField DynamicValue where
+    fromField field fieldValue' = fieldValue
+        where
             fieldValue =
                     (IntValue <$> PG.fromField field fieldValue')
                 <|> (TextValue <$> PG.fromField field fieldValue')
@@ -138,6 +144,7 @@ instance PG.FromField Field where
                 <|> (DoubleValue <$> PG.fromField field fieldValue')
                 <|> (DateTimeValue <$> PG.fromField field fieldValue')
                 <|> (PointValue <$> PG.fromField field fieldValue')
+                <|> (ArrayValue <$> PG.fromField field fieldValue')
                 <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
                 <|> fromFieldCustomEnum field fieldValue'
 
