@@ -223,6 +223,7 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
+aesonValueToPostgresValue (Data.Aeson.Array values) = PG.toField (PG.PGArray (Vector.toList values))
 aesonValueToPostgresValue object@(Object values) =
     let
         tryDecodeAsPoint :: Maybe Point
