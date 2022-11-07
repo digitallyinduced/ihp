@@ -65,7 +65,6 @@ data OrderByClause
 -- | Represents a WHERE conditions of a 'DynamicSQLQuery'
 data ConditionExpression
     = ColumnExpression { field :: !Text }
-    | NullExpression
     | InfixOperatorExpression
         { left :: !ConditionExpression
         , op :: !ConditionOperator
