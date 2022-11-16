@@ -175,6 +175,37 @@ tests = do
                         ( "SELECT ? FROM ? WHERE (?) IS NOT ?"
                         , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Plain "null"]
                         )
+            
+            it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Null] })
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE (?) IS ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "a", PG.Plain "null"]
+                        )
+            it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Null, TextValue "test" ] })
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                compileQuery query `shouldBe`
+                        ( "SELECT ? FROM ? WHERE ((?) IN ?) OR ((?) IS ?)"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "a", PG.Many [PG.Plain "(", PG.Escape "test", PG.Plain ")"], PG.EscapeIdentifier "a", PG.Plain "null"]
+                        )
 
             it "compile queries with TS expressions" do
                 let query = DynamicSQLQuery
