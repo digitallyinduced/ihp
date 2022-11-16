@@ -148,7 +148,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual NullExpression
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression Null)
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -156,15 +156,15 @@ tests = do
                         }
 
                 compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IS NULL"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
+                        ( "SELECT ? FROM ? WHERE (?) IS ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Plain "null"]
                         )
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual NullExpression
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual (LiteralExpression Null)
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -172,8 +172,8 @@ tests = do
                         }
 
                 compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IS NOT NULL"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id"]
+                        ( "SELECT ? FROM ? WHERE (?) IS NOT ?"
+                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Plain "null"]
                         )
 
             it "compile queries with TS expressions" do
