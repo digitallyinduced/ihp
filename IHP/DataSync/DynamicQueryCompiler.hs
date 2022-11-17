@@ -83,9 +83,13 @@ compileSelectedColumns (SelectSpecific fields) = PG.Many args
 
 compileCondition :: ConditionExpression -> (PG.Query, [PG.Action])
 compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier (fieldNameToColumnName column)])
-compileCondition NullExpression = ("NULL", [])
-compileCondition (InfixOperatorExpression a OpEqual NullExpression) = compileCondition (InfixOperatorExpression a OpIs NullExpression) -- Turn 'a = NULL' into 'a IS NULL'
-compileCondition (InfixOperatorExpression a OpNotEqual NullExpression) = compileCondition (InfixOperatorExpression a OpIsNot NullExpression) -- Turn 'a <> NULL' into 'a IS NOT NULL'
+compileCondition (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null)) -- Turn 'a = NULL' into 'a IS NULL'
+compileCondition (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIsNot (LiteralExpression Null)) -- Turn 'a <> NULL' into 'a IS NOT NULL'
+compileCondition (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
+    -- Turn 'a IN (NULL)' into 'a IS NULL'
+    case partition ((/=) Null) values of
+        ([], nullValues) -> compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null))
+        (nonNullValues, nullValues) -> compileCondition (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
 compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") " <> compileOperator operator <> " " <> rightOperand, paramsA <> paramsB)
     where
         (queryA, paramsA) = compileCondition a
@@ -98,7 +102,7 @@ compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") "
         rightParentheses :: Bool
         rightParentheses =
             case b of
-                NullExpression -> False
+                LiteralExpression Null -> False
                 ListExpression {} -> False -- The () are inserted already via @PG.In@
                 _ -> True
 compileCondition (LiteralExpression literal) = ("?", [PG.toField literal])

@@ -276,10 +276,6 @@ Run `make static/prod.css static/prod.js` to build the asset bundles.
 
 Now you should be able to start your app by running `build/bin/RunProdServer`.
 
-### More Resources
-
-[Check out this blog post on how to deploy IHP to EC2](http://harlambert.co.uk/ihp_notes/).
-
 ## CSS & JS Bundling
 
 Bundling all your CSS and JS files into a single CSS and JS file can be useful to improve performance when you have many assets.
