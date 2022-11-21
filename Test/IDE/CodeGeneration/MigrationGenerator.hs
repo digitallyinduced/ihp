@@ -1231,6 +1231,25 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should not explicitly delete policies when the table is deleted" do
+                -- https://github.com/digitallyinduced/thin-backend/issues/69
+                let actualSchema = sql $ cs [plain|
+                    CREATE TABLE tests (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_id UUID DEFAULT ihp_user_id() NOT NULL
+                    );
+                    CREATE INDEX tests_user_id_index ON tests (user_id);
+                    ALTER TABLE tests ADD CONSTRAINT tests_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE tests ENABLE ROW LEVEL SECURITY;
+                    CREATE POLICY "Users can manage their tests" ON tests USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
+                |]
+                let targetSchema = []
+                let migration = sql [i|
+                    DROP TABLE tests;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
