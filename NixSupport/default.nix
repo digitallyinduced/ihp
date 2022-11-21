@@ -64,7 +64,14 @@ in
           mkdir -p Application/Script
           SCRIPT_TARGETS=`find Application/Script -type f -iwholename '*.hs' -not -name 'Prelude.hs' -exec basename {} .hs ';' | sed 's#^#build/bin/Script/#' | tr "\n" " "`
           if [[ ! -z "$SCRIPT_TARGETS" ]]; then
-            make -j $SCRIPT_TARGETS;
+            # Need to use -j1 here to avoid race conditions of temp files created by GHC.
+            #
+            # These errors look like:
+            #
+            #   <no location info>: error:
+            #   build/RunUnoptimizedProdServer/Application/Script/Prelude.o.tmp: renameFile:renamePath:rename: does not exist (No such file or directory)
+            #
+            make -j1 $SCRIPT_TARGETS;
           fi;
         '';
         installPhase = ''
