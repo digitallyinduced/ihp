@@ -143,7 +143,7 @@ ihpDefaultConfig = do
 
     -- The IHP_BASEURL env var can override the hardcoded base url in Config.hs
     ihpBaseUrlEnvVar <- envOrNothing "IHP_BASEURL"
-    case ihpBaseUrlEnvVar of 
+    case ihpBaseUrlEnvVar of
         Just baseUrl -> option (BaseUrl baseUrl)
         Nothing -> do
             (AppHostname appHostname) <- findOption @AppHostname
@@ -169,7 +169,7 @@ ihpDefaultConfig = do
     dataSyncMaxTransactionsPerConnection <- envOrDefault "IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION" 10
     option $ DataSyncMaxSubscriptionsPerConnection dataSyncMaxSubscriptionsPerConnection
     option $ DataSyncMaxTransactionsPerConnection dataSyncMaxTransactionsPerConnection
-    
+
     option $ CustomMiddleware id
 
 {-# INLINABLE ihpDefaultConfig #-}
@@ -234,6 +234,9 @@ instance EnvVarReader Int where
         Nothing -> Left [i|Expected integer, got #{string}|]
 
 instance EnvVarReader Text where
+    envStringToValue string = Right (cs string)
+
+instance EnvVarReader String where
     envStringToValue string = Right (cs string)
 
 instance EnvVarReader ByteString where
@@ -358,28 +361,28 @@ data FrameworkConfig = FrameworkConfig
     -- by saving it into the application context:
     --
     -- > -- Config.hs:
-    -- > 
+    -- >
     -- > newtype RedisUrl = RedisUrl String
-    -- > 
+    -- >
     -- > config :: ConfigBuilder
     -- > config = do
     -- >     option Development
     -- >     option (AppHostname "localhost")
-    -- >     
+    -- >
     -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
     -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
-    -- 
+    --
     -- > import qualified Data.TMap as TMap
     -- > import Config -- For accessing the RedisUrl data type
-    -- > 
+    -- >
     -- > action MyAction = do
     -- >     let appConfig = ?context.frameworkConfig.appConfig
     -- >     let (RedisUrl redisUrl) = appConfig
     -- >                |> TMap.lookup @RedisUrl
     -- >                |> fromMaybe (error "Could not find RedisUrl in config")
-    -- > 
+    -- >
     , appConfig :: !TMap.TMap
 
     -- | Configures CORS headers for the application. By default this is set to 'Nothing', and the server will not respond with any CORS headers
@@ -388,7 +391,7 @@ data FrameworkConfig = FrameworkConfig
     --
     -- > -- Config.hs
     -- > import qualified Network.Wai.Middleware.Cors as Cors
-    -- > 
+    -- >
     -- > config :: ConfigBuilder
     -- > config = do
     -- >     option Development
@@ -396,14 +399,14 @@ data FrameworkConfig = FrameworkConfig
     -- >
     -- >     option Cors.simpleCorsResourcePolicy
     -- >
-    -- 
+    --
     -- Take a look at the documentation of wai-cors https://hackage.haskell.org/package/wai-cors-0.2.7/docs/Network-Wai-Middleware-Cors.html for understanding what @simpleCorsResourcePolicy@ is doing
     --
     -- You can specify CORS origins like this:
     --
     -- > -- Config.hs
     -- > import qualified Network.Wai.Middleware.Cors as Cors
-    -- > 
+    -- >
     -- > config :: ConfigBuilder
     -- > config = do
     -- >     option Development
