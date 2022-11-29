@@ -236,6 +236,9 @@ instance EnvVarReader Int where
 instance EnvVarReader Text where
     envStringToValue string = Right (cs string)
 
+instance EnvVarReader String where
+    envStringToValue string = Right (cs string)
+
 instance EnvVarReader ByteString where
     envStringToValue string = Right string
 
