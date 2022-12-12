@@ -103,7 +103,7 @@ if ! [ -x "$(command -v direnv)" ]; then
 				case "${SHELL##*/}" in
 				zsh )
 					echo "Adding hook to ~/.zshrc...";
-					echo 'eval "$(direnv hook bash)"' >> $HOME/.zshrc
+					echo 'eval "$(direnv hook zsh)"' >> $HOME/.zshrc
 					DIRENV_HOOK_ADDED=1
 					;;
 				bash )

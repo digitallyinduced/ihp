@@ -808,6 +808,11 @@ tests = do
             let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
             compileSql statements `shouldBe` sql
 
+        it "should compile 'ENABLE ROW LEVEL SECURITY' statements with spaces in the table name" do
+            let sql = "ALTER TABLE \"users (old)\" ENABLE ROW LEVEL SECURITY;\n"
+            let statements = [EnableRowLevelSecurity { tableName = "users (old)" }]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'CREATE POLICY' statements" do
             let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
             let policy = CreatePolicy
