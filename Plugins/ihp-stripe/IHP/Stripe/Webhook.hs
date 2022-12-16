@@ -18,11 +18,12 @@ import qualified IHP.Log as Log
 
 -- See https://stripe.com/docs/api/events/types
 data StripeEvent
-    = CheckoutSessionCompleted
+    =   
         { checkoutSessionId :: Text
         , maybeSubscriptionId :: Maybe Text
         , customer :: Text -- ^ The stripe customer id
         , metadata :: [(Text, Text)]
+        , clientReferenceId :: Maybe Text
         } 
     | InvoiceFinalized
         { maybeSubscriptionId :: Maybe Text
@@ -58,7 +59,8 @@ instance FromJSON StripeEvent where
                 customer :: Text <- checkoutSession .: "customer"
                 maybeSubscriptionId :: Maybe Text <- checkoutSession .:? "subscription"
                 metadata :: Map.Map Text Text <- checkoutSession .: "metadata"
-                pure CheckoutSessionCompleted { checkoutSessionId, maybeSubscriptionId, metadata = Map.toList metadata, customer }
+                clientReferenceId <- checkoutSession .:? "client_reference_id"
+                pure CheckoutSessionCompleted { checkoutSessionId, maybeSubscriptionId, metadata = Map.toList metadata, customer, clientReferenceId }
             "invoice.finalized" -> do
                 invoice <- payload .: "object"
                 maybeSubscriptionId :: Maybe Text <- invoice .:? "subscription"
