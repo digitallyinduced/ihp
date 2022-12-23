@@ -122,7 +122,7 @@ generateGenericAction schema config doGenerateView =
                 <> "        " <> modelVariableSingular <> "\n"
                 <> "            |> build" <> singularName <> "\n"
                 <> "            |> ifValid \\case\n"
-                <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
+                <> "                Left " <> modelVariableSingular <> " -> render NewView { .. }\n"
                 <> "                Right " <> modelVariableSingular <> " -> do\n"
                 <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
                 <> "                    setSuccessMessage \"" <> model <> " created\"\n"
