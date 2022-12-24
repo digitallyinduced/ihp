@@ -62,7 +62,7 @@ instance HasNewSessionUrl User where
 type instance CurrentUserRecord = User
 ```
 
-The `instance HasNewSessionUrl User` tells the auth module where to redirect a user in case the user tries to access a action that requires login. The definition of [`CurrentUserRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Types.html#t:CurrentUserRecord) tells the auth system to use our `User` type within the login system.
+The `instance HasNewSessionUrl User` tells the auth module where to redirect a user in case the user tries to access an action that requires login. The definition of [`CurrentUserRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Types.html#t:CurrentUserRecord) tells the auth system to use our `User` type within the login system.
 
 We also need to add the type definitions for the `SessionsController`:
 
@@ -142,7 +142,7 @@ import IHP.LoginSupport.Middleware
 import Web.Controller.Sessions
 ```
 
-We then need to mount our session controller by adding [`parseRoute @SessionController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute):
+We then need to mount our session controller by adding [`parseRoute @SessionsController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:parseRoute):
 
 ```haskell
 instance FrontController WebApplication where
@@ -218,7 +218,7 @@ You can also access the user using [`currentUser`](https://ihp.digitallyinduced.
 
 ## Performing actions on login
 
-The sessioncontroller has a convenient [`beforeLogin`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Controller-Sessions.html#v:beforeLogin) which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins or aborting the login when the user is blocked. Add code for it in your `Web/Controller/Sessions.hs`. To update number of logins (requires `logins` integer field in `Users` table):
+The `SessionsController` has a convenient [`beforeLogin`](https://ihp.digitallyinduced.com/api-docs/IHP-AuthSupport-Controller-Sessions.html#v:beforeLogin) which is run on login after the user is authenticated, but before the target page is rendered. This can be useful for updating last login time, number of logins or aborting the login when the user is blocked. Add code for it in your `Web/Controller/Sessions.hs`. To update number of logins (requires `logins` integer field in `Users` table):
 
 ```haskell
 instance Sessions.SessionsControllerConfig User where
