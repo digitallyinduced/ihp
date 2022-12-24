@@ -65,13 +65,13 @@ IHP has the most commonly-used form controls built in. In general the form contr
 - [`{fileFile #profilePicture}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField)
 - [`{submitButton}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:submitButton)
 
-A form control is always filled with the value of the given field when rendering. For example, given a post
+A form control is always filled with the value of the given field when rendering. For example, given a post:
 
 ```haskell
 let post = Post { ..., title = "Hello World" }
 ```
 
-Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input value will be set like
+Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input value will be set like:
 
 ```html
 <input ... value="Hello World" />
@@ -88,7 +88,7 @@ let post = Post { ..., title = "" }
     |> validateField #title nonEmpty
 ```
 
-Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input will have the css class `is-invalid` and an element with the error message will be rendered below the input:
+Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input will have the css class `is-invalid` and an element with the error message will be rendered below the input field:
 
 ```html
 <div class="form-group" id="form-group-post_title">
@@ -568,7 +568,7 @@ If you want a certain value to be preselected, set the value in the controller. 
 
 ### Select Inputs with Nullable Value
 
-Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this we need to adjust the [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance.
+Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this, we need to adjust the [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance.
 
 ```haskell
 instance CanSelect (Maybe User) where
@@ -772,7 +772,7 @@ The generated HTML will look like this:
 
 ### Custom Form Attributes
 
-You can specifiy custom HTML attributes using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions).
+You can specifiy custom HTML attributes using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
 
 ```haskell
 renderForm :: Post -> Html
@@ -818,7 +818,7 @@ The generated HTML will look like this:
 
 Your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
 
-Sometimes this behavior is problematic. For example when the successful form submissions redirects to page that starts a Single Page App. Usually you want to have a clean page refresh here to avoid troubles with the JavaScript.
+Sometimes this behavior is problematic. For example when the successful form submission redirects to a page that starts a Single Page App. Usually you want to have a clean page refresh here to avoid troubles with the JavaScript.
 
 Set [`disableJavascriptSubmission`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormContext) to `True` to use normal browser-based form submission:
 

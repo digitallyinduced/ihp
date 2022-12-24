@@ -14,7 +14,7 @@ Each action needs to be defined as a data structure inside `Web/Types.hs`. There
 
 ## Creating a new Controller
 
-We recommend using the code generators for adding a new controller. Using the web GUI, you can open [http://localhost:8001/NewController](http://localhost:8001/NewController). Using the CLI run `new-controller CONTROLLER_NAME`.
+We recommend using the code generators for adding a new controller. Using the web GUI, you can open [http://localhost:8001/NewController](http://localhost:8001/NewController). Using the CLI, run `new-controller CONTROLLER_NAME`.
 
 The following section will guide you through the manual process of creating a new controller.
 
@@ -228,7 +228,7 @@ Inside the [`beforeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-Contro
 
 ## Accessing the Current Request
 
-IHP uses the Haskell WAI standard for dealing with HTTP requests and responses. You can get access to the Wai Request data structure by using [`request`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:request):
+IHP uses the Haskell WAI standard for dealing with HTTP requests and responses. You can get access to the Wai Request data structure by using [`request`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:request).
 
 Take a look at [the Wai documentation](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html) to see what you can do with the Wai [`Request`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request):
 
