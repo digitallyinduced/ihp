@@ -119,7 +119,7 @@ Let's deal with the first case: Our business application wants to display the us
 Open `Web/FrontController.hs` and customize it like this:
 
 ```haskell
--- Web/FrontControlller.hs
+-- Web/FrontController.hs
 
 instance InitControllerContext WebApplication where
     initContext = do

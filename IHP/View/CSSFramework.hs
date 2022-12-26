@@ -22,7 +22,7 @@ import IHP.View.Types (PaginationView(linkPrevious, pagination))
 
 -- | Provides an unstyled CSSFramework
 --
--- This way we can later add more properties to the CSSFramework without having update all the CSS Frameworks manually
+-- This way we can later add more properties to the CSSFramework without having to update all the CSS Frameworks manually
 instance Default CSSFramework where
     def = CSSFramework
             {
