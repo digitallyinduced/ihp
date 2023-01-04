@@ -66,7 +66,7 @@ In case you get a permission error, try to add the executable flag via `chmod +x
 
 ## Running a script from ghci
 
-You can also open a ghci prompt to test features in scripts interactively.
+You can also open a ghci prompt to test features in scripts interactively:
 
 ```bash
 make ghci

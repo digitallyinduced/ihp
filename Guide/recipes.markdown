@@ -182,7 +182,7 @@ let myUUID = ...
 let projectId = (Id myUUID) :: Id Project
 ```
 
-In case the id is hard coded, you can just type UUID value with the right type signature like this:
+In case the id is hard coded, you can just type the UUID value with the right type signature like this:
 
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
@@ -197,7 +197,7 @@ let myUUID :: Text = ...
 let projectId = textToId myUUID
 ```
 
-In case the id is hard coded, you can just type UUID value with the right type signature like this:
+In case the id is hard coded, you can just type the UUID value with the right type signature like this:
 
 ```haskell
 let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
@@ -217,7 +217,7 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaS
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) we can tell if no user logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
+Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) we can tell if no user is logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
 
 > The `@` syntax from [`fromFrozenContext @(Maybe User)`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
 
@@ -292,7 +292,7 @@ When using `handleFetchAction "https://google.com/"`, your app would display the
 
 ## Confirm before the link is used
 
-To confirm before a link is fired add an `onclick` to the link.
+To confirm before a link is fired add an `onclick` to the link:
 
 ```haskell
 [hsx|
