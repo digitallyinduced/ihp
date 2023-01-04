@@ -10,7 +10,7 @@ IHP views are usually represented as HTML, but can also be represented as JSON o
 
 The HTML templating is implemented on top of the well-known blaze-html Haskell library. To quickly build HTML views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
-The controller provides the view with a key-value map called [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext). The [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext) provides the view information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current HTTP request, logged-in user, flash messages, the layout, etc..
+The controller provides the view with a key-value map called [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext). The [`ControllerContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ControllerContext) provides the view information it might need to render, without always explicitly passing it. This is usually used to pass e.g. the current HTTP request, logged-in user, flash messages, the layout, etc.
 
 Usually, a view consists of a data structure and a [`View`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) instance. E.g. like this:
 
@@ -119,7 +119,7 @@ Let's deal with the first case: Our business application wants to display the us
 Open `Web/FrontController.hs` and customize it like this:
 
 ```haskell
--- Web/FrontControlller.hs
+-- Web/FrontController.hs
 
 instance InitControllerContext WebApplication where
     initContext = do
@@ -133,7 +133,7 @@ initCompanyContext =
         Just currentUser -> do
             company <- fetch currentUser.companyId
 
-            -- Here the magic happen: We put the company of the user into the context
+            -- Here the magic happens: We put the company of the user into the context
             putContext company
 
         Nothing -> pure ()
@@ -141,7 +141,7 @@ initCompanyContext =
 
 The [`initContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:initContext) is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls [`putContext company`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:putContext) to store it inside the controller context.
 
-Next we'll read the company from the `Layout.hs`
+Next we'll read the company from the `Layout.hs`:
 
 ```haskell
 -- Web/View/Layout.hs
@@ -170,7 +170,7 @@ Here the company is read by using the [`fromFrozenContext`](https://ihp.digitall
 
 You might wonder: How does [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) knows we want to read the value with the key `Company`.
 
-Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged it will raise a runtime error.
+Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged in, it will raise a runtime error.
 
 ## Common View Tasks
 
@@ -180,7 +180,7 @@ Use [`theRequest`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.htm
 
 ### Highlighting the current active link
 
-Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActivePath) to check whether the current request URL matches a given action.
+Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActivePath) to check whether the current request URL matches a given action:
 
 ```haskell
 <a href={ShowProjectAction} class={classes ["nav-link", ("active", isActivePath ShowProjectAction)]}>
@@ -210,7 +210,7 @@ dateTime post.createdAt -- "10.6.2019, 15:58"
 
 ### Customizing Delete Confirmation
 
-By default, a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized.
+By default, a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized:
 
 ```haskell
 <a href={DeleteToolAction tool.id} class="js-delete" data-confirm="Deleting a tool will also delete all usage of the tool. Continue?">Delete Tool</a>
@@ -277,7 +277,7 @@ instance Controller PostsController where
         render ShowView { .. }
 ```
 
-If the page title is not changed as expected, make sure that your `Layout.hs` is using [`pageTitleDefault`](https://ihp.digitallyinduced.com/api-docs/IHP-PageHead-ViewFunctions.html#v:pageTitleOrDefault):
+If the page title is not changed as expected, make sure that your `Layout.hs` is using [`pageTitleOrDefault`](https://ihp.digitallyinduced.com/api-docs/IHP-PageHead-ViewFunctions.html#v:pageTitleOrDefault):
 
 ```html
 WRONG:
@@ -336,7 +336,7 @@ When in development, your views will automatically refresh on code changes. This
 
 In production mode, your application is using a custom integration of morphdom and [TurboLinks](https://github.com/turbolinks/turbolinks) together with [InstantClick](http://instantclick.io/). TurboLinks makes navigating the application even faster because it's not doing a full page refresh. We've integrated TurboLinks with morphdom to only update the parts of your HTML that have changed. This was inspired by react.js's DOM patch approach and allows e.g. CSS animations to run on a page transition. Using this makes your app feel like a [SPA](https://en.wikipedia.org/wiki/Single-page_application) without you writing any JavaScript code.
 
-To improve latency, TurboLinks is configured to prefetch the URL immediately on mouse-hover. Usually, the time between a mouse-hover of a link and mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
+To improve latency, TurboLinks is configured to prefetch the URL immediately on mouse-hover. Usually, the time between a mouse-hover of a link and the mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
 
 This setup is designed as a progressive enhancement. Your application is still usable when JavaScript is disabled.
 Even when disabled, your application will still be amazingly fast.

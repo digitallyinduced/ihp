@@ -155,7 +155,7 @@ CREATE TABLE posts (
 );
 ```
 
-To load the table into our local Postgres server, we need to click `Migrate DB` in the Schema Designer. Then click `Generate & Run`.
+To load the table into our local Postgres server, we need to click `Migrate DB` in the Schema Designer. Then click `Run Migration`.
 
 The `posts` table has been created now. Let's quickly connect to our database and see that everything is correct:
 
@@ -408,14 +408,16 @@ data ShowView = ShowView { post :: Post }
 
 instance View ShowView where
     html ShowView { .. } = [hsx|
-        <nav>
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
-                <li class="breadcrumb-item active">Show Post</li>
-            </ol>
-        </nav>
+        {breadcrumb}
         <h1>Show Post</h1>
+        <p>{post}</p>
+
     |]
+        where
+            breadcrumb = renderBreadcrumb
+                            [ breadcrumbLink "Posts" PostsAction
+                            , breadcrumbText "Show Post"
+                            ]
 ```
 
 We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
@@ -430,7 +432,7 @@ The generated controller already feels close to a super simple blog. Now it's ti
 
 First, we quickly need to create a new blog post. Open [http://localhost:8000/Posts](http://localhost:8000/Posts) and click on `+ New`. Then enter `Hello World!` into the "Title" field and `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam` into the "Body".
 
-Click `Save Post`. You should now see the new post listed on the `index` view.
+Click `Create Post`. You should now see the new post listed on the `index` view.
 
 ![Index View](images/first-project/index_view.png)
 
@@ -450,15 +452,16 @@ data ShowView = ShowView { post :: Post }
 
 instance View ShowView where
     html ShowView { .. } = [hsx|
-        <nav>
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
-                <li class="breadcrumb-item active">Show Post</li>
-            </ol>
-        </nav>
+        {breadcrumb}
         <h1>{post.title}</h1>
-        <div>{post.body}</div>
+        <div>{post.body}</p>
+
     |]
+        where
+            breadcrumb = renderBreadcrumb
+                            [ breadcrumbLink "Posts" PostsAction
+                            , breadcrumbText "Show Post"
+                            ]
 ```
 
 After you saved the changes, you should see that the changes have been reflected in the browser already. In the background, the page has been refreshed automatically. This refresh is using a diff based approach by using [morphdom](https://github.com/patrick-steele-idem/morphdom).
@@ -542,7 +545,7 @@ Now open the `/Posts` again inside your browser. You will see this error:
 
 This happens because we only added the `created_at` column to the `Application/Schema.sql` file by using the Schema Designer. But the actual running Postgres server still uses the older database schema.
 
-To update the local database, open the Schema Designer, and click the `Migrate DB` button. Then click `Generate & Run`. This button will then bring the Schema and the actual database sync again by adding the missing column.
+To update the local database, open the Schema Designer, and click the `Migrate DB` button. Then click `Run Migration`. This button will then bring the Schema and the actual database sync again by adding the missing column.
 
 In general, the workflow for making database schema changes locally is: Make changes to the `Schema.sql` and update Database with `Migrate DB`.
 
@@ -561,15 +564,12 @@ action PostsAction = do
 Let's also show the creation time in the `ShowView` in `Web/View/Posts/Show.hs`. There we add `<p>{post.createdAt |> timeAgo}</p>` below the title:
 
 ```haskell
-<nav>
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
-        <li class="breadcrumb-item active">Show Post</li>
-    </ol>
-</nav>
-<h1>{post.title}</h1>
-<p>{post.createdAt |> timeAgo}</p>
-<div>{post.body}</div>
+    html ShowView { .. } = [hsx|
+        {breadcrumb}
+        <h1>{post.title}</h1>
+        <p>{post.createdAt |> timeAgo}</p>
+        <div>{post.body}</div>
+    |]
 ```
 
 Open the view to check that it's working. If everything is fine, you will see something like `5 minutes ago` below the title. The [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgo) helper uses a bit of JavaScript to automatically display the given timestamp in the current time zone and in a relative format. In case you want to show the absolute time (like `10.6.2019, 15:58`), just use [`dateTime`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:dateTime) instead of [`timeAgo`](https://ihp.digitallyinduced.com/api-docs/IHP-View-TimeAgo.html#v:timeAgod).
@@ -659,12 +659,12 @@ The `show` view will now show real formatted text, as we would have expected.
 
 Let's also quickly update our form. Right now we have a one-line text field there. We can replace it with a text area to support multi-line text.
 
-Open `Web/View/Posts/Edit.hs` and change [`{textField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField) to [`{textareaField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField). We can also add a short hint that the text area supports Markdown: Replace [`{textareaField #body}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField) with [`{(textareaField #body) { helpText = "You can use Markdown here"} }`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField).
+Open `Web/View/Posts/Edit.hs` and change [`{(textField #body)}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField) to [`{(textareaField #body)}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField). We can also add a short hint that the text area supports Markdown: Replace [`{(textareaField #body)}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textareaField) with [`{(textareaField #body) { helpText = "You can use Markdown here"} }`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField).
 
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor post [hsx|
-    {textField #title}
+    {(textField #title)}
     {(textareaField #body) { helpText = "You can use Markdown here"} }
     {submitButton}
 |]
@@ -737,18 +737,18 @@ First we need to make it possible to create a new comment for a post. Open `Web/
 ```haskell
 instance View ShowView where
     html ShowView { .. } = [hsx|
-        <nav>
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href={PostsAction}>Posts</a></li>
-                <li class="breadcrumb-item active">Show Post</li>
-            </ol>
-        </nav>
+        {breadcrumb}
         <h1>{post.title}</h1>
         <p>{post.createdAt |> timeAgo}</p>
         <div>{post.body |> renderMarkdown}</div>
 
         <a href={NewCommentAction}>Add Comment</a>
     |]
+        where
+            breadcrumb = renderBreadcrumb
+                            [ breadcrumbLink "Posts" PostsAction
+                            , breadcrumbText "Show Post"
+                            ]
 ```
 
 This creates an `Add Comment` link, which links to the New Comment Form we just generated. After clicking the `Add Comment` link, we can see this:
@@ -891,9 +891,9 @@ Let's also make the text field for `postId` a hidden field:
 ```haskell
 renderForm :: Comment -> Html
 renderForm comment = formFor comment [hsx|
-    {hiddenField #postId}
-    {textField #author}
-    {textField #body}
+    {(hiddenField #postId)}
+    {(textField #author)}
+    {(textField #body)}
     {submitButton}
 |]
 ```

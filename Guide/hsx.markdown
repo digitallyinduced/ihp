@@ -203,11 +203,11 @@ JavaScript unusable.
 
 ### Syntax Rules
 
-While most HTML is also valid HSX, there are some difference you need to be aware of:
+While most HTML is also valid HSX, there are some differences you need to be aware of:
 
 #### Closing Tags
 
-Tags always need to have a closing tag or be self-closing: so instead of `<br>` you need to write `<br/>`
+Tags always need to have a closing tag or be self-closing: so instead of `<br>` you need to write `<br/>`.
 
 #### JSX Differences
 

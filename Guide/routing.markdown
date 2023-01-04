@@ -116,7 +116,7 @@ AutoRoute works with the following parameter types:
 - `Maybe Int`
 - `Id` (for all model types)
 
-If a Maybe value is `Nothing`, the value will be left out of the query parameter. Otherwise it will be included with the value.
+If a Maybe value is `Nothing`, the value will be left out of the query parameter. Otherwise it will be included with the value:
 
 ```haskell
 data MyController = DefaultAction { maybeParam :: Maybe Text }
@@ -125,7 +125,7 @@ pathTo (MyController Nothing) ==> "/Default"
 pathTo (MyController "hello") ==> "/Default?maybeParam=hello"
 ```
 
-List values are represented as comma separated lists. If the parameter is not present the list will default to the empty list.
+List values are represented as comma separated lists. If the parameter is not present, the list will default to the empty list:
 
 
 ```haskell

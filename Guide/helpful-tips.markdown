@@ -29,7 +29,7 @@ So `#companyId` can be written as `fromLabel @"companyId"` which IHP turns into 
 
 ### The dot notation \.
 
-IHP uses dot notation like `someRecord.someField` everywhere. You might not think of this as anything special, but this syntax was just recently added to Haskell. 
+IHP uses dot notation like `someRecord.someField` everywhere. You might not think of this as anything special, but this syntax was just recently added to Haskell.
 
 The dot notation is provided by the [`OverloadedRecordDot` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/overloaded_record_dot.html).
 
@@ -136,6 +136,8 @@ user
 
 In general the `\case ...` can be expanded to `\value -> case value of ...`.
 
+The lambda case is provided by the [`LambdaCase` language extension](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/lambda_case.html)
+
 [Learn more about lambda cases here.](https://typeclasses.com/ghc/lambda-case)
 
 ### The Pipe operator [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-)
@@ -172,7 +174,7 @@ infixl 8 |> -- This tells haskell to treat the |> as an infix operator
 a |> f = f a -- This is the actual implementation
 ```
 
-## Tell GHC(Haskell Compiler) To Infer Constraints And Implicit Parameters
+## Tell GHC (Haskell Compiler) To Infer Constraints And Implicit Parameters
 
 Let's say you are working with a controller `ApplicationsAction` and most actions have similar access control:
 

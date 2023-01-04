@@ -78,7 +78,7 @@ render = [hsx|
 |]
 ```
 
-This will render like
+This will render like:
 
 ```html
 <div id="projects-show">
@@ -87,7 +87,7 @@ This will render like
 `
 ```
 
-So in your `projects.css` you can just do rules like
+So in your `projects.css` you can just do rules like:
 
 ```css
 #projects-show h1 {

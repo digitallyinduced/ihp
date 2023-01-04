@@ -144,7 +144,7 @@ You have to add this to your NixOS configuration:
 nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
 ```
 
-[See the documentation for `nix.trustedUsers` to learn more about what this is doing](https://search.nixos.org/options?show=nix.trustedUsers&query=nix.trustedUsers).
+[See the documentation for `nix.settings.trusted-users` to learn more about what this is doing](https://search.nixos.org/options?show=nix.settings.trusted-users&query=nix.settings.trusted-users).
 
 #### GitPod
 
