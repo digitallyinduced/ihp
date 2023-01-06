@@ -18,7 +18,7 @@ import qualified IHP.Log as Log
 
 -- See https://stripe.com/docs/api/events/types
 data StripeEvent
-    =   
+    = CheckoutSessionCompleted
         { checkoutSessionId :: Text
         , maybeSubscriptionId :: Maybe Text
         , customer :: Text -- ^ The stripe customer id
