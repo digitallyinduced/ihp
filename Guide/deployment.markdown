@@ -6,13 +6,13 @@
 
 ## Deploying with Shipnix
 
-[Shipnix](https://shipnix.io) is a service for deploying NixOS web servers on DigitalOcean. Shipnix generates a base NixOS configuration for you to build on. This providess freedom to configure and ease of deployment.
+Shipnix is a service for deploying NixOS web servers on DigitalOcean. Shipnix generates a base NixOS configuration for you to build on. This providess freedom to configure and ease of deployment.
 
 Apart from the technical differences, the deployment experience in Shipnix is fairly similar to IHP Cloud.
 
 ### Account Setup
 
-Register a new Shipnix account and follow the instructions to create a NixOS image tied to your account. This one-time procedure takes about 10 minutes.
+Register a new Shipnix on [shipnix.io](https://shipnix.io) account and follow the instructions to create a NixOS image tied to your account. This one-time procedure takes about 10 minutes.
 
 ### Creating a new project
 
