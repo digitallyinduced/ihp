@@ -14,7 +14,7 @@ Apart from the technical differences, the deployment experience in Shipnix is si
 
 ### Account Setup
 
-Register a new Shipnix on [shipnix.io](https://shipnix.io) account and follow the instructions to upload a NixOS image tied to your DigitalOcean account. This one-time processing takes about 10 minutes.
+Register a new account on [shipnix.io](https://shipnix.io) and follow the instructions to connect to your DigitalOcean account and upload a NixOS image to it. This one-time process takes about 10 minutes.
 
 ### Creating a new project
 
