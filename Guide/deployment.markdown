@@ -24,48 +24,6 @@ Provisioning a new IHP project is straightforward with the IHP starter. Read [th
 
 If you wish to migrate from IHP Cloud, Shipnix has a [migration guide](https://docs.shipnix.io/migrate/ihp-cloud/).
 
-## Deploying with IHP Cloud
-
-The fastest way to share your app with the internet is by using IHP Cloud. We recommend following this approach as it's the most simple to get started with.
-
-### Account Setup
-
-Register a new IHP Cloud account for free at [ihpcloud.com](https://ihpcloud.com/NewUser) or [sign in](https://ihpcloud.com/NewSession).
-
-### Creating the Project
-
-Once you're logged in to IHP Cloud, follow the instructions to create a project for your application.
-
-**Private Git Repositories:**
-When you connect a private git repository make sure to provide an SSH git clone URL. IHP Cloud will provide you with an SSH public key. You need to add this deploy key to your repository.
-
-On GitHub, you can do this by opening the repository settings and clicking on `Deploy keys`.
-
-### First Deployment
-
-After the project setup is finished, click on `+ Deploy Now` to start your first deployment.
-
-When your CSS or JS looks broken, take a look at the next section `CSS & JS Bundling`.
-
-### DB Migrations
-
-[Database Migrations](database-migrations.html) are automatically executed during the deployment on IHP Cloud.
-
-If you need to make manual changes to your database schema, you can of course also do this: Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
-
-### Changing the domain
-
-Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here.
-
-#### Using your domain instead of .ihpapp.com
-
-Using your domain with IHP Cloud is only available for IHP Cloud Pro users.
-To use your domain point a CNAME record to `ihpapp.com`.
-
-After that go to `Settings`, click `Domain` and enter your domain name.
-When you change your domain to a custom domain we are automatically getting an SSL certificate from
-LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
-
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.

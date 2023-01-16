@@ -59,10 +59,6 @@ In a production context you need to specify the correct database URL via the `DA
 DATABASE_URL=postgresql://... migrate
 ```
 
-### Running Migrations on IHP Cloud
-
-If you use IHP Cloud the migrations will be automatically executed during the deployment. Nothing to do for you :-)
-
 
 ### Skipping Old Migrations
 
