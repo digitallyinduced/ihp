@@ -126,12 +126,28 @@ want to set up some keybindings to common language server functions
 (setq tab-always-indent 'complete
       completions-max-height 20
       completion-auto-select 'second-tab)
+
+(server-start) ; for emacsclient / quick startup
 ```
 
 (The built-in completion menu isn't very modern-looking, a good
 alternative if you want to add another plugin is
 [corfu](https://github.com/minad/corfu).)
 
+
+To make file paths clickable inside the web browser (e.g. when a type error happens), you'll first need a little helper script to translate file paths from the `file:line:col` format to `+line:col file` which emacs expects. Put this in e.g. `~/bin/emacs-line`:
+```bash
+#!/bin/sh
+path="${1%%:*}"
+col="${1##*:}"
+line="${1%:*}"; line="${line##*:}"
+emacsclient -n +"${line}:${col}" "${path}"
+```
+and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in `.bashrc`):
+
+```bash
+export IHP_EDITOR="$HOME/bin/emacs-line"
+```
 
 
 ## Using IHP with Vim / NeoVim
