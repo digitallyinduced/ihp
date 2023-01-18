@@ -197,5 +197,5 @@ Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
 After that you can use the following command to start hoogle at `localhost:8080`:
 
 ```bash
-hoogle server --local -p 8080
+nix-shell --run 'hoogle server --local -p 8080'
 ```
