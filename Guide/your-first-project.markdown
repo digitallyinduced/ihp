@@ -1094,6 +1094,10 @@ Make sure you enable **`Github repository actions`**. This makes it simpler to h
 
 ![Shipnix Sign Up](images/first-project/shipnix-repository-actions.png)
 
+After clicking `Enable Github repo actions`, Github will prompt you about the permissions. You can accept these settings and move on.
+
+![Shipnix Sign Up](images/first-project/shipnix-repository-settings.webp)
+
 Next, you want to setup your account and connect Shipnix with your DigitalOcean account.
 
 When all the steps are finished, DigitalOcean needs about 10 minutes to processs your NixOS image.
@@ -1146,7 +1150,7 @@ Paste in the Shipnixifier script. A `nixos` folder, a `flake.nix` and a `flake.l
 
 ![Shipnix Create Server](images/first-project/shipnix-shipnixify-project-2.png)
 
-Follow the provided instructions to save the changes.
+Also remember to run the last code snipppet provided in the instructions to save the changes:
 
 ```bash
 git add nixos flake.nix flake.lock
