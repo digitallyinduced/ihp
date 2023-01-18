@@ -1172,13 +1172,17 @@ The deployment is now starting. It provisions your database, compiles and hosts 
 
 ![Shipnix Create Server](images/first-project/shipnix-deploy-2.png)
 
-Go to your server dashboard and find the **Public IP** address. Copy and paste it in your browser, and you should see your application live on the web.
+Go to your server dashboard and find the **Public IP** address.
 
 ![Shipnix Create Server](images/first-project/shipnix-public-ip.png)
 
-You can read the guide about adding domain names in the [Shipnix docs](https://docs.shipnix.io/servers/add-domain/) 😉
+Copy and paste it in your browser, and you should see your application on the web 🙂
+
+![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-4.png)
 
 **Congratulations!** You just shipped your first haskell application to production 🚀
+
+You can read the guide about adding domain names in the [Shipnix docs](https://docs.shipnix.io/servers/add-domain/)
 
 We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://ihp.digitallyinduced.com/Slack)! :)
 
