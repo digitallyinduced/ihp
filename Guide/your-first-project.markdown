@@ -1100,7 +1100,7 @@ After clicking `Enable Github repo actions`, Github will prompt you about the pe
 
 Next, you want to setup your account and connect Shipnix with your DigitalOcean account.
 
-When all the steps are finished, DigitalOcean needs about 10 minutes to processs your NixOS image.
+When all required steps are finished, DigitalOcean needs about 10 minutes to processs your NixOS image. This is a one-time thing.
 
 ![Shipnix Sign Up](images/first-project/shipnix-wait-processing.png)
 
@@ -1118,7 +1118,7 @@ We don't use the `IHP` starter in this example because the project has already b
 
 Let's name the server `ihp-blog`.
 
-We can skip adding any SSH keys for later.
+We can skip SSH keys for now unless you have some ready on the list.
 
 ![Shipnix Create Server](images/first-project/shipnix-starter-form-1.png)
 
@@ -1146,7 +1146,7 @@ Next you will get some instructions to go into your current project and make it 
 
 ![Shipnix Create Server](images/first-project/shipnix-shipnixify-project-1.png)
 
-Paste in the Shipnixifier script. A `nixos` folder, a `flake.nix` and a `flake.lock` file will be added to your project.
+Paste in the "Shipnixifier script" that appears in the instructions. A `nixos` folder, a `flake.nix` and a `flake.lock` file will be added to your project.
 
 ![Shipnix Create Server](images/first-project/shipnix-shipnixify-project-2.png)
 
@@ -1164,7 +1164,7 @@ Now that your project is compatible with Shipnix, you can go **Next** and select
 
 ![Shipnix Create Server](images/first-project/shipnix-select-repository.png)
 
-The defaults is good for this project. Just click `Deploy` to finish.
+The defaults are good for this project. Just click `Deploy` to finish.
 
 ![Shipnix Create Server](images/first-project/shipnix-deploy-1.png)
 
