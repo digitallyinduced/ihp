@@ -84,19 +84,71 @@ export IHP_EDITOR="sublime"
 
 ## Using IHP with Emacs
 
-Install the following packages from [Melpa](https://melpa.org/#/getting-started):
+This section describes the minimal setup needed to get syntax
+highlighting, goto-definition, type errors and linting of IHP projects
+in Emacs with few external dependencies.
 
--   `dante` – gives IDE features via ghci, see https://github.com/jyp/dante#installation
--   `direnv-mode` – lets haskell-mode and dante-mode find the PATH to ghci, see https://github.com/wbolster/emacs-direnv#installation
--   `attrap` (optional) – apply fixes at point, see https://github.com/jyp/attrap
+If you have Emacs 29 or later, the language server package `eglot` is
+already included. If you're stuck on an older Emacs version, install
+it from ELPA with `M-x package-install eglot RET`.
 
-and put a `.dir-locals.el` file in your project root with:
+Install the following additional packages from [Melpa](https://melpa.org/#/getting-started):
+
+-   `haskell-mode` – enable basic Haskell support, syntax highlighting, ghci interaction
+-   `envrc-mode` – lets eglot find the PATH to Haskell Language Server etc.
+
+At the very least you need `(add-hook 'haskell-mode-hook #'eglot-ensure)`
+and `(envrc-global-mode +1)` in your ~/.emacs.d/init.el, but you may also
+want to set up some keybindings to common language server functions
+(since by default none are included). Here's an example init file:
 
 ```emacs-lisp
-((nil
-  (dante-repl-command-line . ("ghci"))
-  (haskell-process-type . ghci)))
+(use-package envrc
+  :config
+  (envrc-global-mode +1))
+
+(use-package eglot
+  :config
+  (add-hook 'haskell-mode-hook #'eglot-ensure)
+  ;; Optionally add keybindings to some common functions:
+  :bind ((:map eglot-mode-map
+               ("C-c C-e r" . eglot-rename)
+               ("C-c C-e l" . flymake-show-buffer-diagnostics)
+               ("C-c C-e p" . flymake-show-project-diagnostics)
+               ("C-c C-e C" . eglot-show-workspace-configuration)
+               ("C-c C-e R" . eglot-reconnect)
+               ("C-c C-e S" . eglot-shutdown)
+               ("C-c C-e A" . eglot-shutdown-all)
+               ("C-c C-e a" . eglot-code-actions)
+               ("C-c C-e f" . eglot-format))))
+
+;; Optional: Show/pick completions on tab, sane max height:
+(setq tab-always-indent 'complete
+      completions-max-height 20
+      completion-auto-select 'second-tab)
+
+(server-start) ; for emacsclient / quick startup
 ```
+
+(The built-in completion menu isn't very modern-looking, a good
+alternative if you want to add another plugin is
+[corfu](https://github.com/minad/corfu).)
+
+
+To make file paths clickable inside the web browser (e.g. when a type error happens), you'll first need a little helper script to translate file paths from the `file:line:col` format to `+line:col file` which emacs expects. Put this in e.g. `~/bin/emacs-line`:
+```bash
+#!/bin/sh
+path="${1%%:*}"
+col="${1##*:}"
+line="${1%:*}"; line="${line##*:}"
+emacsclient -n +"${line}:${col}" "${path}"
+```
+and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in `.bashrc`):
+
+```bash
+export IHP_EDITOR="$HOME/bin/emacs-line"
+```
+
 
 ## Using IHP with Vim / NeoVim
 
@@ -197,5 +249,5 @@ Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
 After that you can use the following command to start hoogle at `localhost:8080`:
 
 ```bash
-hoogle server --local -p 8080
+nix-shell --run 'hoogle server --local -p 8080'
 ```
