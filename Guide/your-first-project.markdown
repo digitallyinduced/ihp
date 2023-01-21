@@ -12,8 +12,7 @@ This guide will lead you through creating a small blog application. To set up th
 ihp-new blog
 ```
 
-*Note for Windows:* Make sure that you are located in the Linux part of the filesystem and not on the Linux-mounted Windows filesystem, i.e. not on a path starting with `/mnt/`. Otherwise PostgreSQL will complain about the accessibility of the project's PostgreSQL database.
-
+_Note for Windows:_ Make sure that you are located in the Linux part of the filesystem and not on the Linux-mounted Windows filesystem, i.e. not on a path starting with `/mnt/`. Otherwise PostgreSQL will complain about the accessibility of the project's PostgreSQL database.
 
 ### The Very First Time
 
@@ -24,8 +23,9 @@ If you don't already use cachix, you will be prompted to install it. You don't n
 While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
 
 In case some errors appear now or in later steps:
-- [Check out the troubleshooting section](https://ihp.digitallyinduced.com/Guide/troubleshooting.html) to get a quick solution
-- You can also [join our very active Slack community](https://ihp.digitallyinduced.com/Slack) and ask a question there. We're happy to help!
+
+-   [Check out the troubleshooting section](https://ihp.digitallyinduced.com/Guide/troubleshooting.html) to get a quick solution
+-   You can also [join our very active Slack community](https://ihp.digitallyinduced.com/Slack) and ask a question there. We're happy to help!
 
 ### Directory Structure
 
@@ -80,7 +80,6 @@ In the background, the built-in development server starts a PostgreSQL database 
 
 The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
 
-
 ### Hello Haskell World
 
 Open [`http://localhost:8000`](http://localhost:8000) and you will see this:
@@ -100,7 +99,6 @@ Inside the HTML code replace `It's working!` with `Hello World from Haskell!`, l
 You'll see that the web browser magically refreshes once you save the file changes.
 
 **Did it work?** Congratulations 🎉 You've officially built your first haskell web application :) That makes you a haskell programmer. Welcome to the Haskell community! :)
-
 
 If you liked the live reloading, have some fun and play around with the welcome view before you continue with the next steps.
 
@@ -1082,81 +1080,119 @@ After this you'll see your files in GitHub:
 
 ![Git Push](images/first-project/github-pushed.png)
 
-### Login to IHP Cloud
+### Login to Shipnix
 
-For deployment we're going to use IHP Cloud. Open [ihpcloud.com](https://ihpcloud.com) and click on `Start now`:
+For deployment we're going to use Shipnix. Open [shipnix.io](https://shipnix.io) and click on `Register`:
 
-![IHP Cloud Sign Up](images/first-project/ihp-cloud-signup.png)
+![Shipnix Sign Up](images/first-project/shipnix-signup.png)
 
-Click on `Continue with GitHub` to connect your GitHub account with IHP Cloud.
+Click on `Continue with GitHub` to connect your GitHub account with Shipnix for login.
 
-After completing the sign up you will be greeted by this screen:
+Go to the Shipnix **Account settings**.
 
-![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-1.png)
+Make sure you enable **`Github repository actions`**. This makes it simpler to hook the repository up with Shipnix.
 
-Click on `New Project` and enter your project name:
+![Shipnix Sign Up](images/first-project/shipnix-repository-actions.png)
 
-![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-2.png)
+After clicking `Enable Github repo actions`, Github will prompt you about the permissions. You can accept these settings and move on.
 
-We're also going to need our GitHub Clone Url. Open the GitHub repo and copy it from there:
+![Shipnix Sign Up](images/first-project/shipnix-repository-settings.webp)
 
-![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-3.png)
+Next, you want to setup your account and connect Shipnix with your DigitalOcean account.
 
-Paste it into the `Git Repo Url` field:
+When all required steps are finished, DigitalOcean needs about 10 minutes to processs your NixOS image. This is a one-time thing.
 
-![IHP Cloud Sign Up](images/first-project/ihp-cloud-new-project-4.png)
+![Shipnix Sign Up](images/first-project/shipnix-wait-processing.png)
 
-Click `Create Project`
+### Provision a server
 
-### Checking the Project
+Now that Shipnix is setup, you can click the `Create New Server` button
 
-IHP Cloud will now try to connect to our repo. This takes a few seconds:
+![Shipnix "Create New Server" button](images/first-project/shipnix-create-new-button.png)
 
-![IHP Cloud Check](images/first-project/ihp-cloud-check-1.png)
+This time, we have already created the project, so we need to use the `Load existing code` starter.
 
-When everything works, you'll see this:
+We don't use the `IHP` starter in this example because the project has already been created.
 
-![IHP Cloud Check Success](images/first-project/ihp-cloud-check-2.png)
+![Shipnix Select starter](images/first-project/shipnix-select-starter.png)
 
-Now click on the `Deploy Project` button to start the first deployment.
+Let's name the server `ihp-blog`.
 
-### Deploying
+We can skip SSH keys for now unless you have some ready on the list.
 
-After clicking the `Deploy Project` button, you'll see this:
+![Shipnix Create Server](images/first-project/shipnix-starter-form-1.png)
 
-![IHP Cloud New Deployment](images/first-project/ihp-cloud-new-deployment.png)
+Fill out the required fields and click the `Create Server` button.
 
-Here we can specify e.g. a specific branch or commit we want to deploy. As we only want to deploy our default main branch, we can leave this empty.
+![Shipnix Create Server](images/first-project/shipnix-starter-form-2.png)
 
-Click `Deploy now` to continue:
+You will see console output on the screen until provisioning is finished.
 
-![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-1.png)
+![Shipnix Create Server](images/first-project/shipnix-creating-server.png)
 
-The deployment is running now.
+### Make project Shipnix compatible
 
-![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-2.png)
+Now that you have provisioned the server, you can select the `IHP` starter.
 
-After a few seconds you'll be greeted with confetti - and your app is live 🎉
-![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-3.png)
+Also click the `No` option, since you do not yet have the Shipnix configuration required.
 
-Click the link at the top to visit your app:
+![Shipnix Create Server](images/first-project/shipnix-select-preset.png)
+
+Now you will wait for Shipnix to prepare your environment for IHP.
+
+![Shipnix Create Server](images/first-project/shipnix-select-preset-2.png)
+
+Next you will get some instructions to go into your current project and make it Shipnix compatible.
+
+![Shipnix Create Server](images/first-project/shipnix-shipnixify-project-1.png)
+
+Paste in the "Shipnixifier script" that appears in the instructions. A `nixos` folder, a `flake.nix` and a `flake.lock` file will be added to your project.
+
+![Shipnix Create Server](images/first-project/shipnix-shipnixify-project-2.png)
+
+Also remember to run the last code snipppet provided in the instructions to save the changes:
+
+```bash
+git add nixos flake.nix flake.lock
+git commit -m "Project shipnixified"
+git push
+```
+
+### Deploy
+
+Now that your project is compatible with Shipnix, you can go **Next** and select your Github repository.
+
+![Shipnix Create Server](images/first-project/shipnix-select-repository.png)
+
+The defaults are good for this project. Just click `Deploy` to finish.
+
+![Shipnix Create Server](images/first-project/shipnix-deploy-1.png)
+
+The deployment is now starting. It provisions your database, compiles and hosts the IHP project. This will take some minutes the first time.
+
+![Shipnix Create Server](images/first-project/shipnix-deploy-2.png)
+
+Go to your server dashboard and find the **Public IP** address.
+
+![Shipnix Create Server](images/first-project/shipnix-public-ip.png)
+
+Copy and paste it in your browser, and you should see your application on the web 🙂
 
 ![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-4.png)
 
-You can take that link and share it with the world now (you can change the domain in the project settings 😉 )! :)
-
 **Congratulations!** You just shipped your first haskell application to production 🚀
 
-We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://ihp.digitallyinduced.com/Slack)! :)
+You can read the guide about adding domain names in the [Shipnix docs](https://docs.shipnix.io/servers/add-domain/)
 
+We hope you enjoyed the journey so far! Tell us [on twitter](https://twitter.com/digitallyinduce) or [celebrate your first haskell app in our slack community](https://ihp.digitallyinduced.com/Slack)! :)
 
 ## Have Fun!
 
 You now understand enough of IHP and Haskell to be dangerous. The best way to continue your journey is to start building things. Take a look at the `The Basics` Section to learn more about all the provided modules.
 
-- [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
-- [To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList)
-- Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
-- Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
+-   [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
+-   [To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList)
+-   Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
+-   Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
 
-*Good to know for playing with IHP: When you want to delete a project just delete the project directory and it's gone.*
+_Good to know for playing with IHP: When you want to delete a project just delete the project directory and it's gone._
