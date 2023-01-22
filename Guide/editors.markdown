@@ -30,7 +30,7 @@ You can also [watch "IHP + Visual Studio Code: Autocompletion & Smart IDE Featur
 
 ### VSCode + Haskell Language Server Troubleshooting
 
--   **`"Couldn't figure out what GHC version the project is using"`**
+- **`"Couldn't figure out what GHC version the project is using"`**
 
     If you get an error `Couldn't figure out what GHC version the project is using` in Visual Studio Code make sure that the Nix Env Selector plugin was started correctly:
 
@@ -38,7 +38,7 @@ You can also [watch "IHP + Visual Studio Code: Autocompletion & Smart IDE Featur
     2. Click `View` -> `Command Palette` -> `Nix-Env: Select Environment` -> `default.nix`
     3. This will restart VS Code. After that Haskell Language Server should be working.
 
--   **`"Failed to get project GHC executable path: CradleError"`**
+- **`"Failed to get project GHC executable path: CradleError"`**
 
     If you get an error `Failed to get project GHC executable path` with a `CradleError`, check your Haskell extension's settings and make sure you are using `"haskell.manageHLS": "PATH"`:
 
@@ -134,8 +134,8 @@ want to set up some keybindings to common language server functions
 alternative if you want to add another plugin is
 [corfu](https://github.com/minad/corfu).)
 
-To make file paths clickable inside the web browser (e.g. when a type error happens), you'll first need a little helper script to translate file paths from the `file:line:col` format to `+line:col file` which emacs expects. Put this in e.g. `~/bin/emacs-line`:
 
+To make file paths clickable inside the web browser (e.g. when a type error happens), you'll first need a little helper script to translate file paths from the `file:line:col` format to `+line:col file` which emacs expects. Put this in e.g. `~/bin/emacs-line`:
 ```bash
 #!/bin/sh
 path="${1%%:*}"
@@ -143,12 +143,12 @@ col="${1##*:}"
 line="${1%:*}"; line="${line##*:}"
 emacsclient -n +"${line}:${col}" "${path}"
 ```
-
 and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in `.bashrc`):
 
 ```bash
 export IHP_EDITOR="$HOME/bin/emacs-line"
 ```
+
 
 ## Using IHP with Vim / NeoVim
 
