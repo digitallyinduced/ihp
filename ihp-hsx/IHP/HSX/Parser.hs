@@ -155,7 +155,7 @@ isStaticAttribute _ = False
 
 hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
-    (pos, name) <- between (string "{...") (string "}") do
+    (pos, name) <- between (do char '{'; optional space; string "...") (string "}") do
             pos <- getSourcePos
             code <- takeWhile1P Nothing (\c -> c /= '}')
             pure (pos, code)

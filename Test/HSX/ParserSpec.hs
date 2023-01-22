@@ -64,6 +64,11 @@ tests = do
             -- We cannot easily construct the @VarE variables@ expression, therefore we use show here for comparison
             tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
 
+        it "should parse spread values with a space" do
+            -- See https://github.com/digitallyinduced/ihp/issues/1588
+            let p = parseHsx position extensions "<div { ...variables }/>"
+            tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
+
         it "should accept underscores in data attributes" do
             let p = parseHsx position extensions "<div data-client_id=\"test\"/>"
             p `shouldBe` (Right (Children [Node "div" [StaticAttribute "data-client_id" (TextValue "test")] [] False]))
