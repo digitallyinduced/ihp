@@ -359,4 +359,4 @@ Access them from the `meta :: MetaBag` attribute like this:
 record.meta.annotations
 ```
 
-This returns a `[(Text, Text)]`, e.g. `[("name", "This field cannot be empty")]`.
+This returns a `[(Text, Violation)]`, e.g. `[("name", "This field cannot be empty")]`.
