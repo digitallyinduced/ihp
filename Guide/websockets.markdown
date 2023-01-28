@@ -291,7 +291,7 @@ In this example the WebSocket server will be available at `/my-ws`.
 
 By default the server will ping the browser every 30 seconds to make sure that the connection is still alive. You can run custom code whenever the ping has finished by overriding the [`onPing`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onPing) function.
 
-Here's an example of how [`AutoRefresh`](/auto-refresh.html) uses [`onPing`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onPing) to keep Auto Refresh Sessions from being closed:
+Here's an example of how [`AutoRefresh`](https://ihp.digitallyinduced.com/Guide/auto-refresh.html) uses [`onPing`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:onPing) to keep Auto Refresh Sessions from being closed:
 
 ```haskell
     onPing = do

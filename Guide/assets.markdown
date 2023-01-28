@@ -37,6 +37,4 @@ IHP will set the asset version from the `IHP_ASSET_VERSION` env variable.
 
 Set the `IHP_ASSET_VERSION` env variable to e.g. your git commit hash when running in production.
 
-In development you don't need to specify this environment variable. It will fall back to `dev` as the default value for the version.
-
-If you run on IHP Cloud, it works out of the box and you don't need to manually specify the env variable.
+In development you don't need to specify this environment variable. It will fall back to `dev` as the default value for the version.s

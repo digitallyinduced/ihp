@@ -4,47 +4,25 @@
 
 ```
 
-## Deploying with IHP Cloud
+## Deploying with Shipnix
 
-The fastest way to share your app with the internet is by using IHP Cloud. We recommend following this approach as it's the most simple to get started with.
+Shipnix is a service for deploying NixOS web servers on DigitalOcean with first-class support for IHP.
+
+Generating a base NixOS configuration for your specific project, Shipnix provides full freedom to configure with ease of use.
+
+Apart from the technical differences, the deployment experience in Shipnix is similar to IHP Cloud.
 
 ### Account Setup
 
-Register a new IHP Cloud account for free at [ihpcloud.com](https://ihpcloud.com/NewUser) or [sign in](https://ihpcloud.com/NewSession).
+Register a new account on [shipnix.io](https://shipnix.io) and follow the instructions to connect to your DigitalOcean account and upload a NixOS image to it. This one-time process takes about 10 minutes.
 
-### Creating the Project
+### Creating a new project
 
-Once you're logged in to IHP Cloud, follow the instructions to create a project for your application.
+Provisioning a new IHP project is straightforward with the IHP starter. Read [the IHP starter guide](https://docs.shipnix.io/starters/ihp/) to find out how to set domains, enable https with LetsEncrypt and other common usecases.
 
-**Private Git Repositories:**
-When you connect a private git repository make sure to provide an SSH git clone URL. IHP Cloud will provide you with an SSH public key. You need to add this deploy key to your repository.
+### Migrate from IHP Cloud to Shipnix
 
-On GitHub, you can do this by opening the repository settings and clicking on `Deploy keys`.
-
-### First Deployment
-
-After the project setup is finished, click on `+ Deploy Now` to start your first deployment.
-
-When your CSS or JS looks broken, take a look at the next section `CSS & JS Bundling`.
-
-### DB Migrations
-
-[Database Migrations](database-migrations.html) are automatically executed during the deployment on IHP Cloud.
-
-If you need to make manual changes to your database schema, you can of course also do this: Open the project in IHP Cloud, click `Settings`, then click `Database`. There you can find the database credentials for the Postgres DB that is running for your application. Connect to your database and manually apply the migrations.
-
-### Changing the domain
-
-Open the project in IHP Cloud, click `Settings` and click `Domain`. You can set a `***.ihpapp.com` domain in here.
-
-#### Using your domain instead of .ihpapp.com
-
-Using your domain with IHP Cloud is only available for IHP Cloud Pro users.
-To use your domain point a CNAME record to `ihpapp.com`.
-
-After that go to `Settings`, click `Domain` and enter your domain name.
-When you change your domain to a custom domain we are automatically getting an SSL certificate from
-LetsEncrypt for you so please make sure to set the CNAME record a few minutes before changing the domain inside your project.
+If you wish to migrate from IHP Cloud, Shipnix has a [migration guide](https://docs.shipnix.io/migrate/ihp-cloud/).
 
 ## Deploying with Docker
 
@@ -175,7 +153,6 @@ $ docker run \
 
 If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
 
-
 ```bash
 $ docker run \
     -p 8000:8000 \
@@ -189,7 +166,6 @@ $ docker run \
 
 If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
 
-
 ```bash
 $ docker run \
     -e 'IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader' \
@@ -201,7 +177,6 @@ $ docker run \
 Without specifying this env var, the app will always use `http://localhost:8000/` in absolute URLs it's generating (e.g. when redirecting or sending out emails).
 
 It's therefore important to set it to the external user-facing web addresss. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
-
 
 ```bash
 $ docker run \
@@ -285,6 +260,7 @@ Bundling all your CSS and JS files into a single CSS and JS file can be useful t
 To decide whether bundling is useful for your application it might be useful to quickly go into details about the browser caching that is applied to all static files.
 
 In production mode IHP automatically adds caching headers to your CSS and JS files following these rules:
+
 1. `static/vendor/*`: cached for 30 days
 2. `static/*` cached for 24 hours
 3. IHP built-ins (e.g. `helpers.js`, `ihp-auto-refresh.js`, ..): cached for 30 days
@@ -293,11 +269,11 @@ This means that all JS and CSS is stored in the browser cache after the first re
 
 If you have many JS and CSS files that are all required for the initial page render, you should enable bundling.
 
-
 If you're curious: The following cache headers are set in production:
-- `Cache-Control`
-- `Last-Mofified`
-- `ETag`
+
+-   `Cache-Control`
+-   `Last-Mofified`
+-   `ETag`
 
 ### Activate Bundling
 
@@ -349,8 +325,8 @@ You can also remove the JS and CSS files that are provided by IHP (like `${IHP}/
 If your app.css uses `@import` syntax like this:
 
 ```css
-@import "./layout.css";
-@import "./startpage.css";
+@import './layout.css';
+@import './startpage.css';
 ```
 
 Browsers only load these `@import` statements if they're the first rules defined in your CSS file. When bundling your file, you usually have your CSS frameworks and libraries first before your own app specific CSS. That means that the `@import` statements will be ignored by the browser in production. To make this work in production you need to duplicate these import statements in your `Makefile` like this:
@@ -367,7 +343,7 @@ CSS_FILES += static/startpage.css # The second import of app.css
 
 ### Enabling Bundling in the Layout
 
-We need to update the `Layout.hs` to only load `prod.css` and `prod.js` when running in production. 
+We need to update the `Layout.hs` to only load `prod.css` and `prod.js` when running in production.
 
 For that we use [`isDevelopment`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isDevelopment) and [`isProduction`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:isProduction) to conditionally load different files. Change your `Web/View/Layout.hs` to look like this:
 
@@ -400,13 +376,11 @@ scripts = do
     |]
 ```
 
-
 ### Updating your Deployment Process
 
 **If you're using IHP Cloud:** Nothing to do. The command `make static/prod.js static/prod.css` is automatically executed during deployment.
 
 **If you're deploying manually:** Make sure that `make static/prod.js static/prod.css` is called.
-
 
 ## Operating an IHP app
 
@@ -419,7 +393,6 @@ To use sentry in your IHP app you need to install the ihp-sentry plugin. The ihp
 Once the `ihp-sentry` plugin is installed and configured, exceptions that happen in production (so `option Production` is set) are reported to sentry.
 
 #### Install ihp-sentry in your IHP app
-
 
 Add `ihp-sentry` to the `haskellDeps` in your `default.nix`:
 
@@ -437,8 +410,8 @@ let
 
 Now you need to remake your environment using `make -B .envrc`.
 
-
 Next add `import IHP.Sentry` to your `Config/Config.hs`:
+
 ```haskell
 module Config where
 
@@ -446,7 +419,6 @@ module Config where
 
 import IHP.Sentry
 ```
-
 
 Add a call to `initSentry` inside the `Config/Config.hs` to configure the sentry DSN:
 
@@ -483,8 +455,9 @@ nix-build
 ```
 
 This will build a nix package that contains the following binaries:
-- `RunProdServer`, the binary to start web server
-- `RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
-- a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
+
+-   `RunProdServer`, the binary to start web server
+-   `RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
+-   a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
 
 The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.

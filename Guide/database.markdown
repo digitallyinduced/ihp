@@ -26,7 +26,7 @@ echo `pwd`/build/db
 ```
 
 Database username: This is the current user you run the terminal with. Run `whoami` command to get that name.
-Database name: `app`
+Database name: `app`.
 
 ### Schema.sql
 
@@ -146,7 +146,7 @@ In the Schema Designer, you can take a look at the generated Haskell code by rig
 
 ### Querying Records
 
-You can retrieve all records of a table using [`query`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:query)
+You can retrieve all records of a table using [`query`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:query):
 
 ```haskell
 do
@@ -268,7 +268,7 @@ do
 
 ### Fetching distinct records
 
-Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records.
+Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records:
 
 ```haskell
 do
@@ -277,7 +277,7 @@ do
         |> fetch
 ```
 
-Or [`distinctOn #tableField`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinctOn) to fetch distinct records based on the `#tableField` value.
+Or [`distinctOn #tableField`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinctOn) to fetch distinct records based on the `#tableField` value:
 
 ```haskell
 do
@@ -304,7 +304,7 @@ do
     commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))
 ```
 
-You might need to specify the expected result type, as type inference might not be able to guess it.
+You might need to specify the expected result type, as type inference might not be able to guess it:
 
 ```haskell
 do
@@ -767,7 +767,7 @@ IHP currently has no built-in migration system yet. We're still experimenting wi
 
 ## Supported Database Types
 
-IHP currently has support for the following postgres column types:
+IHP currently has support for the following Postgres column types:
 
 - UUID
 - Text
@@ -796,7 +796,7 @@ IHP currently has support for the following postgres column types:
 
 ## Transactions
 
-You can use the [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function to wrap your database operations in a postgres database transaction:
+You can use the [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function to wrap your database operations in a Postgres database transaction:
 
 ```haskell
 withTransaction do
