@@ -98,7 +98,7 @@ Install the following additional packages from [Melpa](https://melpa.org/#/getti
 -   `envrc-mode` – lets eglot find the PATH to Haskell Language Server etc.
 
 At the very least you need `(add-hook 'haskell-mode-hook #'eglot-ensure)`
-and `(envrc-global-mode +1)` in your ~/.emacs.d/init.el, but you may also
+and `(envrc-global-mode +1)` in your `~/.emacs.d/init.el`, but you may also
 want to set up some keybindings to common language server functions
 (since by default none are included). Here's an example init file:
 
