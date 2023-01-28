@@ -170,8 +170,9 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                                     -- E.g. if it's not matched anymore by the WHERE condition after the update
                                     [(PG.Only isRecordInResultSet)] <- sqlQueryWithRLS ("SELECT EXISTS(SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1)") (theParams <> [PG.toField id])
 
+                                    changes <- ChangeNotifications.retrieveChanges changeSet
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changeSet }
+                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue changes }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
