@@ -122,7 +122,15 @@ subscribe channel callback pgListener = do
     -- A naive implementation might be just kicking of an async for each message. But in that case
     -- the messages might be delivered to the final consumer out of order.
     (inChan, outChan) <- Queue.newChan
-    reader <- async (forever (Queue.readChan outChan >>= callback))
+    
+    let
+        -- We need to log any exception, otherwise there might be silent errors
+        logException :: SomeException -> IO ()
+        logException exception = logError pgListener ("Error in pg_notify handler: " <> cs (displayException exception))
+
+    reader <- async $ forever do
+            message <- Queue.readChan outChan
+            callback message `Exception.catch` logException
     let subscription = Subscription { .. }
 
     modifyIORef' (get #subscriptions pgListener) (HashMap.insertWith mappend channel [subscription] )
@@ -148,7 +156,7 @@ subscribeJSON channel callback pgListener = subscribe channel callback' pgListen
             let payload = (get #notificationData notification)
             case Aeson.decodeStrict' payload of
                 Just payload -> callback payload
-                Nothing -> pure ()
+                Nothing -> logError pgListener ("PGListener.subscribeJSON: Failed to parse " <> tshow payload)
 
 -- | Stops the callback of a subscription from receiving further notifications
 --
@@ -240,3 +248,6 @@ listenToChannel :: PG.Connection -> Channel -> IO ()
 listenToChannel databaseConnection channel = do
     PG.execute databaseConnection "LISTEN ?" [PG.Identifier (cs channel)]
     pure ()
+
+logError :: PGListener -> Text -> IO ()
+logError pgListener message = let ?context = pgListener.modelContext in Log.error message
