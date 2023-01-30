@@ -55,7 +55,7 @@ createNotificationFunction table = [i|
                 BEGIN
                     CASE TG_OP
                     WHEN 'UPDATE' THEN
-                        SELECT json_agg(row_to_json(t))
+                        SELECT coalesce(json_agg(row_to_json(t)), '[]'::json)
                                 FROM (
                                       SELECT pre.key AS "col", post.value AS "new"
                                       FROM jsonb_each(to_jsonb(OLD)) AS pre
