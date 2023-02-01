@@ -224,7 +224,7 @@ You can see that we can access the state using [`state <- getState`](https://ihp
 
 Now whenever the connection is closed, it will print out the message inside the terminal where the IHP server is running.
 
-**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run):
+**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function:
 
 ```haskell
 run = do
