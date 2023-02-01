@@ -88,7 +88,7 @@ Hello World!
 
 ## Sending and receiving messages
 
-We're going to extend our `HelloWorldController` to first for the users name and then print out `Hello $name!` instead of `Hello World!`.
+We're going to extend our `HelloWorldController` to first ask for the users name and then print out `Hello $name!` instead of `Hello World!`.
 
 Open `Web/Controller/HelloWorld` and change the code to this:
 
@@ -177,7 +177,7 @@ data HelloWorldController
 
 The `WaitForName` now reflects the state before the names has been entered, and the `NameEntered { name = ".." }` keeps track of the entered name.
 
-We need to update the controlller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the [`initialState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:initialState) in `Web/Controller/HelloWorld.hs`:
+We need to update the controller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the [`initialState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:initialState) in `Web/Controller/HelloWorld.hs`:
 
 ```haskell
     initialState = WaitForName
