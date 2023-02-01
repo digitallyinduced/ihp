@@ -12,7 +12,7 @@ IHP has first class support for WebSockets.
 
 The entry points for your WebSocket servers are similiar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similiar to normal IHP controllers, the WebSocket servers are also added to the [`FrontController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:FrontController) later on.
 
-## Creating a WebSocket Controlller
+## Creating a WebSocket Controller
 
 Like a normal IHP controller, the WebSocket controllers are also represented with a custom data type. In this guide we're starting by creating a new `HelloWorld` WebSocket application.
 
