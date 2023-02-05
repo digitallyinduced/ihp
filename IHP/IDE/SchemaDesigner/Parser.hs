@@ -88,6 +88,7 @@ createExtension = do
 
 createTable = do
     lexeme "CREATE"
+    unlogged <- isJust <$> optional (lexeme "UNLOGGED")
     lexeme "TABLE"
     name <- qualifiedIdentifier
 
@@ -115,7 +116,7 @@ createTable = do
             _ -> Prelude.fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> Prelude.fail "Multiple columns with PRIMARY KEY constraint"
 
-    pure CreateTable { name, columns, primaryKeyConstraint, constraints }
+    pure CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged }
 
 createEnumType = do
     lexeme "CREATE"

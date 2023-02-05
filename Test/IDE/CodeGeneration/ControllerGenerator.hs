@@ -30,6 +30,7 @@ tests = do
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                     },
                     StatementCreateTable CreateTable {
                         name = "people"
@@ -63,6 +64,7 @@ tests = do
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                     }
                 ]
         it "should build a controller with name \"pages\"" do

@@ -15,7 +15,7 @@ import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -108,11 +108,12 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -476,6 +477,7 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -527,6 +529,7 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -541,6 +544,7 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -551,6 +555,7 @@ tests = do
                     , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -561,6 +566,7 @@ tests = do
                     , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -574,6 +580,7 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["order_id", "truck_id"]
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -584,6 +591,7 @@ tests = do
                     , columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -594,6 +602,7 @@ tests = do
                     , columns = [ col { name = "pos", columnType = PPoint } ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -604,6 +613,7 @@ tests = do
                     , columns = [ col { name = "poly", columnType = PPolygon } ]
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
+                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -777,12 +787,12 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a partial index" do
@@ -1019,10 +1029,27 @@ tests = do
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                         ]
             compileSql statements `shouldBe` sql
         it "should compile 'DROP FUNCTION ..;' statements" do
             let sql = "DROP FUNCTION my_function;\n"
             let statements = [ DropFunction { functionName = "my_function" } ]
+            compileSql statements `shouldBe` sql
+        it "should compile 'CREATE UNLOGGED TABLE' statements" do
+            let sql = [trimming|
+                CREATE UNLOGGED TABLE pg_large_notifications (
+                
+                );
+            |] <> "\n"
+            let statements = [
+                        StatementCreateTable CreateTable
+                            { name = "pg_large_notifications"
+                            , columns = []
+                            , constraints = []
+                            , unlogged = True
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            }
+                        ]
             compileSql statements `shouldBe` sql
