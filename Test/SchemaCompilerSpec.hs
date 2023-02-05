@@ -122,7 +122,8 @@ tests = do
                     name = "users",
                     columns = [ Column "id" PUUID Nothing False False Nothing ],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                    constraints = []
+                    constraints = [],
+                    unlogged = False
                 }
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -149,6 +150,7 @@ tests = do
                     columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
+                    , unlogged = False
                 }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -166,6 +168,7 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -225,6 +228,7 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -284,6 +288,7 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 

@@ -31,6 +31,7 @@ tests = do
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
+                        , unlogged = False
                         }
                     ]
         it "should build a mail with name \"PurchaseConfirmationMail\"" do

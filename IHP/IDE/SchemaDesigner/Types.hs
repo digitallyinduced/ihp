@@ -82,6 +82,7 @@ data CreateTable
       , columns :: [Column]
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
+      , unlogged :: !Bool
       }
   deriving (Eq, Show)
 

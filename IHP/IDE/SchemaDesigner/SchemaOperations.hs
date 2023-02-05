@@ -29,6 +29,7 @@ addTable tableName list = list <> [StatementCreateTable CreateTable
             }]
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
+    , unlogged = False
     }]
 
 

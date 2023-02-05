@@ -9,8 +9,8 @@ import qualified Text.Megaparsec as Megaparsec
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
-        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [] }
+        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -111,6 +111,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -132,6 +133,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -152,6 +154,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -160,6 +163,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let schema =
                             [ tasksTable
@@ -193,6 +197,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -232,6 +237,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let function = CreateFunction
@@ -289,6 +295,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let index = CreateIndex
@@ -349,6 +356,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -378,6 +386,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let function = CreateFunction
@@ -425,6 +434,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
@@ -454,6 +464,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let tableAWithUpdatedColumn = StatementCreateTable CreateTable
@@ -470,6 +481,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let inputSchema = [tableAWithCreatedAt]
@@ -503,6 +515,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let tableWithoutPK = StatementCreateTable CreateTable
@@ -519,6 +532,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
 
                 let inputSchema = [tableWithoutPK]
@@ -545,6 +559,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -553,6 +568,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let inputSchema =
                             [ tasksTable
@@ -567,6 +583,7 @@ tests = do
                                     ]
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
+                                , unlogged = False
                                 }
                 let expectedSchema =
                             [ tasksTable'
@@ -602,6 +619,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -619,6 +637,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
+                            , unlogged = False
                             }
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
