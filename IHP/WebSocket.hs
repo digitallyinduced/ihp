@@ -56,7 +56,7 @@ startWSApp connection = do
     let runWithPongChan pongChan = do
             let connectionOnPong = writeChan pongChan ()
             let ?connection = connection
-                    { WebSocket.connectionOptions = (get #connectionOptions connection) { WebSocket.connectionOnPong } 
+                    { WebSocket.connectionOptions = connection.connectionOptions { WebSocket.connectionOnPong } 
                     }
                 in
                     run @state
