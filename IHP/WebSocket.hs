@@ -48,20 +48,20 @@ class WSApp state where
     onClose = pure ()
 
 startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => Websocket.Connection -> IO ()
-startWSApp connection = do
+startWSApp connection' = do
     state <- newIORef (initialState @state)
+    lastPongAt <- getCurrentTime >>= newIORef
+
+
+    let connection = installPongHandler lastPongAt connection'
     let ?state = state
     let ?connection = connection
+    let pingHandler = do
+            seconds <- secondsSinceLastPong lastPongAt
+            when (seconds > pingWaitTime * 2) (throwIO PongTimeout)
+            onPing @state
 
-    let runWithPongChan pongChan = do
-            let connectionOnPong = writeChan pongChan ()
-            let ?connection = connection
-                    { WebSocket.connectionOptions = connection.connectionOptions { WebSocket.connectionOnPong } 
-                    }
-                in
-                    run @state
-
-    result <- Exception.try ((withPinger connection runWithPongChan) `Exception.finally` onClose @state)
+    result <- Exception.try ((WebSocket.withPingThread connection pingWaitTime pingHandler (run @state)) `Exception.finally` onClose @state)
     case result of
         Left (e@Exception.SomeException{}) ->
             case Exception.fromException e of
@@ -114,37 +114,17 @@ instance Exception PongTimeout
 pingWaitTime :: Int
 pingWaitTime = 30
 
+installPongHandler :: IORef UTCTime -> WebSocket.Connection -> WebSocket.Connection
+installPongHandler lastPongAt connection =
+    connection { WebSocket.connectionOptions = connection.connectionOptions { WebSocket.connectionOnPong = connectionOnPong lastPongAt }  }
 
--- | Pings the client every 30 seconds and expects a pong response within 10 secons. If no pong response
--- is received within 10 seconds, it will kill the connection.
---
--- We cannot use the withPingThread of the websockets package as this doesn't deal with pong messages. So
--- open connection will stay around forever.
---
--- This implementation is based on https://github.com/jaspervdj/websockets/issues/159#issuecomment-552776502
-withPinger conn action = do
-    pongChan <- newChan
-    mainAsync <- async $ action pongChan
-    pingerAsync <- async $ runPinger conn pongChan
+connectionOnPong :: IORef UTCTime -> IO ()
+connectionOnPong lastPongAt = do
+    now <- getCurrentTime
+    writeIORef lastPongAt now
 
-    waitEitherCatch mainAsync pingerAsync >>= \case
-        -- If the application async died for any reason, kill the pinger async
-        Left result -> do
-            cancel pingerAsync
-            case result of
-                Left exception -> throw exception
-                Right result -> pure ()
-        -- The pinger thread should never throw an exception. If it does, kill the app thread
-        Right (Left exception) -> do
-            cancel mainAsync
-            throw exception
-        -- The pinger thread exited due to a pong timeout. Tell the app thread about it.
-        Right (Right ()) -> cancelWith mainAsync PongTimeout
-
-runPinger conn pongChan = fix $ \loop -> do
-    Websocket.sendPing conn (mempty :: ByteString)
-    threadDelay pingWaitTime
-    -- See if we got a pong in that time
-    timeout 1000000 (readChan pongChan) >>= \case
-        Just () -> loop
-        Nothing -> return ()
+secondsSinceLastPong :: IORef UTCTime -> IO Int
+secondsSinceLastPong lastPongAt = do
+    now <- getCurrentTime
+    last <- readIORef lastPongAt
+    pure $ ceiling $ nominalDiffTimeToSeconds $ diffUTCTime now last
