@@ -29,7 +29,7 @@ import Data.String.Interpolate.IsString
 initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initAutoRefresh = do
     putContext AutoRefreshDisabled
-    putContext (?applicationContext |> get #autoRefreshServer)
+    putContext ?applicationContext.autoRefreshServer
 
 autoRefresh :: (
     ?theAction :: action
@@ -89,7 +89,7 @@ autoRefresh runAction = do
 
                             event <- MVar.newEmptyMVar
                             let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
-                            modifyIORef' autoRefreshServer (\s -> s { sessions = session:(get #sessions s) } )
+                            modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                             async (gcSessions autoRefreshServer)
 
                             registerNotificationTrigger ?touchedTables autoRefreshServer
@@ -111,9 +111,7 @@ instance WSApp AutoRefreshWSApp where
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
-        availableSessions <- ?applicationContext
-                |> get #autoRefreshServer
-                |> getAvailableSessions
+        availableSessions <- getAvailableSessions ?applicationContext.autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
             AutoRefreshSession { renderView, event, lastResponse } <- getSessionById sessionId
@@ -129,7 +127,7 @@ instance WSApp AutoRefreshWSApp where
 
             async $ forever do
                 MVar.takeMVar event
-                let requestContext = get #requestContext ?context
+                let requestContext = ?context.requestContext
                 (renderView requestContext) `catch` handleResponseException
                 pure ()
 
@@ -146,20 +144,20 @@ instance WSApp AutoRefreshWSApp where
     onClose = do
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
-                let autoRefreshServer = ?applicationContext |> get #autoRefreshServer
-                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) (get #sessions server) })
+                let autoRefreshServer = ?applicationContext.autoRefreshServer
+                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
 
 registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    subscribedTables <- (get #subscribedTables) <$> (autoRefreshServer |> readIORef)
+    subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
-    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = get #subscribedTables server <> Set.fromList subscriptionRequired })
+    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
 
-    pgListener <- get #pgListener <$> readIORef autoRefreshServer
+    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
     subscriptions <-  subscriptionRequired |> mapM (\table -> do
         let createTriggerSql = notificationTrigger table
 
@@ -169,22 +167,22 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
             sqlExec createTriggerSql ()
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                sessions <- (get #sessions) <$> readIORef autoRefreshServer
+                sessions <- (.sessions) <$> readIORef autoRefreshServer
                 sessions
-                    |> filter (\session -> table `Set.member` (get #tables session))
-                    |> map (\session -> get #event session)
+                    |> filter (\session -> table `Set.member` session.tables)
+                    |> map (\session -> session.event)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
-    modifyIORef' autoRefreshServer (\s -> s { subscriptions = get #subscriptions s <> subscriptions })
+    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?context :: ControllerContext) => IORef AutoRefreshServer -> IO [UUID]
 getAvailableSessions autoRefreshServer = do
-    allSessions <- (get #sessions) <$> readIORef autoRefreshServer
+    allSessions <- (.sessions) <$> readIORef autoRefreshServer
     text <- fromMaybe "" <$> getSession "autoRefreshSessions"
     let uuidCharCount = Text.length (UUID.toText UUID.nil)
-    let allSessionIds = map (get #id) allSessions
+    let allSessionIds = map (.id) allSessions
     text
         |> Text.chunksOf uuidCharCount
         |> mapMaybe UUID.fromText
@@ -194,11 +192,8 @@ getAvailableSessions autoRefreshServer = do
 -- | Returns a session for a given session id. Errors in case the session does not exist.
 getSessionById :: (?applicationContext :: ApplicationContext) => UUID -> IO AutoRefreshSession
 getSessionById sessionId = do
-    autoRefreshServer <- ?applicationContext
-            |> get #autoRefreshServer
-            |> readIORef
-    autoRefreshServer
-        |> get #sessions
+    autoRefreshServer <- readIORef ?applicationContext.autoRefreshServer
+    autoRefreshServer.sessions
         |> find (\AutoRefreshSession { id } -> id == sessionId)
         |> Maybe.fromMaybe (error "getSessionById: Could not find the session")
         |> pure
@@ -206,9 +201,9 @@ getSessionById sessionId = do
 -- | Applies a update function to a session specified by its session id
 updateSession :: (?applicationContext :: ApplicationContext) => UUID -> (AutoRefreshSession -> AutoRefreshSession) -> IO ()
 updateSession sessionId updateFunction = do
-    let server = ?applicationContext |> get #autoRefreshServer
-    let updateSession' session = if get #id session == sessionId then updateFunction session else session
-    modifyIORef' server (\server -> server { sessions = map updateSession' (get #sessions server) })
+    let server = ?applicationContext.autoRefreshServer
+    let updateSession' session = if session.id == sessionId then updateFunction session else session
+    modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
     pure ()
 
 -- | Removes all expired sessions
@@ -219,7 +214,7 @@ updateSession sessionId updateFunction = do
 gcSessions :: IORef AutoRefreshServer -> IO ()
 gcSessions autoRefreshServer = do
     now <- getCurrentTime
-    modifyIORef' autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) (get #sessions autoRefreshServer) })
+    modifyIORef' autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) autoRefreshServer.sessions })
 
 -- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool

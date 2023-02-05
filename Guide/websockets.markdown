@@ -12,7 +12,7 @@ IHP has first class support for WebSockets.
 
 The entry points for your WebSocket servers are similiar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similiar to normal IHP controllers, the WebSocket servers are also added to the [`FrontController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:FrontController) later on.
 
-## Creating a WebSocket Controlller
+## Creating a WebSocket Controller
 
 Like a normal IHP controller, the WebSocket controllers are also represented with a custom data type. In this guide we're starting by creating a new `HelloWorld` WebSocket application.
 
@@ -88,7 +88,7 @@ Hello World!
 
 ## Sending and receiving messages
 
-We're going to extend our `HelloWorldController` to first for the users name and then print out `Hello $name!` instead of `Hello World!`.
+We're going to extend our `HelloWorldController` to first ask for the users name and then print out `Hello $name!` instead of `Hello World!`.
 
 Open `Web/Controller/HelloWorld` and change the code to this:
 
@@ -177,7 +177,7 @@ data HelloWorldController
 
 The `WaitForName` now reflects the state before the names has been entered, and the `NameEntered { name = ".." }` keeps track of the entered name.
 
-We need to update the controlller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the [`initialState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:initialState) in `Web/Controller/HelloWorld.hs`:
+We need to update the controller to reflect our new data structure. First we need to make `WaitForName` the start state. For that we need to update the [`initialState`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:initialState) in `Web/Controller/HelloWorld.hs`:
 
 ```haskell
     initialState = WaitForName
@@ -224,7 +224,7 @@ You can see that we can access the state using [`state <- getState`](https://ihp
 
 Now whenever the connection is closed, it will print out the message inside the terminal where the IHP server is running.
 
-**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run):
+**Good to know:** The connection is automatically closed when the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function has finished. Therefore it's normal that the `... has left!` message is directly printed after you entered the name. To keep it running until the browser windows is closed, add a `forever` to the [`run`](https://ihp.digitallyinduced.com/api-docs/IHP-WebSocket.html#v:run) function:
 
 ```haskell
 run = do
