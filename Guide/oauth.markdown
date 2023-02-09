@@ -209,35 +209,41 @@ instance View (NewView User) where
 
 loginWithGoogle :: Html
 loginWithGoogle = [hsx|
-    <a id="continue-with-google" href="#" class="btn btn-primary" data-client-id="YOUR GOOGLE CLIENT ID">
-        Continue with Google
-    </a>
+    <div id="g_id_onload"
+         data-client_id={googleClientId}
+         data-context="signin"
+         data-ux_mode="popup"
+         data-callback="onGoogleLogin"
+         data-auto_prompt="false"
+         >
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="rectangular"
+         data-theme="outline"
+         data-text="continue_with"
+         data-size="large"
+         data-logo_alignment="left"
+         data-width="304">
+    </div>
     <form method="POST" action={GoogleConnectCallbackAction} id="new-session-with-google-form">
         <input type="hidden" name="jwt" value=""/>
     </form>
-    <script src="/google-login.js"></script>
-    <script src="https://apis.google.com/js/platform.js?onload=initGoogleLogin"></script>
+    <script src="/google-login.js?v2"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
 |]
+    where
+        googleClientId :: Text = "YOUR GOOGLE CLIENT ID"
 ```
 
 The login process uses the Google Login JS SDK and requires a little bit of JavaScript to work. Create a file `static/google-login.js` with this content:
 
 ```javascript
-function initGoogleLogin() {
-    gapi.load('auth2', function() {
-        var element = document.getElementById('continue-with-google');
-        var clientId = element.dataset.clientId;
-        auth2 = gapi.auth2.init({ client_id: clientId, scope: 'profile' });
-        
-        auth2.attachClickHandler(element, {},
-            function(googleUser) {
-                var form = document.getElementById('new-session-with-google-form');
-                form.querySelector('input[name="jwt"]').value = googleUser.getAuthResponse().id_token;
-                form.submit();
-            }, function(error) {
-                alert(JSON.stringify(error, undefined, 2));
-            });
-    });
+function onGoogleLogin(response) {
+    var form = document.getElementById('new-session-with-google-form');
+    form.querySelector('input[name="jwt"]').value = response.credential;
+    form.submit();
 }
 ```
 
