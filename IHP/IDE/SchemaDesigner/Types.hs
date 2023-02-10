@@ -211,6 +211,7 @@ data PostgresType
     | PDate
     | PBinary
     | PTime
+    | PInterval
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN (Maybe Int)
     | PCharacterN Int

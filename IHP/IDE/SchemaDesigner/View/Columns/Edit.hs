@@ -123,6 +123,7 @@ typeSelector postgresType enumNames = [hsx|
                 {option isSelected "POINT" "Point"}
                 {option isSelected "BYTEA" "Binary"}
                 {option isSelected "Time" "Time"}
+                {option isSelected "INTERVAL" "Interval"}
                 {option isSelected "BIGSERIAL" "Bigserial"}
                 {option isSelected "SMALLINT" "Int (16bit)"}
                 {option isSelected "BIGINT" "Int (64bit)"}

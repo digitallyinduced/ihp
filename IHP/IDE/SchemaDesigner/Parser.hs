@@ -246,6 +246,7 @@ sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
         [ uuid
         , text
+        , interval --Needs higher precedence eotherwise parsed as Int
         , bigint
         , smallint
         , int   -- order int after smallint/bigint because symbol INT is prefix og INT2, INT8
@@ -347,6 +348,12 @@ sqlType = choice $ map optionalArray
                         symbol' "ZONE"
                     pure PTime
 
+                interval = do
+                    try (symbol' "INTERVAL")
+                    optional do
+                          choice $ map symbol' intervalFields
+                    pure PInterval
+
                 numericPS = do
                     try (symbol' "NUMERIC(")
                     values <- between (space) (char ')' >> space) (varExpr `sepBy` (char ',' >> space))
@@ -429,6 +436,13 @@ sqlType = choice $ map optionalArray
                         char '.'
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
                     pure (PCustomType theType)
+
+
+intervalFields :: [Text]
+intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SECOND"
+                   , "HOUR TO MINUTE", "HOUR TO SECOND", "MINUTE TO SECOND"
+                   , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
+
 
 term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
