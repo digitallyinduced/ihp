@@ -6,6 +6,7 @@ module IHP.ModelSupport
 , module IHP.Postgres.Polygon
 , module IHP.Postgres.Inet
 , module IHP.Postgres.TSVector
+, module IHP.Postgres.Interval
 ) where
 
 import IHP.HaskellSupport
