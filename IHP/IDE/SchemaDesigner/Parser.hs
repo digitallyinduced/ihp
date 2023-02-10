@@ -350,9 +350,9 @@ sqlType = choice $ map optionalArray
 
                 interval = do
                     try (symbol' "INTERVAL")
-                    optional do
-                          choice $ map symbol' intervalFields
-                    pure PInterval
+                    fields <- optional do
+                        choice $ map symbol' intervalFields
+                    pure (PInterval fields)
 
                 numericPS = do
                     try (symbol' "NUMERIC(")
