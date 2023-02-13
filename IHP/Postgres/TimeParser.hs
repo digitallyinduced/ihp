@@ -34,10 +34,10 @@ newtype PGInterval = PGInterval ByteString deriving (Eq, Show)
 --  Months are small Int (up to 1-11) denoting a month of the year, and the pgClock is a Nominal DiffTime
 --  representing the time as measured by a clock without leap seconds.
 
-data PGTimeInterval = PGTimeInterval { pgYears :: Integer
-                                     , pgMonths :: Int
-                                     , pgDays :: Integer
-                                     , pgClock :: NominalDiffTime} deriving (Eq, Show)
+data PGTimeInterval = PGTimeInterval { pgYears :: !Integer
+                                     , pgMonths :: !Int
+                                     , pgDays :: !Integer
+                                     , pgClock :: !NominalDiffTime } deriving (Eq, Show)
 
 -- To support the default postgres output style PGInterval -> PGTimeInterval
 -- in Application Code we provide the parser combinators for the `postgres` output style.
@@ -47,6 +47,7 @@ data PGTimeInterval = PGTimeInterval { pgYears :: Integer
 -- alternative parsers would need to be provided for the `sql_standard`, `postgres_verbose`, and `iso_8601`
 -- styles/
 
+unpackInterval :: PGInterval -> PGTimeInterval
 unpackInterval (PGInterval bs) = case parseOnly pPGInterval bs of
     Left err -> error ("Couldn't parse PGInterval. " <> cs err)
     Right val -> val
@@ -54,7 +55,7 @@ unpackInterval (PGInterval bs) = case parseOnly pPGInterval bs of
 
 pPGInterval :: Parser PGTimeInterval
 pPGInterval = do
-    year <- option 0 ((signed decimal <* space <* ( "years" <|>  "year")))
+    year <- option 0 ((signed decimal <* space <* (string "years" <|>  string "year")))
     skipSpace
     mons <-  option 0 ((signed decimal <* space <* (string "mons" <|>  string "mon")))
     skipSpace
