@@ -1250,6 +1250,15 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should ignore the schema_migrations table" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE TABLE schema_migrations (revision BIGINT NOT NULL UNIQUE);
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
