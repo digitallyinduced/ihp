@@ -367,6 +367,15 @@ instance ParamReader ModelSupport.Point where
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
     readParameterJSON _ = Left "Expected Point"
 
+instance ParamReader ModelSupport.PGInterval where
+    {-# INLINABLE readParameter #-}
+    readParameter byteString = pure (ModelSupport.PGInterval byteString)
+
+    readParameterJSON (Aeson.String bytestring) = Right (ModelSupport.PGInterval (cs bytestring))
+    readParameterJSON _ = Left "Expected String"
+
+
+
 instance ParamReader ModelSupport.Polygon where
     {-# INLINABLE readParameter #-}
     readParameter byteString =

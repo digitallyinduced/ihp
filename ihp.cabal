@@ -249,6 +249,7 @@ library
         , IHP.Version
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
+        , IHP.Postgres.Interval
         , IHP.Postgres.Polygon
         , IHP.Postgres.Inet
         , IHP.Postgres.TSVector
