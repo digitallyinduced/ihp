@@ -152,6 +152,9 @@ instance InputValue Day where
 instance InputValue TimeOfDay where
     inputValue timeOfDay = tshow timeOfDay
 
+instance InputValue PGInterval where
+    inputValue (PGInterval pgInterval) = tshow pgInterval
+
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
