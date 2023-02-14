@@ -250,6 +250,7 @@ library
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
         , IHP.Postgres.Interval
+        , IHP.Postgres.TimeParser
         , IHP.Postgres.Polygon
         , IHP.Postgres.Inet
         , IHP.Postgres.TSVector
