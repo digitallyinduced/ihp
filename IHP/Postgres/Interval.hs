@@ -14,6 +14,7 @@ import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
 import Database.PostgreSQL.Simple.TypeInfo.Macro as TI
 import Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs)
+import Data.Aeson
 
 import IHP.Postgres.TimeParser (PGInterval(..))
 
@@ -31,6 +32,12 @@ pPGInterval = do
     bs <- takeByteString
     pure (PGInterval bs)
 
-
 instance ToField PGInterval where
     toField (PGInterval interval) = toField (interval)
+
+instance FromJSON PGInterval where
+     parseJSON (Object v) = (PGInterval . encodeUtf8) <$> ((v .: "interval"))
+     parseJSON _ = mzero
+
+instance ToJSON PGInterval where
+    toJSON (PGInterval pgInterval) = object [ "interval" .= (tshow pgInterval)]
