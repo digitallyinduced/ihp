@@ -36,8 +36,7 @@ instance ToField PGInterval where
     toField (PGInterval interval) = toField (interval)
 
 instance FromJSON PGInterval where
-     parseJSON (Object v) = (PGInterval . encodeUtf8) <$> ((v .: "interval"))
-     parseJSON _ = mzero
+     parseJSON = withText "PGInterval" $ \text -> pure (PGInterval (encodeUtf8 text))
 
 instance ToJSON PGInterval where
-    toJSON (PGInterval pgInterval) = object [ "interval" .= (tshow pgInterval)]
+    toJSON (PGInterval pgInterval) = String (cs pgInterval)
