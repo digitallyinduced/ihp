@@ -211,7 +211,7 @@ data PostgresType
     | PDate
     | PBinary
     | PTime
-    | PInterval {fields :: Maybe Text}
+    | PInterval { fields :: Maybe Text }
     | PNumeric { precision :: Maybe Int, scale :: Maybe Int }
     | PVaryingN (Maybe Int)
     | PCharacterN Int

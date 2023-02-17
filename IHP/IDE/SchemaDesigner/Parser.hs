@@ -246,10 +246,10 @@ sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
         [ uuid
         , text
-        , interval --Needs higher precedence eotherwise parsed as Int
+        , interval --Needs higher precedence otherwise parsed as int
         , bigint
         , smallint
-        , int   -- order int after smallint/bigint because symbol INT is prefix og INT2, INT8
+        , int   -- order int after smallint/bigint because symbol INT is prefix of INT2, INT8
         , bool
         , timestamp
         , timestampZ
