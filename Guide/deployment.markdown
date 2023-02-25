@@ -236,19 +236,15 @@ For explanations of these values, see GHC's [manual on the RTS](https://download
 
 ### Building
 
-Inside your project directory start a `nix-shell` for the following steps.
+First run `make prepare-optimized-nix-build` to enable optimized binary builds. You can skip this step in case you want faster build times, and are fine with slower runtime performance.
 
-We can use `make` to build the application binary. The default IHP Makefile provides two target: `build/bin/RunUnoptimizedProdServer` and `build/bin/RunOptimizedProdServer`.
+Inside your project directory call `nix-build`. This will trigger a full clean build and place the output at `./result`.
 
-The first target runs with `-O0`. It's useful when you're setting up the deployment workflow for the first time. Otherwise, you will always need to spend lots of time waiting for GHC to optimize your Haskell code.
-
-Both make targets will generate a binary at `build/bin/RunUnoptimizedProdServer` or `build/bin/RunOptimizedProdServer` and will create a symlink at `build/bin/RunProdServer` targeting to the binary.
-
-Run `make static/prod.css static/prod.js` to build the asset bundles.
+After the build has finished, you can find the production binary at `result/bin/RunProdServer`.
 
 ### Starting the app
 
-Now you should be able to start your app by running `build/bin/RunProdServer`.
+Now you should be able to start your app by running `result/bin/RunProdServer`.
 
 ## CSS & JS Bundling
 
