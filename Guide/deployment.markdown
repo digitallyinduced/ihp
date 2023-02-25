@@ -235,6 +235,12 @@ The database needs the UUID-extension which is enabled by running `create extens
 
 If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
 
+#### Tweaking memory usage and performance
+
+IHP by default sets some default values for the GHC/Haskell Runtime System (RTS) which work well in production with high loads, at the cost of using a bit of memory. If you want your IHP deployment to use less RAM on your machine, try different values for the environment variable `GHCRTS`. The default value (set in IHP's [Makefile.dist](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/Makefile.dist#L86)) is `"-A128M -N3 -qn3 -G4"`. If you want very low memory usage, at the cost of more frequent garbage collection, try `export GHCRTS="-A16M -N"`. A middle ground is IHPCloud's default of `export GHCRTS="-A128M -N3 -qn3 -G4"`.
+
+For explanations of these values, see GHC's [manual on the RTS](https://downloads.haskell.org/ghc/latest/docs/users_guide/runtime_control.html) and on [RTS options for concurrency]( https://downloads.haskell.org/ghc/latest/docs/users_guide/using-concurrent.html#rts-options-for-smp-parallelism). In short, `-A` is the allocation area, `-G` is number of generations, `-qn` is number of threads to use for parallel GC, `-N` is number of threads and `-n` is the memory chunk area.
+
 ### Building
 
 Inside your project directory start a `nix-shell` for the following steps.
