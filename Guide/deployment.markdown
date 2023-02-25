@@ -212,21 +212,14 @@ Copy your application source code to the build server. If you're using `git` to 
 
 ### Configuration
 
-Make required modifications to your `Config/Config.hs`:
+IHP apps are typically configured using environment variables:
 
-1. Switch `option Development` to `option Production`
-2. Set `option (AppHostname "YOUR_HOSTNAME")` or `option (BaseUrl "YOUR_URL")`
+1. Set the env `IHP_ENV=Production` to enable production mode
+2. Set `IHP_BASEURL=https://{yourdomain}`
 3. Configure any custom settings
    (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
 
-`AppHostname` is used to build your `BaseUrl` when this is not set manually.
-`BaseUrl` equals `http://{AppHostname}:{port}` or `http://{AppHostname}` if port is 80.
-You can overwrite `BaseUrl` by setting it in `Config/Config.hs`
-
-If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the BaseUrl must still have `https` as it is used to form absolute URLs.
-
-When you deploy with IHP Cloud your `Config.hs` is set automatically on project creation.
-IHP Cloud sets your `BaseUrl` to `https://{AppHostname}` because every deployed app is served with SSL enabled.
+If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the `IHP_BASEURL` must still have `https` as it is used to form absolute URLs.
 
 To configure your database connection: Set the env var `DATABASE_URL` to your Postgres connection URL.
 Set the env var `PORT` to the port the app will listen on.
