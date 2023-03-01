@@ -314,11 +314,49 @@ do
 
 ## Working with Dates in IHP and Haskell
 
-https://zacwood.me/posts/2020-12-29-dates-ihp/
+[Working With Dates](https://zacwood.me/posts/2020-12-29-dates-ihp/)
+
+IHP also supports the [postgres interval type](https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT).
+The postgres `interval` fields are bytestrings wrapped in a `PGInterval` data constructor. The wrapped
+bytestring is returned to allow users to provide their own custom parsing logic for how they wish
+to treat intervals and to support all of postgres' different conventions for reporting interval strings.
+
+A helper module to parse the postgres standard format interval bytestrings into a haskell data structure is also included in `IHP.Postgres.TimeParser`.
+The `PGTimeInterval` data type stores fields for `pgYears`, `pgMonths`, `pgDays`, and `pgClock`. This helps users model the particular semantics
+of the time intervals and model the way postgres performs `date + interval` arithmetic in their application code.
+
+The default behaviour of the parser *is not* to directly convert the postgres interval of years, months, days, and clock times
+into the Haskell `NominalDiffTime`. This is because a day is not necessarily 24 hours nor is a year 365 days.
+
+For example, advancing a timestamp by `1 day` will have a different effect to advancing a timestamp by `24 hours`
+on a day with a daylights savings clock shift resulting in a 25 or 23 hour day. In the former case we can ensure the same time of day
+is reached on the succeeding day, in the latter case we can land on a time an hour before or after depending on whether the clock has jumped
+forwards or backwards.
+
+The `PGTimeInterval` and `unpackInterval` is designed to support these kinds of distinctions.
+
+E.g.:
+
+```haskell
+> import Data.Time
+> import IHP.Postgres.TimeParser
+
+> let myInterval = unpackInterval (PGInterval "42 days")
+> addDays myInterval.pgDays (ModifiedJulianDay 0)
+
+1858-12-29
+
+```
+
+The raw `PGInterval bytestring` that models the database record and the `PGTimeInterval` which maps an interval string to
+standard Haskell Date/Time date types (`Integer`/`Int`/`NominalDiffTime`) allow the user to model
+the time intervals in their application logic according to the postgres standard.
+
+
 
 ## Basic Data Scraping, HTTP and JSON
 
-https://zacwood.me/posts/haskell-scraping-1/
+[Data Scraping HTTP and JSON](https://zacwood.me/posts/haskell-scraping-1/)
 
 
 ## How to get all values of an enum?
