@@ -212,21 +212,14 @@ Copy your application source code to the build server. If you're using `git` to 
 
 ### Configuration
 
-Make required modifications to your `Config/Config.hs`:
+IHP apps are typically configured using environment variables:
 
-1. Switch `option Development` to `option Production`
-2. Set `option (AppHostname "YOUR_HOSTNAME")` or `option (BaseUrl "YOUR_URL")`
+1. Set the env `IHP_ENV=Production` to enable production mode
+2. Set `IHP_BASEURL=https://{yourdomain}`
 3. Configure any custom settings
    (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
 
-`AppHostname` is used to build your `BaseUrl` when this is not set manually.
-`BaseUrl` equals `http://{AppHostname}:{port}` or `http://{AppHostname}` if port is 80.
-You can overwrite `BaseUrl` by setting it in `Config/Config.hs`
-
-If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the BaseUrl must still have `https` as it is used to form absolute URLs.
-
-When you deploy with IHP Cloud your `Config.hs` is set automatically on project creation.
-IHP Cloud sets your `BaseUrl` to `https://{AppHostname}` because every deployed app is served with SSL enabled.
+If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the `IHP_BASEURL` must still have `https` as it is used to form absolute URLs.
 
 To configure your database connection: Set the env var `DATABASE_URL` to your Postgres connection URL.
 Set the env var `PORT` to the port the app will listen on.
@@ -235,21 +228,23 @@ The database needs the UUID-extension which is enabled by running `create extens
 
 If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
 
+#### Tweaking memory usage and performance
+
+IHP by default sets some default values for the GHC/Haskell Runtime System (RTS) which work well in production with high loads, at the cost of using a bit of memory. If you want your IHP deployment to use less RAM on your machine, try different values for the environment variable `GHCRTS`. The default value (set in IHP's [Makefile.dist](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/Makefile.dist#L86)) is `"-A128M -N3 -qn3 -G4"`. If you want very low memory usage, at the cost of more frequent garbage collection, try `export GHCRTS="-A16M -N"`. A middle ground is IHPCloud's default of `export GHCRTS="-A128M -N3 -qn3 -G4"`.
+
+For explanations of these values, see GHC's [manual on the RTS](https://downloads.haskell.org/ghc/latest/docs/users_guide/runtime_control.html) and on [RTS options for concurrency]( https://downloads.haskell.org/ghc/latest/docs/users_guide/using-concurrent.html#rts-options-for-smp-parallelism). In short, `-A` is the allocation area, `-G` is number of generations, `-qn` is number of threads to use for parallel GC, `-N` is number of threads and `-n` is the memory chunk area.
+
 ### Building
 
-Inside your project directory start a `nix-shell` for the following steps.
+First run `make prepare-optimized-nix-build` to enable optimized binary builds. You can skip this step in case you want faster build times, and are fine with slower runtime performance.
 
-We can use `make` to build the application binary. The default IHP Makefile provides two target: `build/bin/RunUnoptimizedProdServer` and `build/bin/RunOptimizedProdServer`.
+Inside your project directory call `nix-build`. This will trigger a full clean build and place the output at `./result`.
 
-The first target runs with `-O0`. It's useful when you're setting up the deployment workflow for the first time. Otherwise, you will always need to spend lots of time waiting for GHC to optimize your Haskell code.
-
-Both make targets will generate a binary at `build/bin/RunUnoptimizedProdServer` or `build/bin/RunOptimizedProdServer` and will create a symlink at `build/bin/RunProdServer` targeting to the binary.
-
-Run `make static/prod.css static/prod.js` to build the asset bundles.
+After the build has finished, you can find the production binary at `result/bin/RunProdServer`.
 
 ### Starting the app
 
-Now you should be able to start your app by running `build/bin/RunProdServer`.
+Now you should be able to start your app by running `result/bin/RunProdServer`.
 
 ## CSS & JS Bundling
 
@@ -461,3 +456,121 @@ This will build a nix package that contains the following binaries:
 -   a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
 
 The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.
+
+
+# Env Var Reference
+
+Your IHP app can be configured at runtime with environment variables.
+
+## Recommended Env Vars
+
+
+#### `IHP_ENV`
+
+Switch IHP to production mode like this:
+
+```bash
+$ export IHP_ENV="Production"
+$ ./build/bin/RunProdServer
+```
+
+The production mode has effects on caching behaviour of static files, logging and error rendering.
+
+You can also use `IHP_ENV=Development` to force dev mode.
+
+
+#### `IHP_BASEURL`
+
+Without specifying this env var, the app will always use `http://localhost:8000/` in absolute URLs it's generating (e.g. when redirecting or sending out emails).
+
+It's therefore important to set it to the external user-facing web addresss. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
+
+```bash
+$ export IHP_BASEURL=https://example.com
+$ ./build/bin/RunProdServer
+```
+
+#### `IHP_SESSION_SECRET`
+
+In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each container start. This means that all your users will have to re-login on each container start.
+
+**Note on `Config/client_session_key.aes`:** The `IHP_SESSION_SECRET` env variable is an alternative for placing a `Config/client_session_key.aes` inside the your repository. If IHP detects a `Config/` folder, and no `IHP_SESSION_SECRET` is set, it will automatically create a `Config/client_session_key.aes` file. This is designed for persistent sessions in development mode.
+
+When you start an app without specifying the `IHP_SESSION_SECRET` and no `Config/client_session_key.aes` is found, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value:
+
+```bash
+$ ./build/bin/RunProdServer
+IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
+Server started
+```
+
+There we can copy the `IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp` value and use it as our secret:
+
+```bash
+$ export IHP_SESSION_SECRET="1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp"
+$ ./build/bin/RunProdServer
+```
+
+#### `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE`
+
+If the app is running behind a load balancer, set the environment variable `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader` to tell IHP to use the `X-Real-IP` or `X-Forwarded-For` header for detecting the client IP.
+
+```bash
+$ export IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader
+$ ./build/bin/RunProdServer
+```
+
+#### `PORT`
+
+Specifies the TCP Port where the application will listen to. Defaults to `8000`.
+
+```bash
+$ export PORT=1337
+$ ./build/bin/RunProdServer
+# App now starts on port 1337 instead of 8000
+```
+
+#### `DATABASE_URL`
+
+You can configure the database your app connects to using the `DATABASE_URL` env variable:
+
+```bash
+$ export DATABASE_URL="postgresql://postgres:mysecretpassword@the-hostname/postgres"
+$ ./build/bin/RunProdServer
+```
+
+
+## Advanced Env Vars
+
+#### `IHP_ASSET_VERSION`
+
+As of IHP v0.16 this env variable is automatically set to a unique build hash.
+
+If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
+
+```bash
+$ export IHP_ASSET_VERSION=af5f389ef7a64a04c9fa275111e4739c0d4a78d0
+$ ./build/bin/RunProdServer
+```
+
+#### `GHCRTS`
+
+IHP by default sets some default values for the GHC/Haskell Runtime System (RTS) which work well in production with high loads, at the cost of using a bit of memory. If you want your IHP deployment to use less RAM on your machine, try different values for the environment variable `GHCRTS`. The default value (set in IHP's [Makefile.dist](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/Makefile.dist#L86)) is `"-A128M -N3 -qn3 -G4"`. If you want very low memory usage, at the cost of more frequent garbage collection, try `export GHCRTS="-A16M -N"`. A middle ground is IHPCloud's default of `export GHCRTS="-A128M -N3 -qn3 -G4"`.
+
+For explanations of these values, see GHC's [manual on the RTS](https://downloads.haskell.org/ghc/latest/docs/users_guide/runtime_control.html) and on [RTS options for concurrency]( https://downloads.haskell.org/ghc/latest/docs/users_guide/using-concurrent.html#rts-options-for-smp-parallelism). In short, `-A` is the allocation area, `-G` is number of generations, `-qn` is number of threads to use for parallel GC, `-N` is number of threads and `-n` is the memory chunk area.
+
+#### `IHP_IDE_BASEURL`
+
+Only relevant in dev mode. This defaults to `IHP_IDE_BASEURL=http://localhost:8001`.
+
+#### `IHP_RLS_AUTHENTICATED_ROLE`
+
+A database role used by IHP DataSync. Defaults to `ihp_authenticated`.
+
+#### `IHP_DATASYNC_MAX_SUBSCRIPTIONS_PER_CONNECTION`
+
+The maximum number of subscriptions per websocket connection in IHP DataSync. Defaults to `128`.
+
+#### `IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION`
+
+The maximum number of database transactions per websocket connection in IHP DataSync. Defaults to `10`.

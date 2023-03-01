@@ -151,7 +151,7 @@ Now open the view in the browser. You should see `Hello from react!` on the page
 
 ### Building a Realtime SPA with IHP DataSync
 
-*The following section asumes that your app already has a login as described in the [Authentication](http://localhost:3000/authentication.html#setup) section.*
+*The following section asumes that your app already has a login as described in the [Authentication](https://ihp.digitallyinduced.com/Guide/authentication.html#setup) section.*
 
 IHP DataSync is an IHP API that allows your to query your app's database from within JS. Basically it provides functions like `query`, `fetchOne` or `createRecord`, which you're already familiar with from the Haskell side, but makes them available in JavaScript land.
 
