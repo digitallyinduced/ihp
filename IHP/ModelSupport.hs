@@ -935,3 +935,67 @@ withTableReadTracker trackedSection = do
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
     trackedSection
+
+
+-- | Shorthand filter function
+--
+-- In IHP code bases you often write filter functions such as these:
+--
+-- > getUserPosts user posts =
+-- >     filter (\p -> p.userId == user.id) posts
+--
+-- This can be written in a shorter way using 'onlyWhere':
+--
+-- > getUserPosts user posts =
+-- >     posts |> onlyWhere #userId user.id
+--
+-- Because the @userId@ field is an Id, we can use 'onlyWhereReferences' to make it even shorter:
+--
+-- > getUserPosts user posts =
+-- >     posts |> onlyWhereReferences #userId user
+--
+-- If the Id field is nullable, we need to use 'onlyWhereReferencesMaybe':
+--
+-- > getUserTasks user tasks =
+-- >     tasks |> onlyWhereReferencesMaybe #optionalUserId user
+--
+onlyWhere :: forall record fieldName value. (KnownSymbol fieldName, HasField fieldName record value, Eq value) => Proxy fieldName -> value -> [record] -> [record]
+onlyWhere field value records = filter (\record -> get field record == value) records
+
+-- | Shorthand filter function for Id fields
+--
+-- In IHP code bases you often write filter functions such as these:
+--
+-- > getUserPosts user posts =
+-- >     filter (\p -> p.userId == user.id) posts
+--
+-- This can be written in a shorter way using 'onlyWhereReferences':
+--
+-- > getUserPosts user posts =
+-- >     posts |> onlyWhereReferences #userId user
+--
+-- If the Id field is nullable, we need to use 'onlyWhereReferencesMaybe':
+--
+-- > getUserTasks user tasks =
+-- >     tasks |> onlyWhereReferencesMaybe #optionalUserId user
+--
+--
+-- See 'onlyWhere' for more details.
+onlyWhereReferences :: forall record fieldName value referencedRecord. (KnownSymbol fieldName, HasField fieldName record value, Eq value, HasField "id" referencedRecord value) => Proxy fieldName -> referencedRecord -> [record] -> [record]
+onlyWhereReferences field referenced records = filter (\record -> get field record == referenced.id) records
+
+-- | Shorthand filter function for nullable Id fields
+--
+-- In IHP code bases you often write filter functions such as these:
+--
+-- > getUserTasks user tasks =
+-- >     filter (\task -> task.optionalUserId == Just user.id) tasks
+--
+-- This can be written in a shorter way using 'onlyWhereReferencesMaybe':
+--
+-- > getUserTasks user tasks =
+-- >     tasks |> onlyWhereReferencesMaybe #optionalUserId user
+--
+-- See 'onlyWhere' for more details.
+onlyWhereReferencesMaybe :: forall record fieldName value referencedRecord. (KnownSymbol fieldName, HasField fieldName record (Maybe value), Eq value, HasField "id" referencedRecord value) => Proxy fieldName -> referencedRecord -> [record] -> [record]
+onlyWhereReferencesMaybe field referenced records = filter (\record -> get field record == Just referenced.id) records

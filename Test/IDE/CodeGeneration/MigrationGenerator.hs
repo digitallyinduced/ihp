@@ -1250,6 +1250,29 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should ignore the schema_migrations table" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE TABLE schema_migrations (revision BIGINT NOT NULL UNIQUE);
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should ignore the large_pg_notifications table" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE UNLOGGED TABLE large_pg_notifications (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        payload TEXT DEFAULT null,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+                    );
+                    CREATE INDEX large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
