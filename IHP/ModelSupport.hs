@@ -6,6 +6,7 @@ module IHP.ModelSupport
 , module IHP.Postgres.Polygon
 , module IHP.Postgres.Inet
 , module IHP.Postgres.TSVector
+, module IHP.Postgres.TimeParser
 ) where
 
 import IHP.HaskellSupport
@@ -39,9 +40,11 @@ import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified GHC.Conc
 import IHP.Postgres.Point
+import IHP.Postgres.Interval
 import IHP.Postgres.Polygon
 import IHP.Postgres.Inet ()
 import IHP.Postgres.TSVector
+import IHP.Postgres.TimeParser
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
@@ -148,6 +151,9 @@ instance InputValue Day where
 
 instance InputValue TimeOfDay where
     inputValue timeOfDay = tshow timeOfDay
+
+instance InputValue PGInterval where
+    inputValue (PGInterval pgInterval) = tshow pgInterval
 
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
@@ -664,6 +670,9 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
     Include' '[] model = model
     Include' (x:xs) model = Include' xs (Include x model)
 
+instance Default NominalDiffTime where
+    def = 0
+
 instance Default TimeOfDay where
     def = TimeOfDay 0 0 0
 
@@ -678,6 +687,9 @@ instance Default UTCTime where
 
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
+
+instance Default PGInterval where
+    def = PGInterval "00:00:00"
 
 class Record model where
     newRecord :: model
@@ -883,8 +895,7 @@ instance Exception EnhancedSqlError
 instance Default Aeson.Value where
     def = Aeson.Null
 
-
--- | This instancs allows us to avoid wrapping lists with PGArray when
+-- | This instance allows us to avoid wrapping lists with PGArray when
 -- using sql types such as @INT[]@
 instance ToField value => ToField [value] where
     toField list = toField (PG.PGArray list)
