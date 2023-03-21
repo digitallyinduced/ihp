@@ -49,6 +49,7 @@ common shared-properties
             , random-strings
             , uuid
             , time
+            , time-compat
             , attoparsec
             , ghc-prim
             , case-insensitive
@@ -248,6 +249,8 @@ library
         , IHP.Version
         , IHP.Postgres.TypeInfo
         , IHP.Postgres.Point
+        , IHP.Postgres.Interval
+        , IHP.Postgres.TimeParser
         , IHP.Postgres.Polygon
         , IHP.Postgres.Inet
         , IHP.Postgres.TSVector

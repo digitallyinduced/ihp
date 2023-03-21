@@ -146,6 +146,14 @@ nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
 
 [See the documentation for `nix.settings.trusted-users` to learn more about what this is doing](https://search.nixos.org/options?show=nix.settings.trusted-users&query=nix.settings.trusted-users).
 
+#### GitHub Codespaces / VSCode Devcontainers
+
+To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit. 
+
+To try it out before making your own repo, you can simply start a Codespace from the template itself.
+
+If you have Docker installed locally, then you can use this configuration to work with [VSCode Devcontainers](https://code.visualstudio.com/docs/devcontainers/containers) as well.
+
 #### GitPod
 
 If you use GitPod for Development in the Cloud, [you can use IHP GitPod Template](https://github.com/gitpod-io/template-ihp/generate).

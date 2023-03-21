@@ -68,6 +68,7 @@ atomicType = \case
     PDate -> "Data.Time.Calendar.Day"
     PBinary -> "(Binary ByteString)"
     PTime -> "TimeOfDay"
+    (PInterval _) -> "PGInterval"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"
     (PNumeric _ _) -> "Scientific"
