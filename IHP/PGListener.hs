@@ -236,7 +236,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
     let initialDelay = 500 * 1000
     -- Max delay (in microseconds)
     let maxDelay = 60 * 1000 * 1000
-
+    -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
     let retryLoop delay = do
             result <- Exception.try innerLoop
             case result of
