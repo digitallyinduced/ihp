@@ -251,7 +251,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             let increasedDelay = delay * 2
                             -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                             let nextDelay = min increasedDelay maxDelay
-                            Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRety nextDelay) <> ".")
+                            Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
                             retryLoop nextDelay
                 Right _ -> pure ()
     retryLoop initialDelay
