@@ -10,6 +10,11 @@
   <a href="https://twitter.com/digitallyinduce" target="_blank">
     <img src="https://img.shields.io/twitter/follow/digitallyinduce"/>
   </a>
+  
+  
+  <a href="https://console.algora.io/org/digitallyinduced/bounties?status=open" target="_blank">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.algora.io%2Fapi%2Fshields%2Fdigitallyinduced%2Fbounties%3Fstatus%3Dopen"/>
+  </a>
 </p>
 
 <p align="center">
@@ -161,6 +166,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 ### Contributing Documentation
 
 If you just want to improve docs, [you can find the markdown files in the Guide directory](https://github.com/digitallyinduced/ihp/tree/master/Guide).
+
+### Bounties
+
+<a href="https://console.algora.io/org/digitallyinduced/bounties?status=open">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=dark">
+    <img alt="Bounties of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=light">
+  </picture>
+</a>
 
 ## Releases
 
