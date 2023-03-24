@@ -37,6 +37,7 @@ import qualified Data.Aeson as Aeson
 import qualified IHP.Log as Log
 import qualified Control.Exception as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
+import qualified Control.Concurrent
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -231,17 +232,30 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             let inChan = get #inChan subscription
                             Queue.writeChan inChan notification
 
-    -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
-    forever do
-        result <- Exception.try innerLoop
-        case result of
-            Left (error :: SomeException) -> do
-                case fromException error of
-                    Just (error :: AsyncCancelled) -> throw error
-                    notification -> do
-                        let ?context = ?modelContext -- Log onto the modelContext logger
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
-            Right _ -> pure ()
+    -- Initial delay (in microseconds)
+    let initialDelay = 500 * 1000
+    -- Max delay (in microseconds)
+    let maxDelay = 60 * 1000 * 1000
+
+    let retryLoop delay = do
+            result <- Exception.try innerLoop
+            case result of
+                Left (error :: SomeException) -> do
+                    case fromException error of
+                        Just (error :: AsyncCancelled) -> throw error
+                        notification -> do
+                            let ?context = ?modelContext -- Log onto the modelContext logger
+                            Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
+
+                            -- Sleep for the current delay 
+                            Control.Concurrent.threadDelay delay
+                            -- Double current delay
+                            let increasedDelay = delay * 2
+                            -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
+                            let nextDelay = (min increasedDelay maxDelay)
+                            retryLoop nextDelay
+                Right _ -> pure ()
+    retryLoop initialDelay
 
 
 listenToChannel :: PG.Connection -> Channel -> IO ()
