@@ -245,7 +245,8 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                         Just (error :: AsyncCancelled) -> throw error
                         notification -> do
                             let ?context = ?modelContext -- Log onto the modelContext logger
-                            Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
+                            Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error <> ". Retrying in " <> formatTimeUnits nextDelay <> ".")
+
 
                             -- Sleep for the current delay 
                             Control.Concurrent.threadDelay delay
@@ -257,6 +258,11 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                 Right _ -> pure ()
     retryLoop initialDelay
 
+printTimeToNextRety :: Int -> Text
+printTimeToNextRety microseconds
+    | microseconds >= 1000000 = show (microseconds `div` 1000000) ++ " s"
+    | microseconds >= 1000 = show (microseconds `div` 1000) ++ " ms"
+    | otherwise = show microseconds ++ " µs"
 
 listenToChannel :: PG.Connection -> Channel -> IO ()
 listenToChannel databaseConnection channel = do
