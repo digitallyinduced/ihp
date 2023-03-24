@@ -252,7 +252,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             -- Double current delay
                             let increasedDelay = delay * 2
                             -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                            let nextDelay = (min increasedDelay maxDelay)
+                            let nextDelay = min increasedDelay maxDelay
                             retryLoop nextDelay
                 Right _ -> pure ()
     retryLoop initialDelay
