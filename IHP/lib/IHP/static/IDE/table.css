@@ -1,0 +1,25 @@
+thead > tr {
+    background-color: #1c404f;
+    color: hsla(196, 13%, 80%, 0.8);
+    font-weight: 400;
+}
+
+.table thead th {
+    border-bottom: 0;
+}
+
+.table {
+    color:  #fff;
+}
+
+.table td a {
+    color: #fff;
+}
+
+.table.table-hover tbody tr {
+    transition: all 0.05s;
+}
+
+.table.table-hover tbody tr:hover {
+    background-color: hsla(192, 81%, 26%, 0.25);
+}
