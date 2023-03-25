@@ -169,10 +169,19 @@ If you just want to improve docs, [you can find the markdown files in the Guide 
 
 ### Bounties
 
+We use algora.io for bounties on IHP issues. Check out the open bounties below:
+
 <a href="https://console.algora.io/org/digitallyinduced/bounties?status=open">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=dark">
     <img alt="Bounties of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=light">
+  </picture>
+</a>
+
+<a href="https://console.algora.io/org/digitallyinduced/leaderboard">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=dark">
+    <img alt="Leaderboard of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=light">
   </picture>
 </a>
 
