@@ -13,6 +13,7 @@ dist-newstyle
 *.dyn_o
 *.hi
 *.o
+*.vscode
 build
 gen
 del
