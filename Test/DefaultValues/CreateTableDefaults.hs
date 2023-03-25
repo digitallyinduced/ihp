@@ -28,10 +28,10 @@ defColumn = Column {
                }
 @
 
-If you want a different ColumnType PostGresType you will need to 
+If you want a different 'PostgresType' you will need to 
 specify with like so by either using a function:
 
-@setColumnType pgt = defColumn {postGresType = pgt}@
+@setColumnType pgt = defColumn {columnType = pgt}@
 
 Or
 
@@ -50,7 +50,7 @@ defColumn = Column {
                }
 
 
-{- | Creates a table where all values are empty lists, including columns. @unlogged@ is set to @True@.
+{- | Creates a table where all values are empty lists, including columns. @unlogged@ is set to 'False'.
 
 Defined as such:
 
@@ -79,6 +79,6 @@ defCreateTable = CreateTable {
 defCreateTableWCol :: [Column] -> CreateTable
 defCreateTableWCol cols = defCreateTable {columns = cols}
 
--- | Creates one default table with a singleton list of one @defColumn@ .
+-- | Creates one default table with a singleton list of one 'defColumn' .
 defCreateTableWDefCol :: CreateTable
 defCreateTableWDefCol = defCreateTableWCol (pure defColumn)
