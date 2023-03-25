@@ -1,0 +1,6 @@
+*.html
+!layout.html
+bootstrap.css
+instantclick.js
+search.css
+search.js

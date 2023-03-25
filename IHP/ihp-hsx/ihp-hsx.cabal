@@ -1,0 +1,85 @@
+cabal-version:       2.2
+name:                ihp-hsx
+version:             0.20.0
+synopsis:            JSX-like but for Haskell
+description:         JSX-like templating syntax for Haskell
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            HTML
+build-type:          Simple
+extra-source-files: README.md, changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+library
+    default-language: Haskell2010
+    build-depends:
+          base               >= 4.16.3 && < 4.17
+        , blaze-html         >= 0.9.1 && < 0.10
+        , bytestring         >= 0.11.3 && < 0.12
+        , template-haskell   >= 2.18.0 && < 2.19
+        , text               >= 1.2.5 && < 1.3
+        , containers         >= 0.6.5 && < 0.7
+        , blaze-markup       >= 0.8.2 && < 0.9
+        , ghc                >= 9.2.4 && < 9.3
+        , megaparsec         >= 9.2.1 && < 9.3
+        , string-conversions >= 0.4.0 && < 0.5
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+        , TemplateHaskell
+        , OverloadedRecordDot
+    ghc-options:
+        -fstatic-argument-transformation
+        -funbox-strict-fields
+        -haddock
+        -Wredundant-constraints
+        -Wunused-imports
+        -Wunused-foralls
+        -Wmissing-fields
+        -Winaccessible-code
+        -Wmissed-specialisations
+        -Wall-missed-specialisations
+        -fexpose-all-unfoldings
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.QQ
+        , IHP.HSX.ToHtml
+        , IHP.HSX.ConvertibleStrings
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
