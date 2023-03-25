@@ -237,8 +237,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
     -- Max delay (in microseconds)
     let maxDelay = 60 * 1000 * 1000
     -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
-    let retryLoop delay = do
-
+    let retryLoop delay isFirstError = do
             result <- Exception.try innerLoop
             case result of
                 Left (error :: SomeException) -> do
@@ -249,11 +248,14 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                             let ?context = ?modelContext -- Log onto the modelContext logger
                             Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
-                            Control.Concurrent.threadDelay delay -- Sleep for the current delay
-                            retryLoop nextDelay
+                            if isFirstError then
+                                retryLoop nextDelay False -- Retry with no delay interval, but will increase delay interval in subsequent retries 
+                            else do
+                                Control.Concurrent.threadDelay delay -- Sleep for the current delay
+                                retryLoop nextDelay False -- Retry with longer interval
                 Right _ -> 
-                    retryLoop initialDelay -- If all went well, re-run with no sleeping and reset current delay to the initial value
-    retryLoop initialDelay
+                    retryLoop initialDelay True -- If all went well, re-run with no sleeping and reset current delay to the initial value
+    retryLoop initialDelay True
 
 printTimeToNextRetry :: Int -> Text
 printTimeToNextRetry microseconds
