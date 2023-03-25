@@ -11,6 +11,8 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
+import Test.IDE.CodeGeneration.Defaults.CodeGeneratorDefaults
+import Test.DefaultValues.CreateTableDefaults (defCreateTableWCol)
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -38,82 +40,11 @@ tests = do
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 |]
-            let statement = StatementCreateTable CreateTable
-                    { name = "users"
-                    , columns = [
-                        Column
-                            { name = "id"
-                            , columnType = PUUID
-                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "firstname"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "lastname"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "password_hash"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "email"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "company_id"
-                            , columnType = PUUID
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "picture_url"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "created_at"
-                            , columnType = PTimestampWithTimezone
-                            , defaultValue = Just (CallExpression "NOW" [])
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable compilerSpecTable
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [StatementCreateTable quotedNameTable] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -463,22 +394,9 @@ tests = do
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "a"
-                    , columns = [
-                        Column
-                            { name = "content"
-                            , columnType = PText
-                            , defaultValue = Just (TextExpression "example text")
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable (defCreateTableWCol [colExampleCont])
+                    { name = "a"}
+
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TYPE .. AS ENUM" do
@@ -491,46 +409,8 @@ tests = do
 
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "deprecated_variables"
-                    , columns =
-                        [ Column
-                            { name = "a"
-                            , columnType = (PNumeric Nothing Nothing)
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "b"
-                            , columnType = (PNumeric (Just 1) Nothing)
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "c"
-                            , columnType = (PNumeric (Just 1) (Just 2))
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "d"
-                            , columnType = (PVaryingN (Just 10))
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable deprecVarTable
+                    
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
