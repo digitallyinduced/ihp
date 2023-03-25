@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Script to start the local dev server
+
+set -e
+
+# On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
+#
+# The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
+# and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
+# and will close the remaining lazy bytestring handles.
+if [[ $OSTYPE == 'darwin'* ]]; then
+    ulimit -n 4096
+fi
+
+# Unless the RunDevServer binary is available, we rebuild the .envrc cache with nix-shell
+# and config cachix for using our binary cache
+command -v RunDevServer >/dev/null 2>&1 \
+    || { echo "PATH_add $(nix-shell -j auto --cores 0 --run 'printf %q $PATH')" > .envrc; }
+
+# Now we have to load the PATH variable from the .envrc cache
+direnv allow
+eval "$(direnv hook bash)"
+eval "$(direnv export bash)"
+
+# You can define custom env vars here:
+# export CUSTOM_ENV_VAR=".."
+
+# Finally start the dev server
+RunDevServer
