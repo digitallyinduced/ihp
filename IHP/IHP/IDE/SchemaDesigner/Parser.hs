@@ -16,7 +16,7 @@ module IHP.IDE.SchemaDesigner.Parser
 
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
-import Test.Defaults.TestDefaultsBase
+import Test.DefaultValues.CreateTableDefaults
 import qualified Prelude
 import qualified Data.Text.IO as Text
 import Text.Megaparsec
@@ -117,7 +117,7 @@ createTable = do
             _ -> Prelude.fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> Prelude.fail "Multiple columns with PRIMARY KEY constraint"
 
-    pure defCreateTableWNoCol { name, columns, primaryKeyConstraint, constraints, unlogged }
+    pure defCreateTable { name, columns, primaryKeyConstraint, constraints, unlogged }
 
 createEnumType = do
     lexeme "CREATE"

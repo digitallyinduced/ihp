@@ -1,28 +1,43 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-module Test.Defaults.CreateTableDefaults where
-
+module Test.DefaultValues.CreateTableDefaults where
+{- | This module aims to create some default tables and columns for tables for use 
+elsewhere and make it easier to add fields elsewhere whenever necessary.
+-}
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Types
 
--- May be worth bringing in Control.Lens to make getting and setting nested fields a bit better, 
--- currently learning how to do that.
 
-{- | Creates a default column where all values are Empty, Nothing or False; and for ColumnType, the default is
-PUUID.
+{- | Creates a default column where all values are empty lists/text, 
+'Nothing' or 'False'; and for 'ColumnType', the default is 'PUUID'.
 
-If you want a different ColumnType PostGresType you will need to specify with like so by either using a function:
+Add a new field to the 'Column' type in the 
+"IHP.IDE.SchemaDesigner.Types" file and then 
+set its default value here
+
+Defined as:
 
 @
-setColumnType pgt = defColumn {postGresType = pgt}
+defColumn :: Column
+defColumn = Column { 
+                 name = ""
+               , columnType = PUUID 
+               , defaultValue = Nothing
+               , notNull = False 
+               , isUnique = False
+               , generator = Nothing
+               }
 @
+
+If you want a different ColumnType PostGresType you will need to 
+specify with like so by either using a function:
+
+@setColumnType pgt = defColumn {postGresType = pgt}@
 
 Or
 
 Just as part of where you're calling it:
 
-@
-someDefaultColumnType = defColumn {columnType = PDate}
-@
+@someDefaultColumnType = defColumn {columnType = PDate}@
 -}
 defColumn :: Column
 defColumn = Column { 
@@ -35,7 +50,22 @@ defColumn = Column {
                }
 
 
--- | Creates a table where all values are empty lists, including columns. @unlogged@ is set to @True@.
+{- | Creates a table where all values are empty lists, including columns. @unlogged@ is set to @True@.
+
+Defined as such:
+
+@
+defCreateTable :: CreateTable
+defCreateTable = CreateTable {
+                        name = ""
+                        , columns = []
+                        , primaryKeyConstraint = PrimaryKeyConstraint []
+                        , constraints = []
+                        , unlogged = False
+                        }
+@
+
+-}
 defCreateTable :: CreateTable
 defCreateTable = CreateTable {
                         name = ""
