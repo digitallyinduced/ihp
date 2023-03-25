@@ -452,7 +452,7 @@ tests = do
 
         it "should parse a CREATE TABLE statement with a bigserial id" do
             parseSql "CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n" 
-             `shouldBe` StatementCreateTable ordersSerialTable
+                `shouldBe` StatementCreateTable ordersBigSerialTable
           
         it "should parse a CREATE TABLE statement with an array column" do
             parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable CreateTable
