@@ -244,14 +244,15 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                     case fromException error of
                         Just (error :: AsyncCancelled) -> throw error
                         notification -> do
-                            let increasedDelay = delay * 2 -- Double current delay
-                            let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                             let ?context = ?modelContext -- Log onto the modelContext logger
-                            Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
-                            if isFirstError then
-                                retryLoop nextDelay False -- Retry with no delay interval, but will increase delay interval in subsequent retries 
+                            if isFirstError then do
+                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
+                                retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries 
                             else do
+                                let increasedDelay = delay * 2 -- Double current delay
+                                let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                                 Control.Concurrent.threadDelay delay -- Sleep for the current delay
+                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
                                 retryLoop nextDelay False -- Retry with longer interval
                 Right _ -> 
                     retryLoop initialDelay True -- If all went well, re-run with no sleeping and reset current delay to the initial value
