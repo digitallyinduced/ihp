@@ -10,24 +10,17 @@ import IHP.IDE.SchemaDesigner.Types
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Test.Defaults.TestDefaultsBase
+import Test.DefaultValues.CreateTableDefaults
+import Test.IDE.CodeGeneration.Defaults.CodeGeneratorDefaults
 
 -- | A Schema.sql basically is just a list of sql DDL statements
 type Schema = [Statement]
 
 -- | Creates a new tables with a 'id' columns as the primary key
 addTable :: Text -> Schema -> Schema
-addTable tableName list = list <> [StatementCreateTable defCreateTableWNoCol
+addTable tableName list = list <> [StatementCreateTable defCreateTable
     { name = tableName
-    , columns =
-        [Column
-            { name = "id"
-            , columnType = PUUID
-            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-            , notNull = True
-            , isUnique = False
-            , generator = Nothing
-            }]
+    , columns = [colUUID]
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
     , unlogged = False
