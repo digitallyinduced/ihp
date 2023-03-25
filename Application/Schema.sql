@@ -1,1 +1,0 @@
--- Your database schema. Use the Schema Designer at http://localhost:8001/ to add some tables.
