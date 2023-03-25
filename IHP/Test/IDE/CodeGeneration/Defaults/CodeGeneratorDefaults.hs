@@ -206,7 +206,7 @@ ordersSerialTable = (defCreateTableWCol serCol) { primaryKeyConstraint = Primary
                                     ]
 
 ordersBigSerialTable :: CreateTable
-ordersBigSerialTable = ordersBigSerialTable {columns = bigSerCol} 
+ordersBigSerialTable = ordersSerialTable {columns = bigSerCol} 
 
                      where bigSerCol = [ (colCustT PBigserial) { name = "orders"
                                                                , notNull = True
