@@ -253,7 +253,8 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             let nextDelay = min increasedDelay maxDelay
                             Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
                             retryLoop nextDelay
-                Right _ -> pure ()
+                Right _ -> 
+                    retryLoop initialDelay
     retryLoop initialDelay
 
 printTimeToNextRetry :: Int -> Text
