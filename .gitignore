@@ -1,24 +1,14 @@
-.DS_Store
-.envrc
-.idea
-tmp
-result
-node_modules
-bin
-*.iml
-Generated
-dist
-dist-newstyle
-*.dyn_hi
-*.dyn_o
 *.hi
 *.o
-*.vscode
+node_modules
+build.js
+*.dyn_hi
+*.dyn_o
+.DS_Store
+dist
 build
-gen
-del
-static/prod.*
-Config/client_session_key.aes
-
-# Ignore locally checked out IHP version
-# IHP
+*.dump-simpl
+haddock-build
+ProjectGenerator/result
+dist-newstyle
+.vscode
