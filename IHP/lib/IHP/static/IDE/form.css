@@ -1,0 +1,112 @@
+.select2-container .select2-dropdown {
+    background-color: #063642;
+    border-color: hsl(192deg 100% 35% / 100%) !important;
+}
+.select2 .select2-selection {
+    display: block;
+    width: 100%;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    background-clip: padding-box;
+    
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+}
+
+.select2.select2-container .select2-selection--single {
+    height: 38px !important;
+    border: 1px solid #ced4da;
+}
+.select2-container--default .select2-selection--single {
+    background-color: #063642 !important;
+    border: 1px solid hsl(192deg 100% 30% / 90%) !important;
+}
+
+.select2-selection.select2-selection--single:hover {
+    border: 1px solid hsl(192deg 100% 35% / 100%) !important;
+}
+
+.select2-container--default.select2-container--open .select2-selection--single {
+    border-bottom: 0 !important;
+}
+
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #839496 !important;
+}
+
+.select2-results__option.select2-results__option--highlighted {
+    background-color: hsl(192deg 100% 35% / 100%) !important
+}
+
+.select2-container--default .select2-search__field {
+    background-color: #063642 !important;
+    border-radius: 9px;
+    border: 1px solid hsl(192deg 100% 30% / 90%) !important;
+    color: #839496 !important;
+}
+
+.select2-search__field::placeholder {
+    content: "Select an option";
+}
+
+.select2-results__option {
+    background-color: hsl(192deg 100% 26% / 50%) !important;
+}
+
+.custom-control-label::before {
+    background-color: #002b36;
+    border: 1px solid hsl(192deg 100% 30% / 50%);
+}
+
+.custom-checkbox .custom-control-input:checked~.custom-control-label::after {
+    top: 1px;
+}
+
+.custom-control-input:checked~.custom-control-label::before {
+    background-color:#519f98;
+    border-color: #519f98;
+}
+
+.custom-control-input:focus~.custom-control-label::before {
+    box-shadow: none !important;
+}
+
+.custom-control-input:focus:not(:checked)~.custom-control-label::before {
+    border-color: #519f98;
+}
+
+.custom-control-label {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.form-control, .form-control:focus {
+    background-color: #063642;
+    color: #839496;
+    border: 1px solid hsl(192deg 100% 30% / 90%);
+}
+
+.form-control:focus {
+    border: 1px solid hsl(175deg 59% 44%);
+    box-shadow: none !important;
+}
+
+.form-control:hover {
+    border: 1px solid hsl(192deg 100% 35% / 100%);
+    box-shadow: none !important;
+}
+
+.form-control::placeholder {
+    color: hsl(192deg 83% 78% / 30%);
+}
+
+/* Disable backgorund color of autocomplete inputs https://stackoverflow.com/a/63589498/14144232 */
+input:-webkit-autofill,
+input:-webkit-autofill:focus {
+    transition: background-color 600000s 0s, color 600000s 0s;
+}
+/* END */

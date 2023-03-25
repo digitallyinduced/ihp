@@ -1,0 +1,60 @@
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash
+
+# Builds the api documentation for all IHP modules
+# Output is placed in directory haddock-build
+# After building, you can view the api docs with: open haddock-build/index.html
+
+mkdir -p haddock-build
+
+haddock --html -t "IHP Api Reference" --hyperlinked-source --built-in-themes --quickjump -o haddock-build \
+    $(find IHP -regex '.+\.hs' -not \( -regex '.+GenericController.hs' \) -not \( -regex '.+CLI/.+.hs' \) | xargs) \
+    --optghc="-i." \
+    --optghc="-XOverloadedStrings" \
+    --optghc="-XNoImplicitPrelude" \
+    --optghc="-XImplicitParams" \
+    --optghc="-XRank2Types" \
+    --optghc="-XDisambiguateRecordFields" \
+    --optghc="-XNamedFieldPuns" \
+    --optghc="-XDuplicateRecordFields" \
+    --optghc="-XOverloadedLabels" \
+    --optghc="-XFlexibleContexts" \
+    --optghc="-XTypeSynonymInstances" \
+    --optghc="-XFlexibleInstances" \
+    --optghc="-XQuasiQuotes" \
+    --optghc="-XTypeFamilies" \
+    --optghc="-XPackageImports" \
+    --optghc="-XScopedTypeVariables" \
+    --optghc="-XRecordWildCards" \
+    --optghc="-XTypeApplications" \
+    --optghc="-XDataKinds" \
+    --optghc="-XDeriveGeneric" \
+    --optghc="-XMultiParamTypeClasses" \
+    --optghc="-XTypeOperators" \
+    --optghc="-XDeriveDataTypeable" \
+    --optghc="-XMultiWayIf" \
+    --optghc="-XUndecidableInstances" \
+    --optghc="-XBlockArguments" \
+    --optghc="-XPartialTypeSignatures" \
+    --optghc="-XLambdaCase" \
+    --optghc="-XBangPatterns" \
+    --optghc="-XInstanceSigs" \
+    --optghc="-XFunctionalDependencies" \
+    --optghc="-XDefaultSignatures" \
+    --optghc="-XStandaloneDeriving" \
+    --optghc="-XTemplateHaskell" \
+    --optghc="-XDeepSubsumption" \
+    --optghc="-XOverloadedRecordDot" \
+    --optghc="-package-env -"
+
+cd haddock-build
+
+# Add favicon
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<head>#<head><link rel="shortcut icon" type="image\/x-icon" href="https:\/\/ihp.digitallyinduced.com\/ihp-logo.svg"\/>#g' '{}' +
+
+# Add ihp-haddock.css
+cp ../ihp-haddock.css ihp-haddock.css
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+# Link title to index
+find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
