@@ -184,7 +184,7 @@ realFloatTable :: CreateTable
 realFloatTable = (defCreateTableWCol (reals <> doubles)) {name = "realfloat"}
             where reals = map mkReal ["a","b"]
                   doubles = map mkDouble ["c","d"]
-                  mkReal x   = (colCustT PBoolean) { name = x} :: Column
+                  mkReal x   = (colCustT PReal) { name = x} :: Column
                   mkDouble x = (colCustT PDouble) { name = x} :: Column
 
 userFollowerTable :: CreateTable

@@ -12,12 +12,12 @@ import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 import Test.IDE.CodeGeneration.Defaults.CodeGeneratorDefaults
-import Test.DefaultValues.CreateTableDefaults (defCreateTableWCol)
+import Test.DefaultValues.CreateTableDefaults (defCreateTableWCol, defCreateTable)
 
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [StatementCreateTable defCreateTable] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -409,46 +409,19 @@ tests = do
 
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
-            let statement = StatementCreateTable deprecVarTable
-                    
-            compileSql [statement] `shouldBe` sql
+            compileSql [StatementCreateTable deprecVarTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "user_followers"
-                    , columns =
-                        [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                        , col { name = "user_id", columnType = PUUID, notNull = True }
-                        , col { name = "follower_id", columnType = PUUID, notNull = True }
-                        ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                    , unlogged = False
-                    }
-            compileSql [statement] `shouldBe` sql
+            compileSql [StatementCreateTable followerTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a serial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "orders"
-                    , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
-                    , unlogged = False
-                    }
-            compileSql [statement] `shouldBe` sql
+            compileSql [StatementCreateTable ordersSerialTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a bigserial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "orders"
-                    , columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
-                    , unlogged = False
-                    }
-            compileSql [statement] `shouldBe` sql
+            compileSql [StatementCreateTable ordersBigSerialTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a composite primary key" do
             let sql = cs [plain|CREATE TABLE orderTrucks (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
