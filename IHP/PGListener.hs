@@ -245,13 +245,14 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                         Just (error :: AsyncCancelled) -> throw error
                         notification -> do
                             let ?context = ?modelContext -- Log onto the modelContext logger
-                            -- Sleep for the current delay 
-                            Control.Concurrent.threadDelay delay
+
                             -- Double current delay
                             let increasedDelay = delay * 2
                             -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                             let nextDelay = min increasedDelay maxDelay
                             Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
+                            -- Sleep for the current delay 
+                            Control.Concurrent.threadDelay delay
                             retryLoop nextDelay
                 Right _ -> 
                     retryLoop initialDelay
