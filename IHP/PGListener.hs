@@ -251,7 +251,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             else do
                                 let increasedDelay = delay * 2 -- Double current delay
                                 let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry nextDelay) <> ".")
+                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
                                 Control.Concurrent.threadDelay delay -- Sleep for the current delay
                                 retryLoop nextDelay False -- Retry with longer interval
                 Right _ -> 
