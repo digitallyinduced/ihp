@@ -260,7 +260,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
 
 printTimeToNextRetry :: Int -> Text
 printTimeToNextRetry microseconds
-    | microseconds >= 1000 =  show (microseconds `div` 1000000) <> " min"
+    | microseconds >= 1000000000 =  show (microseconds `div` 1000000000) <> " min"
     | microseconds >= 1000000 =  show (microseconds `div` 1000000) <> " s"
     | microseconds >= 1000 = show (microseconds `div` 1000) <> " ms"
     | otherwise = show microseconds <> " µs"
