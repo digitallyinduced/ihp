@@ -11,13 +11,13 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
-import Test.IDE.CodeGeneration.Defaults.CodeGeneratorDefaults
-import Test.DefaultValues.CreateTableDefaults (defCreateTableWCol, defCreateTable)
+import Test.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable defCreateTable] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [StatementCreateTable (defCreateTable {name = "users"})] 
+                `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -425,16 +425,7 @@ tests = do
 
         it "should compile a CREATE TABLE statement with a composite primary key" do
             let sql = cs [plain|CREATE TABLE orderTrucks (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "orderTrucks"
-                    , columns =
-                        [ col { name = "order_id", columnType = PBigserial, notNull = True}
-                        , col { name = "truck_id", columnType = PBigserial, notNull = True}
-                        ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["order_id", "truck_id"]
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable orderTrucksTable
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an array column" do

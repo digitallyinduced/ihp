@@ -15,7 +15,7 @@ import IHP.NameSupport
 import IHP.IDE.SchemaDesigner.Types
 
 
-{- | Creates a default column where all values are empty lists/text, 
+{- | Takes a `Text` value for the name and creates a default column where all values are empty lists, 
 'Nothing' or 'False'; and for 'ColumnType', the default is 'PUUID'.
 
 Add a new field to the 'Column' type in the 
@@ -74,9 +74,9 @@ defCreateTable = CreateTable {
 @
 
 -}
-defCreateTable :: CreateTable
-defCreateTable = CreateTable {
-                        name = ""
+defCreateTable :: Text -> CreateTable
+defCreateTable t = CreateTable {
+                        name = t
                         , columns = []
                         , primaryKeyConstraint = PrimaryKeyConstraint []
                         , constraints = []
@@ -84,13 +84,43 @@ defCreateTable = CreateTable {
                         }
 
 -- | Takes a list of column and adds it to our default table.
-defCreateTableWCol :: [Column] -> CreateTable
-defCreateTableWCol cols = defCreateTable {columns = cols}
+defCreateTableWCol :: Text -> [Column] -> CreateTable
+defCreateTableWCol t cols = (defCreateTable t) {columns = cols}
 
 -- | Creates one default table with a singleton list of one 'defColumn' .
 defCreateTableWDefCol :: CreateTable
-defCreateTableWDefCol = defCreateTableWCol (pure defColumn)
+defCreateTableWDefCol = defCreateTableWCol "" (pure defColumn)
 
+
+{- |
+
+-}
+defCreateTablePKID :: Text -> [Text] -> [Column] -> CreateTable
+defCreateTablePKID name items cols = (defCreateTableWCol name cols) {primaryKeyConstraint = PrimaryKeyConstraint items}
+
+
+{- | Allows you to set the name and columnType. Uses `defColumn` as its base
+
+If other values need to be changed, this can be done using: 
+@(setColumn a b){..}@
+
+__Example:__
+
+>>> setColumn "user_id" PTrigger 
+Column {name = "user_id", columnType = PTrigger, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}
+
+-}
+setColumn :: Text -> PostgresType -> Column
+setColumn name pgt = defColumn { name = name
+                               , columnType = pgt
+                               }
+
+-- | A version of `setColumn` where `notNull = True`
+setColumnN :: Text -> PostgresType -> Column
+setColumnN n p = (setColumn n p) {notNull = True}
+
+setColumnDefaultVal :: Maybe Expression -> Column -> Column
+setColumnDefaultVal expression column = column {defaultValue = expression}
 
 colUUID :: Column
 colUUID = defColumn { name = "id"
@@ -98,40 +128,32 @@ colUUID = defColumn { name = "id"
                  , notNull = True
                  }
 
-
-colCust :: Column
-colCust = defColumn {columnType = PCustomType ""}
-
-colCustT :: PostgresType -> Column
-colCustT t = defColumn {columnType = t}
-
-colText :: Column
-colText = defColumn { columnType = PText
-                    , notNull = True
-                    }
+colText :: Text -> Column
+colText t = defColumn { name = t
+                      , columnType = PText
+                      , notNull = True
+                      }
 
 colName :: Column
-colName = colText { name = "name"}
+colName = colText "name"
 
 colFName :: Column
-colFName = colText { name = "firstname"}
+colFName = colText "firstname"
 
 colLName :: Column
-colLName = colText { name = "lastname"}
+colLName = colText "lastname"
 
 colEmail :: Column
-colEmail = colText { name = "email"}
+colEmail = colText "email"
 
 colHash :: Column
-colHash = colText { name = "password_hash"}
+colHash = colText  "password_hash"
 
 colCompanyID :: Column
-colCompanyID = colText { name = "company_id"
-                       , columnType = PUUID
-                       }
+colCompanyID = (colText "company_id") { columnType = PUUID }
 
 colPicUrl :: Column
-colPicUrl = defColumn {columnType = PUUID}
+colPicUrl = setColumn "picture_url" PText
 
 colCreatedAt :: Column
 colCreatedAt = defColumn { name = "created_at"
@@ -157,31 +179,26 @@ colTs = defColumn { name = "ts"
                   }
 
 colExampleCont :: Column
-colExampleCont = colText { name = "content"
-                         , defaultValue = Just (TextExpression "example text")
-                         }
+colExampleCont = (colText "content") { defaultValue = Just (TextExpression "example text")
+                                     }
 
 pagesTable :: CreateTable
-pagesTable = (defCreateTableWCol [colUUID]) 
-                { name = "pages"
-                , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+pagesTable = (defCreateTableWCol "pages" [colUUID]) 
+                {  primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                 }
 
 peopleTable :: CreateTable
-peopleTable = (defCreateTableWCol [colUUID, colName, colEmail]) 
-                   { name = "people"
-                   , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+peopleTable = (defCreateTableWCol "people" [colUUID, colName, colEmail]) 
+                   { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                    , unlogged = False
                    }
 
 mailTable :: CreateTable
-mailTable = (defCreateTableWCol [colUUID]){
-                        name = "users"
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        }
+mailTable = (defCreateTableWCol "users" [colUUID]) { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                                                   }
 
 compilerSpecTable :: CreateTable
-compilerSpecTable = (defCreateTableWCol [colUUID
+compilerSpecTable = (defCreateTableWCol "users" [colUUID
                                        , colFName
                                        , colLName
                                        , colHash
@@ -190,20 +207,17 @@ compilerSpecTable = (defCreateTableWCol [colUUID
                                        , colPicUrl
                                        , colCreatedAt
                                        ]) 
-                     { name = "users"
-                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                     { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                      }
 
 productTable :: CreateTable
-productTable = (defCreateTableWCol [colTs])
-                { name = "products"
-                }
+productTable = (defCreateTableWCol "products" [colTs])
 
 quotedNameTable :: CreateTable
-quotedNameTable = defCreateTable { name="quoted name"}
+quotedNameTable = defCreateTable "quoted name"
 
 deprecVarTable :: CreateTable
-deprecVarTable = (defCreateTableWCol depVars) {name = "deprecated_variables"}
+deprecVarTable = (defCreateTableWCol "deprecated_variables" depVars)
             where depVars = [a,b,c,d]
                   a = defColumn { name = "a" 
                                 , columnType = (PNumeric Nothing Nothing)
@@ -223,8 +237,8 @@ deprecVarTable = (defCreateTableWCol depVars) {name = "deprecated_variables"}
 
 
 followerTable :: CreateTable 
-followerTable = (defCreateTableWCol followFields) { name = "user_followers"
-                                                  , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+followerTable = (defCreateTableWCol "user_followers" followFields) 
+                                                  { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                                                   , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                                                   }
                where followFields = [colUUID, user_id, follower_id]
@@ -232,42 +246,39 @@ followerTable = (defCreateTableWCol followFields) { name = "user_followers"
                      follower_id = defColumn {name = "follower_id", notNull = True}
 
 intTable :: CreateTable
-intTable = (defCreateTableWCol intCols) { name = "ints" }
+intTable = defCreateTableWCol "ints" intCols
         
          where intCols = map mkPintCol ["int_a","int_b","int_c"] 
                          <> map mkPSmallInt ["smallint_a","smallint_b"]
                          <> map mkBigInt ["bigint_a","bigint_b"]
 
-               mkPintCol x = colCust { name = x
-                                      , columnType = PInt}
-               mkPSmallInt x = colCust { name = x
-                                        , columnType = PSmallInt}
-               mkBigInt x = colCust { name = x
-                                      , columnType = PBigInt}
+               mkPintCol x = setColumn x PInt
+               mkPSmallInt x = setColumn x PSmallInt
+               mkBigInt x = setColumn x PBigInt
 
 timestampTable :: CreateTable
-timestampTable = (defCreateTableWCol ts) {name = "timestamps"}
+timestampTable = defCreateTableWCol "timestamps" ts
                
                where ts            = map mkTimeStamp ["a","b"]
-                     mkTimeStamp x = (colCustT PTimestampWithTimezone) { name = x } :: Column
+                     mkTimeStamp x = setColumn x PTimestampWithTimezone
 
 boolTable :: CreateTable
-boolTable = (defCreateTableWCol bs) {name = "bools"}
+boolTable = defCreateTableWCol "bools" bs
                
                where bs       = map mkBool ["a","b"]
                      mkBool :: Text -> Column
-                     mkBool x = (colCustT PBoolean) { name = x } 
+                     mkBool x = setColumn x PBoolean
 
 realFloatTable :: CreateTable
-realFloatTable = (defCreateTableWCol (reals <> doubles)) {name = "realfloat"}
+realFloatTable = defCreateTableWCol "realfloat" (reals <> doubles)
             where reals = map mkReal ["a","b"]
                   doubles = map mkDouble ["c","d"]
-                  mkReal x   = (colCustT PReal) { name = x} :: Column
-                  mkDouble x = (colCustT PDouble) { name = x} :: Column
+                  mkReal x   = setColumn x PReal
+                  mkDouble x = setColumn x PDouble
 
 userFollowerTable :: CreateTable
-userFollowerTable = (defCreateTableWCol fields) { name = "user_followers"
-                                                , primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
+userFollowerTable = (defCreateTableWCol "user_followers" fields) 
+                                                { primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
                                                 }
                      
                      where fields = map mkField ["user_id","follower_id"]
@@ -276,17 +287,61 @@ userFollowerTable = (defCreateTableWCol fields) { name = "user_followers"
 
 
 ordersSerialTable :: CreateTable
-ordersSerialTable = (defCreateTableWCol serCol) { primaryKeyConstraint = PrimaryKeyConstraint ["id"] }
+ordersSerialTable = (defCreateTableWCol "orders" serCol) { primaryKeyConstraint = PrimaryKeyConstraint ["id"] }
 
-                     where serCol = [ (colCustT PSerial) { name = "orders"
-                                                         , notNull = True
-                                                         }
+                     where serCol = [ (setColumnN "id" PSerial)
                                     ]
 
 ordersBigSerialTable :: CreateTable
 ordersBigSerialTable = ordersSerialTable {columns = bigSerCol} 
 
-                     where bigSerCol = [ (colCustT PBigserial) { name = "orders"
-                                                               , notNull = True
-                                                               }
+                     where bigSerCol = [ (setColumnN "id" PBigserial)
                                        ]
+
+orderTrucksTable :: CreateTable
+orderTrucksTable = defCreateTablePKID "orderTrucks" ["order_id","truck_id"] cols
+                  where cols = map mkColumn ["order_id","truck_id"]
+                        mkColumn x = (setColumnN x PBigserial) -- Tempted to make the default state of setColumn.notNull to True
+
+arrayTestTable :: CreateTable
+arrayTestTable = defCreateTableWCol "array_tests" arrayCol
+                  where arrayCol = pure $ setColumn "pay_by_quarter" (PArray PInt)
+
+pointsTable :: CreateTable
+pointsTable = defCreateTableWCol "points" pointCol
+                  where pointCol = pure $ setColumn "pos" PPoint
+
+polygonTable :: CreateTable
+polygonTable = defCreateTableWCol "polygons" polyCol
+                  where polyCol = pure $ setColumnN "poly" PPolygon
+
+electricityTableD :: CreateTable
+electricityTableD = defCreateTableWCol "a" eupCol
+                  where eupCol = pure $ (setColumnN "electricity_unit_price" PDouble)
+                                     { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble)
+                                     }
+
+electricityTableI :: CreateTable
+electricityTableI = defCreateTableWCol "a" eupCol
+                  where eupCol = pure $ (setColumnN "electricity_unit_price" PInt)
+                                     { defaultValue = Just (IntExpression 0)
+                                     }
+
+typeCastTable :: CreateTable
+typeCastTable = defCreateTableWCol "a" tcCol
+                  where init  = setColumnN "a" (PVaryingN (Just 510))
+                        def   = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
+                        tcCol = pure $ setColumnDefaultVal def init
+
+emptyBinaryTable :: CreateTable
+emptyBinaryTable = defCreateTableWCol "a" ebCol
+                  where init  = setColumnN "a" PBinary
+                        def   = Just (TypeCastExpression (TextExpression "") PBinary)
+                        ebCol = pure $ setColumnDefaultVal def init
+
+publicVariablesTable :: CreateTable
+publicVariablesTable = defCreateTableWCol "public_variables" idCol
+                        where idCol = pure $ setColumn "id" PUUID
+
+notifTable :: CreateTable
+notifTable = (defCreateTable "pg_large_notifications") {unlogged = True}
