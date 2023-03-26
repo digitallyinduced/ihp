@@ -166,22 +166,7 @@ tests = do
             it "should add an index if withIndex = true" do
                 let inputSchema = [tableA]
 
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ defCreateTableWCol "a" [colCreatedAt]
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let expectedSchema = [tableAWithCreatedAt, index]

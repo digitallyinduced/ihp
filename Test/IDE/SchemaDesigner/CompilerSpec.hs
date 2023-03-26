@@ -16,7 +16,7 @@ import Test.IDE.Defaults.TableColumnDefaults
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable (defCreateTable {name = "users"})] 
+            compileSql [StatementCreateTable (defCreateTable "users")] 
                 `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
@@ -394,8 +394,7 @@ tests = do
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
-            let statement = StatementCreateTable (defCreateTableWCol [colExampleCont])
-                    { name = "a"}
+            let statement = StatementCreateTable (defCreateTableWCol "a" [colExampleCont])
 
             compileSql [statement] `shouldBe` sql
 

@@ -417,7 +417,7 @@ tests = do
                 `shouldBe` StatementCreateTable boolTable
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
-            parseSql "CREATE TABLE bools (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" 
+            parseSql "CREATE TABLE realfloat (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" 
                 `shouldBe` StatementCreateTable realFloatTable
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do

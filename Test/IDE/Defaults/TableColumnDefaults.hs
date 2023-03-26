@@ -209,10 +209,10 @@ quotedNameTable = defCreateTable "quoted name"
 deprecVarTable :: CreateTable
 deprecVarTable = (defCreateTableWCol "deprecated_variables" depVars)
             where depVars = [a,b,c,d]
-                  a = setColumnN "a" (PNumeric Nothing Nothing)
-                  b = setColumnN "b" (PNumeric (Just 1) Nothing)
-                  c = setColumnN "c" (PNumeric (Just 1) (Just 2))
-                  d = setColumnN "d" (PVaryingN (Just 10))
+                  a = setColumn "a" (PNumeric Nothing Nothing)
+                  b = setColumn "b" (PNumeric (Just 1) Nothing)
+                  c = setColumn "c" (PNumeric (Just 1) (Just 2))
+                  d = setColumn "d" (PVaryingN (Just 10))
 
 
 followerTable :: CreateTable 
