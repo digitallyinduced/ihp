@@ -292,7 +292,7 @@ pointsTable = defCreateTableWCol "points" pointCol
 
 polygonTable :: CreateTable
 polygonTable = defCreateTableWCol "polygons" polyCol
-                  where polyCol = pure $ setColumnN "poly" PPolygon
+                  where polyCol = pure $ setColumn "poly" PPolygon
 
 electricityTableD :: CreateTable
 electricityTableD = defCreateTableWCol "a" eupCol
@@ -307,7 +307,7 @@ electricityTableI = defCreateTableWCol "a" eupCol
 
 typeCastTable :: CreateTable
 typeCastTable = defCreateTableWCol "a" tcCol
-                  where init  = setColumnN "a" (PVaryingN (Just 510))
+                  where init  = setColumn "a" (PVaryingN (Just 510))
                         def   = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
                         tcCol = pure $ setColumnDefaultVal def init
 
