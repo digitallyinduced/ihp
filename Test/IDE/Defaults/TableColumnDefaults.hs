@@ -115,24 +115,19 @@ setColumn name pgt = defColumn { name = name
                                , columnType = pgt
                                }
 
--- | A version of `setColumn` where `notNull = True`
+-- | A version of `setColumn` where @notNull = True@
 setColumnN :: Text -> PostgresType -> Column
 setColumnN n p = (setColumn n p) {notNull = True}
 
+-- | Sets a column to have a default value. Would recommend using in conjunction with `setColumn`
 setColumnDefaultVal :: Maybe Expression -> Column -> Column
 setColumnDefaultVal expression column = column {defaultValue = expression}
 
 colUUID :: Column
-colUUID = defColumn { name = "id"
-                 , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                 , notNull = True
-                 }
+colUUID = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
 
 colText :: Text -> Column
-colText t = defColumn { name = t
-                      , columnType = PText
-                      , notNull = True
-                      }
+colText t = setColumnN t PText
 
 colName :: Column
 colName = colText "name"
@@ -156,12 +151,7 @@ colPicUrl :: Column
 colPicUrl = setColumn "picture_url" PText
 
 colCreatedAt :: Column
-colCreatedAt = defColumn { name = "created_at"
-                         , columnType = PTimestampWithTimezone
-                         , defaultValue = Just (CallExpression "NOW" [])
-                         , notNull = True
-                         }
-                         
+colCreatedAt = setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
 
 colTs :: Column
 colTs = defColumn { name = "ts"
@@ -219,21 +209,10 @@ quotedNameTable = defCreateTable "quoted name"
 deprecVarTable :: CreateTable
 deprecVarTable = (defCreateTableWCol "deprecated_variables" depVars)
             where depVars = [a,b,c,d]
-                  a = defColumn { name = "a" 
-                                , columnType = (PNumeric Nothing Nothing)
-                                }
-
-                  b = defColumn { name = "b" 
-                                , columnType = (PNumeric (Just 1) Nothing)
-                                }
-
-                  c = defColumn { name = "c" 
-                                , columnType = (PNumeric (Just 1) (Just 2))
-                                }
-
-                  d = defColumn { name = "d" 
-                                , columnType = (PVaryingN (Just 10))
-                                }
+                  a = setColumnN "a" (PNumeric Nothing Nothing)
+                  b = setColumnN "b" (PNumeric (Just 1) Nothing)
+                  c = setColumnN "c" (PNumeric (Just 1) (Just 2))
+                  d = setColumnN "d" (PVaryingN (Just 10))
 
 
 followerTable :: CreateTable 
@@ -242,8 +221,8 @@ followerTable = (defCreateTableWCol "user_followers" followFields)
                                                   , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                                                   }
                where followFields = [colUUID, user_id, follower_id]
-                     user_id = defColumn {name = "user_id", notNull = True}
-                     follower_id = defColumn {name = "follower_id", notNull = True}
+                     user_id = setColumnN "user_id" PUUID
+                     follower_id = setColumnN "follower_id" PUUID
 
 intTable :: CreateTable
 intTable = defCreateTableWCol "ints" intCols
@@ -301,7 +280,7 @@ ordersBigSerialTable = ordersSerialTable {columns = bigSerCol}
 orderTrucksTable :: CreateTable
 orderTrucksTable = defCreateTablePKID "orderTrucks" ["order_id","truck_id"] cols
                   where cols = map mkColumn ["order_id","truck_id"]
-                        mkColumn x = (setColumnN x PBigserial) -- Tempted to make the default state of setColumn.notNull to True
+                        mkColumn x = (setColumnN x PBigserial)
 
 arrayTestTable :: CreateTable
 arrayTestTable = defCreateTableWCol "array_tests" arrayCol
@@ -323,9 +302,8 @@ electricityTableD = defCreateTableWCol "a" eupCol
 
 electricityTableI :: CreateTable
 electricityTableI = defCreateTableWCol "a" eupCol
-                  where eupCol = pure $ (setColumnN "electricity_unit_price" PInt)
-                                     { defaultValue = Just (IntExpression 0)
-                                     }
+                  where eupCol = pure . setColumnDefaultVal (Just (IntExpression 0)) $ (setColumnN "electricity_unit_price" PInt)
+
 
 typeCastTable :: CreateTable
 typeCastTable = defCreateTableWCol "a" tcCol
@@ -345,3 +323,11 @@ publicVariablesTable = defCreateTableWCol "public_variables" idCol
 
 notifTable :: CreateTable
 notifTable = (defCreateTable "pg_large_notifications") {unlogged = True}
+
+
+postUserTable :: CreateTable
+postUserTable = defCreateTableWCol "posts" userIDCol
+                        where userIDCol = pure $ setColumnN "user_id" PUUID
+
+postTitleTable :: CreateTable
+postTitleTable = defCreateTableWCol "posts" [(colText "title")]

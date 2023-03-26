@@ -6,11 +6,12 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
+import Test.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
-        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+        let tableA = StatementCreateTable (defCreateTable "a")
+        let tableB = StatementCreateTable (defCreateTable "b")
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -103,16 +104,7 @@ tests = do
 
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
-                let table = StatementCreateTable CreateTable
-                                {
-                                name = "posts"
-                                , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let table = StatementCreateTable postUserTable
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
@@ -125,16 +117,7 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest an empty policy if no user_id column exists" do
-                let table = StatementCreateTable CreateTable
-                                {
-                                name = "posts"
-                                , columns =
-                                    [ Column { name = "title", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let table = StatementCreateTable postTitleTable
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
