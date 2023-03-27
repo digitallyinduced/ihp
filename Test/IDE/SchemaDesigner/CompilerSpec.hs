@@ -830,8 +830,9 @@ tests = do
                     ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
                 );
             |] <> "\n"
-            let statements = pure . StatementCreateTable $ productTable
+            let statements = pure . StatementCreateTable $ sqlProductTable
             compileSql statements `shouldBe` sql
+
         it "should compile 'DROP FUNCTION ..;' statements" do
             let sql = "DROP FUNCTION my_function;\n"
             let statements = [ DropFunction { functionName = "my_function" } ]

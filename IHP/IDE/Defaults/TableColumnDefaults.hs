@@ -202,15 +202,15 @@ colTs :: Column
 colTs = defColumn { name = "ts"
                   , columnType = PTSVector
                   , generator = Just $ ColumnGenerator
-                                        { generate =
-                                            ConcatenationExpression
-                                                (ConcatenationExpression
-                                                    (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"],TextExpression "A"])
-                                                    (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
-                                                )
-                                                (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
-                                        , stored = True
-                                        }
+                              { generate =
+                                    ConcatenationExpression
+                                     ( ConcatenationExpression
+                                          (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"],TextExpression "A" ])
+                                          (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
+                                    )
+                                    (  CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
+                              , stored = True
+                              }
                   }
 
 colExampleCont :: Column
@@ -246,7 +246,24 @@ compilerSpecTable = (defCreateTableWCol "users" [colUUID
                      }
 
 productTable :: CreateTable
-productTable = (defCreateTableWCol "products" [colTs])
+productTable = (defCreateTableWCol "products" (pure colTs))
+
+sqlProductTable :: CreateTable
+sqlProductTable = defCreateTableWCol "products" colTs'
+                  where colTs' = pure $ 
+                                    (setColumn "ts" PTSVector) {
+                                          generator = Just $ ColumnGenerator
+                                                { generate =
+                                                    ConcatenationExpression
+                                                        (ConcatenationExpression
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
+                                                        )
+                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
+                                                , stored = True
+                                                }
+                                    }
+
 
 quotedNameTable :: CreateTable
 quotedNameTable = defCreateTable "quoted name"
