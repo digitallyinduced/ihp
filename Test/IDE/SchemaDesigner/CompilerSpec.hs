@@ -11,7 +11,7 @@ import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
-import Test.IDE.Defaults.TableColumnDefaults
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "The Schema.sql Compiler" do

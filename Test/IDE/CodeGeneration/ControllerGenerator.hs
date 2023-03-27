@@ -12,7 +12,7 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
-import Test.IDE.Defaults.TableColumnDefaults
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "Controller Generator Tests:" do

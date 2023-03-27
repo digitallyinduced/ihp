@@ -346,6 +346,7 @@ library
         , IHP.IDE.Data.View.ShowQuery
         , IHP.IDE.Data.View.ShowTableRows
         , IHP.IDE.Data.View.ShowForeignKeyHoverCard
+        , IHP.IDE.Defaults.TableColumnDefaults
         , IHP.IDE.CodeGen.View.Generators
         , IHP.IDE.CodeGen.View.NewAction
         , IHP.IDE.CodeGen.View.NewApplication

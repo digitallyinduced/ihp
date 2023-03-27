@@ -2,7 +2,7 @@
 Module: Test.IDE.Defaults.TableColumnDefaults
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.Defaults.TableColumnDefaults where
+module IHP.IDE.Defaults.TableColumnDefaults where
 
 import Test.Hspec
 import IHP.Prelude

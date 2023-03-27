@@ -6,7 +6,7 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.Defaults.TableColumnDefaults
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do

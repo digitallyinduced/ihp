@@ -10,7 +10,7 @@ import IHP.IDE.SchemaDesigner.Types
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Test.IDE.Defaults.TableColumnDefaults
+import IHP.IDE.Defaults.TableColumnDefaults
 
 -- | A Schema.sql basically is just a list of sql DDL statements
 type Schema = [Statement]

@@ -4,7 +4,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Types
-import Test.IDE.Defaults.TableColumnDefaults
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests :: SpecWith ()
 tests = do

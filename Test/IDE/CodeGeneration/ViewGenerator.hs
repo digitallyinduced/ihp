@@ -12,7 +12,7 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
-import Test.IDE.Defaults.TableColumnDefaults (compilerSpecTable)
+import IHP.IDE.Defaults.TableColumnDefaults (compilerSpecTable)
 
 
 tests = do
