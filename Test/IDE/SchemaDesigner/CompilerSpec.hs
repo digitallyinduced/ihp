@@ -434,24 +434,12 @@ tests = do
 
         it "should compile a CREATE TABLE statement with an point column" do
             let sql = cs [plain|CREATE TABLE point_tests (\n    pos POINT\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "point_tests"
-                    , columns = [ col { name = "pos", columnType = PPoint } ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable pointTestTable
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an polygon column" do
             let sql = cs [plain|CREATE TABLE polygon_tests (\n    poly POLYGON\n);\n|]
-            let statement = StatementCreateTable CreateTable
-                    { name = "polygon_tests"
-                    , columns = [ col { name = "poly", columnType = PPolygon } ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
-                    }
+            let statement = StatementCreateTable polyTestTable
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE INDEX statement" do
@@ -624,12 +612,12 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            let statement = StatementCreateTable electricityTableD
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            let statement = StatementCreateTable electricityTableI
             compileSql [statement] `shouldBe` sql
 
         it "should compile a partial index" do
@@ -842,33 +830,7 @@ tests = do
                     ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
                 );
             |] <> "\n"
-            let statements = [
-                        StatementCreateTable CreateTable
-                            { name = "products"
-                            , columns = [
-                                Column
-                                    { name = "ts"
-                                    , columnType = PTSVector
-                                    , defaultValue = Nothing
-                                    , notNull = False
-                                    , isUnique = False
-                                    , generator = Just $ ColumnGenerator
-                                                { generate =
-                                                    ConcatenationExpression
-                                                        (ConcatenationExpression
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
-                                                        )
-                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
-                                                , stored = True
-                                                }
-                                    }
-                                ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
-                        ]
+            let statements = pure . StatementCreateTable $ productTable
             compileSql statements `shouldBe` sql
         it "should compile 'DROP FUNCTION ..;' statements" do
             let sql = "DROP FUNCTION my_function;\n"
@@ -881,12 +843,6 @@ tests = do
                 );
             |] <> "\n"
             let statements = [
-                        StatementCreateTable CreateTable
-                            { name = "pg_large_notifications"
-                            , columns = []
-                            , constraints = []
-                            , unlogged = True
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            }
+                        StatementCreateTable notifTable
                         ]
             compileSql statements `shouldBe` sql

@@ -83,17 +83,61 @@ defCreateTable t = CreateTable {
                         , unlogged = False
                         }
 
--- | Takes a list of column and adds it to our default table.
+-- | Takes a name for our table and a list of column and inserts the list
+--  into to our default table.
 defCreateTableWCol :: Text -> [Column] -> CreateTable
 defCreateTableWCol t cols = (defCreateTable t) {columns = cols}
 
--- | Creates one default table with a singleton list of one 'defColumn' .
-defCreateTableWDefCol :: CreateTable
-defCreateTableWDefCol = defCreateTableWCol "" (pure defColumn)
+{- | Creates one default table with a singleton list of one 'setColumn'.
+
+Uses both `defCreateTableWCol` and `setColumn`.
+
+@
+defCreateTableWSetCol :: Text --  The name of the table
+                        -> Text  --  The name of the column
+                        -> PostgresType --  The type of the column
+                        -> CreateTable -- The returned table
+@
+
+-}
+defCreateTableWSetCol :: Text -> Text -> PostgresType -> CreateTable
+defCreateTableWSetCol tablename columnname pgt = defCreateTableWCol tablename (pure $ setColumn columnname pgt)
+
+{- | Same as its progenitor `defCreateTableWSetCol` except it uses `setColumnN`
+-}
+defCreateTableWSetColN :: Text -> Text -> PostgresType -> CreateTable
+defCreateTableWSetColN tablename columnname pgt = defCreateTableWCol tablename (pure $ setColumnN columnname pgt)
 
 
-{- |
+{- | Takes the name of the table, the items you want inside the primaryKeyConstraint and a list of columns
+to return a table where the primary key constraint is set.
 
+__Example:__ 
+
+@ 
+let orderTrucksTable = defCreateTablePKID "orderTrucks" ["order_id","truck_id"] cols
+                  where cols = map mkColumn ["order_id","truck_id"]
+                        mkColumn x = (setColumnN x PBigserial)
+@
+
+>>> orderTrucksTable
+CreateTable { name = "orderTrucks"
+            , columns = [ Column { name = "order_id", 
+                                   columnType = PBigserial, 
+                                   defaultValue = Nothing, 
+                                   notNull = True, 
+                                   isUnique = False, 
+                                   generator = Nothing}
+                        , Column { name = "truck_id", 
+                                   columnType = PBigserial, 
+                                   defaultValue = Nothing, 
+                                   notNull = True, 
+                                   isUnique = False, 
+                                   generator = Nothing}
+                         ]
+            , primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = ["order_id","truck_id"]}
+            , constraints = []
+            , unlogged = False}
 -}
 defCreateTablePKID :: Text -> [Text] -> [Column] -> CreateTable
 defCreateTablePKID name items cols = (defCreateTableWCol name cols) {primaryKeyConstraint = PrimaryKeyConstraint items}
@@ -122,6 +166,7 @@ setColumnN n p = (setColumn n p) {notNull = True}
 -- | Sets a column to have a default value. Would recommend using in conjunction with `setColumn`
 setColumnDefaultVal :: Maybe Expression -> Column -> Column
 setColumnDefaultVal expression column = column {defaultValue = expression}
+
 
 colUUID :: Column
 colUUID = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
@@ -296,9 +341,10 @@ polygonTable = defCreateTableWCol "polygons" polyCol
 
 electricityTableD :: CreateTable
 electricityTableD = defCreateTableWCol "a" eupCol
-                  where eupCol = pure $ (setColumnN "electricity_unit_price" PDouble)
-                                     { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble)
-                                     }
+                  where eupCol = pure $ 
+                              setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
+                                    setColumnN "electricity_unit_price" PDouble
+
 
 electricityTableI :: CreateTable
 electricityTableI = defCreateTableWCol "a" eupCol
@@ -326,8 +372,25 @@ notifTable = (defCreateTable "pg_large_notifications") {unlogged = True}
 
 
 postUserTable :: CreateTable
-postUserTable = defCreateTableWCol "posts" userIDCol
-                        where userIDCol = pure $ setColumnN "user_id" PUUID
+postUserTable = defCreateTableWSetCol "posts" "user_id" PUUID
 
 postTitleTable :: CreateTable
 postTitleTable = defCreateTableWCol "posts" [(colText "title")]
+
+pointTestTable :: CreateTable
+pointTestTable = defCreateTableWSetCol "point_tests" "pos" PPoint
+
+polyTestTable :: CreateTable
+polyTestTable = defCreateTableWSetCol "polygon_tests" "poly" PPolygon
+
+tableAWithCreatedAtTable :: CreateTable
+tableAWithCreatedAtTable  = defCreateTableWCol "a" updatedAtCol
+                        where updatedAtCol = pure $ 
+                                                setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                                                setColumnN "updated_at" PTimestampWithTimezone
+
+ihpuserTable :: CreateTable
+ihpuserTable = defCreateTableWCol "a" ihpuser
+                                where ihpuser = pure $ 
+                                        setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
+                                        setColumn "user_id" PUUID
