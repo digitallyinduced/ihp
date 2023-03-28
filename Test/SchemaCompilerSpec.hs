@@ -9,6 +9,7 @@ import IHP.Prelude
 import IHP.SchemaCompiler
 import IHP.IDE.SchemaDesigner.Types
 import qualified Data.Text as Text
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "SchemaCompiler" do
@@ -118,13 +119,9 @@ tests = do
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
-            let statement = StatementCreateTable $ CreateTable {
-                    name = "users",
-                    columns = [ Column "id" PUUID Nothing False False Nothing ],
-                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                    constraints = [],
-                    unlogged = False
-                }
+            let statement = StatementCreateTable $ 
+                        defCreateTablePKID "users" ["id"] (pure $ setColumn "id" PUUID)
+            
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
@@ -145,13 +142,12 @@ tests = do
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
-                let statement = StatementCreateTable $ CreateTable {
-                    name = "users",
-                    columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
-                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                    constraints = []
-                    , unlogged = False
-                }
+                let statement = StatementCreateTable $ 
+                            defCreateTablePKID "users" ["id"] idCols
+                                where idCols = [a,b]
+                                      a      = setColumnN "id" PUUID
+                                      b      = setColumn "ids" (PArray PUUID)
+
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
@@ -160,16 +156,14 @@ tests = do
                             List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
                     |]
             it "should deal with double default values" do
-                let statement = StatementCreateTable CreateTable
-                        { name = "users"
-                        , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
-                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}
-                            ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        }
+                let statement = StatementCreateTable $
+                            defCreateTablePKID "users" ["id"] idCols
+                                where idCols = [a,b,c]
+                                      a      = setColumnN "id" PUUID
+                                      b      = setColumn "ids" (PArray PUUID)
+                                      c      = setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
+                                                    setColumnN "electricity_unit_price" PDouble
+                
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
@@ -280,16 +274,8 @@ tests = do
                         {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should not touch GENERATED columns" do
-                let statement = StatementCreateTable CreateTable
-                        { name = "users"
-                        , columns =
-                            [ Column "id" PUUID Nothing False True Nothing
-                            , Column {name = "ts", columnType = PTSVector, defaultValue = Nothing, notNull = True, isUnique = False, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
-                            ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        }
+                let statement = StatementCreateTable generateTable
+            
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|

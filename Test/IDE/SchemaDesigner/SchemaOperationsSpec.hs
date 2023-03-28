@@ -379,39 +379,19 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates referenced foreign key constraints" do
-                let tasksTable = StatementCreateTable CreateTable
-                                { name = "tasks"
-                                , columns =
-                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
-                let taskListsTable = StatementCreateTable CreateTable
-                                { name = "task_lists"
-                                , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let tasksTable = StatementCreateTable $
+                                    defCreateTableWCol "tasks" (pure $ setColumnN "task_list_id" PUUID)
+                
+                let taskListsTable = StatementCreateTable $
+                                    defCreateTableWCol "task_lists" (pure $ setColumnN "task_list_id" PUUID)
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
                             , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
 
-                let tasksTable' = StatementCreateTable CreateTable
-                                { name = "tasks"
-                                , columns =
-                                    [ Column { name = "list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let tasksTable' = StatementCreateTable $
+                                    defCreateTableWCol "tasks" (pure $ setColumnN "list_id" PUUID)
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
@@ -432,40 +412,13 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "update a column's indexes" do
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "updated_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
+
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
-                let tableAWithUpdatedColumn = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at"
-                                        , columnType = PText
-                                        , defaultValue = Nothing
-                                        , notNull = False
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithUpdatedColumn = StatementCreateTable $
+                                        defCreateTableWCol "a" (pure $ setColumn "created_at" PText)
+       
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let inputSchema = [tableAWithCreatedAt, index]

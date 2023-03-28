@@ -190,13 +190,17 @@ colHash :: Column
 colHash = colText  "password_hash"
 
 colCompanyID :: Column
-colCompanyID = (colText "company_id") { columnType = PUUID }
+colCompanyID = setColumnN "company_id" PUUID
 
 colPicUrl :: Column
 colPicUrl = setColumn "picture_url" PText
 
 colCreatedAt :: Column
 colCreatedAt = setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
+
+eupCol :: Column
+eupCol = setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
+                                    setColumnN "electricity_unit_price" PDouble
 
 colTs :: Column
 colTs = defColumn { name = "ts"
@@ -214,13 +218,11 @@ colTs = defColumn { name = "ts"
                   }
 
 colExampleCont :: Column
-colExampleCont = (colText "content") { defaultValue = Just (TextExpression "example text")
-                                     }
+colExampleCont = setColumnDefaultVal (Just (TextExpression "example text")) $ (colText "content")
 
 pagesTable :: CreateTable
-pagesTable = (defCreateTableWCol "pages" [colUUID]) 
-                {  primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                }
+pagesTable = defCreateTablePKID "pages" ["id"] [colUUID]
+
 
 peopleTable :: CreateTable
 peopleTable = (defCreateTableWCol "people" [colUUID, colName, colEmail]) 
@@ -229,21 +231,19 @@ peopleTable = (defCreateTableWCol "people" [colUUID, colName, colEmail])
                    }
 
 mailTable :: CreateTable
-mailTable = (defCreateTableWCol "users" [colUUID]) { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                                                   }
+mailTable = defCreateTablePKID "users" ["id"] [colUUID]
 
 compilerSpecTable :: CreateTable
-compilerSpecTable = (defCreateTableWCol "users" [colUUID
-                                       , colFName
-                                       , colLName
-                                       , colHash
-                                       , colEmail
-                                       , colCompanyID
-                                       , colPicUrl
-                                       , colCreatedAt
-                                       ]) 
-                     { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                     }
+compilerSpecTable = defCreateTablePKID "users" ["id"] [ colUUID
+                                                      , colFName
+                                                      , colLName
+                                                      , colHash
+                                                      , colEmail
+                                                      , colCompanyID
+                                                      , colPicUrl
+                                                      , colCreatedAt
+                                                      ]
+                                                      
 
 productTable :: CreateTable
 productTable = (defCreateTableWCol "products" (pure colTs))
@@ -318,9 +318,7 @@ realFloatTable = defCreateTableWCol "realfloat" (reals <> doubles)
                   mkDouble x = setColumn x PDouble
 
 userFollowerTable :: CreateTable
-userFollowerTable = (defCreateTableWCol "user_followers" fields) 
-                                                { primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
-                                                }
+userFollowerTable = defCreateTablePKID "user_followers" [ "user_id", "follower_id" ] fields
                      
                      where fields = map mkField ["user_id","follower_id"]
                            mkField x = defColumn { name = x
@@ -328,16 +326,13 @@ userFollowerTable = (defCreateTableWCol "user_followers" fields)
 
 
 ordersSerialTable :: CreateTable
-ordersSerialTable = (defCreateTableWCol "orders" serCol) { primaryKeyConstraint = PrimaryKeyConstraint ["id"] }
-
-                     where serCol = [ (setColumnN "id" PSerial)
-                                    ]
+ordersSerialTable = defCreateTablePKID "orders" ["id"] serCol
+                     where serCol = pure $ setColumnN "id" PSerial
+                                    
 
 ordersBigSerialTable :: CreateTable
 ordersBigSerialTable = ordersSerialTable {columns = bigSerCol} 
-
-                     where bigSerCol = [ (setColumnN "id" PBigserial)
-                                       ]
+                     where bigSerCol = pure $ (setColumnN "id" PBigserial)
 
 orderTrucksTable :: CreateTable
 orderTrucksTable = defCreateTablePKID "orderTrucks" ["order_id","truck_id"] cols
@@ -357,10 +352,8 @@ polygonTable = defCreateTableWCol "polygons" polyCol
                   where polyCol = pure $ setColumn "poly" PPolygon
 
 electricityTableD :: CreateTable
-electricityTableD = defCreateTableWCol "a" eupCol
-                  where eupCol = pure $ 
-                              setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
-                                    setColumnN "electricity_unit_price" PDouble
+electricityTableD = defCreateTableWCol "a" (pure eupCol)
+ 
 
 
 electricityTableI :: CreateTable
@@ -411,3 +404,22 @@ ihpuserTable = defCreateTableWCol "a" ihpuser
                                 where ihpuser = pure $ 
                                         setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
                                         setColumn "user_id" PUUID
+
+generateTable :: CreateTable
+generateTable = defCreateTablePKID "users" ["id"] cols
+                  where cols  = [a,b]
+                        a     = setColumnN "id" PUUID
+                        b     = (setColumn "ts" PTSVector) { generator = 
+                                                                  Just (ColumnGenerator { generate = VarExpression "someResult"
+                                                                                                   , stored = False 
+                                                                                        }
+                                                                        )
+                                                            }
+
+
+defValTable :: CreateTable
+defValTable = defCreateTablePKID "users" ["id"] cols
+                  where cols  = [a,b,c]
+                        a     = setColumnN "id" PUUID
+                        b     = setColumn "ids" (PArray PUUID)
+                        c     = eupCol
