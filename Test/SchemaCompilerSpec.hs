@@ -120,7 +120,8 @@ tests = do
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ 
-                        defCreateTablePKID "users" ["id"] (pure $ setColumn "id" PUUID)
+                        defCreateTablePKID "users" ["id"] [ setColumn "id" PUUID
+                                                          ]
             
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 

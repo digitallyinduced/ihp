@@ -318,9 +318,9 @@ tests = do
             
             it "should delete an referenced policy" do
                 let tableAWithUserId = StatementCreateTable $ defCreateTable "a" ihpuser
-                                where ihpuser = pure $ 
-                                        setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
-                                        setColumn "user_id" PUUID
+                                where ihpuser = [ setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
+                                                  setColumn "user_id" PUUID
+                                                ]
                             
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
@@ -362,7 +362,8 @@ tests = do
             it "updates a primary key" do
                 let tableWithPK = StatementCreateTable $ 
                                     defCreateTablePKID "a" ["id"] 
-                                    $ pure $ setColumnN "id2" PUUID
+                                        [setColumnN "id2" PUUID
+                                        ]
 
                 let tableWithoutPK = StatementCreateTable $ defCreateTableWSetCol "a" "id" PUUID
 
@@ -384,10 +385,12 @@ tests = do
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates referenced foreign key constraints" do
                 let tasksTable = StatementCreateTable $
-                                    defCreateTable "tasks" (pure $ setColumnN "task_list_id" PUUID)
+                                    defCreateTable "tasks" [setColumnN "task_list_id" PUUID
+                                                           ]
                 
                 let taskListsTable = StatementCreateTable $
-                                    defCreateTable "task_lists" (pure $ setColumnN "task_list_id" PUUID)
+                                    defCreateTable "task_lists" [setColumnN "task_list_id" PUUID
+                                                                ]
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
@@ -395,7 +398,8 @@ tests = do
                             ]
 
                 let tasksTable' = StatementCreateTable $
-                                    defCreateTable "tasks" (pure $ setColumnN "list_id" PUUID)
+                                    defCreateTable "tasks" [setColumnN "list_id" PUUID
+                                                           ]
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
@@ -421,7 +425,8 @@ tests = do
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let tableAWithUpdatedColumn = StatementCreateTable $
-                                        defCreateTable "a" (pure $ setColumn "created_at" PText)
+                                        defCreateTable "a" [setColumn "created_at" PText
+                                                           ]
        
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -471,8 +476,19 @@ parseSqlStatements sql =
 
 -- Repeated Values in Tests:
 
+
+{- | A common table that appears in test:
+
+Defined as:
+
 tableAWithCreatedAtTable :: CreateTable
 tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
-                        where updatedAtCol = pure $ 
-                                                setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                        where updatedAtCol = [setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
                                                 setColumnN "updated_at" PTimestampWithTimezone
+                                             ]
+-}
+tableAWithCreatedAtTable :: CreateTable
+tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
+                        where updatedAtCol = [setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                                                setColumnN "updated_at" PTimestampWithTimezone
+                                             ]

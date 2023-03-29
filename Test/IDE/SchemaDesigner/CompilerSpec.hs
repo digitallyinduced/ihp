@@ -12,6 +12,15 @@ import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
 import IHP.IDE.Defaults.TableColumnDefaults
+    ( defCreateTable,
+      defCreateTableWSetCol,
+      defCreateTablePKID,
+      setColumn,
+      setColumnN,
+      setColumnDefaultVal,
+      colUUID,
+      colText,
+      compilerSpecTable )
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -434,7 +443,9 @@ tests = do
 
         it "should compile a CREATE TABLE statement with a serial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
-                ordersSerialTable = let serCol = pure $ setColumnN "id" PSerial
+                ordersSerialTable = let serCol = [ setColumnN "id" PSerial
+                                                 ]
+
                                      in defCreateTablePKID "orders" ["id"] serCol
 
             compileSql [StatementCreateTable ordersSerialTable] `shouldBe` sql
@@ -442,7 +453,8 @@ tests = do
         it "should compile a CREATE TABLE statement with a bigserial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
                 ordersBigSerialTable =defCreateTablePKID "orders" ["id"] bigSerCol
-                     where bigSerCol = pure $ (setColumnN "id" PBigserial)
+                     where bigSerCol =[ (setColumnN "id" PBigserial)
+                                      ]
             
             compileSql [StatementCreateTable ordersBigSerialTable] `shouldBe` sql
 
@@ -456,7 +468,9 @@ tests = do
 
         it "should compile a CREATE TABLE statement with an array column" do
             let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
-            let statement = StatementCreateTable $ let arrayCol = pure $ setColumn "pay_by_quarter" (PArray PInt)
+            let statement = StatementCreateTable $ let arrayCol = [ setColumn "pay_by_quarter" (PArray PInt)
+                                                                  ]
+                                                    
                                                     in defCreateTable "array_tests" arrayCol
             compileSql [statement] `shouldBe` sql
 
@@ -640,16 +654,19 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-                eupCol = setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
+                eupCol = [ setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
                                     setColumnN "electricity_unit_price" PDouble
-            let statement = StatementCreateTable $ defCreateTable "a" (pure eupCol)
+                         ]
+
+            let statement = StatementCreateTable $ defCreateTable "a" eupCol
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
             let statement = StatementCreateTable $ defCreateTable "a" eupCol
-                  where eupCol = pure . setColumnDefaultVal (Just (IntExpression 0)) $ 
+                  where eupCol =  [ setColumnDefaultVal (Just (IntExpression 0)) $ 
                                     (setColumnN "electricity_unit_price" PInt)
+                                  ]
             
             compileSql [statement] `shouldBe` sql
 
@@ -864,8 +881,7 @@ tests = do
                 );
             |] <> "\n"
             let statements = pure . StatementCreateTable $ defCreateTable "products" colTs'
-                  where colTs' = pure $ 
-                                    (setColumn "ts" PTSVector) {
+                  where colTs' = [ (setColumn "ts" PTSVector) {
                                           generator = Just $ ColumnGenerator
                                                 { generate =
                                                     ConcatenationExpression
@@ -876,7 +892,8 @@ tests = do
                                                         (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
                                                 , stored = True
                                                 }
-                                    }
+                                     }
+                                ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'DROP FUNCTION ..;' statements" do
