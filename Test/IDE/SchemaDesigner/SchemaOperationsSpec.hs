@@ -481,11 +481,13 @@ parseSqlStatements sql =
 
 Defined as:
 
+@
 tableAWithCreatedAtTable :: CreateTable
 tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
                         where updatedAtCol = [setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
                                                 setColumnN "updated_at" PTimestampWithTimezone
                                              ]
+@
 -}
 tableAWithCreatedAtTable :: CreateTable
 tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
