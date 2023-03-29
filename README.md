@@ -169,6 +169,8 @@ If you just want to improve docs, [you can find the markdown files in the Guide 
 
 ### Bounties
 
+We use algora.io for bounties on IHP issues. Check out the open bounties below:
+
 <a href="https://console.algora.io/org/digitallyinduced/bounties?status=open">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=dark">
@@ -176,9 +178,16 @@ If you just want to improve docs, [you can find the markdown files in the Guide 
   </picture>
 </a>
 
+<a href="https://console.algora.io/org/digitallyinduced/leaderboard">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=dark">
+    <img alt="Leaderboard of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=light">
+  </picture>
+</a>
+
 ## Releases
 
-During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
+You can find information on IHP releases in the GitHub [releases section](https://github.com/digitallyinduced/ihp/releases).
 
 [📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/MailingList)
 
