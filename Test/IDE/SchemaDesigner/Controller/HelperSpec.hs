@@ -14,13 +14,13 @@ tests = do
                 getAllObjectNames [] `shouldBe` []
                 getAllObjectNames [ CreateExtension { name ="a", ifNotExists = True } ] `shouldBe` []
                 getAllObjectNames [ CreateEnumType { name = "first_enum", values=["a", "b", "c"] }] `shouldBe` ["first_enum"]
-                getAllObjectNames [ StatementCreateTable (defCreateTable "table_name")
+                getAllObjectNames [ StatementCreateTable (defCreateTable "table_name" [])
                                   ]
                     `shouldBe` ["table_name"]
                 getAllObjectNames
                     [ CreateEnumType {name = "first_enum", values = ["a", "b"]}
                     , CreateExtension {name = "extension", ifNotExists = True}
-                    , StatementCreateTable (defCreateTable "table_name")
+                    , StatementCreateTable (defCreateTable "table_name" [])
                     , CreateEnumType {name = "second_enum", values = []}
                     ]
                     `shouldBe` ["first_enum","table_name","second_enum"]

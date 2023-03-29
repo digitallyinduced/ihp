@@ -10,8 +10,8 @@ import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable (defCreateTable "a")
-        let tableB = StatementCreateTable (defCreateTable "b")
+        let tableA = StatementCreateTable (defCreateTable "a" [])
+        let tableB = StatementCreateTable (defCreateTable "b" [])
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -104,7 +104,7 @@ tests = do
 
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
-                let table = StatementCreateTable postUserTable
+                let table = StatementCreateTable $ defCreateTableWSetCol "posts" "user_id" PUUID
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
@@ -117,7 +117,7 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest an empty policy if no user_id column exists" do
-                let table = StatementCreateTable postTitleTable
+                let table = StatementCreateTable $ defCreateTable "posts" [(colText "title")]
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
@@ -130,7 +130,7 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest a policy if it can find a one hop path to a user_id column" do
-                let tasksTable = StatementCreateTable $ defCreateTableWCol "tasks" [t_l_idcol]
+                let tasksTable = StatementCreateTable $ defCreateTable "tasks" [t_l_idcol]
                                 where t_l_idcol = setColumnN "task_list_id" PUUID 
                                 
                 let taskListsTable = StatementCreateTable $ defCreateTableWSetCol "task_lists" "user_id" PUUID
@@ -152,8 +152,9 @@ tests = do
         describe "addColumn" do
             it "should add an index if withIndex = true" do
                 let inputSchema = [tableA]
+                    colCreatedAt = setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
 
-                let tableAWithCreatedAt = StatementCreateTable $ defCreateTableWCol "a" [colCreatedAt]
+                let tableAWithCreatedAt = StatementCreateTable $ defCreateTable "a" [colCreatedAt]
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let expectedSchema = [tableAWithCreatedAt, index]
@@ -316,7 +317,10 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
             
             it "should delete an referenced policy" do
-                let tableAWithUserId = StatementCreateTable $ ihpuserTable
+                let tableAWithUserId = StatementCreateTable $ defCreateTable "a" ihpuser
+                                where ihpuser = pure $ 
+                                        setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
+                                        setColumn "user_id" PUUID
                             
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
@@ -335,7 +339,7 @@ tests = do
                 let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
 
                 let tableAWithUpdatedColumn = StatementCreateTable 
-                                                $ defCreateTableWCol "a" 
+                                                $ defCreateTable "a" 
                                                 $ pure $ setColumn "created_at2" PText
                             
 
@@ -380,10 +384,10 @@ tests = do
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates referenced foreign key constraints" do
                 let tasksTable = StatementCreateTable $
-                                    defCreateTableWCol "tasks" (pure $ setColumnN "task_list_id" PUUID)
+                                    defCreateTable "tasks" (pure $ setColumnN "task_list_id" PUUID)
                 
                 let taskListsTable = StatementCreateTable $
-                                    defCreateTableWCol "task_lists" (pure $ setColumnN "task_list_id" PUUID)
+                                    defCreateTable "task_lists" (pure $ setColumnN "task_list_id" PUUID)
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
@@ -391,7 +395,7 @@ tests = do
                             ]
 
                 let tasksTable' = StatementCreateTable $
-                                    defCreateTableWCol "tasks" (pure $ setColumnN "list_id" PUUID)
+                                    defCreateTable "tasks" (pure $ setColumnN "list_id" PUUID)
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
@@ -417,7 +421,7 @@ tests = do
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let tableAWithUpdatedColumn = StatementCreateTable $
-                                        defCreateTableWCol "a" (pure $ setColumn "created_at" PText)
+                                        defCreateTable "a" (pure $ setColumn "created_at" PText)
        
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -463,3 +467,12 @@ parseSqlStatements sql =
     case Megaparsec.runParser Parser.parseDDL "input" sql of
             Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
             Right statements -> statements
+
+
+-- Repeated Values in Tests:
+
+tableAWithCreatedAtTable :: CreateTable
+tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
+                        where updatedAtCol = pure $ 
+                                                setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                                                setColumnN "updated_at" PTimestampWithTimezone

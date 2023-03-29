@@ -17,7 +17,7 @@ import IHP.IDE.Defaults.TableColumnDefaults
 tests = do
     describe "Mail Generator Tests:" do
         let schema = [
-                    StatementCreateTable mailTable
+                    StatementCreateTable $ defCreateTablePKID "users" ["id"] [colUUID]
                     ]
         it "should build a mail with name \"PurchaseConfirmationMail\"" do
             let mailName = "PurchaseConfirmationMail"

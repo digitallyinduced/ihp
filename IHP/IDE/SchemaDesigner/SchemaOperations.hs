@@ -17,13 +17,7 @@ type Schema = [Statement]
 
 -- | Creates a new tables with a 'id' columns as the primary key
 addTable :: Text -> Schema -> Schema
-addTable tableName list = list <> [StatementCreateTable (defCreateTable tableName)
-    { columns = [colUUID]
-    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-    , constraints = []
-    , unlogged = False
-    }]
-
+addTable tableName list = list <> [StatementCreateTable (defCreateTablePKID tableName ["id"] [colUUID])]
 
 data AddColumnOptions = AddColumnOptions
     { tableName :: !Text

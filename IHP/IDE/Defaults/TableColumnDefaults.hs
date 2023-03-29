@@ -48,23 +48,24 @@ Just as part of where you're calling it:
 @someDefaultColumnType = defColumn {columnType = PDate}@
 -}
 defColumn :: Column
-defColumn = Column { 
-                 name = ""
-               , columnType = PUUID 
-               , defaultValue = Nothing
-               , notNull = False 
-               , isUnique = False
-               , generator = Nothing
-               }
+defColumn = 
+      Column 
+      { name = ""
+      , columnType = PUUID 
+      , defaultValue = Nothing
+      , notNull = False 
+      , isUnique = False
+      , generator = Nothing
+      }
 
 
-{- | Creates a table where all values are empty lists, including columns. @unlogged@ is set to 'False'.
+{- | Creates an empty table with all values empty. @unlogged@ is set to 'False'.
 
 Defined as such:
 
 @
-defCreateTable :: CreateTable
-defCreateTable = CreateTable {
+emptyTable :: CreateTable
+emptyTable = CreateTable {
                         name = ""
                         , columns = []
                         , primaryKeyConstraint = PrimaryKeyConstraint []
@@ -74,23 +75,27 @@ defCreateTable = CreateTable {
 @
 
 -}
-defCreateTable :: Text -> CreateTable
-defCreateTable t = CreateTable {
-                        name = t
-                        , columns = []
-                        , primaryKeyConstraint = PrimaryKeyConstraint []
-                        , constraints = []
-                        , unlogged = False
-                        }
+emptyTable :: CreateTable
+emptyTable = CreateTable 
+                  { name = ""
+                  , columns = []
+                  , primaryKeyConstraint = PrimaryKeyConstraint []
+                  , constraints = []
+                  , unlogged = False
+                  }
 
 -- | Takes a name for our table and a list of column and inserts the list
---  into to our default table.
-defCreateTableWCol :: Text -> [Column] -> CreateTable
-defCreateTableWCol t cols = (defCreateTable t) {columns = cols}
+--   into to our empty table.
+defCreateTable :: Text -> [Column] -> CreateTable
+defCreateTable tablename columns = emptyTable { name = tablename
+                                              , columns = columns }
+
+
+
 
 {- | Creates one default table with a singleton list of one 'setColumn'.
 
-Uses both `defCreateTableWCol` and `setColumn`.
+Uses both `defCreateTable` and `setColumn`.
 
 @
 defCreateTableWSetCol :: Text --  The name of the table
@@ -101,12 +106,12 @@ defCreateTableWSetCol :: Text --  The name of the table
 
 -}
 defCreateTableWSetCol :: Text -> Text -> PostgresType -> CreateTable
-defCreateTableWSetCol tablename columnname pgt = defCreateTableWCol tablename (pure $ setColumn columnname pgt)
+defCreateTableWSetCol tablename columnname pgt = defCreateTable tablename (pure $ setColumn columnname pgt)
 
 {- | Same as its progenitor `defCreateTableWSetCol` except it uses `setColumnN`
 -}
 defCreateTableWSetColN :: Text -> Text -> PostgresType -> CreateTable
-defCreateTableWSetColN tablename columnname pgt = defCreateTableWCol tablename (pure $ setColumnN columnname pgt)
+defCreateTableWSetColN tablename columnname pgt = defCreateTable tablename (pure $ setColumnN columnname pgt)
 
 
 {- | Takes the name of the table, the items you want inside the primaryKeyConstraint and a list of columns
@@ -140,7 +145,7 @@ CreateTable { name = "orderTrucks"
             , unlogged = False}
 -}
 defCreateTablePKID :: Text -> [Text] -> [Column] -> CreateTable
-defCreateTablePKID name items cols = (defCreateTableWCol name cols) {primaryKeyConstraint = PrimaryKeyConstraint items}
+defCreateTablePKID name items cols = (defCreateTable name cols) {primaryKeyConstraint = PrimaryKeyConstraint items}
 
 
 {- | Allows you to set the name and columnType. Uses `defColumn` as its base
@@ -168,258 +173,60 @@ setColumnDefaultVal :: Maybe Expression -> Column -> Column
 setColumnDefaultVal expression column = column {defaultValue = expression}
 
 
+{- | A recurring unit as found in many tests and files.
+
+Defined as such:
+
+>>> colUUID
+Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}
+
+-}
 colUUID :: Column
 colUUID = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
 
+{- | Give a column the next defined by 'text' and sets its 'columnType' to 'PText'. Uses `setColumnN`.
+
+__Example:__
+
+>>> colText "example"
+Column {name = "example", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing}
+
+-}
 colText :: Text -> Column
-colText t = setColumnN t PText
-
-colName :: Column
-colName = colText "name"
-
-colFName :: Column
-colFName = colText "firstname"
-
-colLName :: Column
-colLName = colText "lastname"
-
-colEmail :: Column
-colEmail = colText "email"
-
-colHash :: Column
-colHash = colText  "password_hash"
-
-colCompanyID :: Column
-colCompanyID = setColumnN "company_id" PUUID
-
-colPicUrl :: Column
-colPicUrl = setColumn "picture_url" PText
-
-colCreatedAt :: Column
-colCreatedAt = setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
-
-eupCol :: Column
-eupCol = setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
-                                    setColumnN "electricity_unit_price" PDouble
-
-colTs :: Column
-colTs = defColumn { name = "ts"
-                  , columnType = PTSVector
-                  , generator = Just $ ColumnGenerator
-                              { generate =
-                                    ConcatenationExpression
-                                     ( ConcatenationExpression
-                                          (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"],TextExpression "A" ])
-                                          (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
-                                    )
-                                    (  CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
-                              , stored = True
-                              }
-                  }
-
-colExampleCont :: Column
-colExampleCont = setColumnDefaultVal (Just (TextExpression "example text")) $ (colText "content")
-
-pagesTable :: CreateTable
-pagesTable = defCreateTablePKID "pages" ["id"] [colUUID]
+colText text = setColumnN text PText
 
 
-peopleTable :: CreateTable
-peopleTable = (defCreateTableWCol "people" [colUUID, colName, colEmail]) 
-                   { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                   , unlogged = False
-                   }
+{- | A recurring table that appears in many tests.
 
-mailTable :: CreateTable
-mailTable = defCreateTablePKID "users" ["id"] [colUUID]
+This is its current definition:
 
+@
 compilerSpecTable :: CreateTable
-compilerSpecTable = defCreateTablePKID "users" ["id"] [ colUUID
-                                                      , colFName
-                                                      , colLName
-                                                      , colHash
-                                                      , colEmail
-                                                      , colCompanyID
-                                                      , colPicUrl
-                                                      , colCreatedAt
-                                                      ]
-                                                      
+compilerSpecTable = defCreateTablePKID "users" ["id"] cols
 
-productTable :: CreateTable
-productTable = (defCreateTableWCol "products" (pure colTs))
+                  where cols = [ colUUID
+                               , colText "firstname"
+                               , colText "lastname"
+                               , colText  "password_hash"
+                               , colText "email"
+                               , setColumnN "company_id" PUUID
+                               , setColumn "picture_url" PText
+                               , setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
+                               ]
+@
+-}
+compilerSpecTable :: CreateTable
+compilerSpecTable = defCreateTablePKID "users" ["id"] cols
 
-sqlProductTable :: CreateTable
-sqlProductTable = defCreateTableWCol "products" colTs'
-                  where colTs' = pure $ 
-                                    (setColumn "ts" PTSVector) {
-                                          generator = Just $ ColumnGenerator
-                                                { generate =
-                                                    ConcatenationExpression
-                                                        (ConcatenationExpression
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
-                                                        )
-                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
-                                                , stored = True
-                                                }
-                                    }
+                  where cols = [ colUUID
+                               , colText "firstname"
+                               , colText "lastname"
+                               , colText  "password_hash"
+                               , colText "email"
+                               , setColumnN "company_id" PUUID
+                               , setColumn "picture_url" PText
+                               , setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
+                               ]
 
 
-quotedNameTable :: CreateTable
-quotedNameTable = defCreateTable "quoted name"
-
-deprecVarTable :: CreateTable
-deprecVarTable = (defCreateTableWCol "deprecated_variables" depVars)
-            where depVars = [a,b,c,d]
-                  a = setColumn "a" (PNumeric Nothing Nothing)
-                  b = setColumn "b" (PNumeric (Just 1) Nothing)
-                  c = setColumn "c" (PNumeric (Just 1) (Just 2))
-                  d = setColumn "d" (PVaryingN (Just 10))
-
-
-followerTable :: CreateTable 
-followerTable = (defCreateTableWCol "user_followers" followFields) 
-                                                  { primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                                                  , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                                                  }
-               where followFields = [colUUID, user_id, follower_id]
-                     user_id = setColumnN "user_id" PUUID
-                     follower_id = setColumnN "follower_id" PUUID
-
-intTable :: CreateTable
-intTable = defCreateTableWCol "ints" intCols
-        
-         where intCols = map mkPintCol ["int_a","int_b","int_c"] 
-                         <> map mkPSmallInt ["smallint_a","smallint_b"]
-                         <> map mkBigInt ["bigint_a","bigint_b"]
-
-               mkPintCol x = setColumn x PInt
-               mkPSmallInt x = setColumn x PSmallInt
-               mkBigInt x = setColumn x PBigInt
-
-timestampTable :: CreateTable
-timestampTable = defCreateTableWCol "timestamps" ts
-               
-               where ts            = map mkTimeStamp ["a","b"]
-                     mkTimeStamp x = setColumn x PTimestampWithTimezone
-
-boolTable :: CreateTable
-boolTable = defCreateTableWCol "bools" bs
-               
-               where bs       = map mkBool ["a","b"]
-                     mkBool :: Text -> Column
-                     mkBool x = setColumn x PBoolean
-
-realFloatTable :: CreateTable
-realFloatTable = defCreateTableWCol "realfloat" (reals <> doubles)
-            where reals = map mkReal ["a","b"]
-                  doubles = map mkDouble ["c","d"]
-                  mkReal x   = setColumn x PReal
-                  mkDouble x = setColumn x PDouble
-
-userFollowerTable :: CreateTable
-userFollowerTable = defCreateTablePKID "user_followers" [ "user_id", "follower_id" ] fields
-                     
-                     where fields = map mkField ["user_id","follower_id"]
-                           mkField x = defColumn { name = x
-                                                 , notNull = True } :: Column
-
-
-ordersSerialTable :: CreateTable
-ordersSerialTable = defCreateTablePKID "orders" ["id"] serCol
-                     where serCol = pure $ setColumnN "id" PSerial
-                                    
-
-ordersBigSerialTable :: CreateTable
-ordersBigSerialTable = ordersSerialTable {columns = bigSerCol} 
-                     where bigSerCol = pure $ (setColumnN "id" PBigserial)
-
-orderTrucksTable :: CreateTable
-orderTrucksTable = defCreateTablePKID "orderTrucks" ["order_id","truck_id"] cols
-                  where cols = map mkColumn ["order_id","truck_id"]
-                        mkColumn x = (setColumnN x PBigserial)
-
-arrayTestTable :: CreateTable
-arrayTestTable = defCreateTableWCol "array_tests" arrayCol
-                  where arrayCol = pure $ setColumn "pay_by_quarter" (PArray PInt)
-
-pointsTable :: CreateTable
-pointsTable = defCreateTableWCol "points" pointCol
-                  where pointCol = pure $ setColumn "pos" PPoint
-
-polygonTable :: CreateTable
-polygonTable = defCreateTableWCol "polygons" polyCol
-                  where polyCol = pure $ setColumn "poly" PPolygon
-
-electricityTableD :: CreateTable
-electricityTableD = defCreateTableWCol "a" (pure eupCol)
- 
-
-
-electricityTableI :: CreateTable
-electricityTableI = defCreateTableWCol "a" eupCol
-                  where eupCol = pure . setColumnDefaultVal (Just (IntExpression 0)) $ (setColumnN "electricity_unit_price" PInt)
-
-
-typeCastTable :: CreateTable
-typeCastTable = defCreateTableWCol "a" tcCol
-                  where init  = setColumn "a" (PVaryingN (Just 510))
-                        def   = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
-                        tcCol = pure $ setColumnDefaultVal def init
-
-emptyBinaryTable :: CreateTable
-emptyBinaryTable = defCreateTableWCol "a" ebCol
-                  where init  = setColumnN "a" PBinary
-                        def   = Just (TypeCastExpression (TextExpression "") PBinary)
-                        ebCol = pure $ setColumnDefaultVal def init
-
-publicVariablesTable :: CreateTable
-publicVariablesTable = defCreateTableWCol "public_variables" idCol
-                        where idCol = pure $ setColumn "id" PUUID
-
-notifTable :: CreateTable
-notifTable = (defCreateTable "pg_large_notifications") {unlogged = True}
-
-
-postUserTable :: CreateTable
-postUserTable = defCreateTableWSetCol "posts" "user_id" PUUID
-
-postTitleTable :: CreateTable
-postTitleTable = defCreateTableWCol "posts" [(colText "title")]
-
-pointTestTable :: CreateTable
-pointTestTable = defCreateTableWSetCol "point_tests" "pos" PPoint
-
-polyTestTable :: CreateTable
-polyTestTable = defCreateTableWSetCol "polygon_tests" "poly" PPolygon
-
-tableAWithCreatedAtTable :: CreateTable
-tableAWithCreatedAtTable  = defCreateTableWCol "a" updatedAtCol
-                        where updatedAtCol = pure $ 
-                                                setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
-                                                setColumnN "updated_at" PTimestampWithTimezone
-
-ihpuserTable :: CreateTable
-ihpuserTable = defCreateTableWCol "a" ihpuser
-                                where ihpuser = pure $ 
-                                        setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
-                                        setColumn "user_id" PUUID
-
-generateTable :: CreateTable
-generateTable = defCreateTablePKID "users" ["id"] cols
-                  where cols  = [a,b]
-                        a     = setColumnN "id" PUUID
-                        b     = (setColumn "ts" PTSVector) { generator = 
-                                                                  Just (ColumnGenerator { generate = VarExpression "someResult"
-                                                                                                   , stored = False 
-                                                                                        }
-                                                                        )
-                                                            }
-
-
-defValTable :: CreateTable
-defValTable = defCreateTablePKID "users" ["id"] cols
-                  where cols  = [a,b,c]
-                        a     = setColumnN "id" PUUID
-                        b     = setColumn "ids" (PArray PUUID)
-                        c     = eupCol
+                                                

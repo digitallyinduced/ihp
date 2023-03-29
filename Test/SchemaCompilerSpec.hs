@@ -214,16 +214,15 @@ tests = do
                         {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should deal with integer default values for double columns" do
-                let statement = StatementCreateTable CreateTable
-                        { name = "users"
-                        , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
-                            , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}
-                            ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        }
+                let statement = StatementCreateTable $ 
+                            let cols  = [a,b,c]
+                                a     = setColumnN "id" PUUID
+                                b     = setColumn "ids" (PArray PUUID)
+                                c     = setColumnDefaultVal (Just (IntExpression 0)) $ 
+                                            setColumnN "electricity_unit_price" PDouble
+
+                            in defCreateTablePKID "users" ["id"] cols
+
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
@@ -274,7 +273,16 @@ tests = do
                         {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should not touch GENERATED columns" do
-                let statement = StatementCreateTable generateTable
+                let statement = StatementCreateTable $
+                                    defCreateTablePKID "users" ["id"] cols
+                                    where cols  = [a,b]
+                                          a     = setColumnN "id" PUUID
+                                          b     = (setColumn "ts" PTSVector) { generator = 
+                                                                                    Just (ColumnGenerator { generate = VarExpression "someResult"
+                                                                                                                    , stored = False 
+                                                                                                            }
+                                                                                            )
+                                                                                }
             
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
