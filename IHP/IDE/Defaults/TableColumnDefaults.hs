@@ -184,7 +184,7 @@ Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uu
 colUUID :: Column
 colUUID = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
 
-{- | Give a column the next defined by 'text' and sets its 'columnType' to 'PText'. Uses `setColumnN`.
+{- | Give a column the text defined by 'text' and sets its 'columnType' to 'PText'. Uses `setColumnN`.
 
 __Example:__
 

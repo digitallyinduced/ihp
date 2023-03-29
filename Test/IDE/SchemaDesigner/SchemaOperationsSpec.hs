@@ -483,14 +483,12 @@ Defined as:
 
 @
 tableAWithCreatedAtTable :: CreateTable
-tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
-                        where updatedAtCol = [setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+tableAWithCreatedAtTable = defCreateTable "a" [ setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
                                                 setColumnN "updated_at" PTimestampWithTimezone
-                                             ]
+                                              ]
 @
 -}
 tableAWithCreatedAtTable :: CreateTable
-tableAWithCreatedAtTable = defCreateTable "a" updatedAtCol
-                        where updatedAtCol = [setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+tableAWithCreatedAtTable = defCreateTable "a" [ setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
                                                 setColumnN "updated_at" PTimestampWithTimezone
-                                             ]
+                                              ]
