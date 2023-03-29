@@ -15,7 +15,7 @@ import IHP.NameSupport
 import IHP.IDE.SchemaDesigner.Types
 
 
-{- | Takes a `Text` value for the name and creates a default column where all values are empty lists, 
+{- | Takes a 'Text' value for the name and creates a default column where all values are empty lists, 
 'Nothing' or 'False'; and for 'ColumnType', the default is 'PUUID'.
 
 Add a new field to the 'Column' type in the 
