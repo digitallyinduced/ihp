@@ -477,7 +477,7 @@ tests = do
         it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             parseSql "CREATE TABLE user_followers (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, user_id UUID NOT NULL, follower_id UUID NOT NULL, UNIQUE(user_id, follower_id));"  
                 `shouldBe` StatementCreateTable (
-                    let followFields = [colUUID, user_id, follower_id]
+                    let followFields = [idColumn, user_id, follower_id]
                         user_id      = setColumnN "user_id" PUUID
                         follower_id  = setColumnN "follower_id" PUUID
                         
@@ -785,7 +785,7 @@ $$;
             let sql = cs [plain|
                 CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
             |]
-            let statement = StatementCreateTable (defCreateTable "a" [colUUID])
+            let statement = StatementCreateTable (defCreateTable "a" [idColumn])
 
             parseSql sql `shouldBe` statement
 
@@ -1006,17 +1006,6 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  
                 `shouldBe` 
                     StatementCreateTable (defCreateTable "pg_large_notifications" []) {unlogged = True}
-
-
-col :: Column
-col = Column
-    { name = ""
-    , columnType = PCustomType ""
-    , defaultValue = Nothing
-    , notNull = False
-    , isUnique = False
-    , generator = Nothing
-    }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

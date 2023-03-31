@@ -18,7 +18,7 @@ import IHP.IDE.Defaults.TableColumnDefaults
       setColumn,
       setColumnN,
       setColumnDefaultVal,
-      colUUID,
+      idColumn,
       colText,
       compilerSpecTable )
 
@@ -431,7 +431,7 @@ tests = do
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
-                followerTable = let followFields = [colUUID, user_id, follower_id]
+                followerTable = let followFields = [idColumn, user_id, follower_id]
                                     user_id = setColumnN "user_id" PUUID
                                     follower_id = setColumnN "follower_id" PUUID
                                  

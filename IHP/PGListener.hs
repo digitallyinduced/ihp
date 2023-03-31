@@ -37,6 +37,7 @@ import qualified Data.Aeson as Aeson
 import qualified IHP.Log as Log
 import qualified Control.Exception as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
+import qualified Control.Concurrent
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -231,18 +232,38 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                             let inChan = get #inChan subscription
                             Queue.writeChan inChan notification
 
+    -- Initial delay (in microseconds)
+    let initialDelay = 500 * 1000
+    -- Max delay (in microseconds)
+    let maxDelay = 60 * 1000 * 1000
     -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
-    forever do
-        result <- Exception.try innerLoop
-        case result of
-            Left (error :: SomeException) -> do
-                case fromException error of
-                    Just (error :: AsyncCancelled) -> throw error
-                    notification -> do
-                        let ?context = ?modelContext -- Log onto the modelContext logger
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> displayException error)
-            Right _ -> pure ()
+    let retryLoop delay isFirstError = do
+            result <- Exception.try innerLoop
+            case result of
+                Left (error :: SomeException) -> do
+                    case fromException error of
+                        Just (error :: AsyncCancelled) -> throw error
+                        notification -> do
+                            let ?context = ?modelContext -- Log onto the modelContext logger
+                            if isFirstError then do
+                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
+                                retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries 
+                            else do
+                                let increasedDelay = delay * 2 -- Double current delay
+                                let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
+                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
+                                Control.Concurrent.threadDelay delay -- Sleep for the current delay
+                                retryLoop nextDelay False -- Retry with longer interval
+                Right _ -> 
+                    retryLoop initialDelay True -- If all went well, re-run with no sleeping and reset current delay to the initial value
+    retryLoop initialDelay True
 
+printTimeToNextRetry :: Int -> Text
+printTimeToNextRetry microseconds
+    | microseconds >= 1000000000 =  show (microseconds `div` 1000000000) <> " min"
+    | microseconds >= 1000000 =  show (microseconds `div` 1000000) <> " s"
+    | microseconds >= 1000 = show (microseconds `div` 1000) <> " ms"
+    | otherwise = show microseconds <> " µs"
 
 listenToChannel :: PG.Connection -> Channel -> IO ()
 listenToChannel databaseConnection channel = do

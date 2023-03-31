@@ -177,12 +177,12 @@ setColumnDefaultVal expression column = column {defaultValue = expression}
 
 Defined as such:
 
->>> colUUID
+>>> idColumn
 Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}
 
 -}
-colUUID :: Column
-colUUID = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
+idColumn :: Column
+idColumn = setColumnDefaultVal (Just (CallExpression "uuid_generate_v4" [])) $ setColumnN "id" PUUID
 
 {- | Give a column the text defined by 'text' and sets its 'columnType' to 'PText'. Uses `setColumnN`.
 
@@ -204,7 +204,7 @@ This is its current definition:
 compilerSpecTable :: CreateTable
 compilerSpecTable = defCreateTablePKID "users" ["id"] cols
 
-                  where cols = [ colUUID
+                  where cols = [ idColumn
                                , colText "firstname"
                                , colText "lastname"
                                , colText  "password_hash"
@@ -218,7 +218,7 @@ compilerSpecTable = defCreateTablePKID "users" ["id"] cols
 compilerSpecTable :: CreateTable
 compilerSpecTable = defCreateTablePKID "users" ["id"] cols
 
-                  where cols = [ colUUID
+                  where cols = [ idColumn
                                , colText "firstname"
                                , colText "lastname"
                                , colText  "password_hash"

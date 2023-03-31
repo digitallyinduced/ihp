@@ -17,8 +17,8 @@ import IHP.IDE.Defaults.TableColumnDefaults
 tests = do
     describe "Controller Generator Tests:" do
         let schema = [
-                    StatementCreateTable (defCreateTablePKID "pages" ["id"] [colUUID])
-                  , StatementCreateTable (defCreateTablePKID "people" ["id"] [colUUID, colText "name" , colText "email"]) 
+                    StatementCreateTable (defCreateTablePKID "pages" ["id"] [idColumn])
+                  , StatementCreateTable (defCreateTablePKID "people" ["id"] [idColumn, colText "name" , colText "email"]) 
                   ]
         it "should build a controller with name \"pages\"" do
             let rawControllerName = "pages"
