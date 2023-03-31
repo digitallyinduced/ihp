@@ -339,8 +339,7 @@ tests = do
                 let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
 
                 let tableAWithUpdatedColumn = StatementCreateTable 
-                                                $ defCreateTable "a" 
-                                                $ pure $ setColumn "created_at2" PText
+                                                $ defCreateTable "a" [ setColumn "created_at2" PText ]
                             
 
                 let inputSchema = [tableAWithCreatedAt]
