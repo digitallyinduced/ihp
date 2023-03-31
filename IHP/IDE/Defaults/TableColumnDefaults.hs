@@ -1,5 +1,5 @@
 {-|
-Module: Test.IDE.Defaults.TableColumnDefaults
+Module: IHP.IDE.Defaults.TableColumnDefaults
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.IDE.Defaults.TableColumnDefaults where
