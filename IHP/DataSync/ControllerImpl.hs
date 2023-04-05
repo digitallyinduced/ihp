@@ -79,7 +79,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                                     sendJSON DataSyncError { requestId, errorMessage }
                                 Right result -> pure ()
 
-                        modifyIORef' ?state (\state -> state |> modify #asyncs (handlerProcess:))
+                        atomicModifyIORef'' ?state (\state -> state |> modify #asyncs (handlerProcess:))
                         pure ()
                 Left errorMessage -> sendJSON FailedToDecodeMessageError { errorMessage = cs errorMessage }
 {-# INLINE runDataSyncController #-}
@@ -121,7 +121,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
                 -- not fully set up yet
                 close <- MVar.newEmptyMVar
-                modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
                 let (theQuery, theParams) = compileQuery query
 
@@ -196,7 +196,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                         -- Cancel table watcher
                         MVar.putMVar closeSignalMVar ()
 
-                        modifyIORef' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                        atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                         sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
                     Nothing -> error ("Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId)
@@ -351,13 +351,13 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                             , close = transactionSignal
                             }
 
-                    modifyIORef' ?state (\state -> state |> modify #transactions (HashMap.insert transactionId transaction))
+                    atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.insert transactionId transaction))
 
                     sendJSON DidStartTransaction { requestId, transactionId }
 
                     MVar.takeMVar transactionSignal
 
-                    modifyIORef' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
+                    atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
             handleMessage RollbackTransaction { requestId, id } = do
                 DataSyncTransaction { id, close } <- findTransactionById id
@@ -479,3 +479,5 @@ instance SetField "transactions" DataSyncController (HashMap UUID DataSyncTransa
 
 instance SetField "asyncs" DataSyncController [Async ()] where
     setField asyncs record = record { asyncs }
+
+atomicModifyIORef'' ref updateFn = atomicModifyIORef' ref (\value -> (updateFn value, ()))
