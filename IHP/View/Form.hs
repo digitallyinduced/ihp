@@ -594,7 +594,7 @@ hiddenField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-hiddenField field = (textField field) { fieldType = HiddenInput }
+hiddenField field = (textField field) { fieldType = HiddenInput, disableLabel = True, disableGroup = True, disableValidationResult = True }
 {-# INLINE hiddenField #-}
 
 -- | Renders an file field
