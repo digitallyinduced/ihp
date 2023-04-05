@@ -25,8 +25,8 @@ set its default value here
 Defined as:
 
 @
-defColumn :: Column
-defColumn = Column { 
+emptyColumn :: Column
+emptyColumn = Column { 
                  name = ""
                , columnType = PUUID 
                , defaultValue = Nothing
@@ -39,16 +39,16 @@ defColumn = Column {
 If you want a different 'PostgresType' you will need to 
 specify with like so by either using a function:
 
-@setColumnType pgt = defColumn {columnType = pgt}@
+@setColumnType pgt = emptyColumn {columnType = pgt}@
 
 Or
 
 Just as part of where you're calling it:
 
-@someDefaultColumnType = defColumn {columnType = PDate}@
+@someDefaultColumnType = emptyColumn {columnType = PDate}@
 -}
-defColumn :: Column
-defColumn = 
+emptyColumn :: Column
+emptyColumn = 
       Column 
       { name = ""
       , columnType = PUUID 
@@ -106,12 +106,12 @@ defCreateTableWSetCol :: Text --  The name of the table
 
 -}
 defCreateTableWSetCol :: Text -> Text -> PostgresType -> CreateTable
-defCreateTableWSetCol tablename columnname pgt = defCreateTable tablename (pure $ setColumn columnname pgt)
+defCreateTableWSetCol tablename columnname pgt = defCreateTable tablename [setColumn columnname pgt]
 
 {- | Same as its progenitor `defCreateTableWSetCol` except it uses `setColumnN`
 -}
 defCreateTableWSetColN :: Text -> Text -> PostgresType -> CreateTable
-defCreateTableWSetColN tablename columnname pgt = defCreateTable tablename (pure $ setColumnN columnname pgt)
+defCreateTableWSetColN tablename columnname pgt = defCreateTable tablename [setColumnN columnname pgt]
 
 
 {- | Takes the name of the table, the items you want inside the primaryKeyConstraint and a list of columns
@@ -148,7 +148,7 @@ defCreateTablePKID :: Text -> [Text] -> [Column] -> CreateTable
 defCreateTablePKID name items cols = (defCreateTable name cols) {primaryKeyConstraint = PrimaryKeyConstraint items}
 
 
-{- | Allows you to set the name and columnType. Uses `defColumn` as its base
+{- | Allows you to set the name and columnType. Uses `emptyColumn` as its base
 
 If other values need to be changed, this can be done using: 
 @(setColumn a b){..}@
@@ -160,7 +160,7 @@ Column {name = "user_id", columnType = PTrigger, defaultValue = Nothing, notNull
 
 -}
 setColumn :: Text -> PostgresType -> Column
-setColumn name pgt = defColumn { name = name
+setColumn name pgt = emptyColumn { name = name
                                , columnType = pgt
                                }
 

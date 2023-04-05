@@ -10,9 +10,10 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
+import Test.IDE.SchemaDesigner.ParserSpec (parseSql)
 import IHP.IDE.Defaults.TableColumnDefaults
-    ( defCreateTable,
+    ( emptyTable,
+      emptyColumn,
       defCreateTableWSetCol,
       defCreateTablePKID,
       setColumn,
@@ -24,9 +25,12 @@ import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "The Schema.sql Compiler" do
+        let userTable = emptyTable {name = "users"} :: CreateTable
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable (defCreateTable "users" [])] 
+            compileSql [StatementCreateTable userTable] 
                 `shouldBe` "CREATE TABLE users (\n\n);\n"
+
+        
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -53,7 +57,10 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [StatementCreateTable $ defCreateTable "quoted name" []] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            
+            let quotedTable =  emptyTable { name = "quoted name"} :: CreateTable
+
+            compileSql [StatementCreateTable quotedTable] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -403,9 +410,16 @@ tests = do
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
-                colExampleCont = setColumnDefaultVal (Just (TextExpression "example text")) $ (colText "content")
+                aTable = emptyTable { name = "a"
+                                    , columns = [colExampleCont] } :: CreateTable
+                
+                colExampleCont = emptyColumn { name = "content"
+                                             , columnType = PText
+                                             , defaultValue = Just (TextExpression "example text")
+                                             , notNull = True 
+                                             }
 
-                statement = StatementCreateTable (defCreateTable "a" [colExampleCont])
+                statement = StatementCreateTable aTable
 
             compileSql [statement] `shouldBe` sql
 
@@ -425,28 +439,41 @@ tests = do
                                      c = setColumn "c" (PNumeric (Just 1) (Just 2))
                                      d = setColumn "d" (PVaryingN (Just 10))
                                   
-                                  in defCreateTable "deprecated_variables" depVars
+                                  in emptyTable { name = "deprecated_variables"
+                                                , columns = depVars} :: CreateTable
 
             compileSql [StatementCreateTable deprecVarTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
                 followerTable = let followFields = [idColumn, user_id, follower_id]
-                                    user_id = setColumnN "user_id" PUUID
-                                    follower_id = setColumnN "follower_id" PUUID
+                                    user_id = emptyColumn { name = "user_id" 
+                                                          , columnType = PUUID
+                                                          , notNull = True
+                                                          }
+                                    follower_id = emptyColumn { name = "follower_id" 
+                                                              , columnType = PUUID
+                                                              , notNull = True
+                                                              }
+                                    consts = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                                  
-                                 in (defCreateTablePKID "user_followers" ["id"] followFields) 
-                                        { constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                                        }
+                                 in emptyTable { name = "user_followers" 
+                                               , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                                               , columns = followFields
+                                               , constraints = consts
+                                               }
 
             compileSql [StatementCreateTable followerTable] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a serial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
-                ordersSerialTable = let serCol = [ setColumnN "id" PSerial
-                                                 ]
+                ordersSerialTable = let serCol = emptyColumn { name = "id" 
+                                                             , columnType = PSerial
+                                                             , notNull = True
+                                                             }
+                                                 
 
-                                     in defCreateTablePKID "orders" ["id"] serCol
+                                     in defCreateTablePKID "orders" ["id"] [serCol]
 
             compileSql [StatementCreateTable ordersSerialTable] `shouldBe` sql
 
@@ -468,10 +495,13 @@ tests = do
 
         it "should compile a CREATE TABLE statement with an array column" do
             let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
-            let statement = StatementCreateTable $ let arrayCol = [ setColumn "pay_by_quarter" (PArray PInt)
-                                                                  ]
+            let statement = StatementCreateTable $ let arrayCol = emptyColumn { name = "pay_by_quarter" 
+                                                                              , columnType = (PArray PInt) }
+                                                                  
                                                     
-                                                    in defCreateTable "array_tests" arrayCol
+                                                    in emptyTable { name ="array_tests" 
+                                                                  , columns = [arrayCol]
+                                                                  }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an point column" do
@@ -654,19 +684,30 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-                eupCol = [ setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
-                                    setColumnN "electricity_unit_price" PDouble
-                         ]
-
-            let statement = StatementCreateTable $ defCreateTable "a" eupCol
+                
+                eupCol = emptyColumn { name = "electricity_unit_price" 
+                                     , columnType = PDouble 
+                                     , defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble)
+                                     , notNull = True
+                                     }
+                         
+            let statement = StatementCreateTable $ emptyTable { name = "a" 
+                                                              , columns = [eupCol]
+                                                              }
+            
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
-            let statement = StatementCreateTable $ defCreateTable "a" eupCol
-                  where eupCol =  [ setColumnDefaultVal (Just (IntExpression 0)) $ 
-                                    (setColumnN "electricity_unit_price" PInt)
-                                  ]
+            let statement = StatementCreateTable $ emptyTable { name = "a" 
+                                                              , columns = [eupCol] 
+                                                              }
+                  
+                  where eupCol = emptyColumn { name = "electricity_unit_price" 
+                                             , columnType = PInt 
+                                             , defaultValue = Just (IntExpression 0)
+                                             , notNull = True
+                                             }
             
             compileSql [statement] `shouldBe` sql
 
@@ -880,9 +921,13 @@ tests = do
                     ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
                 );
             |] <> "\n"
-            let statements = pure . StatementCreateTable $ defCreateTable "products" colTs'
-                  where colTs' = [ (setColumn "ts" PTSVector) {
-                                          generator = Just $ ColumnGenerator
+            let statements = pure . StatementCreateTable $ emptyTable 
+                                                            { name = "products" 
+                                                            , columns = [colTs']}
+                  
+                  where colTs' = emptyColumn { name = "ts"
+                                             , columnType = PTSVector
+                                             , generator = Just $ ColumnGenerator
                                                 { generate =
                                                     ConcatenationExpression
                                                         (ConcatenationExpression
@@ -892,8 +937,8 @@ tests = do
                                                         (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
                                                 , stored = True
                                                 }
-                                     }
-                                ]
+                                             }
+                                
             compileSql statements `shouldBe` sql
 
         it "should compile 'DROP FUNCTION ..;' statements" do
@@ -907,6 +952,8 @@ tests = do
                 );
             |] <> "\n"
             let statements = [
-                        StatementCreateTable $ (defCreateTable "pg_large_notifications" []) {unlogged = True}
+                        StatementCreateTable $ emptyTable { name = "pg_large_notifications" 
+                                                          , unlogged = True
+                                                          }
                         ]
             compileSql statements `shouldBe` sql
