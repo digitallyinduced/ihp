@@ -226,4 +226,4 @@ make static/prod.css
 
 `Make` will automatically detect that `static/app.css` is missing and will run `make static/app.css` to produce that missing file. This will then trigger the tailwind production build.
 
-This means you don't need to make any changes to your existing deployment process or your IHP Cloud settings.
+This means you don't need to make any changes to your existing deployment process.

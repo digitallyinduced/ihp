@@ -18,9 +18,9 @@ This will generate a ready-to-go IHP app with PureScript + Halogen set up. To ch
 
 If you don't see "PureScript + Halogen is also working!" right away, check the terminal if you see `[info] Success! Waiting for next file change.`, otherwise it could be compiling with logs such as `Compiling Module.Name`. Try refreshing once the PureScript code is done compiling.
 
-## Deploying to IHP Cloud
+## Deployment
 
-If you decide to deploy your app to IHP Cloud you will need to make some adjustments to your project files in order to get the app compiling. Specifically, add these packages to `otherDeps` in your `default.nix` file:
+If you decide to deploy your app with nix you will need to make some adjustments to your project files in order to get the app compiling. Specifically, add these packages to `otherDeps` in your `default.nix` file:
 
 ```
     otherDeps = p: with p; [
@@ -45,7 +45,7 @@ Run this command to ensure spago plays nicely with the new version of Purescript
 spago upgrade-set
 ```
 
-Finally, add this to the end of your `Makefile` to tell IHP Cloud how to build and bundle your app into the index.js file:
+Finally, add this to the end of your `Makefile` to tell the build process how to build and bundle your app into the index.js file:
 
 ```
 static/halogen/index.js:
