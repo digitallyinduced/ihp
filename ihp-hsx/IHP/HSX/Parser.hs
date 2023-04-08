@@ -387,6 +387,7 @@ attributes = Set.fromList
         , "cellspacing", "cellpadding", "bgcolor", "classes"
         , "loading"
         , "frameborder", "allow", "allowfullscreen", "nonce", "referrerpolicy", "slot"
+        , "kind"
         ]
 
 parents :: Set Text
