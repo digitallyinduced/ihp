@@ -1178,7 +1178,7 @@ Go to your server dashboard and find the **Public IP** address.
 
 Copy and paste it in your browser, and you should see your application on the web 🙂
 
-![IHP Cloud Deployment Started](images/first-project/ihp-cloud-deployment-4.png)
+![Deployment Started](images/first-project/ihp-cloud-deployment-4.png)
 
 **Congratulations!** You just shipped your first haskell application to production 🚀
 
@@ -1193,6 +1193,6 @@ You now understand enough of IHP and Haskell to be dangerous. The best way to co
 -   [Leave a Star on the IHP-GitHub repo](https://github.com/digitallyinduced/ihp) and join the IHP community to work on the future of typesafe, FP-based software development.
 -   [To stay in the loop, subscribe to the IHP release emails.](https://ihp.digitallyinduced.com/MailingList)
 -   Questions, or need help with Haskell type errors? Join our Slack: [Join IHP Slack](https://ihp.digitallyinduced.com/Slack)
--   Want to put your IHP app online? [Check out IHP Cloud](https://ihpcloud.com/). It will take a few clicks and your app is online in two minutes :)
+-   Want to put your IHP app online? [Check out Shipnix](https://shipnix.io/). It will take a few clicks and your app is online in two minutes :)
 
 _Good to know for playing with IHP: When you want to delete a project just delete the project directory and it's gone._
