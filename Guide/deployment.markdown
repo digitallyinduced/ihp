@@ -293,7 +293,7 @@ CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 
 JS_FILES += ${IHP}/static/vendor/jquery-3.6.0.slim.min.js
 JS_FILES += ${IHP}/static/vendor/timeago.js
-JS_FILES += ${IHP}/static/vendor/popper.min.js
+JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js
 JS_FILES += ${IHP}/static/helpers.js
@@ -360,7 +360,7 @@ scripts = do
         <script id="livereload-script" src="/livereload.js"></script>
         <script src="/vendor/jquery-3.6.0.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
-        <script src="/vendor/popper.min.js"></script>
+        <script src="/vendor/popper-2.11.6.min.js"></script>
         <script src="/vendor/bootstrap.min.js"></script>
         <script src="/vendor/flatpickr.js"></script>
         <script src="/helpers.js"></script>
