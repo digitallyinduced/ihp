@@ -1191,7 +1191,9 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     ALTER TABLE media RENAME TO artefacts;
                     
                     DROP INDEX media_created_at_index;
+                    DROP TRIGGER update_media_updated_at ON media;
                     DROP INDEX media_user_id_index;
+
                     ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;
                     DROP POLICY "Users can manage their media" ON artefacts;
                     
@@ -1303,8 +1305,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     );
                 |]
                 let migration = sql [i|
-                    DROP TRIGGER update_posts_updated_at ON posts;
                     ALTER TABLE posts DROP COLUMN updated_at;
+                    DROP TRIGGER update_posts_updated_at ON posts;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
