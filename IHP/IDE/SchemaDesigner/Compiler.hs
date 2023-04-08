@@ -54,6 +54,7 @@ compileStatement DropFunction { functionName } = "DROP FUNCTION " <> compileIden
 compileStatement UnknownStatement { raw } = raw <> ";"
 compileStatement Set { name, value } = "SET " <> compileIdentifier name <> " = " <> compileExpression value <> ";"
 compileStatement SelectStatement { query } = "SELECT " <> query <> ";"
+compileStatement DropTrigger { name, tableName } = "DROP TRIGGER " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
 compilePrimaryKeyConstraint :: PrimaryKeyConstraint -> Maybe Text
