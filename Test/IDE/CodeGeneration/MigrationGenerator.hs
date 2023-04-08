@@ -1191,7 +1191,9 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     ALTER TABLE media RENAME TO artefacts;
                     
                     DROP INDEX media_created_at_index;
+                    DROP TRIGGER update_media_updated_at ON media;
                     DROP INDEX media_user_id_index;
+
                     ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;
                     DROP POLICY "Users can manage their media" ON artefacts;
                     
@@ -1313,6 +1315,41 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     , returns = PTrigger
                     , language = "PLPGSQL"
                     }]
+
+            it "should delete the updated_at trigger when the updated_at column is deleted" do
+                -- https://github.com/digitallyinduced/ihp/issues/1630
+                let actualSchema = sql $ cs [plain|
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                    $$ language plpgsql;
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+                    );
+                    CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$
+                    BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;
+                    $$ language plpgsql;
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL
+                    );
+                |]
+                let migration = sql [i|
+                    ALTER TABLE posts DROP COLUMN updated_at;
+                    DROP TRIGGER update_posts_updated_at ON posts;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
