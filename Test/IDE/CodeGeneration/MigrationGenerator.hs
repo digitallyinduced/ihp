@@ -1276,6 +1276,46 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should not see a diff between those two" do
+                -- https://github.com/digitallyinduced/ihp/issues/1628
+                let actualSchema = sql $ cs [trimming|
+                    CREATE FUNCTION set_updated_at_to_now() RETURNS TRIGGER AS $$$$BEGIN
+                        NEW.updated_at = NOW();
+                        RETURN NEW;
+                    END;$$$$ language PLPGSQL;
+                |]
+                let targetSchema = sql $ cs [trimming|
+                    CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$$$BEGIN
+                            NEW.updated_at = NOW();
+                            RETURN NEW;
+                        END;$$$$;
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should normalize function body whitespace" do
+                -- https://github.com/digitallyinduced/ihp/issues/1628
+                let (Just function) = head $ sql $ cs [trimming|
+                    CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$$$BEGIN
+                            NEW.updated_at = NOW();
+                            RETURN NEW;
+                        END;$$$$;
+                |]
+
+                (normalizeStatement function) `shouldBe` [CreateFunction
+                    { functionName = "set_updated_at_to_now"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "PLPGSQL"
+                    }]
+
             it "should delete the updated_at trigger when the updated_at column is deleted" do
                 -- https://github.com/digitallyinduced/ihp/issues/1630
                 let actualSchema = sql $ cs [plain|
@@ -1310,6 +1350,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
