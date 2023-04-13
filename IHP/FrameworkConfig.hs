@@ -435,6 +435,8 @@ data FrameworkConfig = FrameworkConfig
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
     , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
+
+    -- | Used by the dev server. This field cannot be strict.
     , ideBaseUrl :: !Text
 
     -- | See IHP.DataSync.Role
