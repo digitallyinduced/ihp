@@ -5,6 +5,7 @@ import qualified Data.Text as Text
 import IHP.ModelSupport (Violation (..))
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import qualified Data.List as List
 
 data ValidatorResult
     = Success
@@ -109,6 +110,6 @@ getValidationViolation field model =
         model
             |> get #meta
             |> get #annotations
-            |> lookup fieldName
+            |> List.lookup fieldName
     where
         fieldName = Text.pack (symbolVal field)
