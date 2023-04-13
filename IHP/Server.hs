@@ -58,8 +58,8 @@ run configBuilder = do
             sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
             staticMiddleware <- initStaticMiddleware frameworkConfig
             let corsMiddleware = initCorsMiddleware frameworkConfig
-            let requestLoggerMiddleware = get #requestLoggerMiddleware frameworkConfig
-            let CustomMiddleware customMiddleware = get #customMiddleware frameworkConfig
+            let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
+            let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
             withBackgroundWorkers pgListener frameworkConfig 
                 . runServer frameworkConfig
@@ -76,7 +76,7 @@ run configBuilder = do
 withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO a -> IO a
 withBackgroundWorkers pgListener frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
-    let isDevelopment = get #environment frameworkConfig == Env.Development
+    let isDevelopment = frameworkConfig.environment == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
             then withAsync (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) (const app)
             else app
@@ -173,7 +173,7 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } = Wa
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } = Warp.runSettings $
                 Warp.defaultSettings
                     |> Warp.setPort appPort
-                    |> Warp.setOnException (get #onException exceptionTracker)
+                    |> Warp.setOnException exceptionTracker.onException
 
 instance ControllerSupport.InitControllerContext () where
     initContext = pure ()
