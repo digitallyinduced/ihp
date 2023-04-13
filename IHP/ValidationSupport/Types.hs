@@ -97,7 +97,7 @@ attachFailureHtml field !message = attachValidatorResult field (FailureHtml rend
 --
 -- If you need to special-case validation errors with HTML code, use 'getValidationViolation'
 getValidationFailure :: (KnownSymbol field, HasField "meta" model MetaBag) => Proxy field -> model -> Maybe Text
-getValidationFailure field model = get #message <$> getValidationViolation field model
+getValidationFailure field model = (.message) <$> getValidationViolation field model
 {-# INLINE getValidationFailure #-}
 
 -- | Similar to 'getValidationFailure', but exposes the information whether the error message contains HTML code
@@ -107,9 +107,6 @@ getValidationFailure field model = get #message <$> getValidationViolation field
 --
 getValidationViolation :: (KnownSymbol field, HasField "meta" model MetaBag) => Proxy field -> model -> Maybe Violation
 getValidationViolation field model =
-        model
-            |> get #meta
-            |> get #annotations
-            |> List.lookup fieldName
+        List.lookup fieldName model.meta.annotations
     where
         fieldName = Text.pack (symbolVal field)
