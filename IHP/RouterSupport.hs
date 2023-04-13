@@ -378,7 +378,7 @@ class Data controller => AutoRoute controller where
                     actionName = ByteString.pack (showConstr constr)
 
                     actionPath :: ByteString
-                    actionPath = stripActionSuffix actionName
+                    actionPath = stripActionSuffixByteString actionName
 
                     allowedMethods = allowedMethodsForAction @controller actionName
 
@@ -456,16 +456,23 @@ actionPrefix =
 
 -- | Strips the "Action" at the end of action names
 --
--- >>> stripActionSuffix "ShowUserAction"
+-- >>> stripActionSuffixString "ShowUserAction"
 -- "ShowUser"
 --
--- >>> stripActionSuffix "UsersAction"
+-- >>> stripActionSuffixString "UsersAction"
 -- "UsersAction"
 --
--- >>> stripActionSuffix "User"
+-- >>> stripActionSuffixString "User"
 -- "User"
-stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
-{-# INLINE stripActionSuffix #-}
+stripActionSuffixString :: String -> String
+stripActionSuffixString actionName = fromMaybe actionName (stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffixString #-}
+
+-- | Like 'stripActionSuffixString' but for ByteStrings
+stripActionSuffixByteString :: ByteString -> ByteString
+stripActionSuffixByteString actionName = fromMaybe actionName (stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffixByteString #-}
+
 
 -- | Returns the create action for a given controller.
 -- Example: `createAction @UsersController == Just CreateUserAction`
@@ -546,7 +553,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
             !appPrefix = actionPrefix @controller
 
             actionName :: String
-            !actionName = (stripActionSuffix $! showConstr constructor)
+            !actionName = stripActionSuffixString $! showConstr constructor
 
             constructor = toConstr action
 
