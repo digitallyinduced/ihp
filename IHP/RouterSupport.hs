@@ -465,12 +465,16 @@ actionPrefix =
 -- >>> stripActionSuffixString "User"
 -- "User"
 stripActionSuffixString :: String -> String
-stripActionSuffixString actionName = fromMaybe actionName (stripSuffix "Action" actionName)
+stripActionSuffixString string =
+    case string of
+        "Action" -> ""
+        (x:xs) -> x : stripActionSuffixString xs
+        "" -> ""
 {-# INLINE stripActionSuffixString #-}
 
 -- | Like 'stripActionSuffixString' but for ByteStrings
 stripActionSuffixByteString :: ByteString -> ByteString
-stripActionSuffixByteString actionName = fromMaybe actionName (stripSuffix "Action" actionName)
+stripActionSuffixByteString actionName = fromMaybe actionName (ByteString.stripSuffix "Action" actionName)
 {-# INLINE stripActionSuffixByteString #-}
 
 
