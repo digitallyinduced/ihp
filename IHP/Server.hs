@@ -161,6 +161,7 @@ application request respond = do
                 , webSocketAppWithCustomPath @AutoRefresh.AutoRefreshWSApp "" -- For b.c. with older versions of ihp-auto-refresh.js
                 ]
         frontControllerToWAIApp RootApplication builtinControllers ErrorController.handleNotFound
+{-# INLINABLE application #-}
 
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
