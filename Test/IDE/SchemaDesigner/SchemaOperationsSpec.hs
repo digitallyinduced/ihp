@@ -10,8 +10,8 @@ import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable (defCreateTable "a" [])
-        let tableB = StatementCreateTable (defCreateTable "b" [])
+        let tableA = StatementCreateTable $ emptyTable {name = "a"}
+        let tableB = StatementCreateTable $ emptyTable {name = "b"}
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -117,7 +117,9 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest an empty policy if no user_id column exists" do
-                let table = StatementCreateTable $ defCreateTable "posts" [(colText "title")]
+                let table = StatementCreateTable $ emptyTable { name = "posts"
+                                                              , columns = [colText "title"]
+                                                              }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
@@ -130,10 +132,21 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest a policy if it can find a one hop path to a user_id column" do
-                let tasksTable = StatementCreateTable $ defCreateTable "tasks" [t_l_idcol]
-                                where t_l_idcol = setColumnN "task_list_id" PUUID 
+                let tasksTable = StatementCreateTable $ emptyTable  { name = "tasks"
+                                                                    , columns = [t_l_idcol]
+                                                                    }
+                               
+                                where t_l_idcol = emptyColumn { name = "task_list_id"
+                                                              , columnType =  PUUID
+                                                              , notNull = True
+                                                              } 
                                 
-                let taskListsTable = StatementCreateTable $ defCreateTableWSetCol "task_lists" "user_id" PUUID
+                let taskListsTable = StatementCreateTable $ emptyTable 
+                                            { name = "task_lists" 
+                                            , columns = pure $ emptyColumn { name = "user_id" 
+                                                                           , columnType = PUUID
+                                                                           }
+                                            }
 
                 let schema =
                             [ tasksTable
@@ -317,7 +330,8 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
             
             it "should delete an referenced policy" do
-                let tableAWithUserId = StatementCreateTable $ defCreateTable "a" ihpuser
+                let tableAWithUserId = StatementCreateTable $ emptyTable {name = "a", columns = ihpuser}
+
                                 where ihpuser = [ setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
                                                   setColumn "user_id" PUUID
                                                 ]
