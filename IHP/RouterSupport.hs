@@ -446,12 +446,18 @@ actionPrefix =
             ('W':'e':'b':'.':_) -> "/"
             ('I':'H':'P':'.':_) -> "/"
             ("") -> "/"
-            moduleName -> "/" <> let (prefix:_) = List.splitWhen (== '.') moduleName in map Char.toLower prefix <> "/"
+            moduleName -> "/" <> let prefix = getPrefix "" moduleName in map Char.toLower prefix <> "/"
     where
         moduleName :: String
         moduleName = Typeable.typeOf (error "unreachable" :: controller)
                 |> Typeable.typeRepTyCon
                 |> Typeable.tyConModule
+
+        -- E.g. getPrefix "" "Admin.User" == "Admin"
+        getPrefix prefix ('.':_) = prefix
+        getPrefix prefix (x:xs) = getPrefix (prefix <> [x]) xs
+        getPrefix prefix [] = prefix
+
 {-# INLINE actionPrefix #-}
 
 -- | Strips the "Action" at the end of action names
