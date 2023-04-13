@@ -629,13 +629,9 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?context :: RequestContext) => Parser StdMethod
 getMethod =
-        ?context
-        |> IHP.Controller.RequestContext.request
-        |> requestMethod
-        |> parseMethod
-        |> \case
-            Left error -> fail (ByteString.unpack error)
-            Right method -> pure method
+    case parseMethod ?context.request.requestMethod of 
+        Left error -> fail (ByteString.unpack error)
+        Right method -> pure method
 {-# INLINABLE getMethod #-}
 
 -- | Routes a given path to an action when requested via GET.
