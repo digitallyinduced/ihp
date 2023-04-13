@@ -127,6 +127,7 @@ class FrontController application where
         :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
         => [RouteParser] -> RouteParser
     router = defaultRouter
+    {-# INLINABLE router #-}
 
 defaultRouter
     :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext, FrontController application)
