@@ -411,7 +411,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     -- The boolean True specifies if credentials are allowed for the request. You still need to set withCredentials on your XmlHttpRequest
     -- >     option Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (["localhost"], True) }
     -- >
-    , corsResourcePolicy :: Maybe Cors.CorsResourcePolicy
+    , corsResourcePolicy :: !(Maybe Cors.CorsResourcePolicy)
 
     -- | Configures the limits for request parameters, uploaded files, maximum number of headers etc.
     --
@@ -434,11 +434,11 @@ data FrameworkConfig = FrameworkConfig
     -- >     option $ WaiParse.defaultParseRequestBodyOptions
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
-    , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
-    , ideBaseUrl :: Text
+    , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
+    , ideBaseUrl :: !Text
 
     -- | See IHP.DataSync.Role
-    , rlsAuthenticatedRole :: Text
+    , rlsAuthenticatedRole :: !Text
 
     -- | The asset version is used for cache busting
     --
