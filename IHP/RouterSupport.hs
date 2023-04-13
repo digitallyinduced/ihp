@@ -99,6 +99,7 @@ runAction' controller contextSetter = do
     case contextOrErrorResponse of
         Left res -> res
         Right context -> let ?context = context in runAction controller
+{-# INLINABLE runAction' #-}
 
 type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> IO ResponseReceived)
 type RouteParser = Parser (RouteParseResult)
@@ -287,6 +288,7 @@ parseFuncs parseIdType = [
                         Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
                 Nothing -> Left NotMatched
             ]
+{-# INLINABLE parseFuncs #-}
 
 -- | As we fold over a constructor, we want the values parsed from the query string
 -- to be in the same order as they are in the constructor.
@@ -302,6 +304,7 @@ querySortedByFields :: Query -> Constr -> Query
 querySortedByFields query constructor = constrFields constructor
         |> map cs
         |> map (\field -> (field, join $ List.lookup field query))
+{-# INLINABLE querySortedByFields #-}
 
 -- | Given a constructor and a parsed query string, attempt to construct a value of the constructor's type.
 -- For example, given the controller
@@ -350,7 +353,7 @@ applyConstr parseIdType constructor query = let
         Right (x, []) -> pure x
         Right (_) -> Left TooFewArguments
         Left e -> Left e  -- runtime type error
-
+{-# INLINABLE applyConstr #-}
 
 class Data controller => AutoRoute controller where
     autoRouteWithIdType :: (?context :: RequestContext, Data idType) => (ByteString -> Maybe idType) -> Parser controller
@@ -391,9 +394,11 @@ class Data controller => AutoRoute controller where
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)
+    {-# INLINABLE autoRouteWithIdType #-}
 
     autoRoute :: (?context :: RequestContext) => Parser controller
     autoRoute = autoRouteWithIdType (\_ -> Nothing :: Maybe Integer)
+    {-# INLINABLE autoRoute #-}
 
     -- | Specifies the allowed HTTP methods for a given action
     --
