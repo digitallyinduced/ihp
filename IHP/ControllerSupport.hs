@@ -74,7 +74,7 @@ class InitControllerContext application where
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let respond = ?context |> get #requestContext |> get #respond
+    let respond = ?context.requestContext.respond
 
     let doRunAction = do
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
@@ -112,7 +112,7 @@ newContextForAction
        )
     => (TypeMap.TMap -> TypeMap.TMap) -> controller -> IO (Either (IO ResponseReceived) ControllerContext)
 newContextForAction contextSetter controller = do
-    let ?modelContext = ApplicationContext.modelContext ?applicationContext
+    let ?modelContext = ?applicationContext.modelContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
@@ -124,7 +124,7 @@ newContextForAction contextSetter controller = do
         Left (exception :: SomeException) -> do
             pure $ Left $ case fromException exception of
                 Just (ResponseException response) ->
-                    let respond = ?context |> get #requestContext |> get #respond
+                    let respond = ?context.requestContext.respond
                     in respond response
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
@@ -136,7 +136,7 @@ runActionWithNewContext controller = do
     case contextOrResponse of
         Left response -> response
         Right context -> do
-            let ?modelContext = ApplicationContext.modelContext ?applicationContext
+            let ?modelContext = ?applicationContext.modelContext
             let ?requestContext = ?context
             let ?context = context
             runAction controller
@@ -155,10 +155,10 @@ prepareRLSIfNeeded modelContext = do
 {-# INLINE startWebSocketApp #-}
 startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> IO ResponseReceived
 startWebSocketApp onHTTP = do
-    let ?modelContext = ApplicationContext.modelContext ?applicationContext
+    let ?modelContext = ?applicationContext.modelContext
     let ?requestContext = ?context
-    let respond = ?context |> get #respond
-    let request = ?context |> get #request
+    let respond = ?context.respond
+    let request = ?context.request
 
     let handleConnection pendingConnection = do
             connection <- WebSockets.acceptRequest pendingConnection
@@ -182,7 +182,7 @@ startWebSocketApp onHTTP = do
 startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
 startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
-        respond = ?context |> get #respond
+        respond = ?context.respond
 
 
 jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
@@ -194,21 +194,18 @@ jumpToAction theAction = do
 {-# INLINE getRequestBody #-}
 getRequestBody :: (?context :: ControllerContext) => IO LByteString
 getRequestBody =
-    ?context
-    |> get #requestContext
-    |> get #requestBody
-    |> \case
+    case ?context.requestContext.requestBody of
         RequestContext.JSONBody { rawPayload } -> pure rawPayload
         _ -> Network.Wai.lazyRequestBody request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?context :: ControllerContext) => ByteString
-getRequestPath = Network.Wai.rawPathInfo request
+getRequestPath = request.rawPathInfo
 {-# INLINABLE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
 getRequestPathAndQuery :: (?context :: ControllerContext) => ByteString
-getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQueryString request
+getRequestPathAndQuery = request.rawPathInfo <> request.rawQueryString
 {-# INLINABLE getRequestPathAndQuery #-}
 
 -- | Returns a header value for a given header name. Returns Nothing if not found
@@ -222,7 +219,7 @@ getRequestPathAndQuery = Network.Wai.rawPathInfo request <> Network.Wai.rawQuery
 -- Nothing
 --
 getHeader :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
-getHeader name = lookup (Data.CaseInsensitive.mk name) (Network.Wai.requestHeaders request)
+getHeader name = lookup (Data.CaseInsensitive.mk name) request.requestHeaders
 {-# INLINABLE getHeader #-}
 
 -- | Set a header value for a given header name.
@@ -263,27 +260,23 @@ addResponseHeadersFromContext response = do
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
 request :: (?context :: ControllerContext) => Network.Wai.Request
-request = requestContext |> get #request
+request = requestContext.request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
 getFiles :: (?context :: ControllerContext) => [File Data.ByteString.Lazy.ByteString]
-getFiles = requestContext
-        |> get #requestBody
-        |> \case
-            RequestContext.FormBody { files } -> files
-            _ -> []
+getFiles =
+    case requestContext.requestBody of
+        RequestContext.FormBody { files } -> files
+        _ -> []
 
 requestContext :: (?context :: ControllerContext) => RequestContext
-requestContext = get #requestContext ?context
+requestContext = ?context.requestContext
 {-# INLINE requestContext #-}
 
 requestBodyJSON :: (?context :: ControllerContext) => Aeson.Value
 requestBodyJSON =
-    ?context
-    |> get #requestContext
-    |> get #requestBody
-    |> \case
+    case ?context.requestContext.requestBody of
         RequestContext.JSONBody { jsonPayload = Just value } -> value
         _ -> error "Expected JSON body"
 
@@ -297,7 +290,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
             let jsonPayload = Aeson.decode rawPayload
             pure RequestContext.JSONBody { jsonPayload, rawPayload }
         _ -> do
-            (params, files) <- WaiParse.parseRequestBodyEx (frameworkConfig |> get #parseRequestBodyOptions) WaiParse.lbsBackEnd request
+            (params, files) <- WaiParse.parseRequestBodyEx frameworkConfig.parseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
     pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
