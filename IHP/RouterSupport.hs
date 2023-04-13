@@ -136,6 +136,7 @@ defaultRouter additionalControllers = do
     let allControllers = controllers <> additionalControllers
     ioResponseReceived <- choice $ map (\r -> r <* endOfInput) allControllers
     pure ioResponseReceived
+{-# INLINABLE defaultRouter #-}
 
 class HasPath controller where
     -- | Returns the path to a given action
