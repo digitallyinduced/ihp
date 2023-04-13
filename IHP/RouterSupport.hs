@@ -360,7 +360,7 @@ class Data controller => AutoRoute controller where
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
             query :: Query
-            query = queryString (getField @"request" ?context)
+            query = queryString ?context.request
 
             paramValues :: [ByteString]
             paramValues = catMaybes $ map snd query
@@ -819,9 +819,7 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 runApp :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => RouteParser -> IO ResponseReceived -> IO ResponseReceived
 runApp routes notFoundAction = do
-    let path = ?context
-                |> getField @"request"
-                |> rawPathInfo
+    let path = ?context.request.rawPathInfo
         handleException :: SomeException -> IO (Either String (IO ResponseReceived))
         handleException exception = pure $ Right $ ErrorController.handleRouterException exception
 
