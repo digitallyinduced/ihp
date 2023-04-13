@@ -16,7 +16,7 @@ import IHP.IDE.Defaults.TableColumnDefaults
 tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (defCreateTable "users" [])
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (emptyTable {name = "users"})
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -53,7 +53,11 @@ tests = do
                 );
             |]
             parseSql sql `shouldBe` StatementCreateTable (
-                let colTs = (setColumn "ts" PTSVector) {generator = gen}
+                let colTs = [ emptyColumn { name = "ts"
+                                          , columnType = PTSVector
+                                          , generator = gen
+                                          }
+                            ]
                     gen   =  Just $ ColumnGenerator
                                         { generate =
                                            ConcatenationExpression
@@ -66,14 +70,16 @@ tests = do
                                         }
                                                     
                         
-                in  defCreateTable "products" (pure colTs)
+                in  emptyTable { name ="products"
+                               , columns = colTs
+                               }
                 )
 
         it "should parse a CREATE TABLE with quoted identifiers" do
-            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (defCreateTable "quoted name" [])
+            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (emptyTable { name = "quoted name" })
 
         it "should parse a CREATE TABLE with public schema prefix" do
-            parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable (defCreateTable "users" [])
+            parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable (emptyTable { name = "users" })
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
@@ -423,14 +429,16 @@ tests = do
             parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, smallint_a SMALLINT, smallint_b INT2, bigint_a BIGINT, bigint_b int8);" 
                 `shouldBe` StatementCreateTable (
                     let intCols = map mkPintCol ["int_a","int_b","int_c"] 
-                         <> map mkPSmallInt ["smallint_a","smallint_b"]
-                         <> map mkBigInt ["bigint_a","bigint_b"]
+                                    <> map mkPSmallInt ["smallint_a","smallint_b"]
+                                    <> map mkBigInt ["bigint_a","bigint_b"]
 
-                        mkPintCol x = setColumn x PInt
+                        mkPintCol x = setColumn x PInt -- I don't have desire to rewrite these as an instance of empty column
                         mkPSmallInt x = setColumn x PSmallInt
                         mkBigInt x = setColumn x PBigInt
                     
-                     in defCreateTable "ints" intCols
+                     in emptyTable { name = "ints"
+                                   , columns = intCols
+                                   }
                 )
 
         it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
@@ -439,7 +447,9 @@ tests = do
                     let ts            = map mkTimeStamp ["a","b"]
                         mkTimeStamp x = setColumn x PTimestampWithTimezone
                     
-                    in  defCreateTable "timestamps" ts
+                    in  emptyTable { name ="timestamps" 
+                                   , columns = ts
+                                   }
                 )
 
         it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
@@ -448,18 +458,23 @@ tests = do
                     let bs       = map mkBool ["a","b"]
                         mkBool x = setColumn x PBoolean
                     
-                    in  defCreateTable "bools" bs
+                    in  emptyTable { name = "bools" 
+                                   , columns = bs
+                                   }
                 )
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
             parseSql "CREATE TABLE realfloat (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" 
-                `shouldBe` StatementCreateTable ( 
+                `shouldBe` StatementCreateTable 
+                ( 
                 let reals = map mkReal ["a","b"]
                     doubles = map mkDouble ["c","d"]
                     mkReal x   = setColumn x PReal
                     mkDouble x = setColumn x PDouble
 
-                in  defCreateTable "realfloat" (reals <> doubles)
+                in  emptyTable { name = "realfloat" 
+                               , columns = (reals <> doubles)
+                               }
                 )
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
@@ -471,7 +486,7 @@ tests = do
                     c = setColumn "c" (PNumeric (Just 1) (Just 2))
                     d = setColumn "d" (PVaryingN (Just 10))
                                   
-                in defCreateTable "deprecated_variables" depVars
+                in emptyTable {name = "deprecated_variables", columns = depVars}
              )
 
         it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
@@ -481,9 +496,14 @@ tests = do
                         user_id      = setColumnN "user_id" PUUID
                         follower_id  = setColumnN "follower_id" PUUID
                         
-                    in (defCreateTablePKID "user_followers" ["id"] followFields) 
-                        { constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                        }
+                    in emptyTable { name = "user_followers" 
+                                  , primaryKeyConstraint = PrimaryKeyConstraint ["id"] 
+                                  , columns = followFields
+                                  , constraints = [ UniqueConstraint { name = Nothing
+                                                                     , columnNames = [ "user_id", "follower_id" ] 
+                                                                     } 
+                                                  ]
+                                  }
                     
                     )
 
@@ -522,16 +542,26 @@ tests = do
           
         it "should parse a CREATE TABLE statement with an array column" do
             parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" 
-                `shouldBe` StatementCreateTable (let arrayCol = pure $ setColumn "pay_by_quarter" (PArray PInt)
-                                                  in defCreateTable "array_tests" arrayCol )
+                `shouldBe` StatementCreateTable (let arrayCol = [setColumn "pay_by_quarter" (PArray PInt)]
+                                                  
+                                                  in emptyTable { name = "array_tests"
+                                                                , columns = arrayCol 
+                                                                } 
+                                                )
 
         it "should parse a CREATE TABLE statement with a point column" do
             parseSql "CREATE TABLE points (\n    pos POINT\n);\n" 
-                `shouldBe` StatementCreateTable (defCreateTable "points" (pure $ setColumn "pos" PPoint))
+                `shouldBe` StatementCreateTable   emptyTable { name = "points"
+                                                             , columns = [setColumn "pos" PPoint]
+                                                             }
+                                                 
 
         it "should parse a CREATE TABLE statement with a polygon column" do
             parseSql "CREATE TABLE polygons (\n    poly POLYGON\n);\n" 
-                `shouldBe` StatementCreateTable (defCreateTable "polygons" (pure $ setColumn "poly" PPolygon))
+                `shouldBe` StatementCreateTable ( emptyTable { name = "polygons"
+                                                             , columns = [setColumn "poly" PPolygon]
+                                                             }
+                )
 
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -688,16 +718,32 @@ $$;
 
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
-                eupCol = setColumnDefaultVal (Just (TypeCastExpression (DoubleExpression 0.17) PDouble) ) $ 
-                                    setColumnN "electricity_unit_price" PDouble
-            parseSqlStatements sql `shouldBe` [StatementCreateTable $ defCreateTable "a" (pure eupCol)]
+                eupCol =      [ emptyColumn { defaultValue = (Just (TypeCastExpression (DoubleExpression 0.17) PDouble))
+                                            , name = "electricity_unit_price" 
+                                            , columnType = PDouble
+                                            , notNull = True
+                                            }
+                              ]
+
+            parseSqlStatements sql `shouldBe` [StatementCreateTable $ emptyTable { name = "a" 
+                                                                                 , columns = eupCol}
+                                                                                 ]
 
         it "should parse a integer default value" do
             let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
             let statements =
-                    [ StatementCreateTable $ defCreateTable "a" eupCol]
-                  where eupCol = pure . setColumnDefaultVal (Just (IntExpression 0)) $ 
-                                    (setColumnN "electricity_unit_price" PInt)
+                    [ StatementCreateTable $ emptyTable { name = "a"
+                                                        , columns = eupCol
+                                                        }
+                    ]
+                  
+                  
+                  
+                  where eupCol = pure $ emptyColumn  { defaultValue = (Just (IntExpression 0))
+                                                     , name = "electricity_unit_price" 
+                                                     , columnType = PInt
+                                                     , notNull = True
+                                                     }
 
             parseSqlStatements sql `shouldBe` statements
 
@@ -785,7 +831,10 @@ $$;
             let sql = cs [plain|
                 CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
             |]
-            let statement = StatementCreateTable (defCreateTable "a" [idColumn])
+            let statement = StatementCreateTable (emptyTable { name = "a"
+                                                             , columns = [idColumn]
+                                                             }
+                                                 )
 
             parseSql sql `shouldBe` statement
 
@@ -796,10 +845,13 @@ $$;
                     a character varying(510) DEFAULT NULL::character varying
                 );
             |]
-            let statement = StatementCreateTable $ defCreateTable "a" tcCol
-                  where init  = setColumn "a" (PVaryingN (Just 510))
-                        def   = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
-                        tcCol = pure $ setColumnDefaultVal def init
+            let statement = StatementCreateTable $ emptyTable {name = "a", columns = [tcCol]}
+                  
+                  where tcCol = emptyColumn { defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
+                                            , name = "a"
+                                            , columnType = (PVaryingN (Just 510))
+                        }
+
             parseSql sql `shouldBe` statement
 
         it "should parse empty binary strings" do
@@ -808,10 +860,15 @@ $$;
                     a bytea DEFAULT '\\x'::bytea NOT NULL
                 );
             |]
-            let statement = StatementCreateTable $ defCreateTable "a" ebCol
-                  where init  = setColumnN "a" PBinary
-                        def   = Just (TypeCastExpression (TextExpression "") PBinary)
-                        ebCol = pure $ setColumnDefaultVal def init
+            let statement = StatementCreateTable $ emptyTable { name = "a" 
+                                                              , columns = [ebCol]
+                                                              }
+                  
+                  where ebCol = emptyColumn { defaultValue = Just (TypeCastExpression (TextExpression "") PBinary) 
+                                            , name = "a"
+                                            , columnType = PBinary
+                                            , notNull = True
+                                            }
 
             parseSql sql `shouldBe` statement
         it "should parse a pg_dump header" do
@@ -999,13 +1056,17 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         
         it "should parse 'CREATE TABLE ..' statements when the table name starts with public" do
             let sql = cs [plain|CREATE TABLE public_variables (id UUID);|]
-            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = let idCol = pure $ setColumn "id" PUUID
-                                                                                  in defCreateTable "public_variables" idCol}
+            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = emptyTable { name = "public_variables"
+                                                                                            , columns = [ emptyColumn { name ="id"
+                                                                                                                      , columnType = PUUID }
+                                                                                                        ] 
+                                                                                            }
+                                                         }
 
         it "should parse an 'CREATE UNLOGGED TABLE' statement" do
             parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  
                 `shouldBe` 
-                    StatementCreateTable (defCreateTable "pg_large_notifications" []) {unlogged = True}
+                    StatementCreateTable emptyTable {name = "pg_large_notifications" , unlogged = True}
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
