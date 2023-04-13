@@ -253,12 +253,8 @@ instance EnvVarReader RequestLogger.IPAddrSource where
 
 initAssetVersion :: ConfigBuilder
 initAssetVersion = do
-    ihpCloudContainerId <- envOrNothing "IHP_CLOUD_CONTAINER_ID"
     ihpAssetVersion <- envOrNothing "IHP_ASSET_VERSION"
-    let assetVersion = [ ihpCloudContainerId, ihpAssetVersion]
-            |> catMaybes
-            |> head
-            |> fromMaybe "dev"
+    let assetVersion = fromMaybe "dev" ihpAssetVersion
     option (AssetVersion assetVersion)
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
@@ -445,9 +441,6 @@ data FrameworkConfig = FrameworkConfig
     , rlsAuthenticatedRole :: Text
 
     -- | The asset version is used for cache busting
-    --
-    -- On IHP Cloud IHP automatically uses the @IHP_CLOUD_CONTAINER_ID@ env variable
-    -- as the asset version. So when running there, you don't need to do anything.
     --
     -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
     -- env variable with e.g. the git commit hash of the production build.

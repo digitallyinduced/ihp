@@ -68,7 +68,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> dropType <|> commentStatement <|> comment <|> begin <|> commit
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit
     space
     pure s
 
@@ -867,6 +867,15 @@ dropPolicy = do
     tableName <- qualifiedIdentifier
     char ';'
     pure DropPolicy { tableName, policyName }
+
+dropTrigger = do
+    lexeme "DROP"
+    lexeme "TRIGGER"
+    name <- qualifiedIdentifier
+    lexeme "ON"
+    tableName <- qualifiedIdentifier
+    char ';'
+    pure DropTrigger { name, tableName }
 
 createSequence = do
     lexeme "CREATE"

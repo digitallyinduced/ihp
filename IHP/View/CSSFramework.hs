@@ -69,7 +69,7 @@ instance Default CSSFramework where
                         DateInput -> styledTextFormField cssFramework "date" formField validationResult
                         DateTimeInput -> styledTextFormField cssFramework "datetime-local" formField validationResult
                         CheckboxInput -> styledCheckboxFormField cssFramework formField validationResult
-                        HiddenInput -> styledTextFormField cssFramework "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True } validationResult
+                        HiddenInput -> styledTextFormField cssFramework "hidden" formField validationResult
                         TextareaInput -> styledTextareaFormField cssFramework formField validationResult
                         SelectInput {} -> styledSelectFormField cssFramework formField validationResult
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult

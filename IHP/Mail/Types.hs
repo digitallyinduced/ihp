@@ -22,7 +22,7 @@ data MailServer =
         , secretKey :: ByteString
         --  | E.g. @"us-east-1"@ or @"eu-west-1"@
         , region :: Text }
-    -- | Uses the local Sendmail binary for sending emails. Avoid this with IHP Cloud
+    -- | Uses the local Sendmail binary for sending emails
     | Sendmail
     -- | Uses SendGrid for sending emails
     | SendGrid { apiKey :: Text

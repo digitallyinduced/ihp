@@ -97,6 +97,31 @@ tests = do
                     let textField = baseTextField { additionalAttributes = [ ("min", "1"), ("max", "100") ] }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-fname\"><label class=\"form-label\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\" min=\"1\" max=\"100\"> </div>"
 
+            describe "hidden field" do
+                let baseTextField = FormField
+                        { fieldType = HiddenInput
+                        , fieldName = "workerProfileId"
+                        , fieldLabel = "Worker Profile Id"
+                        , fieldValue = ""
+                        , fieldInputId = "award_workerProfileId"
+                        , validatorResult = Nothing
+                        , additionalAttributes = []
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disabled = False
+                        , disableLabel = True
+                        , disableGroup = True
+                        , disableValidationResult = True
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = ""
+                        , required = False
+                        , autofocus = False
+                        }
+                it "should render without a group and without validation" do
+                    let textField = baseTextField
+                    styledFormField cssFramework cssFramework textField `shouldRenderTo` "<input type=\"hidden\" name=\"workerProfileId\" placeholder=\"\" id=\"award_workerProfileId\" class=\"form-control\"> "
+
 
             describe "checkbox" do
                 let baseCheckbox = FormField

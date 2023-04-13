@@ -10,7 +10,7 @@ Auto Refresh offers a way to re-render views of your application when the underl
 
 **Use Cases:**
 
-1. This is used in the IHP Cloud to display the current deployment status. Whenever e.g. the deployment progress or status changes, the view gets updated automatically.
+1. This is used in Shipnix to display the current deployment status. Whenever e.g. the deployment progress or status changes, the view gets updated automatically.
 2. When building a monitoring tool for background job workers. Using auto refresh the view can always represent the current state of all the job queues.
 3. When building a small social media site: Automatically display new posts in the feed when they become available.
 

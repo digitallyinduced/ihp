@@ -64,6 +64,8 @@ data Statement
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
     | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | DROP TRIGGER .. ON ..;
+    | DropTrigger { name :: !Text, tableName :: !Text }
     -- | BEGIN;
     | Begin
     -- | COMMIT;

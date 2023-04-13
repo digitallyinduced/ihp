@@ -109,7 +109,7 @@ generateGenericApplication applicationName =
                 <> "        {when isDevelopment devScripts}\n"
                 <> "        <script src={assetPath \"/vendor/jquery-3.6.0.slim.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/timeago.js\"}></script>\n"
-                <> "        <script src={assetPath \"/vendor/popper.min.js\"}></script>\n"
+                <> "        <script src={assetPath \"/vendor/popper-2.11.6.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/bootstrap-5.2.1/bootstrap.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/flatpickr.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/morphdom-umd.min.js\"}></script>\n"
