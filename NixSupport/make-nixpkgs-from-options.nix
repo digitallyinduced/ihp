@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "093f236f30c3b82205355806043263a8d636f8c2"
-, nixPkgsSha256 ? "sha256-LT8T+dZhoZ7vLP8FYzXPUpvgC84Hw0IoAJvrLiIIk10"
-, compiler ? "ghc924"
+, nixPkgsRev ? "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9"
+, nixPkgsSha256 ? "sha256-eKyxW4OohHQx9Urxi7TQlFBTDWII+F+x2hklDOQPB50="
+, compiler ? "ghc927"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
