@@ -104,7 +104,14 @@ tests = do
 
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
-                let table = StatementCreateTable $ defCreateTableWSetCol "posts" "user_id" PUUID
+                let table = StatementCreateTable $ 
+                        emptyTable { name = "posts" 
+                                    , columns = [emptyColumn { name = "user_id" 
+                                                             , columnType = PUUID
+                                                             }
+                                                ]
+                                   }
+                
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
@@ -165,9 +172,15 @@ tests = do
         describe "addColumn" do
             it "should add an index if withIndex = true" do
                 let inputSchema = [tableA]
-                    colCreatedAt = setColumnDefaultVal (Just (CallExpression "NOW" [])) $ setColumnN "created_at" PTimestampWithTimezone
+                    colCreatedAt = emptyColumn { defaultValue = (Just (CallExpression "NOW" []))
+                                               , name =  "created_at" 
+                                               , columnType = PTimestampWithTimezone
+                                               }
 
-                let tableAWithCreatedAt = StatementCreateTable $ defCreateTable "a" [colCreatedAt]
+                let tableAWithCreatedAt = StatementCreateTable $ emptyTable { name = "a"
+                                                                            , columns =  [colCreatedAt]
+                                                                            }
+
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let expectedSchema = [tableAWithCreatedAt, index]
@@ -353,7 +366,13 @@ tests = do
                 let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
 
                 let tableAWithUpdatedColumn = StatementCreateTable 
-                                                $ defCreateTable "a" [ setColumn "created_at2" PText ]
+                                                $ emptyTable { name = "a"
+                                                             , columns = [ emptyColumn { name = "created_at2" 
+                                                                                       , columnType = PText 
+                                                                                       , notNull = True
+                                                                                       }
+                                                                         ]
+                                                             }
                             
 
                 let inputSchema = [tableAWithCreatedAt]
@@ -378,7 +397,13 @@ tests = do
                                         [setColumnN "id2" PUUID
                                         ]
 
-                let tableWithoutPK = StatementCreateTable $ defCreateTableWSetCol "a" "id" PUUID
+                let tableWithoutPK = StatementCreateTable $ 
+                        emptyTable { name = "a" 
+                                   , columns = [ emptyColumn { name = "id"
+                                                            , columnType = PUUID
+                                                            }
+                                              ]
+                                   }
 
                 let inputSchema = [tableWithoutPK]
                 let expectedSchema = [tableWithPK]
@@ -398,12 +423,17 @@ tests = do
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates referenced foreign key constraints" do
                 let tasksTable = StatementCreateTable $
-                                    defCreateTable "tasks" [setColumnN "task_list_id" PUUID
+                                    emptyTable { name = "tasks"
+                                               , columns = [setColumnN "task_list_id" PUUID
                                                            ]
+                                               }
                 
                 let taskListsTable = StatementCreateTable $
-                                    defCreateTable "task_lists" [setColumnN "task_list_id" PUUID
-                                                                ]
+                                    emptyTable { name = "tasks"
+                                               , columns = [ setColumnN "task_list_id" PUUID
+                                                           ]
+                                               }
+                
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
@@ -411,8 +441,11 @@ tests = do
                             ]
 
                 let tasksTable' = StatementCreateTable $
-                                    defCreateTable "tasks" [setColumnN "list_id" PUUID
+                                    emptyTable { name = "tasks"
+                                               , columns = [setColumnN "list_id" PUUID
                                                            ]
+                                               }
+                
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
@@ -438,8 +471,10 @@ tests = do
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let tableAWithUpdatedColumn = StatementCreateTable $
-                                        defCreateTable "a" [setColumn "created_at" PText
-                                                           ]
+                                        emptyTable { name = "a"
+                                                   , columns = [setColumn "created_at" PText
+                                                               ]
+                                                   }
        
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 

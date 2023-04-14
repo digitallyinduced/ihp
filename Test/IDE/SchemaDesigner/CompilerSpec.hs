@@ -495,6 +495,7 @@ tests = do
 
         it "should compile a CREATE TABLE statement with an array column" do
             let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
+            
             let statement = StatementCreateTable $ let arrayCol = emptyColumn { name = "pay_by_quarter" 
                                                                               , columnType = (PArray PInt) }
                                                                   
@@ -506,12 +507,27 @@ tests = do
 
         it "should compile a CREATE TABLE statement with an point column" do
             let sql = cs [plain|CREATE TABLE point_tests (\n    pos POINT\n);\n|]
-            let statement = StatementCreateTable $ defCreateTableWSetCol "point_tests" "pos" PPoint
+            let statement = StatementCreateTable $ 
+                    emptyTable { name = "point_tests"
+                               , columns = [ emptyColumn { name = "pos"
+                                                         , columnType = PPoint
+                                                         }
+                                           ]
+                               } 
+            
+            
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an polygon column" do
             let sql = cs [plain|CREATE TABLE polygon_tests (\n    poly POLYGON\n);\n|]
-            let statement = StatementCreateTable $ defCreateTableWSetCol "polygon_tests" "poly" PPolygon
+            let statement = StatementCreateTable $
+                    emptyTable { name = "polygon_tests" 
+                               , columns = [ emptyColumn { name = "poly"
+                                                        , columnType =  PPolygon
+                                                        }
+                                          ]
+                               }            
+            
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE INDEX statement" do
