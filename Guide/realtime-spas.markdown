@@ -199,21 +199,17 @@ IHP DataSync uses Postgres Row Level Security for making sure that users can onl
 
 Follow these steps to set up the second database role.
 
-1. Open `Web/FrontController.hs`
+1. Open `Config/Config.hs`
 2. Add an import:
     ```haskell
     import qualified IHP.DataSync.Role as Role
     ```
-3. Call `Role.ensureAuthenticatedRoleExists` from `initContext`:
+3. Call `Role.ensureAuthenticatedRoleExists` on app startup by adding an initializer to `config`:
     ```haskell
-    instance InitControllerContext WebApplication where
-        initContext = do
-            setLayout defaultLayout
-            initAutoRefresh
-            initAuthentication @User
-
-            -- ADD THIS CALL:
-            Role.ensureAuthenticatedRoleExists
+    config :: ConfigBuilder
+    config = do
+        -- ...
+        addInitializer Role.ensureAuthenticatedRoleExists
     ```
     The `Role.ensureAuthenticatedRoleExists` call makes sure that this second role exists and has permissions to access tables with Row level security policies applied.
 

@@ -103,8 +103,8 @@ option !value = State.modify (\map -> if TMap.member @option map then map else T
 -- > config = do
 -- >     addInitializer (putStrLn "Hello World!")
 --
-addInitalizer :: ((?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO ()) -> State.StateT TMap.TMap IO ()
-addInitalizer onStartup = do
+addInitializer :: ((?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO ()) -> State.StateT TMap.TMap IO ()
+addInitializer onStartup = do
     initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
     let newInitializers = initializers <> [Initializer { onStartup }]
     State.modify (\map -> map
