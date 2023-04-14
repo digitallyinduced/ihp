@@ -311,7 +311,7 @@ buildFrameworkConfig appConfig = do
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
             customMiddleware <- findOption @CustomMiddleware
-            initializers <- findOption @[Initializer]
+            initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get
 
