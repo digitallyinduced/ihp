@@ -437,7 +437,7 @@ data FrameworkConfig = FrameworkConfig
     , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
 
     -- | Used by the dev server. This field cannot be strict.
-    , ideBaseUrl :: !Text
+    , ideBaseUrl :: Text
 
     -- | See IHP.DataSync.Role
     , rlsAuthenticatedRole :: !Text
