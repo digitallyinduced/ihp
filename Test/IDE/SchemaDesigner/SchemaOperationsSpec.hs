@@ -250,7 +250,14 @@ tests = do
                 let inputSchema = [tableA]
 
                 let tableAWithCreatedAt = StatementCreateTable $ 
-                                            defCreateTableWSetColN "a" "user_id" PUUID 
+                                            emptyTable { name = "a" 
+                                                       , columns = [ emptyColumn { name = "user_id"
+                                                                                 , columnType = PUUID
+                                                                                 , notNull = True
+                                                                                 } 
+                                                                    ]
+                                                        }
+
 
                 let index = CreateIndex
                         { indexName = "a_user_id_index"

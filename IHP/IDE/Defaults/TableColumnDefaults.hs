@@ -114,7 +114,7 @@ defCreateTableWSetColN :: Text -> Text -> PostgresType -> CreateTable
 defCreateTableWSetColN tablename columnname pgt = defCreateTable tablename [setColumnN columnname pgt]
 
 
-{- | Takes the name of the table, the items you want inside the primaryKeyConstraint and a list of columns
+{- | Takes the name of the table, the items you want inside the 'primaryKeyConstraint' and a list of columns
 to return a table where the primary key constraint is set.
 
 __Example:__ 
