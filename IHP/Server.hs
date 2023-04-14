@@ -47,29 +47,30 @@ run configBuilder = do
         modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
         let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
 
-        withPGListener \pgListener -> do
-            sessionVault <- Vault.newKey
+        withInitalizers frameworkConfig modelContext do
+            withPGListener \pgListener -> do
+                sessionVault <- Vault.newKey
 
-            autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
-            let ?modelContext = modelContext
-            let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
+                let ?modelContext = modelContext
+                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
 
-            sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
-            staticMiddleware <- initStaticMiddleware frameworkConfig
-            let corsMiddleware = initCorsMiddleware frameworkConfig
-            let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
-            let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+                sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
+                staticMiddleware <- initStaticMiddleware frameworkConfig
+                let corsMiddleware = initCorsMiddleware frameworkConfig
+                let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
+                let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
-            withBackgroundWorkers pgListener frameworkConfig 
-                . runServer frameworkConfig
-                . customMiddleware
-                . staticMiddleware
-                . corsMiddleware
-                . sessionMiddleware
-                . requestLoggerMiddleware
-                . methodOverridePost 
-                $ application
+                withBackgroundWorkers pgListener frameworkConfig 
+                    . runServer frameworkConfig
+                    . customMiddleware
+                    . staticMiddleware
+                    . corsMiddleware
+                    . sessionMiddleware
+                    . requestLoggerMiddleware
+                    . methodOverridePost 
+                    $ application
 
 {-# INLINABLE run #-}
 
@@ -178,3 +179,13 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
 
 instance ControllerSupport.InitControllerContext () where
     initContext = pure ()
+
+withInitalizers :: FrameworkConfig -> ModelContext -> _ -> IO ()
+withInitalizers frameworkConfig modelContext continue = do
+        let ?context = frameworkConfig
+        let ?modelContext = modelContext
+        withInitalizers' frameworkConfig.initializers
+    where
+        withInitalizers' :: (?context :: FrameworkConfig, ?modelContext :: ModelContext) => [Initializer] -> IO ()
+        withInitalizers' (Initializer { onStartup } : rest) = withAsync onStartup (\async -> link async >> withInitalizers' rest)
+        withInitalizers' [] = continue

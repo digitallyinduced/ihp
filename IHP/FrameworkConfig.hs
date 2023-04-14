@@ -81,6 +81,8 @@ newtype CustomMiddleware = CustomMiddleware Middleware
 newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
 newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
 
+newtype Initializer = Initializer { onStartup :: (?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO () }
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -93,6 +95,22 @@ newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnect
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
 option !value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
 {-# INLINABLE option #-}
+
+-- | Adds a callback to be run during startup of the app server
+--
+-- The follwoing example will print a hello world message on startup:
+--
+-- > config = do
+-- >     addInitializer (putStrLn "Hello World!")
+--
+addInitalizer :: ((?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO ()) -> State.StateT TMap.TMap IO ()
+addInitalizer onStartup = do
+    initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
+    let newInitializers = initializers <> [Initializer { onStartup }]
+    State.modify (\map -> map
+            |> TMap.delete @[Initializer]
+            |> TMap.insert newInitializers
+        )
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
@@ -293,6 +311,7 @@ buildFrameworkConfig appConfig = do
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
             customMiddleware <- findOption @CustomMiddleware
+            initializers <- findOption @[Initializer]
 
             appConfig <- State.get
 
@@ -454,6 +473,7 @@ data FrameworkConfig = FrameworkConfig
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
+    , initializers :: ![Initializer]
 }
 
 instance HasField "frameworkConfig" FrameworkConfig FrameworkConfig where
