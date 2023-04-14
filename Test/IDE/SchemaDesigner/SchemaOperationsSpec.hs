@@ -175,6 +175,7 @@ tests = do
                     colCreatedAt = emptyColumn { defaultValue = (Just (CallExpression "NOW" []))
                                                , name =  "created_at" 
                                                , columnType = PTimestampWithTimezone
+                                               , notNull  = True
                                                }
 
                 let tableAWithCreatedAt = StatementCreateTable $ emptyTable { name = "a"
@@ -369,7 +370,7 @@ tests = do
                                                 $ emptyTable { name = "a"
                                                              , columns = [ emptyColumn { name = "created_at2" 
                                                                                        , columnType = PText 
-                                                                                       , notNull = True
+                                                                                       , notNull = False
                                                                                        }
                                                                          ]
                                                              }
@@ -430,7 +431,7 @@ tests = do
                 
                 let taskListsTable = StatementCreateTable $
                                     emptyTable { name = "tasks"
-                                               , columns = [ setColumnN "task_list_id" PUUID
+                                               , columns = [ setColumnN "list_id" PUUID
                                                            ]
                                                }
                 
