@@ -74,7 +74,11 @@ library
         -Winaccessible-code
         -Wmissed-specialisations
         -Wall-missed-specialisations
+        -fspecialise-aggressively
+        -funfolding-use-threshold=120
+        -fdicts-strict
         -fexpose-all-unfoldings
+        -optc-O3
     hs-source-dirs: .
     exposed-modules:
         IHP.HSX.Parser
