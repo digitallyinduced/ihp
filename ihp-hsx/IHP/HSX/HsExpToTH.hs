@@ -74,7 +74,7 @@ toFieldExp = undefined
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
-toPat (ParPat xP lP) = (toPat . unLoc) lP
+toPat (ParPat xP _ lP _) = (toPat . unLoc) lP
 toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
@@ -138,7 +138,7 @@ toExp (Expr.ExplicitTuple _ args boxity) = ctor tupArgs
     tupArgs = fmap ((fmap toExp) . toTupArg) args
 
 -- toExp (Expr.List _ xs)                        = TH.ListE (fmap toExp xs)
-toExp (Expr.HsPar _ e)
+toExp (Expr.HsPar _ _ e _)
   = TH.ParensE (toExp . unLoc $ e)
 
 toExp (Expr.SectionL _ (unLoc -> a) (unLoc -> b))
@@ -155,9 +155,9 @@ toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) 
         let
             f (unLoc -> x) = (name, value)
                 where
-                    value = toExp $ unLoc $ hsRecFieldArg x
+                    value = toExp $ unLoc $ hfbRHS x
                     name =
-                        case unLoc (hsRecFieldLbl x) of
+                        case unLoc (hfbLHS x) of
                             Unambiguous _ (unLoc -> name) -> toName name
                             Ambiguous _ (unLoc -> name) -> toName name
         in
@@ -181,15 +181,15 @@ toExp (Expr.ArithSeq _ _ e)
 
 toExp (Expr.HsProjection _ locatedFields) =
   let
-    extractFieldLabel (HsFieldLabel _ locatedStr) = locatedStr
-    extractFieldLabel _ = error "Don't know how to handle XHsFieldLabel constructor..."
+    extractFieldLabel (DotFieldOcc _ locatedStr) = locatedStr
+    extractFieldLabel _ = error "Don't know how to handle XDotFieldOcc constructor..."
   in
     TH.ProjectionE (NonEmpty.map (unpackFS . unLoc . extractFieldLabel . unLoc) locatedFields)
 
 toExp (Expr.HsGetField _ expr locatedField) =
   let
-    extractFieldLabel (HsFieldLabel _ locatedStr) = locatedStr
-    extractFieldLabel _ = error "Don't know how to handle XHsFieldLabel constructor..."
+    extractFieldLabel (DotFieldOcc _ locatedStr) = locatedStr
+    extractFieldLabel _ = error "Don't know how to handle XDotFieldOcc constructor..."
   in
     TH.GetFieldE (toExp (unLoc expr)) (unpackFS . unLoc . extractFieldLabel . unLoc $ locatedField)
 
