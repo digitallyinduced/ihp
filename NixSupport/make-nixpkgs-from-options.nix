@@ -37,7 +37,7 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb"];
+  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin"];
   ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8" "chell"];
   ihpDontHaddockPackages = [];
 
