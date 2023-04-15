@@ -1,4 +1,4 @@
-{ compiler ? "ghc927"
+{ compiler ? "ghc944"
 , ihp
 , haskellDeps ? (p: [])
 , otherDeps ? (p: [])

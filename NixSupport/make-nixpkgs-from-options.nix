@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9"
-, nixPkgsSha256 ? "sha256-eKyxW4OohHQx9Urxi7TQlFBTDWII+F+x2hklDOQPB50="
-, compiler ? "ghc927"
+, nixPkgsRev ? "a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e"
+, nixPkgsSha256 ? "sha256-eKyxW4OohHQx9Urxi7TQlFBTDWII+F+x2hklDOQPB51="
+, compiler ? "ghc944"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
@@ -38,7 +38,7 @@ let
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
   ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb"];
-  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"];
+  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8"];
   ihpDontHaddockPackages = [];
 
   config = {
