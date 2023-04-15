@@ -99,6 +99,7 @@ runAction' controller contextSetter = do
     case contextOrErrorResponse of
         Left res -> res
         Right context -> let ?context = context in runAction controller
+{-# INLINABLE runAction' #-}
 
 type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> IO ResponseReceived)
 type RouteParser = Parser (RouteParseResult)
@@ -126,6 +127,7 @@ class FrontController application where
         :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
         => [RouteParser] -> RouteParser
     router = defaultRouter
+    {-# INLINABLE router #-}
 
 defaultRouter
     :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext, FrontController application)
@@ -134,6 +136,7 @@ defaultRouter additionalControllers = do
     let allControllers = controllers <> additionalControllers
     ioResponseReceived <- choice $ map (\r -> r <* endOfInput) allControllers
     pure ioResponseReceived
+{-# INLINABLE defaultRouter #-}
 
 class HasPath controller where
     -- | Returns the path to a given action
@@ -287,6 +290,7 @@ parseFuncs parseIdType = [
                         Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
                 Nothing -> Left NotMatched
             ]
+{-# INLINABLE parseFuncs #-}
 
 -- | As we fold over a constructor, we want the values parsed from the query string
 -- to be in the same order as they are in the constructor.
@@ -302,6 +306,7 @@ querySortedByFields :: Query -> Constr -> Query
 querySortedByFields query constructor = constrFields constructor
         |> map cs
         |> map (\field -> (field, join $ List.lookup field query))
+{-# INLINABLE querySortedByFields #-}
 
 -- | Given a constructor and a parsed query string, attempt to construct a value of the constructor's type.
 -- For example, given the controller
@@ -350,7 +355,7 @@ applyConstr parseIdType constructor query = let
         Right (x, []) -> pure x
         Right (_) -> Left TooFewArguments
         Left e -> Left e  -- runtime type error
-
+{-# INLINABLE applyConstr #-}
 
 class Data controller => AutoRoute controller where
     autoRouteWithIdType :: (?context :: RequestContext, Data idType) => (ByteString -> Maybe idType) -> Parser controller
@@ -360,7 +365,7 @@ class Data controller => AutoRoute controller where
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
             query :: Query
-            query = queryString (getField @"request" ?context)
+            query = queryString ?context.request
 
             paramValues :: [ByteString]
             paramValues = catMaybes $ map snd query
@@ -373,7 +378,7 @@ class Data controller => AutoRoute controller where
                     actionName = ByteString.pack (showConstr constr)
 
                     actionPath :: ByteString
-                    actionPath = stripActionSuffix actionName
+                    actionPath = stripActionSuffixByteString actionName
 
                     allowedMethods = allowedMethodsForAction @controller actionName
 
@@ -391,9 +396,11 @@ class Data controller => AutoRoute controller where
                     checkRequestMethod parsedAction
 
         in choice (map parseAction allConstructors)
+    {-# INLINABLE autoRouteWithIdType #-}
 
     autoRoute :: (?context :: RequestContext) => Parser controller
     autoRoute = autoRouteWithIdType (\_ -> Nothing :: Maybe Integer)
+    {-# INLINABLE autoRoute #-}
 
     -- | Specifies the allowed HTTP methods for a given action
     --
@@ -439,26 +446,43 @@ actionPrefix =
             ('W':'e':'b':'.':_) -> "/"
             ('I':'H':'P':'.':_) -> "/"
             ("") -> "/"
-            moduleName -> "/" <> let (prefix:_) = List.splitWhen (== '.') moduleName in map Char.toLower prefix <> "/"
+            moduleName -> "/" <> let prefix = getPrefix "" moduleName in map Char.toLower prefix <> "/"
     where
         moduleName :: String
         moduleName = Typeable.typeOf (error "unreachable" :: controller)
                 |> Typeable.typeRepTyCon
                 |> Typeable.tyConModule
+
+        -- E.g. getPrefix "" "Admin.User" == "Admin"
+        getPrefix prefix ('.':_) = prefix
+        getPrefix prefix (x:xs) = getPrefix (prefix <> [x]) xs
+        getPrefix prefix [] = prefix
+
 {-# INLINE actionPrefix #-}
 
 -- | Strips the "Action" at the end of action names
 --
--- >>> stripActionSuffix "ShowUserAction"
+-- >>> stripActionSuffixString "ShowUserAction"
 -- "ShowUser"
 --
--- >>> stripActionSuffix "UsersAction"
+-- >>> stripActionSuffixString "UsersAction"
 -- "UsersAction"
 --
--- >>> stripActionSuffix "User"
+-- >>> stripActionSuffixString "User"
 -- "User"
-stripActionSuffix actionName = fromMaybe actionName (stripSuffix "Action" actionName)
-{-# INLINE stripActionSuffix #-}
+stripActionSuffixString :: String -> String
+stripActionSuffixString string =
+    case string of
+        "Action" -> ""
+        (x:xs) -> x : stripActionSuffixString xs
+        "" -> ""
+{-# INLINE stripActionSuffixString #-}
+
+-- | Like 'stripActionSuffixString' but for ByteStrings
+stripActionSuffixByteString :: ByteString -> ByteString
+stripActionSuffixByteString actionName = fromMaybe actionName (ByteString.stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffixByteString #-}
+
 
 -- | Returns the create action for a given controller.
 -- Example: `createAction @UsersController == Just CreateUserAction`
@@ -539,7 +563,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
             !appPrefix = actionPrefix @controller
 
             actionName :: String
-            !actionName = (stripActionSuffix $! showConstr constructor)
+            !actionName = stripActionSuffixString $! showConstr constructor
 
             constructor = toConstr action
 
@@ -622,13 +646,9 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?context :: RequestContext) => Parser StdMethod
 getMethod =
-        ?context
-        |> IHP.Controller.RequestContext.request
-        |> requestMethod
-        |> parseMethod
-        |> \case
-            Left error -> fail (ByteString.unpack error)
-            Right method -> pure method
+    case parseMethod ?context.request.requestMethod of 
+        Left error -> fail (ByteString.unpack error)
+        Right method -> pure method
 {-# INLINABLE getMethod #-}
 
 -- | Routes a given path to an action when requested via GET.
@@ -819,9 +839,7 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 runApp :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => RouteParser -> IO ResponseReceived -> IO ResponseReceived
 runApp routes notFoundAction = do
-    let path = ?context
-                |> getField @"request"
-                |> rawPathInfo
+    let path = ?context.request.rawPathInfo
         handleException :: SomeException -> IO (Either String (IO ResponseReceived))
         handleException exception = pure $ Right $ ErrorController.handleRouterException exception
 

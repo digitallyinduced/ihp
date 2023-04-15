@@ -168,6 +168,7 @@ common shared-properties
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
+            -fexpose-all-unfoldings
 
 library
     import: shared-properties
@@ -410,12 +411,13 @@ executable RunDevServer
             -fexpose-all-unfoldings
             -flate-dmd-anal
             -flate-specialise
-            -fmax-worker-args=200
+            -fmax-worker-args=15
             -fspec-constr-keen
             -fspecialise-aggressively
             -fstatic-argument-transformation
             -funbox-strict-fields
-            -funfolding-use-threshold=16
+            -funfolding-use-threshold=160
+            -fdicts-strict
             -j
             -O2
             -threaded
