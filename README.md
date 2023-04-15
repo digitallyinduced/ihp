@@ -10,6 +10,13 @@
   <a href="https://twitter.com/digitallyinduce" target="_blank">
     <img src="https://img.shields.io/twitter/follow/digitallyinduce"/>
   </a>
+  
+  
+  <a href="https://console.algora.io/org/digitallyinduced/bounties?status=open" target="_blank">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.algora.io%2Fapi%2Fshields%2Fdigitallyinduced%2Fbounties%3Fstatus%3Dopen"/>
+  </a>
+  
+  <img src="https://api.scarf.sh/v2/packages/digitallyinduced/4b7241ee-9679-43fa-9b27-b5595b775c30/downloads-badge"/>
 </p>
 
 <p align="center">
@@ -162,9 +169,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more info.
 
 If you just want to improve docs, [you can find the markdown files in the Guide directory](https://github.com/digitallyinduced/ihp/tree/master/Guide).
 
+### Bounties
+
+We use algora.io for bounties on IHP issues. Check out the open bounties below:
+
+<a href="https://console.algora.io/org/digitallyinduced/bounties?status=open">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=dark">
+    <img alt="Bounties of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/bounties.png?p=0&status=open&theme=light">
+  </picture>
+</a>
+
+<a href="https://console.algora.io/org/digitallyinduced/leaderboard">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=dark">
+    <img alt="Leaderboard of digitallyinduced" src="https://console.algora.io/api/og/digitallyinduced/leaderboard.png?p=0&theme=light">
+  </picture>
+</a>
+
 ## Releases
 
-During beta, there is a new release every two weeks on Friday. You can find steps to update to the latest version [in the release notes](https://github.com/digitallyinduced/ihp/releases).
+You can find information on IHP releases in the GitHub [releases section](https://github.com/digitallyinduced/ihp/releases).
 
 [📧 Subscribe to the IHP release emails to stay in the loop.](https://ihp.digitallyinduced.com/MailingList)
 

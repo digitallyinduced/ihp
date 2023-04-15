@@ -5,6 +5,7 @@ import qualified Data.Text as Text
 import IHP.ModelSupport (Violation (..))
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import qualified Data.List as List
 
 data ValidatorResult
     = Success
@@ -96,7 +97,7 @@ attachFailureHtml field !message = attachValidatorResult field (FailureHtml rend
 --
 -- If you need to special-case validation errors with HTML code, use 'getValidationViolation'
 getValidationFailure :: (KnownSymbol field, HasField "meta" model MetaBag) => Proxy field -> model -> Maybe Text
-getValidationFailure field model = get #message <$> getValidationViolation field model
+getValidationFailure field model = (.message) <$> getValidationViolation field model
 {-# INLINE getValidationFailure #-}
 
 -- | Similar to 'getValidationFailure', but exposes the information whether the error message contains HTML code
@@ -106,9 +107,6 @@ getValidationFailure field model = get #message <$> getValidationViolation field
 --
 getValidationViolation :: (KnownSymbol field, HasField "meta" model MetaBag) => Proxy field -> model -> Maybe Violation
 getValidationViolation field model =
-        model
-            |> get #meta
-            |> get #annotations
-            |> lookup fieldName
+        List.lookup fieldName model.meta.annotations
     where
         fieldName = Text.pack (symbolVal field)

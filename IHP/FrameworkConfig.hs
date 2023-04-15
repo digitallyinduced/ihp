@@ -81,6 +81,8 @@ newtype CustomMiddleware = CustomMiddleware Middleware
 newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
 newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
 
+newtype Initializer = Initializer { onStartup :: (?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO () }
+
 -- | Puts an option into the current configuration
 --
 -- In case an option already exists with the same type, it will not be overriden:
@@ -93,6 +95,22 @@ newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnect
 option :: forall option. Typeable option => option -> State.StateT TMap.TMap IO ()
 option !value = State.modify (\map -> if TMap.member @option map then map else TMap.insert value map)
 {-# INLINABLE option #-}
+
+-- | Adds a callback to be run during startup of the app server
+--
+-- The follwoing example will print a hello world message on startup:
+--
+-- > config = do
+-- >     addInitializer (putStrLn "Hello World!")
+--
+addInitializer :: ((?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO ()) -> State.StateT TMap.TMap IO ()
+addInitializer onStartup = do
+    initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
+    let newInitializers = initializers <> [Initializer { onStartup }]
+    State.modify (\map -> map
+            |> TMap.delete @[Initializer]
+            |> TMap.insert newInitializers
+        )
 
 ihpDefaultConfig :: ConfigBuilder
 ihpDefaultConfig = do
@@ -253,12 +271,8 @@ instance EnvVarReader RequestLogger.IPAddrSource where
 
 initAssetVersion :: ConfigBuilder
 initAssetVersion = do
-    ihpCloudContainerId <- envOrNothing "IHP_CLOUD_CONTAINER_ID"
     ihpAssetVersion <- envOrNothing "IHP_ASSET_VERSION"
-    let assetVersion = [ ihpCloudContainerId, ihpAssetVersion]
-            |> catMaybes
-            |> head
-            |> fromMaybe "dev"
+    let assetVersion = fromMaybe "dev" ihpAssetVersion
     option (AssetVersion assetVersion)
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
@@ -297,6 +311,7 @@ buildFrameworkConfig appConfig = do
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
             customMiddleware <- findOption @CustomMiddleware
+            initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get
 
@@ -415,7 +430,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     -- The boolean True specifies if credentials are allowed for the request. You still need to set withCredentials on your XmlHttpRequest
     -- >     option Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (["localhost"], True) }
     -- >
-    , corsResourcePolicy :: Maybe Cors.CorsResourcePolicy
+    , corsResourcePolicy :: !(Maybe Cors.CorsResourcePolicy)
 
     -- | Configures the limits for request parameters, uploaded files, maximum number of headers etc.
     --
@@ -438,16 +453,15 @@ data FrameworkConfig = FrameworkConfig
     -- >     option $ WaiParse.defaultParseRequestBodyOptions
     -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
     -- >
-    , parseRequestBodyOptions :: WaiParse.ParseRequestBodyOptions
+    , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
+
+    -- | Used by the dev server. This field cannot be strict.
     , ideBaseUrl :: Text
 
     -- | See IHP.DataSync.Role
-    , rlsAuthenticatedRole :: Text
+    , rlsAuthenticatedRole :: !Text
 
     -- | The asset version is used for cache busting
-    --
-    -- On IHP Cloud IHP automatically uses the @IHP_CLOUD_CONTAINER_ID@ env variable
-    -- as the asset version. So when running there, you don't need to do anything.
     --
     -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
     -- env variable with e.g. the git commit hash of the production build.
@@ -459,6 +473,7 @@ data FrameworkConfig = FrameworkConfig
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
+    , initializers :: ![Initializer]
 }
 
 instance HasField "frameworkConfig" FrameworkConfig FrameworkConfig where
@@ -528,7 +543,7 @@ defaultCorsResourcePolicy = Nothing
 -- >     -- Do something with the FrameworkConfig here
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
-withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig |> get #logger |> get #cleanup)
+withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
 
 initModelContext :: FrameworkConfig -> IO ModelContext
 initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do
