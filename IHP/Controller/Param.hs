@@ -613,7 +613,7 @@ class FillParams (params :: [Symbol]) record where
 
 instance FillParams ('[]) record where
     fill !record = record
-    {-# INLINABLE fill #-}
+    {-# INLINE fill #-}
 
 instance (FillParams rest record
     , KnownSymbol fieldName
@@ -628,15 +628,13 @@ instance (FillParams rest record
             Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
             Left ParamCouldNotBeParsedException { parserError } -> fill @rest (attachFailure (Proxy @fieldName) (cs parserError) record)
             Left ParamNotFoundException {} -> fill @rest record
-    {-# INLINABLE fill #-}
+    {-# INLINE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
-ifValid branch model = branch ((if null annotations then Right else Left) model)
-    where
-        annotations :: [(Text, ModelSupport.Violation)]
-        annotations = getField @"annotations" meta
-        meta :: ModelSupport.MetaBag
-        meta = getField @"meta" model
+ifValid branch model = branch $! if isEmpty model.meta.annotations
+    then Right model
+    else Left model
+{-# INLINE ifValid #-}
 
 ifNew :: forall record. (?context :: ControllerContext, ?modelContext :: ModelSupport.ModelContext, HasField "meta" record MetaBag) => (record -> record) -> record -> record
 ifNew thenBlock record = if ModelSupport.isNew record then thenBlock record else record
