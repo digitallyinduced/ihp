@@ -78,6 +78,7 @@ data FormContext model = FormContext
     , formId :: !Text -- ^ In the generated HTML, the @id@ attribute will be set to this value
     , disableJavascriptSubmission :: !Bool -- ^ When set to True, the IHP helpers.js will not submit the form using ajax
     , customFormAttributes :: ![(Text, Text)] -- ^ Attach custom HTML attributes here
+    , fieldNamePrefix :: !Text -- ^ Used by nested forms to preprend the nested field name to the field name
     }
 instance SetField "model" (FormContext record) record where setField value record = record { model = value }
 instance SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }
