@@ -153,7 +153,7 @@ scripts = [hsx|
 
 The default `_` attribute is currently not supported by HSX, but using the `data-script` attribute works equally well.
 
-HSX also supports multi line attribute strings out of the box, giving you nice syntax.
+HSX also supports multi line attribute strings out of the box, giving you more readable formatting.
 
 The following example shows you how to call a js function with `js` and manipulating the innerText of the button itself.
 
