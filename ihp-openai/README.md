@@ -6,6 +6,37 @@ The package is designed to work well with IHP AutoRefresh and IHP DataSync. The 
 
 API calls are retried up to 10 times. A retry will continue with the already generated output tokens, so that a user will never see that a retry has happend.
 
+## Install
+
+1. Make sure you're running on the latest master version of IHP
+
+2. Open `default.nix` and add `ihp-openai` to your haskell dependencies:
+
+    ```nix
+    let
+        ihp = ...;
+        haskellEnv = import "${ihp}/NixSupport/default.nix" {
+            ihp = ihp;
+            haskellDeps = p: with p; [
+                cabal-install
+                base
+                wai
+                text
+                hlint
+                p.ihp
+
+                ihp-openai
+            ];
+            otherDeps = p: with p; [
+                # Native dependencies, e.g. imagemagick
+            ];
+            projectPath = ./.;
+        };
+    in
+        haskellEnv
+
+    ```
+
 ## Example
 
 ```haskell
