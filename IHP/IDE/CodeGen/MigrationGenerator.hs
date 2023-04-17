@@ -171,6 +171,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 Nothing -> Nothing
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
+        toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name ,tableName }
         toDropStatement otherwise = Nothing
 
 
@@ -736,7 +737,9 @@ normalizeNewLines text =
 removeIndentation :: Text -> Text
 removeIndentation text =
         lines
-        |> map (Text.drop spacesToDrop)
+        |> map (\line -> if line /= "BEGIN"
+                then Text.drop spacesToDrop line
+                else line)
         |> Text.unlines
         |> Text.dropAround (\c -> c == '\n')
     where
@@ -745,6 +748,6 @@ removeIndentation text =
                 |> Text.lines
         spaces :: [Int]
         spaces = lines
-                |> filter (\line -> line /= "")
+                |> filter (\line -> line /= "" && line /= "BEGIN")
                 |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
         spacesToDrop = spaces |> minimum

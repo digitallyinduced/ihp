@@ -133,7 +133,7 @@ Open `Web/View/Layout.hs` and remove the following `<link>` and `<script>` eleme
 
 ```html
 <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
-<script src="/vendor/popper.min.js"></script>
+<script src="/vendor/popper-2.11.6.min.js"></script>
 <script src="/vendor/bootstrap.min.js"></script>
 ```
 
@@ -143,7 +143,7 @@ Bootstrap is also part of the production CSS build, we need to remove that as we
 
 ```makefile
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
-JS_FILES += ${IHP}/static/vendor/popper.min.js
+JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 ```
 
@@ -226,4 +226,4 @@ make static/prod.css
 
 `Make` will automatically detect that `static/app.css` is missing and will run `make static/app.css` to produce that missing file. This will then trigger the tailwind production build.
 
-This means you don't need to make any changes to your existing deployment process or your IHP Cloud settings.
+This means you don't need to make any changes to your existing deployment process.

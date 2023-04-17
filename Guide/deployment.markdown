@@ -10,8 +10,6 @@ Shipnix is a service for deploying NixOS web servers on DigitalOcean with first-
 
 Generating a base NixOS configuration for your specific project, Shipnix provides full freedom to configure with ease of use.
 
-Apart from the technical differences, the deployment experience in Shipnix is similar to IHP Cloud.
-
 ### Account Setup
 
 Register a new account on [shipnix.io](https://shipnix.io) and follow the instructions to connect to your DigitalOcean account and upload a NixOS image to it. This one-time process takes about 10 minutes.
@@ -19,10 +17,6 @@ Register a new account on [shipnix.io](https://shipnix.io) and follow the instru
 ### Creating a new project
 
 Provisioning a new IHP project is straightforward with the IHP starter. Read [the IHP starter guide](https://docs.shipnix.io/starters/ihp/) to find out how to set domains, enable https with LetsEncrypt and other common usecases.
-
-### Migrate from IHP Cloud to Shipnix
-
-If you wish to migrate from IHP Cloud, Shipnix has a [migration guide](https://docs.shipnix.io/migrate/ihp-cloud/).
 
 ## Deploying with Docker
 
@@ -293,7 +287,7 @@ CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 
 JS_FILES += ${IHP}/static/vendor/jquery-3.6.0.slim.min.js
 JS_FILES += ${IHP}/static/vendor/timeago.js
-JS_FILES += ${IHP}/static/vendor/popper.min.js
+JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js
 JS_FILES += ${IHP}/static/helpers.js
@@ -360,7 +354,7 @@ scripts = do
         <script id="livereload-script" src="/livereload.js"></script>
         <script src="/vendor/jquery-3.6.0.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
-        <script src="/vendor/popper.min.js"></script>
+        <script src="/vendor/popper-2.11.6.min.js"></script>
         <script src="/vendor/bootstrap.min.js"></script>
         <script src="/vendor/flatpickr.js"></script>
         <script src="/helpers.js"></script>
@@ -373,7 +367,7 @@ scripts = do
 
 ### Updating your Deployment Process
 
-**If you're using IHP Cloud:** Nothing to do. The command `make static/prod.js static/prod.css` is automatically executed during deployment.
+**If you're using Nix:** Nothing to do. The command `make static/prod.js static/prod.css` is automatically executed during deployment.
 
 **If you're deploying manually:** Make sure that `make static/prod.js static/prod.css` is called.
 
@@ -434,8 +428,6 @@ config = do
 ```
 
 Now sentry is set up.
-
-**When running on IHP Cloud:** You also need to update the `Config.hs` inside your IHP Cloud project settings.
 
 ## Building with Nix
 

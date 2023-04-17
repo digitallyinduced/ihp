@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "093f236f30c3b82205355806043263a8d636f8c2"
-, nixPkgsSha256 ? "sha256-LT8T+dZhoZ7vLP8FYzXPUpvgC84Hw0IoAJvrLiIIk10"
-, compiler ? "ghc924"
+, nixPkgsRev ? "a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e"
+, nixPkgsSha256 ? "sha256-eKyxW4OohHQx9Urxi7TQlFBTDWII+F+x2hklDOQPB51="
+, compiler ? "ghc944"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:
@@ -37,8 +37,8 @@ let
 
   composeExtensionsList = pkgs.lib.fold pkgs.lib.composeExtensions (_: _: {});
 
-  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb"];
-  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base"];
+  ihpDontCheckPackages = ["mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin"];
+  ihpDoJailbreakPackages = ["haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8" "chell"];
   ihpDontHaddockPackages = [];
 
   config = {

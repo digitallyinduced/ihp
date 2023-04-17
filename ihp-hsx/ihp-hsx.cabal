@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             0.20.0
+version:             1.0.1
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -74,7 +74,11 @@ library
         -Winaccessible-code
         -Wmissed-specialisations
         -Wall-missed-specialisations
+        -fspecialise-aggressively
+        -funfolding-use-threshold=120
+        -fdicts-strict
         -fexpose-all-unfoldings
+        -optc-O3
     hs-source-dirs: .
     exposed-modules:
         IHP.HSX.Parser

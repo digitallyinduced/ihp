@@ -2,7 +2,6 @@ module IHP.HSX.HaskellParser (parseHaskellExpression) where
 
 import Prelude
 import GHC.Parser.Lexer (ParseResult (..), PState (..))
-import qualified GHC.Parser.Errors.Ppr as ParserErrorPpr
 import GHC.Types.SrcLoc
 import qualified GHC.Parser as Parser
 import qualified GHC.Parser.Lexer as Lexer
@@ -16,16 +15,26 @@ import qualified GHC.Data.EnumSet as EnumSet
 import GHC
 import IHP.HSX.HsExpToTH (toExp)
 
+import GHC.Types.Error
+import GHC.Utils.Outputable hiding ((<>))
+import GHC.Utils.Error
+import qualified GHC.Types.SrcLoc as SrcLoc
+
 parseHaskellExpression :: SourcePos -> [TH.Extension] -> String -> Either (Int, Int, String) TH.Exp
 parseHaskellExpression sourcePos extensions input =
         case expr of
             POk parserState result -> Right (toExp (unLoc result))
             PFailed parserState ->
                 let
-                    error = concatMap (show . ParserErrorPpr.pprError) (parserState.errors)
-                    realLoc = (psRealLoc parserState.loc)
-                    line = srcLocLine realLoc
-                    col = srcLocCol realLoc
+                    error = renderWithContext defaultSDocContext
+                        $ vcat
+                        $ map (formatBulleted defaultSDocContext)
+                        $ map diagnosticMessage
+                        $ map errMsgDiagnostic
+                        $ sortMsgBag Nothing
+                        $ getMessages parserState.errors
+                    line = SrcLoc.srcLocLine parserState.loc.psRealLoc
+                    col = SrcLoc.srcLocCol parserState.loc.psRealLoc
                 in
                     Left (line, col, error)
     where
@@ -50,4 +59,15 @@ parseHaskellExpression sourcePos extensions input =
         parseState = Lexer.initParserState parserOpts buffer location
 
         parserOpts :: Lexer.ParserOpts
-        parserOpts = Lexer.mkParserOpts EnumSet.empty (EnumSet.fromList extensions) False False False False
+        parserOpts = Lexer.mkParserOpts (EnumSet.fromList extensions) diagOpts [] False False False False
+
+diagOpts :: DiagOpts
+diagOpts =
+    DiagOpts
+    { diag_warning_flags = EnumSet.empty
+    , diag_fatal_warning_flags = EnumSet.empty
+    , diag_warn_is_error = False
+    , diag_reverse_errors = False
+    , diag_max_errors = Nothing
+    , diag_ppr_ctx = defaultSDocContext
+    }

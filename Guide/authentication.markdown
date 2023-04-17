@@ -237,7 +237,7 @@ To block login (requires `isConfirmed` boolean field in `Users` table):
 instance Sessions.SessionsControllerConfig User where
     beforeLogin user = do
         unless user.isConfirmed do
-            setErrorMessage "Please click the confirmation link we sent to your email before you can use IHP Cloud"
+            setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
             redirectTo NewSessionAction
 ```
 
