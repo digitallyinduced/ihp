@@ -12,119 +12,59 @@ We will also have PostCSS added as part of the installation. PostCSS is used for
 
 ## Installing
 
-### NodeJS
+### Tailwind Standalone CLI
 
-First, we need to add NodeJS to our project. **You should also follow this step if you have NodeJS already installed on your system.** Installing the NodeJS version via nix allows all people working on your project to get the same NodeJS version as you're using.
+[ihp-tailwind-bootstrapper](https://github.com/ship-nix/ihp-tailwind-bootstrapper) allows you to add the [Tailwind Standalone CLI](https://tailwindcss.com/blog/standalone-cli) to your IHP project without adding npm.
 
-For that open your projects `default.nix` and add `nodejs` to `otherDeps`:
+`autoprefixer`, `postcss` and all official Tailwind plugins are all included in the prebuilt Tailwind binaries.
 
-```nix
-otherDeps = p: with p; [
-    # Native dependencies, e.g. imagemagick
-    nodejs
-];
+From the root of your ihp project, pull the repository and delete the .git folder in the tailwind folder with this one-liner:
+
+```sh
+git clone https://github.com/ship-nix/ihp-tailwind-bootstrapper.git tailwind && rm -rf tailwind/.git
 ```
 
-Now you need to rebuild your local development environment:
+This will create a `tailwind` directory in your IHP project with all the files you need to start using Tailwind.
 
-```bash
-nix-shell --run 'make -B .envrc'
-```
+Edit `tailwind/app.css` and `tailwind/tailwind.config.js` to your own liking.
 
-After that, you have `node` and `npm` available in your project.
+### Add dev and production build scripts
 
-### Installing Tailwind
+In the `Makefile` in your IHP project, add these scripts:
 
-Install Tailwind along with PostCSS and some handy libraries via NPM:
-
-```bash
-npm init
-npm add tailwindcss@latest postcss@latest autoprefixer@latest @tailwindcss/forms
-```
-
-This will create `package.json` and `package-lock.json`. Make sure to commit both files to your git repository.
-
-### Configuring Tailwind
-
-Create a new directory `tailwind`. We're going to place all the CSS files and the tailwind configuration in that directory:
-
-```bash
-mkdir tailwind
-```
-
-Create the tailwind configuration file at `tailwind/tailwind.config.js` with the following content:
-
-```javascript
-const plugin = require('tailwindcss/plugin');
-
-module.exports = {
-    mode: 'jit',
-    theme: {
-        extend: {
-        },
-    },
-    content: [
-        "Web/View/**/*.hs",
-    ],
-    safelist: [
-        // Add custom class names.
-        // https://tailwindcss.com/docs/content-configuration#safelisting-classes
-    ],
-    plugins: [
-        require('@tailwindcss/forms'),
-    ],
-};
-```
-
-We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.css`.
-
-```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer components {
-  .btn {
-    @apply px-4 py-2 bg-blue-600 text-white rounded;
-  }
-}
-```
-
-### Adding the build step
-
-We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
-
-```makefile
+```sh
 tailwind-dev:
-	node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
-```
-
-**Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
-
-This defines a new command `make tailwind-dev` that runs `npx tailwindcss build` whenever a CSS file inside the `tailwind/` directory changes. The CSS output will be placed at `static/app.css` (the standard main CSS file of IHP apps). It will use the tailwind configuration at `tailwind/tailwind.config.js`.
-
-For production builds, we also need a new make target:
-
-```makefile
-node_modules:
-    NODE_ENV=production npm ci
+	bash tailwind/tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 
 static/app.css:
-	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
+	NODE_ENV=production bash tailwind/tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
-
-**Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
-
-You can now execute it with `make -B static/app.css`
 
 ### Updating the .gitignore
 
-As the `static/app.css` is now generated code, it's best to put the `static/app.css` into our `.gitignore` file.
+As the `static/app.css` is now generated code, it’s best to put the `static/app.css` into our `.gitignore` in the root of you IHP project.
 
-```bash
+```sh
 git rm -f static/app.css # Remove the existing app.css
 printf '\nstatic/app.css' >> .gitignore
 git add .gitignore
+```
+
+## How to use
+
+### Run in development mode
+
+For running the development version of Tailwind in `watch` mode, you can run this line:
+
+```sh
+nix-shell --run 'make tailwind-dev'
+```
+
+Optionally, you can replace the `RunDevServer` line in your `./start` script with this to run Tailwind automatically when running the IHP development server.
+
+```sh
+# Finally start the dev server
+wait & make tailwind-dev & RunDevServer
 ```
 
 ### Removing bootstrap
@@ -151,7 +91,7 @@ JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 
 Right now, your IHP app will still be rendered with some bootstrap CSS class names. We can switch this to use tailwind classes. Since our configuration uses the JIT mode, it means we would need to copy the `tailwind` CSSFramework from IHP core files, into our custom theme. Otherwise, any css defined by IHP itself will not be caught by Tailwind before purging and keeping only the used CSS classes. This might seem weird initially, having to copy/paste; however, we think it is the best compromise since it's very likely you would like to change the default classes and get your site a unique view.
 
-Create a file at `Web/View/CustomCSSFramework.hs`  and copy the `import`s and the contents of the `tailwind` function from [IHP/View/CSSFramework.hs](https://github.com/digitallyinduced/ihp/blob/master/IHP/View/CSSFramework.hs):
+Create a file at `Web/View/CustomCSSFramework.hs` and copy the `import`s and the contents of the `tailwind` function from [IHP/View/CSSFramework.hs](https://github.com/digitallyinduced/ihp/blob/master/IHP/View/CSSFramework.hs):
 
 ```haskell
 module Web.View.CustomCSSFramework (customTailwind) where
@@ -204,7 +144,6 @@ config = do
     option (AppHostname "localhost")
     option customTailwind -- ADD THIS OPTION
 ```
-
 
 ## Developing with Tailwind
 
