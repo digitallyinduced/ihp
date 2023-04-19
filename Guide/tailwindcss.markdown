@@ -18,7 +18,7 @@ Tailwind offers a Standalone CLI for frameworks like IHP, Rails and Phoenix as a
 
 You can follow the [official article](https://tailwindcss.com/blog/standalone-cli) for checking a standalone Tailwind binary into your project.
 
-If you require cross-platform support, [ihp-tailwind-bootstrapper](https://github.com/ship-nix/ihp-tailwind-bootstrapper) uses Tailwind's official binaries and let's you access the correct one for you system. Only the binary used for deployment is checked into version control.
+If you require cross-platform support, [ihp-tailwind-bootstrapper](https://github.com/ship-nix/ihp-tailwind-bootstrapper) uses Tailwind's official binaries and let's you automatically use the correct one for your system. Only the binary used for deployment is checked into version control.
 
 
 ### NodeJS
