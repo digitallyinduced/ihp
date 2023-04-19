@@ -1,0 +1,52 @@
+cabal-version:       2.2
+name:                ihp-openai
+version:             1.0.1
+synopsis:            Call GPT4 from IHP
+description:         Call GPT4 from IHP
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            AI
+build-type:          Simple
+extra-source-files: README.md, changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+library
+    default-language: Haskell2010
+    build-depends:
+          base
+        , text
+        , http-streams
+        , retry
+        , io-streams
+        , bytestring
+        , aeson
+        , HsOpenSSL
+    default-extensions:
+        OverloadedStrings
+          FlexibleContexts
+        , ScopedTypeVariables
+        , NamedFieldPuns
+        , BangPatterns
+        , BlockArguments
+        , OverloadedRecordDot
+        , BlockArguments
+    ghc-options:
+        -fstatic-argument-transformation
+        -funbox-strict-fields
+        -haddock
+        -Wredundant-constraints
+        -Wunused-imports
+        -Wunused-foralls
+        -Wmissing-fields
+        -Winaccessible-code
+        -Wmissed-specialisations
+        -fexpose-all-unfoldings
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.OpenAI

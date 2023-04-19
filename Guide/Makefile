@@ -14,6 +14,7 @@ HTML_FILES+= querybuilder.html
 HTML_FILES+= view.html
 HTML_FILES+= form.html
 HTML_FILES+= hsx.html
+HTML_FILES+= htmx-and-hyperscript.html
 HTML_FILES+= validation.html
 HTML_FILES+= session.html
 HTML_FILES+= naming-conventions.html
