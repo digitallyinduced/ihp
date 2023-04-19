@@ -192,6 +192,7 @@ removeNoise = filter \case
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
         CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                      -> False
+        CreateTrigger { name } | "did_update_" `Text.isPrefixOf` name                                   -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "large_pg_notifications" } } -> False
         CreateIndex { tableName = "large_pg_notifications" }                                            -> False
         _                                                                                               -> True
