@@ -12,6 +12,15 @@ We will also have PostCSS added as part of the installation. PostCSS is used for
 
 ## Installing
 
+### Standalone CLI
+
+Tailwind offers a Standalone CLI for frameworks like IHP, Rails and Phoenix as an alternative to installing npm just for the sake of Tailwind. 
+
+You can follow the [official article](https://tailwindcss.com/blog/standalone-cli) for checking a standalone Tailwind binary into your project.
+
+If you require cross-platform support, [ihp-tailwind-bootstrapper](https://github.com/ship-nix/ihp-tailwind-bootstrapper) uses Tailwind's official binaries and let's you access the correct one for you system. Only the binary used for deployment is checked into version control.
+
+
 ### NodeJS
 
 First, we need to add NodeJS to our project. **You should also follow this step if you have NodeJS already installed on your system.** Installing the NodeJS version via nix allows all people working on your project to get the same NodeJS version as you're using.
