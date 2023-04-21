@@ -189,7 +189,10 @@ compileEnums options schema@(Schema statements) =
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement =
     let ?schema = Schema statements
-    in compileStatement previewCompilerOptions statement
+    in
+        case statement of
+            CreateEnumType {} -> compileEnumDataDefinitions statement
+            _ -> compileStatement previewCompilerOptions statement
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
