@@ -174,8 +174,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -185,16 +203,8 @@ tests = do
                             let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
-
-                    type instance PrimaryKey "users" = UUID
-
-                    instance QueryBuilder.FilterPrimaryKey "users" where
-                        filterWhereId id builder =
-                            builder |> QueryBuilder.filterWhere (#id, id)
-                        {-# INLINE filterWhereId #-}
 
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
@@ -211,13 +221,12 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0.17  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
                 |]
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable CreateTable
@@ -234,8 +243,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -245,16 +272,8 @@ tests = do
                             let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
-
-                    type instance PrimaryKey "users" = UUID
-
-                    instance QueryBuilder.FilterPrimaryKey "users" where
-                        filterWhereId id builder =
-                            builder |> QueryBuilder.filterWhere (#id, id)
-                        {-# INLINE filterWhereId #-}
 
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
@@ -271,13 +290,12 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def 0  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
                 |]
             it "should not touch GENERATED columns" do
                 let statement = StatementCreateTable CreateTable
@@ -294,8 +312,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ts"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -304,16 +340,8 @@ tests = do
                             let theRecord = User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
-
-                    type instance PrimaryKey "users" = UUID
-
-                    instance QueryBuilder.FilterPrimaryKey "users" where
-                        filterWhereId id builder =
-                            builder |> QueryBuilder.filterWhere (#id, id)
-                        {-# INLINE filterWhereId #-}
 
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
@@ -330,13 +358,12 @@ tests = do
                     instance Record User where
                         {-# INLINE newRecord #-}
                         newRecord = User def def  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ts"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance QueryBuilder.FilterPrimaryKey "users" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
                 |]
 
 

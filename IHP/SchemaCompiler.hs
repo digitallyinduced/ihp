@@ -35,16 +35,60 @@ compile = do
             forEach (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
 
-compileModules :: CompilerOptions -> Schema -> [(String, Text)]
+compileModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
 compileModules options schema =
     [ ("build/Generated/Enums.hs", compileEnums options schema)
-    , (typesFilePath, compileTypes options schema)
+    , ("build/Generated/ActualTypes.hs", compileTypes options schema)
+    ] <> tableModules options schema <>
+    [ ("build/Generated/Types.hs", compileIndex schema)
     ]
 
-typesFilePath :: FilePath
-typesFilePath = "build/Generated/Types.hs"
+tableModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+tableModules options schema =
+    let ?schema = schema
+    in
+        schema.statements
+        |> mapMaybe (\case
+                StatementCreateTable t | tableHasPrimaryKey t -> Just (tableModule options t)
+                otherwise -> Nothing
+            )
 
-newtype Schema = Schema [Statement]
+tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (FilePath, Text)
+tableModule options table =
+        ("build/Generated/" <> cs (tableNameToModelName table.name) <> ".hs", body)
+    where
+        body = Text.unlines
+            [ prelude
+            , tableModuleBody options table
+            ]
+        moduleName = "Generated." <> tableNameToModelName table.name
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+            module $moduleName where
+            $defaultImports
+            import Generated.ActualTypes
+        |]
+
+tableModuleBody :: (?schema :: Schema) => CompilerOptions -> CreateTable -> Text
+tableModuleBody options table = Text.unlines
+    [ compileInputValueInstance table
+    , compileFromRowInstance table
+    , compileGetModelName table
+    , compileCreate table
+    , compileUpdate table
+    , compileBuild table
+    , compileFilterPrimaryKeyInstance table
+    , if needsHasFieldId table
+            then compileHasFieldId table
+            else ""
+    , if options.compileGetAndSetFieldInstances
+            then compileSetFieldInstances table <> compileUpdateFieldInstances table
+            else ""
+    ]
+
+newtype Schema = Schema { statements :: [Statement] }
 
 data CompilerOptions = CompilerOptions {
         -- | We can toggle the generation of @SetField@ and @GetField@ instances.
@@ -113,66 +157,109 @@ writeIfDifferent path content = do
         putStrLn $ "Updating " <> cs path
         writeFile (cs path) (cs content)
 
-
-
-section = "\n"
-
 compileTypes :: CompilerOptions -> Schema -> Text
-compileTypes options schema@(Schema statements) =
-        prelude
-        <> "\n\n"
-        <> let ?schema = schema
-            in intercalate "\n\n" (map (compileStatement options) statements)
-        <> section
+compileTypes options schema@(Schema statements) = Text.unlines
+        [ prelude
+        , let ?schema = schema in body
+        ]
     where
+        body :: (?schema :: Schema) => Text
+        body =
+            statements
+                |> mapMaybe (\case
+                    StatementCreateTable table | tableHasPrimaryKey table -> Just (compileActualTypesForTable table)
+                    otherwise -> Nothing
+                )
+                |> Text.intercalate "\n\n"
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
             {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
-            module Generated.Types (module Generated.Types, module Generated.Enums) where
-            import IHP.HaskellSupport
-            import IHP.ModelSupport
-            import CorePrelude hiding (id)
-            import Data.Time.Clock
-            import Data.Time.LocalTime
-            import qualified Data.Time.Calendar
-            import qualified Data.List as List
-            import qualified Data.ByteString as ByteString
-            import qualified Net.IP
-            import Database.PostgreSQL.Simple
-            import Database.PostgreSQL.Simple.FromRow
-            import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-            import Database.PostgreSQL.Simple.ToField hiding (Field)
-            import qualified IHP.Controller.Param
-            import GHC.TypeLits
-            import Data.UUID (UUID)
-            import Data.Default
-            import qualified IHP.QueryBuilder as QueryBuilder
-            import qualified Data.Proxy
-            import GHC.Records
-            import Data.Data
-            import qualified Data.String.Conversions
-            import qualified Data.Text.Encoding
-            import qualified Data.Aeson
-            import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))
-            import qualified Database.PostgreSQL.Simple.Types
-            import IHP.Job.Types
-            import IHP.Job.Queue ()
-            import qualified Control.DeepSeq as DeepSeq
-            import qualified Data.Dynamic
-            import Data.Scientific
+            module Generated.ActualTypes (module Generated.ActualTypes, module Generated.Enums) where
+            $defaultImports
             import Generated.Enums
         |]
+
+compileActualTypesForTable :: (?schema :: Schema) => CreateTable -> Text
+compileActualTypesForTable table = Text.unlines
+    [ compileData table
+    , compilePrimaryKeyInstance table
+    , compileInclude table
+    , compileTypeAlias table
+    , compileHasTableNameInstance table
+    , compileDefaultIdInstance table
+    , compileTableInstance table
+    ]
+
+compileIndex :: Schema -> Text
+compileIndex schema = [trimming|
+        -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+        {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+        {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+        module Generated.Types ($rexports) where
+        import Generated.ActualTypes
+        $tableModuleImports
+    |]
+        where
+            tableModuleNames =
+                schema.statements
+                |> mapMaybe (\case
+                        StatementCreateTable table -> Just ("Generated." <> tableNameToModelName table.name)
+                        otherwise -> Nothing
+                    )
+            tableModuleImports = tableModuleNames
+                    |> map (\name -> "import " <> name)
+                    |> Text.unlines
+
+            rexportedModules = ["Generated.ActualTypes"] <> tableModuleNames
+
+            rexports = rexportedModules
+                    |> map (\moduleName -> "module " <> moduleName)
+                    |> Text.intercalate ", "
+
+
+defaultImports = [trimming|
+    import IHP.HaskellSupport
+    import IHP.ModelSupport
+    import CorePrelude hiding (id)
+    import Data.Time.Clock
+    import Data.Time.LocalTime
+    import qualified Data.Time.Calendar
+    import qualified Data.List as List
+    import qualified Data.ByteString as ByteString
+    import qualified Net.IP
+    import Database.PostgreSQL.Simple
+    import Database.PostgreSQL.Simple.FromRow
+    import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+    import Database.PostgreSQL.Simple.ToField hiding (Field)
+    import qualified IHP.Controller.Param
+    import GHC.TypeLits
+    import Data.UUID (UUID)
+    import Data.Default
+    import qualified IHP.QueryBuilder as QueryBuilder
+    import qualified Data.Proxy
+    import GHC.Records
+    import Data.Data
+    import qualified Data.String.Conversions
+    import qualified Data.Text.Encoding
+    import qualified Data.Aeson
+    import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))
+    import qualified Database.PostgreSQL.Simple.Types
+    import IHP.Job.Types
+    import IHP.Job.Queue ()
+    import qualified Control.DeepSeq as DeepSeq
+    import qualified Data.Dynamic
+    import Data.Scientific
+|]
 
 
 
 compileEnums :: CompilerOptions -> Schema -> Text
-compileEnums options schema@(Schema statements) =
-        prelude
-        <> "\n\n"
-        <> let ?schema = schema
-            in intercalate "\n\n" (mapMaybe compileStatement statements)
-        <> section
+compileEnums options schema@(Schema statements) = Text.unlines
+        [ prelude
+        , let ?schema = schema
+          in intercalate "\n\n" (mapMaybe compileStatement statements)
+        ]
     where
         compileStatement enum@(CreateEnumType {}) = Just (compileEnumDataDefinitions enum)
         compileStatement _ = Nothing
@@ -198,37 +285,14 @@ compileStatementPreview statements statement =
     in
         case statement of
             CreateEnumType {} -> compileEnumDataDefinitions statement
-            _ -> compileStatement previewCompilerOptions statement
+            StatementCreateTable table -> Text.unlines
+                [ compileActualTypesForTable table
+                , tableModuleBody previewCompilerOptions table
+                ]
 
-compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
-compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
-    case table.primaryKeyConstraint of
-        -- Skip generation of tables with no primary keys
-        PrimaryKeyConstraint [] -> ""
-        _ -> compileData table
-            <> compileTypeAlias table
-            <> compileFromRowInstance table
-            <> compileHasTableNameInstance table
-            <> compileGetModelName table
-            <> compilePrimaryKeyInstance table
-            <> section
-            <> compileInclude table
-            <> compileCreate table
-            <> section
-            <> compileUpdate table
-            <> section
-            <> compileBuild table
-            <> compileTableInstance table
-            <> (if needsHasFieldId table
-                    then compileHasFieldId table
-                    else "")
-            <> section
-            <> (if compileGetAndSetFieldInstances
-                    then compileSetFieldInstances table <> compileUpdateFieldInstances table
-                    else "")
-            <> section
-
-compileStatement _ _ = ""
+-- | Skip generation of tables with no primary keys
+tableHasPrimaryKey :: CreateTable -> Bool
+tableHasPrimaryKey table = table.primaryKeyConstraint /= (PrimaryKeyConstraint [])
 
 compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
 compileTypeAlias table@(CreateTable { name, columns }) =
@@ -259,11 +323,16 @@ compileData table@(CreateTable { name, columns }) =
             |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
             |> commaSep
         <> "} deriving (Eq, Show)\n"
-        <> "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
     where
         modelName = tableNameToModelName name
         typeArguments :: Text
         typeArguments = dataTypeArguments table |> unwords
+
+compileInputValueInstance :: CreateTable -> Text
+compileInputValueInstance table =
+        "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
+    where
+        modelName = tableNameToModelName table.name
 
 -- | Returns all the type arguments of the data structure for an entity
 dataTypeArguments :: (?schema :: Schema) => CreateTable -> [Text]
@@ -607,7 +676,10 @@ compileBuild table@(CreateTable { name, columns }) =
         "instance Record " <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
         <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
-        <> "instance Default (Id' \"" <> name <> "\") where def = Id def"
+
+
+compileDefaultIdInstance :: CreateTable -> Text
+compileDefaultIdInstance table = "instance Default (Id' \"" <> table.name <> "\") where def = Id def"
 
 
 toDefaultValueExpr :: Column -> Text
@@ -645,15 +717,11 @@ compileHasTableNameInstance table@(CreateTable { name }) =
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
-compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
-type instance PrimaryKey #{tshow name} = #{idType}
-
-instance QueryBuilder.FilterPrimaryKey "#{name}" where
-    filterWhereId #{primaryKeyPattern} builder =
-        builder |> #{intercalate " |> " primaryKeyFilters}
-    {-# INLINE filterWhereId #-}
+compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|
+    type instance PrimaryKey $symbol = $idType
 |]
     where
+        symbol = tshow name
         idType :: Text
         idType = case primaryKeyColumns table of
                 [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
@@ -662,6 +730,14 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
             where
                 colType column = haskellType table column
 
+compileFilterPrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
+compileFilterPrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+instance QueryBuilder.FilterPrimaryKey "#{name}" where
+    filterWhereId #{primaryKeyPattern} builder =
+        builder |> #{intercalate " |> " primaryKeyFilters}
+    {-# INLINE filterWhereId #-}
+|]
+    where
         primaryKeyPattern = case primaryKeyColumns table of
             [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
             [c] -> c.name
@@ -737,7 +813,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
         modelConstructor = modelName <> "'"
 
         includeType :: Text -> Text -> Text
-        includeType fieldName includedType = "type instance Include " <> tshow fieldName <> " (" <> leftModelType <> ") = " <> rightModelType <> "\n"
+        includeType fieldName includedType = "type instance Include " <> tshow fieldName <> " (" <> leftModelType <> ") = " <> rightModelType
             where
                 leftModelType = unwords (modelConstructor:typeArgs)
                 rightModelType = unwords (modelConstructor:(map compileTypeVariable' typeArgs))
