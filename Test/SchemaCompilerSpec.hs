@@ -132,16 +132,16 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
@@ -157,7 +157,7 @@ tests = do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable CreateTable
@@ -199,14 +199,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -259,14 +259,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -318,14 +318,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}

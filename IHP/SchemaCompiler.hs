@@ -456,7 +456,7 @@ compileCreate table@(CreateTable { name, columns }) =
         toBinding column@(Column { name }) =
             if hasExplicitOrImplicitDefault column
                 then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
-                else "get #" <> columnNameToFieldName name <> " model"
+                else "model." <> columnNameToFieldName name
 
 
         bindings :: [Text]
@@ -493,7 +493,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         writableColumns = onlyWritableColumns columns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
-        toPrimaryKeyBinding Column { name } = "get #" <> columnNameToFieldName name <> " model"
+        toPrimaryKeyBinding Column { name } = "model." <> columnNameToFieldName name
 
         bindings :: Text
         bindings =
