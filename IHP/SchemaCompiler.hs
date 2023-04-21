@@ -30,6 +30,7 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             Directory.createDirectoryIfMissing True "build/Generated"
+            writeIfDifferent "build/Generated/Enums.hs" (compileEnums options (Schema statements))
             writeIfDifferent typesFilePath (compileTypes options (Schema statements))
 
 typesFilePath :: FilePath
@@ -119,7 +120,7 @@ compileTypes options schema@(Schema statements) =
         prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
                   <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}\n"
                   <> "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}\n"
-                  <> "module Generated.Types where\n\n"
+                  <> "module Generated.Types (module Generated.Types, module Generated.Enums) where\n\n"
                   <> "import IHP.HaskellSupport\n"
                   <> "import IHP.ModelSupport\n"
                   <> "import CorePrelude hiding (id)\n"
@@ -151,6 +152,32 @@ compileTypes options schema@(Schema statements) =
                   <> "import qualified Control.DeepSeq as DeepSeq\n"
                   <> "import qualified Data.Dynamic\n"
                   <> "import Data.Scientific\n"
+                  <> "import Generated.Enums\n"
+
+
+compileEnums :: CompilerOptions -> Schema -> Text
+compileEnums options schema@(Schema statements) =
+        prelude
+        <> "\n\n"
+        <> let ?schema = schema
+            in intercalate "\n\n" (mapMaybe compileStatement statements)
+        <> section
+    where
+        compileStatement enum@(CreateEnumType {}) = Just (compileEnumDataDefinitions enum)
+        compileStatement _ = Nothing
+        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+                  <> "module Generated.Enums where\n\n"
+                  <> "import CorePrelude\n"
+                  <> "import IHP.ModelSupport\n"
+                  <> "import Database.PostgreSQL.Simple\n"
+                  <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
+                  <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
+                  <> "import qualified IHP.Controller.Param\n"
+                  <> "import Data.Default\n"
+                  <> "import qualified IHP.QueryBuilder as QueryBuilder\n"
+                  <> "import qualified Data.String.Conversions\n"
+                  <> "import qualified Data.Text.Encoding\n"
+                  <> "import qualified Control.DeepSeq as DeepSeq\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
@@ -183,7 +210,6 @@ compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCr
                     else "")
             <> section
 
-compileStatement _ enum@(CreateEnumType {}) = compileEnumDataDefinitions enum
 compileStatement _ _ = ""
 
 compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
