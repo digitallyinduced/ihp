@@ -30,8 +30,15 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             Directory.createDirectoryIfMissing True "build/Generated"
-            writeIfDifferent "build/Generated/Enums.hs" (compileEnums options (Schema statements))
-            writeIfDifferent typesFilePath (compileTypes options (Schema statements))
+
+            forEach (compileModules options (Schema statements)) \(path, body) -> do
+                    writeIfDifferent path body
+
+compileModules :: CompilerOptions -> Schema -> [(String, Text)]
+compileModules options schema =
+    [ ("build/Generated/Enums.hs", compileEnums options schema)
+    , (typesFilePath, compileTypes options schema)
+    ]
 
 typesFilePath :: FilePath
 typesFilePath = "build/Generated/Types.hs"
@@ -180,7 +187,9 @@ compileEnums options schema@(Schema statements) =
                   <> "import qualified Control.DeepSeq as DeepSeq\n"
 
 compileStatementPreview :: [Statement] -> Statement -> Text
-compileStatementPreview statements statement = let ?schema = Schema statements in compileStatement previewCompilerOptions statement
+compileStatementPreview statements statement =
+    let ?schema = Schema statements
+    in compileStatement previewCompilerOptions statement
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
