@@ -196,7 +196,7 @@ compileStatementPreview statements statement =
 
 compileStatement :: (?schema :: Schema) => CompilerOptions -> Statement -> Text
 compileStatement CompilerOptions { compileGetAndSetFieldInstances } (StatementCreateTable table) =
-    case get #primaryKeyConstraint table of
+    case table.primaryKeyConstraint of
         -- Skip generation of tables with no primary keys
         PrimaryKeyConstraint [] -> ""
         _ -> compileData table
@@ -263,9 +263,9 @@ compileData table@(CreateTable { name, columns }) =
 dataTypeArguments :: (?schema :: Schema) => CreateTable -> [Text]
 dataTypeArguments table = (map columnNameToFieldName belongsToVariables) <> hasManyVariables
     where
-        belongsToVariables = variableAttributes table |> map (get #name)
+        belongsToVariables = variableAttributes table |> map (.name)
         hasManyVariables =
-            columnsReferencingTable (get #name table)
+            columnsReferencingTable table.name
             |> compileQueryBuilderFields
             |> map snd
 
@@ -276,7 +276,7 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
         columnFields = columns |> map columnField
 
         columnField column =
-            let fieldName = columnNameToFieldName (get #name column)
+            let fieldName = columnNameToFieldName column.name
             in
                 ( fieldName
                 , if isVariableAttribute table column
@@ -368,7 +368,7 @@ findForeignKeyConstraint CreateTable { name } column =
             Just (AddConstraint { constraint }) -> Just constraint
             Nothing -> Nothing
     where
-        isFkConstraint (AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName }}) = tableName == name && columnName == get #name column
+        isFkConstraint (AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName }}) = tableName == name && columnName == column.name
         isFkConstraint _ = False
 
         (Schema statements) = ?schema
@@ -450,7 +450,7 @@ compileCreate table@(CreateTable { name, columns }) =
     let
         writableColumns = onlyWritableColumns columns
         modelName = tableNameToModelName name
-        columnNames = commaSep (map (get #name) writableColumns)
+        columnNames = commaSep (map (.name) writableColumns)
         values = commaSep (map columnPlaceholder writableColumns)
 
         toBinding column@(Column { name }) =
@@ -502,10 +502,10 @@ compileUpdate table@(CreateTable { name, columns }) =
             in
                 compileToRowValues bindingValues
 
-        updates = commaSep (map (\column -> get #name column <> " = " <> columnPlaceholder column ) writableColumns)
+        updates = commaSep (map (\column -> column.name <> " = " <> columnPlaceholder column ) writableColumns)
 
         columnNames = writableColumns
-                |> map (get #name)
+                |> map (.name)
                 |> intercalate ", "
     in
         "instance CanUpdate " <> modelName <> " where\n"
@@ -526,10 +526,10 @@ instance FromRow #{modelName} where
 |]
     where
         modelName = tableNameToModelName name
-        columnNames = map (columnNameToFieldName . get #name) columns
+        columnNames = map (columnNameToFieldName . (.name)) columns
         columnBinding columnName = columnName <> " <- field"
 
-        referencing = columnsReferencingTable (get #name table)
+        referencing = columnsReferencingTable table.name
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
@@ -537,7 +537,7 @@ instance FromRow #{modelName} where
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
-        isPrimaryKey name = name `elem` primaryKeyColumnNames (get #primaryKeyConstraint table)
+        isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
         isColumn name = name `elem` columnNames
         isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
@@ -545,7 +545,7 @@ instance FromRow #{modelName} where
             where
                 -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
                 primaryKeyField :: Text
-                primaryKeyField = if get #notNull refColumn then "id" else "Just id"
+                primaryKeyField = if refColumn.notNull then "id" else "Just id"
 
                 (Just refTable) = let (Schema statements) = ?schema in
                         statements
@@ -556,10 +556,10 @@ instance FromRow #{modelName} where
                 refColumn :: Column
                 refColumn = refTable
                         |> \case StatementCreateTable CreateTable { columns } -> columns
-                        |> find (\col -> get #name col == refFieldName)
+                        |> find (\col -> col.name == refFieldName)
                         |> \case
                             Just refColumn -> refColumn
-                            Nothing -> error (cs $ "Could not find " <> get #name refTable <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
+                            Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
         compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
         -- compileQuery column@(Column { name }) | isReferenceColum column = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
@@ -651,15 +651,15 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
         idType :: Text
         idType = case primaryKeyColumns table of
                 [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                [column] -> atomicType (get #columnType column) -- PrimaryKey User = UUID
+                [column] -> atomicType column.columnType -- PrimaryKey User = UUID
                 cs -> "(" <> intercalate ", " (map colType cs) <> ")" -- PrimaryKey PostsTag = (Id' "posts", Id' "tags")
             where
                 colType column = haskellType table column
 
         primaryKeyPattern = case primaryKeyColumns table of
             [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-            [c] -> get #name c
-            cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . get #name) cs) <> "))"
+            [c] -> c.name
+            cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . (.name)) cs) <> "))"
 
         primaryKeyFilters :: [Text]
         primaryKeyFilters = map primaryKeyFilter $ primaryKeyColumns table
@@ -683,7 +683,7 @@ instance #{instanceHead} where
                 instanceConstraints =
                     table
                     |> primaryKeyColumns
-                    |> map (get #name)
+                    |> map (.name)
                     |> map columnNameToFieldName
                     |> filter (\field -> field `elem` (dataTypeArguments table))
                     |> map (\field -> "ToField " <> field)
@@ -691,7 +691,7 @@ instance #{instanceHead} where
                     |> \inner -> "(" <> inner <> ")"
 
         primaryKeyColumnNames :: [Text]
-        primaryKeyColumnNames = (primaryKeyColumns table) |> map (get #name)
+        primaryKeyColumnNames = (primaryKeyColumns table) |> map (.name)
 
         primaryKeyFieldNames :: [Text]
         primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
@@ -706,10 +706,10 @@ instance #{instanceHead} where
                 |> \listInner -> "[" <> listInner <> "]"
 
         primaryKeyToCondition :: Column -> Text
-        primaryKeyToCondition column = "(\"" <> get #name column <> "\", toField " <> columnNameToFieldName (get #name column) <> ")"
+        primaryKeyToCondition column = "(\"" <> column.name <> "\", toField " <> columnNameToFieldName column.name <> ")"
 
         columnNames = columns
-                |> map (get #name)
+                |> map (.name)
                 |> tshow
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
@@ -739,7 +739,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
                 compileTypeVariable' name = name
 
         compileBelongsTo :: Column -> Text
-        compileBelongsTo column = includeType (columnNameToFieldName (get #name column)) ("(GetModelById " <> columnNameToFieldName (get #name column) <> ")")
+        compileBelongsTo column = includeType (columnNameToFieldName column.name) ("(GetModelById " <> columnNameToFieldName column.name <> ")")
 
         compileHasMany :: (Text, Text) -> Text
         compileHasMany (refTableName, refColumnName) = includeType (columnNameToFieldName refTableName) ("[" <> tableNameToModelName refTableName <> "]")
@@ -748,7 +748,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
 compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
 compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
-        setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (get #name) columns)) <> " newValue"
+        setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
         modelName = tableNameToModelName name
         typeArgs = dataTypeArguments table
         compileSetField (name, fieldType) =
@@ -780,7 +780,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                     | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
-                compileTypePattern' name = tableNameToModelName (get #name table) <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
+                compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
 
 compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
@@ -804,7 +804,7 @@ primaryKeyColumns :: CreateTable -> [Column]
 primaryKeyColumns CreateTable { name, columns, primaryKeyConstraint } =
     map getColumn (primaryKeyColumnNames primaryKeyConstraint)
   where
-    getColumn columnName = case find ((==) columnName . get #name) columns of
+    getColumn columnName = case find ((==) columnName . (.name)) columns of
       Just c -> c
       Nothing -> error ("Missing column " <> cs columnName <> " used in primary key for " <> cs name)
 
