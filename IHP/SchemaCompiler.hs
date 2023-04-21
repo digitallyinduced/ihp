@@ -16,6 +16,7 @@ import IHP.IDE.SchemaDesigner.Types
 import Control.Monad.Fail
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
+import NeatInterpolation
 
 data CompileException = CompileException ByteString deriving (Show)
 instance Exception CompileException where
@@ -124,42 +125,45 @@ compileTypes options schema@(Schema statements) =
             in intercalate "\n\n" (map (compileStatement options) statements)
         <> section
     where
-        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-                  <> "{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}\n"
-                  <> "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}\n"
-                  <> "module Generated.Types (module Generated.Types, module Generated.Enums) where\n\n"
-                  <> "import IHP.HaskellSupport\n"
-                  <> "import IHP.ModelSupport\n"
-                  <> "import CorePrelude hiding (id)\n"
-                  <> "import Data.Time.Clock\n"
-                  <> "import Data.Time.LocalTime\n"
-                  <> "import qualified Data.Time.Calendar\n"
-                  <> "import qualified Data.List as List\n"
-                  <> "import qualified Data.ByteString as ByteString\n"
-                  <> "import qualified Net.IP\n"
-                  <> "import Database.PostgreSQL.Simple\n"
-                  <> "import Database.PostgreSQL.Simple.FromRow\n"
-                  <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
-                  <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import qualified IHP.Controller.Param\n"
-                  <> "import GHC.TypeLits\n"
-                  <> "import Data.UUID (UUID)\n"
-                  <> "import Data.Default\n"
-                  <> "import qualified IHP.QueryBuilder as QueryBuilder\n"
-                  <> "import qualified Data.Proxy\n"
-                  <> "import GHC.Records\n"
-                  <> "import Data.Data\n"
-                  <> "import qualified Data.String.Conversions\n"
-                  <> "import qualified Data.Text.Encoding\n"
-                  <> "import qualified Data.Aeson\n"
-                  <> "import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))\n"
-                  <> "import qualified Database.PostgreSQL.Simple.Types\n"
-                  <> "import IHP.Job.Types\n"
-                  <> "import IHP.Job.Queue ()\n"
-                  <> "import qualified Control.DeepSeq as DeepSeq\n"
-                  <> "import qualified Data.Dynamic\n"
-                  <> "import Data.Scientific\n"
-                  <> "import Generated.Enums\n"
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+            module Generated.Types (module Generated.Types, module Generated.Enums) where
+            import IHP.HaskellSupport
+            import IHP.ModelSupport
+            import CorePrelude hiding (id)
+            import Data.Time.Clock
+            import Data.Time.LocalTime
+            import qualified Data.Time.Calendar
+            import qualified Data.List as List
+            import qualified Data.ByteString as ByteString
+            import qualified Net.IP
+            import Database.PostgreSQL.Simple
+            import Database.PostgreSQL.Simple.FromRow
+            import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+            import Database.PostgreSQL.Simple.ToField hiding (Field)
+            import qualified IHP.Controller.Param
+            import GHC.TypeLits
+            import Data.UUID (UUID)
+            import Data.Default
+            import qualified IHP.QueryBuilder as QueryBuilder
+            import qualified Data.Proxy
+            import GHC.Records
+            import Data.Data
+            import qualified Data.String.Conversions
+            import qualified Data.Text.Encoding
+            import qualified Data.Aeson
+            import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))
+            import qualified Database.PostgreSQL.Simple.Types
+            import IHP.Job.Types
+            import IHP.Job.Queue ()
+            import qualified Control.DeepSeq as DeepSeq
+            import qualified Data.Dynamic
+            import Data.Scientific
+            import Generated.Enums
+        |]
+
 
 
 compileEnums :: CompilerOptions -> Schema -> Text
@@ -172,19 +176,21 @@ compileEnums options schema@(Schema statements) =
     where
         compileStatement enum@(CreateEnumType {}) = Just (compileEnumDataDefinitions enum)
         compileStatement _ = Nothing
-        prelude = "-- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-                  <> "module Generated.Enums where\n\n"
-                  <> "import CorePrelude\n"
-                  <> "import IHP.ModelSupport\n"
-                  <> "import Database.PostgreSQL.Simple\n"
-                  <> "import Database.PostgreSQL.Simple.FromField hiding (Field, name)\n"
-                  <> "import Database.PostgreSQL.Simple.ToField hiding (Field)\n"
-                  <> "import qualified IHP.Controller.Param\n"
-                  <> "import Data.Default\n"
-                  <> "import qualified IHP.QueryBuilder as QueryBuilder\n"
-                  <> "import qualified Data.String.Conversions\n"
-                  <> "import qualified Data.Text.Encoding\n"
-                  <> "import qualified Control.DeepSeq as DeepSeq\n"
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            module Generated.Enums where
+            import CorePrelude
+            import IHP.ModelSupport
+            import Database.PostgreSQL.Simple
+            import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+            import Database.PostgreSQL.Simple.ToField hiding (Field)
+            import qualified IHP.Controller.Param
+            import Data.Default
+            import qualified IHP.QueryBuilder as QueryBuilder
+            import qualified Data.String.Conversions
+            import qualified Data.Text.Encoding
+            import qualified Control.DeepSeq as DeepSeq
+        |]
 
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview statements statement =
