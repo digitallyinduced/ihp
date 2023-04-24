@@ -116,14 +116,14 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
                 PostgresStarted {} | not hasSchemaCompilerError -> startApp
                 PostgresReady | not hasSchemaCompilerError -> startApp
                 _ -> do
-                    when (get #isDebugMode ?context) (Log.debug ("AppModulesLoaded but db not in PostgresStarted state, therefore not starting app yet" :: Text))
+                    when ?context.isDebugMode (Log.debug ("AppModulesLoaded but db not in PostgresStarted state, therefore not starting app yet" :: Text))
                     pure state { appGHCIState = appGHCIState' }
 
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
         AppGHCIModulesLoaded { } -> do
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
-            when (get #isDebugMode ?context) (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
+            when ?context.isDebugMode (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
 handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
@@ -202,7 +202,7 @@ start = do
 stop :: (?context :: Context) => AppState -> IO ()
 stop AppState { .. } = do
     useDevenv <- isUsingDevenv
-    when (get #isDebugMode ?context) (Log.debug ("Stop called" :: Text))
+    when ?context.isDebugMode (Log.debug ("Stop called" :: Text))
     stopAppGHCI appGHCIState
     when (not useDevenv) $ stopPostgres postgresState
     stopStatusServer statusServerState
@@ -257,7 +257,7 @@ ensureUserIsNotRoot = do
 
 startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
-    let isDebugMode = ?context |> get #isDebugMode
+    let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = ?context
             |> get #portConfig
@@ -317,7 +317,7 @@ startLoadedApp (AppGHCIModulesLoaded { .. }) = do
     forEach commands (sendGhciCommand process)
 startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
 startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-startLoadedApp _ = when (get #isDebugMode ?context) (Log.debug ("startLoadedApp: App not running" :: Text))
+startLoadedApp _ = when ?context.isDebugMode (Log.debug ("startLoadedApp: App not running" :: Text))
 
 
 stopAppGHCI :: AppGHCIState -> IO ()
