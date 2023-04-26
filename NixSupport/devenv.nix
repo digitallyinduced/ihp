@@ -72,13 +72,13 @@ in
             echo "" >> $out
             cat ${../lib/IHP/IHPSchema.sql} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
             echo "" >> $out
-            echo "-- Application/Schema.sql"
+            echo "-- Application/Schema.sql" >> $out
             echo "" >> $out
-            cat ${cfg.projectPath}/Application/Schema.sql | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+            cat ${cfg.projectPath + "/Application/Schema.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
             echo "" >> $out
             echo "-- Application/Fixtures.sql" >> $out
             echo "" >> $out
-            cat ${cfg.projectPath}/Application/Fixtures.sql | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+            cat ${cfg.projectPath + "/Application/Fixtures.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
           '';
         }
       ];
