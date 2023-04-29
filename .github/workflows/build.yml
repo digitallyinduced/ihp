@@ -45,6 +45,15 @@ jobs:
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
 
     # Build the app's dev env
+    - run: |
+        cd ihp-boilerplate
+        rm devenv.yml
+        echo "inputs:" >> devenv.yml
+        echo "    nixpkgs:" >> devenv.yml
+        echo "        url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e" >> devenv.yml
+        echo "    ihp:" >> devenv.yml
+        echo "        url: github:digitallyinduced/ihp?ref=${{ github.sha }}" >> devenv.yml
+        echo "        flake: false" >> devenv.yml
     - run: cd ihp-boilerplate && devenv ci
     - run: cd ihp-boilerplate && devenv shell echo ok
 
