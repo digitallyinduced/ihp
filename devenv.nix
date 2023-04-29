@@ -6,13 +6,9 @@
     languages.haskell.enable = true;
     languages.haskell.package =
         let
-            ihpPkgs = import ./NixSupport/make-nixpkgs-from-options.nix {
-                ihp = ./.;
-                haskellPackagesDir = ./NixSupport/haskell-packages;
-            };
             ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
-                pkgs = ihpPkgs;
-                ghcCompiler = ihpPkgs.haskell.packages.ghc944;
+                inherit pkgs;
+                ghcCompiler = pkgs.haskell.packages.ghc944;
                 ihp = ./.;
             };
         in
@@ -80,7 +76,6 @@
                 # Development Specific Tools (not in ihp.nix)
                 mmark-cli
                 hspec
-                ihp-hsx
             ]);
 
     scripts.tests.exec = ''
