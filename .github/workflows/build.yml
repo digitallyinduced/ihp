@@ -43,5 +43,5 @@ jobs:
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Install devenv.sh
       run: nix profile install github:cachix/devenv/latest
-    - run: devenv ci
-    - run: devenv shell echo ok
+    - run: cd ihp-boilerplate && devenv ci
+    - run: cd ihp-boilerplate && devenv shell echo ok
