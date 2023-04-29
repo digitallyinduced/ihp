@@ -76,6 +76,7 @@
                 # Development Specific Tools (not in ihp.nix)
                 mmark-cli
                 hspec
+                ihp-hsx
             ]);
 
     scripts.tests.exec = ''
