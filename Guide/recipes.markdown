@@ -496,7 +496,7 @@ defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
 
 footer :: UTCTime -> Html
 footer currentTime = [hsx|
-    © All Rights Reserved {formatTime defaultTimeLocale "%Y" currentTime}</footer>
+    Copyright All Rights Reserved {formatTime defaultTimeLocale "%Y" currentTime}</footer>
 |]
 ```
 
