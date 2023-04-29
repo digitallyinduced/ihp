@@ -42,6 +42,6 @@ jobs:
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Install devenv.sh
-      run: nix profile install github:cachix/devenv/latest
+      run: nix profile install --accept-flake-config github:cachix/devenv/latest
     - run: cd ihp-boilerplate && devenv ci
     - run: cd ihp-boilerplate && devenv shell echo ok
