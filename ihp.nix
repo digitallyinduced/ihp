@@ -64,11 +64,12 @@
 , unagi-chan
 , with-utf8
 , ihp-hsx
+, nix-gitignore
 }:
 mkDerivation {
   pname = "ihp";
   version = "v1.0.1";
-  src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
+  src = nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;

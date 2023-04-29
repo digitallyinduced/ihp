@@ -1,18 +1,18 @@
 { compiler ? "ghc944"
+, additionalNixpkgsOptions ? {}
+, pkgs ? import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; }
+, ghc ? pkgs.haskell.packages.${compiler}
 , ihp
 , haskellDeps ? (p: [])
 , otherDeps ? (p: [])
 , projectPath ? ./.
 , withHoogle ? false
-, additionalNixpkgsOptions ? {}
 , postgresExtensions ? (p: [])
 , optimized ? false
 , includeDevTools ? !optimized # Include Haskell Language Server and Postgres?
 }:
 
 let
-    pkgs = import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; };
-    ghc = pkgs.haskell.packages.${compiler};
     allHaskellPackages =
       (if withHoogle
       then ghc.ghcWithHoogle
@@ -79,6 +79,7 @@ in
           mkdir -p $out/bin
 
           mv ${appBinary} $out/bin/RunProdServerWithoutOptions
+
           INPUT_HASH="$((basename $out) | cut -d - -f 1)"
           makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
@@ -101,7 +102,7 @@ in
           mv static "$out/lib/static"
         '';
         dontFixup = true;
-        src = (import <nixpkgs> {}).nix-gitignore.gitignoreSource [] projectPath;
+        src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
         buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
         nativeBuildInputs = builtins.concatLists [
           [ pkgs.makeWrapper ]
