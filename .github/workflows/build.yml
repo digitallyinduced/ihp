@@ -47,7 +47,7 @@ jobs:
     # Build the app's dev env
     - run: |
         cd ihp-boilerplate
-        rm devenv.yml
+        rm devenv.yaml
         echo "inputs:" >> devenv.yaml
         echo "    nixpkgs:" >> devenv.yaml
         echo "        url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e" >> devenv.yaml
