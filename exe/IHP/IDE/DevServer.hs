@@ -165,6 +165,7 @@ handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileCha
             sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
             sendGhciCommand process ":r"
         AppGHCILoading { .. } -> sendGhciCommand process ":r"
+        AppGHCINotStarted -> pure ()
 
     clearStatusServer statusServerState
 
