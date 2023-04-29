@@ -27,11 +27,11 @@ jobs:
     - name: Build Docs
       run: |
           cd $GITHUB_WORKSPACE
-          nix-shell --run "cd Guide; make guide.tar.gz"
+          devenv shell build-guide
     - name: Build API Reference
       run: |
           cd $GITHUB_WORKSPACE
-          nix-shell --run "chmod +x build-haddock; ./build-haddock"
+          devenv shell build-api-reference
           tar -czvf api-reference.tar.gz haddock-build
     - name: Uploading to S3
       run: |

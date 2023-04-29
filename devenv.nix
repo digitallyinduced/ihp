@@ -82,4 +82,27 @@
                 hspec
                 ihp-hsx
             ]);
+
+    scripts.tests.exec = ''
+        runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iIDE Test/Main.hs
+    '';
+
+    scripts.fastbuild.exec = ''
+        cabal build --flag FastBuild
+    '';
+    
+    scripts.build-ihp-new.exec = ''
+        cd ProjectGenerator
+        make tarball.tar.gz
+    '';
+
+    scripts.build-guide.exec = ''
+        cd Guide
+        make guide.tar.gz
+    '';
+    
+    scripts.build-api-reference.exec = ''
+        chmod +x build-haddock
+        ./build-haddock
+    '';
 }

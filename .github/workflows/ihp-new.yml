@@ -27,6 +27,6 @@ jobs:
     - name: Build ihp-new Package
       run: |
           cd $GITHUB_WORKSPACE
-          nix-shell --run "cd ProjectGenerator; make tarball.tar.gz"
+          devenv shell build-ihp-new
     - name: Uploading ihp-new Package
       run: aws s3 cp ./ProjectGenerator/tarball.tar.gz s3://${{ secrets.S3_BUCKET }}/ihp-new.tar.gz
