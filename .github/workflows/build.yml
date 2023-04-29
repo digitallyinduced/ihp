@@ -43,5 +43,11 @@ jobs:
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Install devenv.sh
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
+
+    # Build the app's dev env
     - run: cd ihp-boilerplate && devenv ci
     - run: cd ihp-boilerplate && devenv shell echo ok
+
+    # Also build the framework's dev env
+    - run: devenv ci
+    - run: devenv shell echo ok
