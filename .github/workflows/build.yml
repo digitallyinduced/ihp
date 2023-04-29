@@ -20,8 +20,7 @@ jobs:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: |
-          git clone https://github.com/digitallyinduced/ihp-boilerplate.git
+    - run: git clone https://github.com/digitallyinduced/ihp-boilerplate.git
     - name: Cache build directory
       uses: actions/cache@v2
       with:
@@ -42,3 +41,7 @@ jobs:
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
+    - name: Install devenv.sh
+      run: nix profile install github:cachix/devenv/latest
+    - run: devenv ci
+    - run: devenv shell echo ok
