@@ -48,12 +48,12 @@ jobs:
     - run: |
         cd ihp-boilerplate
         rm devenv.yml
-        echo "inputs:" >> devenv.yml
-        echo "    nixpkgs:" >> devenv.yml
-        echo "        url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e" >> devenv.yml
-        echo "    ihp:" >> devenv.yml
-        echo "        url: github:digitallyinduced/ihp?ref=${{ github.sha }}" >> devenv.yml
-        echo "        flake: false" >> devenv.yml
+        echo "inputs:" >> devenv.yaml
+        echo "    nixpkgs:" >> devenv.yaml
+        echo "        url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e" >> devenv.yaml
+        echo "    ihp:" >> devenv.yaml
+        echo "        url: github:digitallyinduced/ihp?ref=${{ github.sha }}" >> devenv.yaml
+        echo "        flake: false" >> devenv.yaml
     - run: cd ihp-boilerplate && devenv ci
     - run: cd ihp-boilerplate && devenv shell echo ok
 
