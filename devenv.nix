@@ -98,7 +98,8 @@
 
     scripts.build-guide.exec = ''
         cd Guide
-        LANG=C.UTF-8 make guide.tar.gz
+        export LANG=en_US.UTF-8
+        make guide.tar.gz
     '';
     
     scripts.build-api-reference.exec = ''
