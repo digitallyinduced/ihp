@@ -1,5 +1,5 @@
 { mkDerivation, aeson, attoparsec, base, hspec, ihp, lib
-, postgresql-simple, text, unordered-containers
+, postgresql-simple, text, unordered-containers, bytestring
 }:
 mkDerivation {
   pname = "ihp-graphql";
@@ -11,7 +11,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson attoparsec base hspec ihp postgresql-simple text
-    unordered-containers
+    unordered-containers bytestring
   ];
   description = "GraphQL support for IHP";
   license = lib.licenses.mit;

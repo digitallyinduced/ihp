@@ -84,4 +84,5 @@ test-suite spec
     build-depends:
         hspec
         , megaparsec
+        , bytestring
         , ihp-graphql
