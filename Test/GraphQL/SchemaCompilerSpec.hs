@@ -12,7 +12,6 @@ import qualified Data.Attoparsec.Text as Attoparsec
 import Test.GraphQL.ParserSpec (parseGQL, parseValue)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Test.Postgres.Support
 import qualified Data.Text as Text
 import qualified Data.ByteString.Builder
 
