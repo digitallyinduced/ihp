@@ -30,10 +30,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
 
-import qualified IHP.GraphQL.Types as GraphQL
-import qualified IHP.GraphQL.Parser as GraphQL
-import qualified IHP.GraphQL.Compiler as GraphQL
-import IHP.GraphQL.JSON ()
 import qualified Data.Attoparsec.Text as Attoparsec
 import qualified Network.WebSockets as WS
 

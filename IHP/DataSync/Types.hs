@@ -8,7 +8,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple as PG
 import Control.Concurrent.MVar as MVar
-import qualified IHP.GraphQL.Types as GraphQL
 
 
 data DataSyncMessage

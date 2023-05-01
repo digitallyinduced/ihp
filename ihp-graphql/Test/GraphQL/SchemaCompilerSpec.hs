@@ -13,12 +13,12 @@ import Test.GraphQL.ParserSpec (parseGQL, parseValue)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Data.Text as Text
-import qualified Data.ByteString.Builder
 
 import qualified IHP.GraphQL.ToText as GraphQL
 import qualified IHP.GraphQL.SchemaCompiler as GraphQL
-
-import Test.IDE.SchemaDesigner.ParserSpec (parseSqlStatements)
+import qualified Text.Megaparsec as Megaparsec
+import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import IHP.IDE.SchemaDesigner.Types
 
 tests = do
     describe "IHP.GraphQL.SchemaCompiler" do
@@ -107,3 +107,9 @@ tests = do
             |]
 
             GraphQL.toText (GraphQL.sqlSchemaToGraphQLSchema sqlSchema) `shouldBe` graphQLSchema
+
+parseSqlStatements :: Text -> [Statement]
+parseSqlStatements sql =
+    case Megaparsec.runParser Parser.parseDDL "input" sql of
+            Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
+            Right statements -> statements
