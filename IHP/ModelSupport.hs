@@ -264,7 +264,7 @@ instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
 
 recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
-    getField @"id" entity
+    entity.id
     |> unpackId
     |> tshow
 {-# INLINE recordToInputValue #-}
@@ -712,7 +712,7 @@ type NormalizeModel model = GetModelByTableName (GetTableName model)
 -- >>> ids users
 -- [227fbba3-0578-4eb8-807d-b9b692c3644f, 9d7874f2-5343-429b-bcc4-8ee62a5a6895, ...] :: [Id User]
 ids :: (HasField "id" record id) => [record] -> [id]
-ids records = map (getField @"id") records
+ids records = map (.id) records
 {-# INLINE ids #-}
 
 -- | The error message of a validator can be either a plain text value or a HTML formatted value

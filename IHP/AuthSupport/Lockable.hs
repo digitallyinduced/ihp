@@ -5,7 +5,7 @@ import IHP.Prelude
 lock :: forall user. (?modelContext :: ModelContext, CanUpdate user, UpdateField "lockedAt" user user (Maybe UTCTime) (Maybe UTCTime)) => user -> IO user
 lock user = do
     now <- getCurrentTime
-    let currentLockedAt :: Maybe UTCTime = getField @"lockedAt" user
+    let currentLockedAt :: Maybe UTCTime = user.lockedAt
     let user' :: user = updateField @"lockedAt" (Just now) user
     updateRecord user'
 
@@ -19,7 +19,7 @@ isLocked user = do
 
 isLocked' :: forall user. (HasField "lockedAt" user (Maybe UTCTime)) => UTCTime -> user -> Bool
 isLocked' now user =
-    case getField @"lockedAt" user of
+    case user.lockedAt of
         Just lockedAt ->
             let diff = diffUTCTime now lockedAt
             in diff < lockDuration

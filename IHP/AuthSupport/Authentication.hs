@@ -50,9 +50,7 @@ instance VerifiyPassword (Maybe Text) where
 -- >>> verifyPassword user "hunter2"
 -- True
 verifyPassword :: (HasField "passwordHash" entity passwordField, VerifiyPassword passwordField) => entity -> Text -> Bool
-verifyPassword entity plainText = verifyPassword' passwordHash plainText
-    where
-        passwordHash = getField @"passwordHash" entity
+verifyPassword entity plainText = verifyPassword' entity.passwordHash plainText
 {-# INLINE verifyPassword #-}
 
 

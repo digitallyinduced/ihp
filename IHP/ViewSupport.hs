@@ -180,11 +180,7 @@ onLoad = A.onload
 
 -- | Returns the current request
 theRequest :: (?context :: ControllerContext) => Wai.Request
-theRequest =
-    let
-        requestContext = getField @"requestContext" ?context
-        request = getField @"request" requestContext
-    in request
+theRequest = ?context.requestContext.request
 {-# INLINE theRequest #-}
 
 class PathString a where

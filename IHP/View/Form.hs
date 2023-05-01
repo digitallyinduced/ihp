@@ -770,7 +770,7 @@ class CanSelect model where
     -- | Here we specify how to transform the model into @<option>@-value
     selectValue :: model -> SelectValue model
     default selectValue :: HasField "id" model (SelectValue model) => model -> SelectValue model
-    selectValue = getField @"id"
+    selectValue = (.id)
 
 instance ToHtml FormField where
     {-# INLINE toHtml #-}

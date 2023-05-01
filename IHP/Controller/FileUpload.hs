@@ -151,7 +151,7 @@ uploadImageWithOptions options _ user =
         fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
-        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture."
+        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture."
         imagePath :: Text = baseImagePath <> "jpg"
         uploadFilePath = baseImagePath <> "upload"
     in case fileOrNothing fieldName of
@@ -201,7 +201,7 @@ uploadImageFile ext _ user =
         fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
-        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture." <> ext
+        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture." <> ext
     in case fileOrNothing fieldName of
         Just file | fileContent file /= "" -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")

@@ -90,7 +90,7 @@ instance (
             assignRelated model =
                 let
                     relatedModel :: relatedModel
-                    relatedModel = case find (\r -> (getField @"id" r :: Id' tableName) == targetForeignKey) relatedModels of
+                    relatedModel = case find (\r -> r.id == targetForeignKey) relatedModels of
                             Just m -> m
                             Nothing -> error ("Could not find record with id = " <> show targetForeignKey <> " in result set. Looks like the foreign key is pointing to a non existing record")
                     targetForeignKey = (getField @relatedField model :: Id' tableName)
@@ -139,7 +139,7 @@ instance (
             assignRelated model =
                 let
                     relatedModel :: Maybe (FetchResult (Id' tableName) relatedModel)
-                    relatedModel = find (\r -> Just (getField @"id" r :: (Id' tableName)) == targetForeignKey) relatedModels
+                    relatedModel = find (\r -> Just r.id == targetForeignKey) relatedModels
                     targetForeignKey = (getField @relatedField model :: Maybe (Id' tableName))
                 in
                     updateField @relatedField relatedModel model
