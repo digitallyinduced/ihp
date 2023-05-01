@@ -3,20 +3,11 @@ module IHP.Postgres.TimeParser where
 
 import BasicPrelude hiding (takeWhile)
 import Data.Attoparsec.ByteString.Char8
-import Data.Attoparsec.Combinator
 import Data.Bits ((.&.))
-import Data.ByteString (ByteString)
 import Data.Char (ord)
-import Control.Applicative ((<|>))
 
 import Data.Fixed (Pico, Fixed(MkFixed))
-import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
-import Data.Time.Calendar.Compat (Day, fromGregorianValid, addDays)
-import Data.Time.Clock.Compat (UTCTime(..), NominalDiffTime)
-import Data.Time.Format.ISO8601.Compat (iso8601ParseM)
-import Data.Time.LocalTime.Compat (CalendarDiffTime)
-import Data.String.Conversions (cs)
+import Data.Time.Clock.Compat (NominalDiffTime)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Time.LocalTime.Compat as Local
 
@@ -49,7 +40,7 @@ data PGTimeInterval = PGTimeInterval { pgYears :: !Integer
 
 unpackInterval :: PGInterval -> PGTimeInterval
 unpackInterval (PGInterval bs) = case parseOnly pPGInterval bs of
-    Left err -> error ("Couldn't parse PGInterval. " <> cs err)
+    Left err -> error ("Couldn't parse PGInterval. " <> err)
     Right val -> val
 
 

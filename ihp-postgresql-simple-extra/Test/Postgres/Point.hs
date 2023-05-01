@@ -4,9 +4,9 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module Test.Postgres.Point where
 
+import Data.Either
 import Test.Hspec
-import Test.Postgres.Support
-import IHP.Prelude
+import Test.Postgres.Support ()
 import IHP.Postgres.Point
 import Database.PostgreSQL.Simple.ToField
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec

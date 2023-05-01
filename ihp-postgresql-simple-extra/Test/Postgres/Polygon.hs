@@ -4,9 +4,10 @@ Copyright: (c) digitally induced GmbH, 2022
 -}
 module Test.Postgres.Polygon where
 
+import CorePrelude
+import Data.Either
 import Test.Hspec
 import Test.Postgres.Support
-import IHP.Prelude
 import IHP.Postgres.Point
 import IHP.Postgres.Polygon
 import Database.PostgreSQL.Simple.ToField
@@ -17,7 +18,7 @@ tests = do
     let parsedPoint1 = Point { x = 100, y = 200 }
     let rawPoint2 = "(300,400)"
     let parsedPoint2 = Point { x = 300, y = 400 }
-    let raw = "(" ++ rawPoint1 ++ "," ++ rawPoint2 ++ ")"
+    let raw = "(" <> rawPoint1 <> "," <> rawPoint2 <> ")"
     let parsed = Polygon { points = [ parsedPoint1, parsedPoint2 ] }
     let serialized = Many
             [ Plain "polygon'"

@@ -1,6 +1,7 @@
 :set prompt "\ESC[38;5;208m\STXIHP>\ESC[m\STX "
 :set -i.
 :set -iIHP/ihp-hsx
+:set -iIHP/ihp-postgresql-simple-extra
 :set -iConfig
 :set -ibuild
 :set -iIHP

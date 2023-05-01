@@ -77,6 +77,7 @@
                 mmark-cli
                 hspec
                 ihp-hsx
+                ihp-postgresql-simple-extra
             ]);
 
     scripts.tests.exec = ''

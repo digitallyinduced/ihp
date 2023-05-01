@@ -6,7 +6,6 @@ Copyright: (c) digitally induced GmbH, 2022
 -}
 module IHP.Postgres.Polygon where
 
-import GHC.Float
 import BasicPrelude
 
 import Database.PostgreSQL.Simple.ToField

@@ -51,7 +51,6 @@
 , wreq
 , deepseq
 , parser-combinators
-, ip
 , fast-logger
 , minio-hs
 , temporary
@@ -64,6 +63,7 @@
 , unagi-chan
 , with-utf8
 , ihp-hsx
+, ihp-postgresql-simple-extra
 , nix-gitignore
 }:
 mkDerivation {
@@ -122,7 +122,6 @@ mkDerivation {
     deepseq
     uri-encode
     parser-combinators
-    ip
     fast-logger
     minio-hs
     temporary
@@ -135,6 +134,7 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    ihp-postgresql-simple-extra
   ];
   license = lib.licenses.mit;
   postInstall = ''
