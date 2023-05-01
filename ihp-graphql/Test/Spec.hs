@@ -1,6 +1,6 @@
 module Main where
 
-import CorePrelude
+import Prelude
 import Test.Hspec
 
 import qualified Test.GraphQL.ParserSpec
