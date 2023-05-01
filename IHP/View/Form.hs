@@ -199,6 +199,7 @@ createFormContext record =
         , formClass = if isNew record then "new-form" else "edit-form"
         , customFormAttributes = []
         , disableJavascriptSubmission = False
+        , fieldNamePrefix = ""
         }
 {-# INLINE createFormContext #-}
 
@@ -219,6 +220,34 @@ buildForm formContext inner = [hsx|
         where
             formInner = let ?formContext = formContext in inner
 {-# INLINE buildForm #-}
+
+nestedFormFor :: forall fieldName childRecord parentRecord idType. (
+    ?context :: ControllerContext
+    , ?formContext :: FormContext parentRecord
+    , HasField fieldName parentRecord [childRecord]
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName childRecord)
+    , HasField "id" childRecord idType
+    , InputValue idType
+    , HasField "meta" childRecord MetaBag
+    ) => Proxy fieldName -> ((?context :: ControllerContext, ?formContext :: FormContext childRecord) => Html5.Html) -> Html5.Html
+nestedFormFor field nestedRenderForm = forEach children renderChild
+    where
+        parentFormContext :: FormContext parentRecord
+        parentFormContext = ?formContext
+        
+        renderChild :: childRecord -> Html5.Html
+        renderChild record = let ?formContext = buildNestedFormContext record in [hsx|
+            {hiddenField #id}
+            {nestedRenderForm}
+        |]
+
+        buildNestedFormContext :: childRecord -> FormContext childRecord
+        buildNestedFormContext record = parentFormContext { model = record, fieldNamePrefix = symbolToText @fieldName <> "_" }
+
+        children :: [childRecord]
+        children = getField @fieldName ?formContext.model
+{-# INLINE nestedFormFor #-}
 
 -- | Renders a submit button
 --
@@ -417,7 +446,7 @@ textField :: forall fieldName model value.
     ) => Proxy fieldName -> FormField
 textField field = FormField
         { fieldType = TextInput
-        , fieldName = cs fieldName
+        , fieldName = ?formContext.fieldNamePrefix <> cs fieldName
         , fieldLabel = fieldNameToFieldLabel (cs fieldName)
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
@@ -741,7 +770,7 @@ class CanSelect model where
     -- | Here we specify how to transform the model into @<option>@-value
     selectValue :: model -> SelectValue model
     default selectValue :: HasField "id" model (SelectValue model) => model -> SelectValue model
-    selectValue = getField @"id"
+    selectValue = (.id)
 
 instance ToHtml FormField where
     {-# INLINE toHtml #-}

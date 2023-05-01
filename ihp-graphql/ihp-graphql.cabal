@@ -1,0 +1,88 @@
+cabal-version:       2.2
+name:                ihp-graphql
+version:             1.0.1
+synopsis:            GraphQL support for IHP
+description:         GraphQL support for IHP
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            HTML
+build-type:          Simple
+extra-source-files: README.md, changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+common shared-properties
+    default-language: Haskell2010
+    build-depends:
+          base
+          , ihp
+          , unordered-containers
+          , text
+          , attoparsec
+          , postgresql-simple
+          , aeson
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+        , TemplateHaskell
+        , OverloadedRecordDot
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.GraphQL.Compiler
+        , IHP.GraphQL.JSON
+        , IHP.GraphQL.Parser
+        , IHP.GraphQL.SchemaCompiler
+        , IHP.GraphQL.ToText
+        , IHP.GraphQL.Types
+
+test-suite spec
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    other-modules:
+        Test.GraphQL.CompilerSpec
+        , Test.GraphQL.ParserSpec
+        , Test.GraphQL.SchemaCompilerSpec
+    hs-source-dirs: .
+    main-is: Test/Spec.hs
+    build-depends:
+        hspec
+        , megaparsec
+        , bytestring
+        , ihp-graphql

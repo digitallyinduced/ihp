@@ -50,16 +50,16 @@ instance View IndexView where
                 {migrationContextMenu migration contextMenuId pending}
             |]
                 where
-                    pending = (get #revision migration) `notElem` migratedRevisions
+                    pending = (migration.revision) `notElem` migratedRevisions
                     currentError = lastError
 
                     contextMenuId :: Text
-                    contextMenuId = "context-menu-migration-" <> tshow (get #revision migration)
+                    contextMenuId = "context-menu-migration-" <> tshow (migration.revision)
 
                     editAndDelete = [hsx|
                         <div class="d-flex">
                             <a
-                                href={EditMigrationAction (get #revision migration)}
+                                href={EditMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add"
                                 data-toggle="tooltip"
                                 data-placement="bottom"
@@ -67,7 +67,7 @@ instance View IndexView where
                             >{editIcon}</a>
 
                             <a
-                                href={DeleteMigrationAction (get #revision migration)}
+                                href={DeleteMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add js-delete"
                                 data-toggle="tooltip"
                                 data-placement="bottom"
@@ -87,7 +87,7 @@ instance View IndexView where
                     runOrStatus =
                         if pending
                                 then [hsx|
-                                <form method="POST" action={RunMigrationAction (get #revision migration)} class="mr-2 d-flex align-items-center">
+                                <form method="POST" action={RunMigrationAction (migration.revision)} class="mr-2 d-flex align-items-center">
                                     {currentErrorHtml}
                                     <button
                                         class="btn btn-secondary migration-run-button"
@@ -104,7 +104,7 @@ instance View IndexView where
                             |]
 
                     revisionTime :: UTCTime
-                    revisionTime = Clock.posixSecondsToUTCTime $ (fromInteger (fromIntegral (get #revision migration)))
+                    revisionTime = Clock.posixSecondsToUTCTime $ (fromInteger (fromIntegral (migration.revision)))
 
 
 code :: Text -> Text -> Html
@@ -160,7 +160,7 @@ migrationContextMenu migration contextMenuId pending = [hsx|
 |]
     where
         migrationId :: Int
-        migrationId = get #revision migration
+        migrationId = migration.revision
 
         currentMigrationActions = when pending [hsx|
             <a href={EditMigrationAction migrationId}>Edit Migration</a>

@@ -43,7 +43,7 @@ import qualified System.Process as Process
 -- >     let content :: Text =
 -- >             fileOrNothing "markdown"
 -- >             |> fromMaybe (error "no file given")
--- >             |> get #fileContent
+-- >             |> (.fileContent)
 -- >             |> cs -- content is a LazyByteString, so we use `cs` to convert it to Text
 -- >
 --
@@ -53,10 +53,7 @@ import qualified System.Process as Process
 --
 fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name =
-        ?context
-        |> get #requestContext
-        |> get #requestBody
-        |> \case
+        case ?context.requestContext.requestBody of
             FormBody { files } -> lookup name files
             _ -> Nothing
 
@@ -80,7 +77,7 @@ fileOrNothing !name =
 -- > action SubmitMarkdownAction = do
 -- >     let contents :: [Text] =
 -- >             filesByName "markdown"
--- >             |> map (get #fileContent)
+-- >             |> map (.fileContent)
 -- >             |> map cs -- content is a LazyByteString, so we use `cs` to convert it to Text
 -- >
 --
@@ -97,10 +94,7 @@ fileOrNothing !name =
 --
 filesByName :: (?context :: ControllerContext) => ByteString -> [FileInfo LBS.ByteString]
 filesByName !name =
-        ?context
-        |> get #requestContext
-        |> get #requestBody
-        |> \case
+        case ?context.requestContext.requestBody of
             FormBody { files } -> files
                     |> filter (\(filename, _) -> filename == name)
                     |> map snd
@@ -157,7 +151,7 @@ uploadImageWithOptions options _ user =
         fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
-        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture."
+        baseImagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture."
         imagePath :: Text = baseImagePath <> "jpg"
         uploadFilePath = baseImagePath <> "upload"
     in case fileOrNothing fieldName of
@@ -207,7 +201,7 @@ uploadImageFile ext _ user =
         fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
         tableName :: Text = cs (symbolVal (Proxy @tableName))
         uploadDir :: Text = "static"
-        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow (getField @"id" user) <> "/picture." <> ext
+        imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture." <> ext
     in case fileOrNothing fieldName of
         Just file | fileContent file /= "" -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")

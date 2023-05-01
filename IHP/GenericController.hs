@@ -61,4 +61,4 @@ indexView models = [hsx|
                 </tr>
             |]
                 where
-                    idField :: idType = getField @"id" model
+                    idField :: idType = model.id

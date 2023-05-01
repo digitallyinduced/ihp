@@ -64,8 +64,7 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
         isJoinField FragmentSpread {} = False -- TODO: Also support fragment spreads in joined tables
 
         joins :: QueryPart
-        joins = field
-                |> get #selectionSet
+        joins = field.selectionSet
                 |> filter isJoinField
                 |> map (fieldToJoin document tableName)
                 |> \case
@@ -74,13 +73,12 @@ compileSelection document variables field@(Field { alias, name = fieldName, argu
 
 
 selectQueryPieces :: Document -> PG.Action -> Selection -> QueryPart
-selectQueryPieces document tableName field = field
-        |> get #selectionSet
+selectQueryPieces document tableName field = field.selectionSet
         |> map compileSelection
         |> mconcat
         |> commaSep
     where
-        qualified field = if isEmpty (get #selectionSet field)
+        qualified field = if isEmpty (field.selectionSet)
                 then "?." |> withParams [tableName]
                 else ""
 
@@ -101,14 +99,12 @@ selectQueryPieces document tableName field = field
         
         compileFragmentSpread :: Selection -> [QueryPart]
         compileFragmentSpread FragmentSpread { fragmentName } = 
-                fragment
-                    |> get #selectionSet
+                fragment.selectionSet
                     |> map compileSelection
                     |> mconcat
             where
                 fragment :: Fragment
-                fragment = document
-                    |> get #definitions
+                fragment = document.definitions
                     |> find (\case
                             FragmentDefinition (Fragment { name }) -> name == fragmentName
                             otherwise -> False
@@ -139,9 +135,9 @@ fieldToJoin document rootTableName field@(Field { name }) =
         rootTablePrimaryKey = PG.toField (PG.Identifier "id")
 
         aliasOrName = PG.toField $ PG.Identifier $
-                case get #alias field of
+                case field.alias of
                     Just alias -> alias
-                    Nothing -> get #name field
+                    Nothing -> field.name
 
 compileMutationSelection :: [Argument] -> Selection -> QueryPart
 compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
@@ -314,13 +310,13 @@ resolveVariables (Variable varName) arguments =
 resolveVariables otherwise _ = otherwise
 
 unionAll :: [QueryPart] -> QueryPart
-unionAll list = foldl' (\a b -> if get #sql a == "" then b else a <> " UNION ALL " <> b) "" list
+unionAll list = foldl' (\a b -> if a.sql == "" then b else a <> " UNION ALL " <> b) "" list
 
 commaSep :: [QueryPart] -> QueryPart
-commaSep list = foldl' (\a b -> if get #sql a == "" then b else a <> ", " <> b) "" list
+commaSep list = foldl' (\a b -> if a.sql == "" then b else a <> ", " <> b) "" list
 
 spaceSep :: [QueryPart] -> QueryPart
-spaceSep list = foldl' (\a b -> if get #sql a == "" then b else a <> " " <> b) "" list
+spaceSep list = foldl' (\a b -> if a.sql == "" then b else a <> " " <> b) "" list
 
 instance Semigroup QueryPart where
     QueryPart { sql = sqlA, params = paramsA } <> QueryPart { sql = sqlB, params = paramsB } = QueryPart { sql = sqlA <> sqlB, params = paramsA <> paramsB }
@@ -334,4 +330,4 @@ unpackQueryPart :: QueryPart -> (PG.Query, [PG.Action])
 unpackQueryPart QueryPart { sql, params } = (sql, params)
 
 withParams :: [PG.Action] -> QueryPart -> QueryPart
-withParams params queryPart = queryPart { params = (get #params queryPart) <> params }
+withParams params queryPart = queryPart { params = queryPart.params <> params }

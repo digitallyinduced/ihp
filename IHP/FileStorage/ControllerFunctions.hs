@@ -51,7 +51,7 @@ import IHP.FileStorage.MimeTypes
 -- >
 -- >     storedFile <- storeFile file "logos"
 -- >
--- >     let url = get #url storedFile
+-- >     let url = storedFile.url
 -- >
 --
 storeFile :: (?context :: context, ConfigProvider context) => Wai.FileInfo LByteString -> Text -> IO StoredFile
@@ -72,7 +72,7 @@ storeFile fileInfo directory = storeFileWithOptions fileInfo (def { directory })
 -- >         }
 -- >
 -- > storedFile <- storeFileWithOptions file options
--- > let url = get #url storedFile
+-- > let url = storedFile.url
 --
 --
 -- __Example:__ Transform an uploaded image to a JPEG file, strip meta data and store it inside the @pictures@ directory
@@ -85,15 +85,15 @@ storeFile fileInfo directory = storeFileWithOptions fileInfo (def { directory })
 -- >         }
 -- >
 -- > storedFile <- storeFileWithOptions file options
--- > let url = get #url storedFile
+-- > let url = storedFile.url
 --
 storeFileWithOptions :: (?context :: context, ConfigProvider context) => Wai.FileInfo LByteString -> StoreFileOptions -> IO StoredFile
 storeFileWithOptions fileInfo options = do
     objectId <- UUID.nextRandom
 
-    let directory = get #directory options
+    let directory = options.directory
     let objectPath = directory <> "/" <> UUID.toText objectId
-    let preprocess = get #preprocess options
+    let preprocess = options.preprocess
 
     fileInfo <- preprocess fileInfo
 
@@ -103,18 +103,18 @@ storeFileWithOptions fileInfo options = do
             Directory.createDirectoryIfMissing True (cs $ "static/" <> directory)
 
             fileInfo
-                |> get #fileContent
+                |> (.fileContent)
                 |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = ?context.frameworkConfig
             pure $ frameworkConfig.baseUrl <> "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
-                    |> get #fileContent
+                    |> (.fileContent)
                     |> Conduit.sourceLbs
 
             let contentType = cs (Wai.fileContentType fileInfo)
-            contentDisposition <- (get #contentDisposition options) fileInfo
+            contentDisposition <- (options.contentDisposition) fileInfo
             trySaveFile <- runMinio connectInfo do
                 let options :: PutObjectOptions = defaultPutObjectOptions { pooContentType = Just contentType, pooContentDisposition = contentDisposition }
                 putObject bucket objectPath payload Nothing options
@@ -139,7 +139,7 @@ storeFileWithOptions fileInfo options = do
 -- >         }
 -- >
 -- > storedFile <- storeFileFromUrl externalUrl options
--- > let newUrl = get #url storedFile
+-- > let newUrl = storedFile.url
 --
 storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromUrl url options = do
@@ -170,7 +170,7 @@ storeFileFromUrl url options = do
 -- >         }
 -- >
 -- > storedFile <- storeFileFromPath "picture.jpg" options
--- > let newUrl = get #url storedFile
+-- > let newUrl = storedFile.url
 --
 storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromPath path options = do
@@ -194,8 +194,8 @@ storeFileFromPath path options = do
 -- >
 -- > signedUrl <- createTemporaryDownloadUrlFromPath "logos/8ed22caa-11ea-4c45-a05e-91a51e72558d"
 -- >
--- > let url :: Text = get #url signedUrl
--- > let expiredAt :: UTCTime = get #expiredAt signedUrl
+-- > let url :: Text = signedUrl.url
+-- > let expiredAt :: UTCTime = signedUrl.expiredAt
 --
 -- See 'createTemporaryDownloadUrlFromPathWithExpiredAt' if you want to customize the url expiration time of 7 days.
 --
@@ -212,8 +212,8 @@ createTemporaryDownloadUrlFromPath objectPath = createTemporaryDownloadUrlFromPa
 -- > let validInSeconds = 5 * 60
 -- > signedUrl <- createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds "logos/8ed22caa-11ea-4c45-a05e-91a51e72558d"
 -- >
--- > let url :: Text = get #url signedUrl
--- > let expiredAt :: UTCTime = get #expiredAt signedUrl
+-- > let url :: Text = signedUrl.url
+-- > let expiredAt :: UTCTime = signedUrl.expiredAt
 --
 createTemporaryDownloadUrlFromPathWithExpiredAt :: (?context :: context, ConfigProvider context) => Int -> Text -> IO TemporaryDownloadUrl
 createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
@@ -246,14 +246,14 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
 -- >
 -- > signedUrl <- createTemporaryDownloadUrl storedFile
 -- >
--- > let url :: Text = get #url signedUrl
--- > let expiredAt :: UTCTime = get #expiredAt signedUrl
+-- > let url :: Text = signedUrl.url
+-- > let expiredAt :: UTCTime = signedUrl.expiredAt
 --
 createTemporaryDownloadUrl :: (?context :: context, ConfigProvider context) => StoredFile -> IO TemporaryDownloadUrl
-createTemporaryDownloadUrl storedFile = createTemporaryDownloadUrlFromPath (get #path storedFile)
+createTemporaryDownloadUrl storedFile = createTemporaryDownloadUrlFromPath (storedFile.path)
 
 contentDispositionAttachmentAndFileName :: Wai.FileInfo LByteString -> IO (Maybe Text)
-contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; filename=\"" <> cs (get #fileName fileInfo) <> "\""))
+contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; filename=\"" <> cs (fileInfo.fileName) <> "\""))
 
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --
@@ -290,7 +290,7 @@ uploadToStorageWithOptions options field record = do
     let directory = tableName <> "/" <> cs fieldName
 
     case fileOrNothing fieldName of
-        Just fileInfo | not (LBS.null (get #fileContent fileInfo)) -> do
+        Just fileInfo | not (LBS.null (fileInfo.fileContent)) -> do
             storeFileWithOptions fileInfo options { directory }
             |> Exception.try
             >>= \case
@@ -298,7 +298,7 @@ uploadToStorageWithOptions options field record = do
                             |> attachFailure field ("Failed uploading to storage: " <> show exception)
                             |> pure
                 Right storedFile -> record
-                            |> setField @fieldName (Just (get #url storedFile))
+                            |> setField @fieldName (Just (storedFile.url))
                             |> pure
 
         _ -> pure record
@@ -342,8 +342,8 @@ uploadToStorage field record = uploadToStorageWithOptions def field record
 -- > action DeleteUploadedFileAction { uploadedFileId } = do
 -- >     uploadedFile <- fetch uploadedFile
 -- >     let storedFile = StoredFile
--- >             { path = get #objectPath uploadedFile
--- >             , url = get #url uploadedFile
+-- >             { path = uploadedFile.objectPath
+-- >             , url = uploadedFile.url
 -- >             }
 -- >     removeFileFromStorage storedFile
 -- >     deleteRecord uploadedFile

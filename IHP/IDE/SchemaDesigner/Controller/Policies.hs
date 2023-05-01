@@ -24,7 +24,7 @@ instance Controller PoliciesController where
         statements <- readSchema
         let (Just table) = findStatementByName tableName statements
         let policy = SchemaOperations.suggestPolicy statements table
-        let columns = get #columns $ unsafeGetCreateTable table
+        let columns = (unsafeGetCreateTable table).columns
         render NewPolicyView { .. }
 
     action EditPolicyAction { tableName, policyName } = do
@@ -34,7 +34,7 @@ instance Controller PoliciesController where
                     CreatePolicy { name = policyName', tableName = tableName' } -> policyName' == policyName && tableName' == tableName
                     otherwise                                                   -> False
         let table = findStatementByName tableName statements
-        let columns = maybe [] (get #columns . unsafeGetCreateTable) table
+        let columns = maybe [] ((.columns) . unsafeGetCreateTable) table
 
         render EditPolicyView { .. }
 

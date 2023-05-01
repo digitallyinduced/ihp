@@ -1,0 +1,93 @@
+cabal-version:       2.2
+name:                ihp-postgresql-simple-extra
+version:             1.0.1
+synopsis:            Extra data types for postgresql-simple
+description:         This package is included by default in IHP apps and implements support for postgres data types that are not supported by the postgresql-simple package by default
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Database
+build-type:          Simple
+extra-source-files: README.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+common shared-properties
+    default-language: Haskell2010
+    build-depends:
+            base
+            , bytestring
+            , attoparsec
+            , basic-prelude
+            , text
+            , postgresql-simple
+            , ip
+            , time
+            , time-compat
+            , aeson
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+        , TemplateHaskell
+        , OverloadedRecordDot
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.Postgres.TypeInfo
+        , IHP.Postgres.Point
+        , IHP.Postgres.Interval
+        , IHP.Postgres.TimeParser
+        , IHP.Postgres.Polygon
+        , IHP.Postgres.Inet
+        , IHP.Postgres.TSVector
+
+test-suite spec
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    other-modules:
+        Test.Postgres.Interval
+        , Test.Postgres.Point
+        , Test.Postgres.Polygon
+        , Test.Postgres.Support
+        , Test.Postgres.TSVector
+    hs-source-dirs: .
+    main-is: Test/Spec.hs
+    build-depends:
+        hspec >= 2.7
+        , hspec-discover >= 2.7
+        , ihp-postgresql-simple-extra

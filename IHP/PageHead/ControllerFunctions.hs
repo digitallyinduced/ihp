@@ -23,7 +23,7 @@ import IHP.Controller.Context
 --
 -- > action ShowProjectAction { projectId } = do
 -- >     project <- fetch projectId
--- >     setTitle (get #title project)
+-- >     setTitle (project.title)
 -- >
 --
 -- Inside your layout use it like:

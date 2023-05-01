@@ -31,8 +31,8 @@ instance Controller SitemapController where
         let posts = [Post { id = def, updatedAt = time }]
         let sitemapLinks = posts |> map (\post ->
                 SitemapLink
-                    { url = urlTo $ ShowPostAction (get #id post)
-                    , lastModified = Just (get #updatedAt post)
+                    { url = urlTo $ ShowPostAction (post.id)
+                    , lastModified = Just (post.updatedAt)
                     , changeFrequency = Just Hourly
                     })
         renderXmlSitemap (Sitemap sitemapLinks)
@@ -62,12 +62,12 @@ testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
 
 assertSuccess :: ByteString -> SResponse -> IO ()
 assertSuccess body response = do
-    get #simpleStatus response `shouldBe` status200
-    get #simpleBody response `shouldBe` (cs body)
+    response.simpleStatus `shouldBe` status200
+    response.simpleBody `shouldBe` (cs body)
 
 assertFailure :: SResponse -> IO ()
 assertFailure response = do
-    get #simpleStatus response `shouldBe` status400
+    response.simpleStatus `shouldBe` status400
 
 config = do
     option Development

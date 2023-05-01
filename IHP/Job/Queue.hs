@@ -142,7 +142,7 @@ jobDidFail job exception = do
     putStrLn ("Failed job with exception: " <> tshow exception)
 
     let ?job = job
-    let canRetry = get #attemptsCount job < maxAttempts
+    let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusFailed
     job
         |> set #status status
@@ -171,7 +171,7 @@ jobDidTimeout job = do
     putStrLn "Job timed out"
 
     let ?job = job
-    let canRetry = get #attemptsCount job < maxAttempts
+    let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusTimedOut
     job
         |> set #status status

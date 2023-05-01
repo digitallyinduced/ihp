@@ -42,3 +42,5 @@
 :set -XOverloadedRecordDot
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
+:set -O0
+:set -j

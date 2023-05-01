@@ -18,9 +18,9 @@ main = withUtf8 do
     logger <- defaultLogger
 
     modelContext <- createModelContext
-        (get #dbPoolIdleTime frameworkConfig)
-        (get #dbPoolMaxConnections frameworkConfig)
-        (get #databaseUrl frameworkConfig)
+        frameworkConfig.dbPoolIdleTime
+        frameworkConfig.dbPoolMaxConnections
+        frameworkConfig.databaseUrl
         logger
 
     let ?modelContext = modelContext

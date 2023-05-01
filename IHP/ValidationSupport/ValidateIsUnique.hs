@@ -120,7 +120,7 @@ validateIsUniqueCaseAware fieldProxy model caseSensitive = do
             )
         |> fetchOneOrNothing
     case result of
-        Just value | not $ (getField @"id" model) == (getField @"id" value) -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
+        Just value | not $ model.id == value.id -> pure (attachValidatorResult fieldProxy (Failure "This is already in use") model)
         _ -> pure (attachValidatorResult fieldProxy Success model)
 {-# INLINE validateIsUniqueCaseAware #-}
 

@@ -20,4 +20,4 @@ instance View ShowView where
         {migrationStatus}
     |]
         where
-            columns = get #columns (unsafeGetCreateTable table)
+            columns = (unsafeGetCreateTable table).columns

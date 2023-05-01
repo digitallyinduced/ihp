@@ -2,6 +2,12 @@
 
 We are happy to merge your pull requests!
 
+## devenv
+
+The IHP framework itself uses devenv.sh to set up the development environment. It is a wrapper around `nix-shell` and `direnv`.
+
+Follow the [devenv documentation](https://devenv.sh/getting-started/) to set it up.
+
 ## Running an application against a local copy of the framework
 
 To work on the framework in your application, you need to clone this repository inside your application directory.
@@ -70,11 +76,11 @@ main
 
 ## Working on the documentation
 
-To work on the documentation locally open a nix shell inside the framework directory:
+To work on the documentation locally, switch to the `IHP` directory. When you're doing this the first time, you need to run `direnv allow` to install necessary dependencies:
 
 ```
 cd IHP
-nix-shell
+direnv allow
 ```
 
 Then switch to the `Guide` directory:
@@ -108,13 +114,12 @@ The documentation reads a bit like a tutorial, but should still be kept somewhat
 When inside the IHP directory, you can run the Test Suite by loading it into a `ghci` like this:
 
 ```bash
-nix-shell
 ghci
 :l Test/Main.hs
 main
 ```
 
-Note that it is necessary to start the nix-shell from within the IHP directory to pick up an extra package used in testing.
+Note that if it's the first time you switch to the `IHP` directory, you need to run `direnv allow`. This will then download all dependencies needed for IHP development automatically.
 
 When doing changes to the test files, use this to reload and rerun the tests:
 

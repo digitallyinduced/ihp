@@ -1,4 +1,4 @@
-module IHP.IDE.Postgres (startPostgres, stopPostgres) where
+module IHP.IDE.Postgres (startPostgres, stopPostgres, waitPostgres) where
 
 import IHP.IDE.Types
 import IHP.Prelude
@@ -6,6 +6,7 @@ import qualified System.Process as Process
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
+import Control.Concurrent (threadDelay)
 import GHC.IO.Handle
 
 import qualified IHP.Log as Log
@@ -28,7 +29,7 @@ startPostgres = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
-    let isDebugMode = ?context |> get #isDebugMode
+    let isDebugMode = ?context.isDebugMode
 
     let handleOutdatedDatabase line =
             -- Always log fatal errors to the output:
@@ -117,3 +118,15 @@ waitUntilReady process callback = do
     if "database system is ready to accept connections" `ByteString.isInfixOf` line
         then callback
         else waitUntilReady process callback
+
+waitPostgres :: (?context :: Context) => IO ()
+waitPostgres = do
+    let isDebugMode = ?context.isDebugMode
+    threadDelay 1000000
+    (_, stdout, _) <- Process.readProcessWithExitCode "pg_ctl" ["status"] ""
+    if "server is running" `isInfixOf` (cs stdout)
+    then dispatch (UpdatePostgresState PostgresReady)
+    else do
+        when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
+        waitPostgres
+

@@ -30,7 +30,7 @@ instance View EditPolicyView where
                         The hidden name field is required as the user could be changing the name and we don't have any other
                         identifier to refer to the policy besides the name
                     -->
-                    <input type="hidden" name="name" value={get #name policy}/>
+                    <input type="hidden" name="name" value={policy.name}/>
 
                     <!-- These will be filled via JS from the ace editors -->
                     <input type="hidden" name="using" value={using}/>
@@ -43,7 +43,7 @@ instance View EditPolicyView where
                             type="text"
                             class="form-control"
                             autofocus="autofocus"
-                            value={get #name policy}
+                            value={policy.name}
                             />
                     </div>
 
@@ -81,13 +81,13 @@ instance View EditPolicyView where
             modalTitle = "Edit Policy"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
-            using = get #using policy
+            using = policy.using
                     |> maybe "" Compiler.compileExpression
 
-            check = get #check policy
+            check = policy.check
                     |> maybe "" Compiler.compileExpression
 
             autocompleteSuggestions =
                     columns
-                    |> map (get #name)
+                    |> map (.name)
                     |> intercalate ","

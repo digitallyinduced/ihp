@@ -268,7 +268,7 @@ suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
         columns = map snd indexAndColumns
 
         hasColumn :: Text -> Bool
-        hasColumn name = columns |> find (\column -> get #name column == name) |> isJust
+        hasColumn name = columns |> find (\column -> column.name == name) |> isJust
 
         isUsersTable = tableName == "users"
 
@@ -463,8 +463,7 @@ renderColumnIndexes tableName statements = forEachWithIndex (findTableIndexes st
                     columnOrder
                         |> map (\case { Asc -> "ASC"; Desc -> "DESC"; NullsFirst -> "NULLS FIRST"; NullsLast -> "NULLS LAST" })
                         |> unwords
-                expressions = index
-                    |> get #columns
+                expressions = index.columns
                     |> map (\column -> (compileExpression column.column) <> " " <> (showColumnOrder column.columnOrder))
                     |> intercalate ", "
 
@@ -493,7 +492,7 @@ renderPolicies tableName statements = whenNonEmpty tablePolicies policiesTable
             <tr class="policy">
                 <td class="policy-name" oncontextmenu={"showContextMenu('" <> contextMenuId <> "')"}>
                     <a href={EditPolicyAction tableName policyName} class="text-body nounderline">
-                        {get #name policy}
+                        {policy.name}
                     </a>
                 </td>
                 {renderExpressions policy}
@@ -506,10 +505,10 @@ renderPolicies tableName statements = whenNonEmpty tablePolicies policiesTable
             </div>
         |]
             where
-                policyName = get #name policy
+                policyName = policy.name
                 contextMenuId = "policy-" <> toSlug policyName
 
-        renderExpressions policy = case (get #using policy, get #check policy) of
+        renderExpressions policy = case (policy.using, policy.check) of
                 (Just using, Just check) | using == check ->
                     [hsx|
                         <td class="policy-expression">
@@ -712,7 +711,7 @@ findForeignKey statements tableName columnName =
 findPrimaryKey :: [Statement] -> Text -> Maybe [Text]
 findPrimaryKey statements tableName = do
     (StatementCreateTable createTable) <- find (isCreateTable tableName) statements
-    pure . primaryKeyColumnNames $ get #primaryKeyConstraint createTable
+    pure . primaryKeyColumnNames $ createTable.primaryKeyConstraint
     where
       isCreateTable tableName (StatementCreateTable CreateTable { name }) = name == tableName
       isCreateTable _ _ = False

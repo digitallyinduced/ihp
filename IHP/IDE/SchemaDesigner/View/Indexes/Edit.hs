@@ -30,7 +30,7 @@ instance View EditIndexView where
             table :: Maybe Statement
             table = findStatementByName tableName statements
 
-            columns = maybe [] (get #columns . unsafeGetCreateTable) table
+            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
 
             indexColumns = index.columns
                     |> map SqlCompiler.compileIndexColumn

@@ -22,7 +22,7 @@ fieldsForTable database name =
     case getTable database name of
         Just (StatementCreateTable CreateTable { columns, primaryKeyConstraint }) -> columns
                 |> filter (columnRelevantForCreateOrEdit primaryKeyConstraint)
-                |> map (get #name)
+                |> map (.name)
                 |> map columnNameToFieldName
                 |> Just
         _ -> Nothing
@@ -31,11 +31,11 @@ fieldsForTable database name =
 -- Returrns @False@ for primary keys, or fields such as @created_at@
 columnRelevantForCreateOrEdit :: PrimaryKeyConstraint -> Column -> Bool
 columnRelevantForCreateOrEdit _ column
-    | (get #columnType column == PTimestamp || get #columnType column == PTimestampWithTimezone)
-    && (isJust (get #defaultValue column))
+    | (column.columnType == PTimestamp || column.columnType == PTimestampWithTimezone)
+    && (isJust (column.defaultValue))
     = False
 columnRelevantForCreateOrEdit (PrimaryKeyConstraint primaryKeyColumns) column =
-    get #name column `notElem` primaryKeyColumns
+    column.name `notElem` primaryKeyColumns
 
 getTable :: [Statement] -> Text -> Maybe Statement
 getTable schema name = find isTable schema

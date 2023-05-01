@@ -11,7 +11,7 @@ import qualified Data.ByteString.Builder as ByteString
 instance Controller LogsController where
     action AppLogsAction = do
         currentDevServerState <- readDevServerState
-        let statusServerState = currentDevServerState |> get #statusServerState
+        let statusServerState = currentDevServerState.statusServerState
 
         (standardOutput, errorOutput) <- case statusServerState of
                 DevServer.StatusServerNotStarted -> pure ("", "")
@@ -28,7 +28,7 @@ instance Controller LogsController where
 
     action PostgresLogsAction = do
         currentDevServerState <- readDevServerState
-        let postgresState = currentDevServerState |> get #postgresState
+        let postgresState = currentDevServerState.postgresState
 
         (standardOutput, errorOutput) <- case postgresState of
                 DevServer.PostgresStarted { standardOutput, errorOutput } -> do
@@ -48,4 +48,4 @@ instance Controller LogsController where
         renderPlain ""
 
 readDevServerState :: (?context :: ControllerContext) => IO DevServer.AppState
-readDevServerState = (get #appStateRef <$> theDevServerContext) >>= readIORef
+readDevServerState = ((.appStateRef) <$> theDevServerContext) >>= readIORef

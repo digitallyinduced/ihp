@@ -34,7 +34,7 @@ import IHP.Prelude
 -- <div class="is-active">
 --
 -- >>> forEach projects \project -> [hsx|
--- >>>     <div class={classes [("project", True), ("active", get #active project)]}>
+-- >>>     <div class={classes [("project", True), ("active", project.active)]}>
 -- >>>         {project}
 -- >>>     </div>
 -- >>> |]

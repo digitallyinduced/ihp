@@ -49,9 +49,9 @@ data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 generateControllerData :: ControllerConfig -> Text
 generateControllerData config =
     let
-        name = get #controllerName config
-        pluralName = get #controllerName config |> lcfirst |> pluralize |> ucfirst
-        singularName = get #modelName config |> lcfirst |> singularize |> ucfirst
+        name = config.controllerName
+        pluralName = config.controllerName |> lcfirst |> pluralize |> ucfirst
+        singularName = config.modelName |> lcfirst |> singularize |> ucfirst
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
     in
@@ -69,10 +69,10 @@ generateControllerData config =
 generateController :: [Statement] -> ControllerConfig -> Text
 generateController schema config =
     let
-        applicationName = get #applicationName config
-        name = config |> get #controllerName
-        pluralName = get #controllerName config |> lcfirst |> pluralize |> ucfirst
-        singularName = get #modelName config |> lcfirst |> singularize |> ucfirst
+        applicationName = config.applicationName
+        name = config.controllerName
+        pluralName = config.controllerName |> lcfirst |> pluralize |> ucfirst
+        singularName = config.modelName |> lcfirst |> singularize |> ucfirst
         moduleName =  applicationName <> ".Controller." <> name
         controllerName = name <> "Controller"
 
@@ -89,7 +89,7 @@ generateController schema config =
         modelVariableSingular = lcfirst singularName
         idFieldName = lcfirst singularName <> "Id"
         model = ucfirst singularName
-        paginationEnabled = get #paginationEnabled config
+        paginationEnabled = config.paginationEnabled
 
         indexAction =
             ""
@@ -191,7 +191,7 @@ generateController schema config =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ControllerConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
+    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
 
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName

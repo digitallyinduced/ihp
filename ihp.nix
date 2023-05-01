@@ -51,7 +51,6 @@
 , wreq
 , deepseq
 , parser-combinators
-, ip
 , fast-logger
 , minio-hs
 , temporary
@@ -64,11 +63,13 @@
 , unagi-chan
 , with-utf8
 , ihp-hsx
+, ihp-postgresql-simple-extra
+, nix-gitignore
 }:
 mkDerivation {
   pname = "ihp";
   version = "v1.0.1";
-  src = (import <nixpkgs> { }).nix-gitignore.gitignoreSource [ ] ./.;
+  src = nix-gitignore.gitignoreSource [ ] ./.;
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
@@ -121,7 +122,6 @@ mkDerivation {
     deepseq
     uri-encode
     parser-combinators
-    ip
     fast-logger
     minio-hs
     temporary
@@ -134,6 +134,7 @@ mkDerivation {
     unagi-chan
     with-utf8
     ihp-hsx
+    ihp-postgresql-simple-extra
   ];
   license = lib.licenses.mit;
   postInstall = ''

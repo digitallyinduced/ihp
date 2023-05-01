@@ -1351,6 +1351,15 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should ignore did_update_.. triggers by IHP.PGListener" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE TRIGGER did_update_plans AFTER UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.notify_did_change_plans();
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)

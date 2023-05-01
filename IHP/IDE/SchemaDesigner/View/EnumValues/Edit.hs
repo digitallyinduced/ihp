@@ -23,7 +23,7 @@ instance View EditEnumValueView where
     |]
         where
             enum = findStatementByName enumName statements
-            values = maybe [] (get #values) enum
+            values = maybe [] (.values) enum
             
             modalContent = [hsx|
                 <form method="POST" action={UpdateEnumValueAction}>

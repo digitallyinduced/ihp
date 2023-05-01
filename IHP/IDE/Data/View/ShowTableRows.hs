@@ -49,7 +49,7 @@ instance View ShowTableRowsView where
             </div>|]
                 where
                     contextMenuId = "context-menu-column-" <> tshow primaryKey
-                    primaryKey = intercalate "---" . map (cs . fromMaybe "" . get #fieldValue) $ filter ((`elem` primaryKeyFields) . cs . get #fieldName) fields
+                    primaryKey = intercalate "---" . map (cs . fromMaybe "" . (.fieldValue)) $ filter ((`elem` primaryKeyFields) . cs . (.fieldName)) fields
             renderField primaryKey DynamicField { .. }
                 | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="border rounded p-1" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
                 | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
@@ -71,7 +71,7 @@ instance View ShowTableRowsView where
                         else Nothing
 
 
-            columnNames = map (get #fieldName) (fromMaybe [] (head rows))
+            columnNames = map (.fieldName) (fromMaybe [] (head rows))
 
             onClick tableName fieldName primaryKey = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) primaryKey)) <> ")"
 

@@ -71,7 +71,7 @@ wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
     where
         queryWithRLS = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query <> ";"
 
-        maybeUserId = get #id <$> currentUserOrNothing
+        maybeUserId = (.id) <$> currentUserOrNothing
 
         -- When the user is not logged in and maybeUserId is Nothing, we cannot
         -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.

@@ -132,16 +132,16 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
@@ -157,7 +157,7 @@ tests = do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, get #id model))
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable CreateTable
@@ -174,8 +174,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -185,39 +203,30 @@ tests = do
                             let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
 
-                    type instance PrimaryKey "users" = UUID
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def 0.17  def
+
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
-
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
-                        create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
-                        createMany [] = pure []
-                        createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-
-                    instance CanUpdate User where
-                        updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
-
-                    instance Record User where
-                        {-# INLINE newRecord #-}
-                        newRecord = User def def 0.17  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable CreateTable
@@ -234,8 +243,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -245,39 +272,30 @@ tests = do
                             let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
 
-                    type instance PrimaryKey "users" = UUID
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def 0  def
+
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
-
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
-                        create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((get #id model, get #ids model, fieldWithDefault #electricityUnitPrice model))
-                        createMany [] = pure []
-                        createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (get #id model), toField (get #ids model), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-
-                    instance CanUpdate User where
-                        updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, get #id model))
-
-                    instance Record User where
-                        {-# INLINE newRecord #-}
-                        newRecord = User def def 0  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
                 |]
             it "should not touch GENERATED columns" do
                 let statement = StatementCreateTable CreateTable
@@ -294,8 +312,26 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
+                    type instance PrimaryKey "users" = UUID
+
                     type User = User' 
+
+                    type instance GetTableName (User' ) = "users"
+                    type instance GetModelByTableName "users" = User
+
+                    instance Default (Id' "users") where def = Id def
+
+                    instance () => Table (User' ) where
+                        tableName = "users"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
+                        columnNames = ["id","ts"]
+                        primaryKeyCondition User { id } = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition #-}
+
+
+                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+
 
                     instance FromRow User where
                         fromRow = do
@@ -304,39 +340,30 @@ tests = do
                             let theRecord = User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-                    type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+
                     type instance GetModelName (User' ) = "User"
 
-                    type instance PrimaryKey "users" = UUID
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
+
+                    instance CanUpdate User where
+                        updateRecord model = do
+                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+
+                    instance Record User where
+                        {-# INLINE newRecord #-}
+                        newRecord = User def def  def
+
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
-
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
-                        create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (get #id model))
-                        createMany [] = pure []
-                        createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (get #id model)]) models)
-
-                    instance CanUpdate User where
-                        updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, get #id model))
-
-                    instance Record User where
-                        {-# INLINE newRecord #-}
-                        newRecord = User def def  def
-                    instance Default (Id' "users") where def = Id def
-                    instance () => Table (User' ) where
-                        tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
-                        columnNames = ["id","ts"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
                 |]
 
 

@@ -4,9 +4,9 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module Test.Postgres.TSVector where
 
+import Prelude
 import Test.Hspec
 import Test.Postgres.Support
-import IHP.Prelude
 import IHP.Postgres.TSVector
 import Database.PostgreSQL.Simple.ToField
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec

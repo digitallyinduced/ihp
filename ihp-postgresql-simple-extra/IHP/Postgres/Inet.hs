@@ -13,11 +13,11 @@ import Database.PostgreSQL.Simple.FromField
 import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
 import Database.PostgreSQL.Simple.TypeInfo.Macro as TI
 import Data.Attoparsec.ByteString.Char8 as Attoparsec
-import Data.String.Conversions (cs)
 
 -- We use the @ip@ package for representing IP addresses
 import qualified Net.IP as IP
 import Net.IP (IP)
+import qualified Data.Text.Encoding as Text
 
 instance FromField IP where
     fromField f v =
@@ -32,7 +32,7 @@ instance FromField IP where
       where
         parser = do
             ip <- Attoparsec.takeWhile (\char -> char /= ' ')
-            case IP.decode (cs ip) of
+            case IP.decode (Text.decodeUtf8 ip) of
                 Just ip -> pure ip
                 Nothing -> fail "Invalid IP"
 

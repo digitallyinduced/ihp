@@ -25,8 +25,8 @@ instance View EditColumnView where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] (get #columns . unsafeGetCreateTable) table
-            primaryKeyColumns = maybe [] (primaryKeyColumnNames . get #primaryKeyConstraint . unsafeGetCreateTable) table
+            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            primaryKeyColumns = maybe [] (primaryKeyColumnNames . (.primaryKeyConstraint) . unsafeGetCreateTable) table
 
             isArrayType (PArray _) = True
             isArrayType _ = False
@@ -46,24 +46,24 @@ instance View EditColumnView where
                             type="text"
                             class="form-control"
                             autofocus="autofocus"
-                            value={get #name column}
+                            value={column.name}
                             data-table-name-singular={singularize tableName}
                             />
                     </div>
 
                     <div class="form-group">
-                        {typeSelector (Just (get #columnType column)) enumNames}
+                        {typeSelector (Just (column.columnType)) enumNames}
 
                         <div class="d-flex text-muted mt-1" id="column-options">
                             <div class="custom-control custom-checkbox mr-2">
-                                <input id="allowNull" type="checkbox" name="allowNull" class="custom-control-input" checked={not (get #notNull column)}/>
+                                <input id="allowNull" type="checkbox" name="allowNull" class="custom-control-input" checked={not (column.notNull)}/>
                                 <label class="mr-1 custom-control-label" for="allowNull">
                                     Nullable
                                 </label>
                             </div>
 
                             <div class="custom-control custom-checkbox mr-2">
-                                <input type="checkbox" id="isUnique" name="isUnique" class="custom-control-input" checked={get #isUnique column}/>
+                                <input type="checkbox" id="isUnique" name="isUnique" class="custom-control-input" checked={column.isUnique}/>
                                 <label class="custom-control-label" for="isUnique">
                                     Unique
                                 </label>
@@ -77,7 +77,7 @@ instance View EditColumnView where
                             </div>
 
                             <div class="custom-control custom-checkbox mr-2">
-                                <input id="isArray" type="checkbox" name="isArray" class="custom-control-input" checked={isArrayType (get #columnType column)}/>
+                                <input id="isArray" type="checkbox" name="isArray" class="custom-control-input" checked={isArrayType (column.columnType)}/>
                                 <label class="custom-control-label">
                                      Array Type
                                 </label>
@@ -86,7 +86,7 @@ instance View EditColumnView where
                     </div>
 
                     <div class="form-group row">
-                        {defaultSelector (get #defaultValue column)}
+                        {defaultSelector (column.defaultValue)}
                     </div>
 
                     <div class="text-right">

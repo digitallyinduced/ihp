@@ -55,11 +55,11 @@ instance View ShowQueryView where
                 |]
                 Just (Left sqlError) -> [hsx|
                     <div class="alert alert-danger" role="alert">
-                        <h4 class="alert-heading">SQL Error - {get #sqlExecStatus sqlError}</h4>
-                        {showIfNotEmpty "Message" (get #sqlErrorMsg sqlError)}
-                        {showIfNotEmpty "Details" (get #sqlErrorDetail sqlError)}
-                        {showIfNotEmpty "Hint" (get #sqlErrorHint sqlError)}
-                        {showIfNotEmpty "State" (get #sqlState sqlError)}
+                        <h4 class="alert-heading">SQL Error - {sqlError.sqlExecStatus}</h4>
+                        {showIfNotEmpty "Message" (sqlError.sqlErrorMsg)}
+                        {showIfNotEmpty "Details" (sqlError.sqlErrorDetail)}
+                        {showIfNotEmpty "Hint" (sqlError.sqlErrorHint)}
+                        {showIfNotEmpty "State" (sqlError.sqlState)}
                     </div>
                 |]
                 Nothing -> mempty
@@ -71,7 +71,7 @@ instance View ShowQueryView where
             renderRow fields = [hsx|<tr>{forEach fields renderField}</tr>|]
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{sqlValueToText fieldValue}</span></td>|]
 
-            columnNames rows = maybe [] (map (get #fieldName)) (head rows)
+            columnNames rows = maybe [] (map (.fieldName)) (head rows)
 
             showIfNotEmpty :: Text -> ByteString -> Html
             showIfNotEmpty title = \case

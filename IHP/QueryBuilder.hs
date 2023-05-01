@@ -237,13 +237,11 @@ deriving instance Eq Action
 -- This has to do with how has-many and belongs-to relations are models by the SchemaCompiler
 --
 -- E.g. given a table users and a table posts. Each Post belongs to a user. The schema compiler will
--- add a field 'posts :: QueryBuilder "posts"' with the default value @query |> filterWhere (#userId, get #id self)@ to all users by default.
+-- add a field 'posts :: QueryBuilder "posts"' with the default value @query |> filterWhere (#userId, self.id)@ to all users by default.
 --
 -- This is needed to support syntax like this:
 --
--- > user
--- >     |> get #posts
--- >     |> fetch
+-- > fetch user.posts
 --
 instance Eq Builder.Builder where
     a == b = (Builder.toLazyByteString a) == (Builder.toLazyByteString b)

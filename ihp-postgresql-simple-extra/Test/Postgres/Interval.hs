@@ -5,8 +5,6 @@ Copyright: (c) digitally induced GmbH, 2023
 module Test.Postgres.Interval where
 
 import Test.Hspec
-import Test.Postgres.Support
-import IHP.Prelude
 import IHP.Postgres.Interval
 import IHP.Postgres.TimeParser
 import Database.PostgreSQL.Simple.ToField

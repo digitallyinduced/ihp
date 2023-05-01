@@ -7,7 +7,6 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.Postgres.TSVector where
 
 import BasicPrelude
-import Data.String.Conversions (cs)
 import IHP.Postgres.TypeInfo
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
@@ -15,6 +14,7 @@ import Database.PostgreSQL.Simple.TypeInfo.Macro
 import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
 import Data.ByteString.Builder (byteString, charUtf8)
+import qualified Data.Text.Encoding as Text
 
 -- | Represents a Postgres tsvector
 --
@@ -63,7 +63,7 @@ parseTSVector = TSVector <$> many' parseLexeme
                 weight <- option 'D' $ choice [char 'A', char 'B', char 'C', char 'D']
                 pure $ LexemeRanking { position = truncate position, weight }
 
-            pure $ Lexeme { token = cs token, ranking }
+            pure $ Lexeme { token = Text.decodeUtf8 token, ranking }
 
 
 instance ToField TSVector where
@@ -73,7 +73,7 @@ serializeTSVector :: TSVector -> Action
 serializeTSVector (TSVector lexemes) = Many $ map serializeLexeme lexemes
     where
         serializeLexeme Lexeme { token, ranking } = Many
-            [ Plain $ byteString $ cs token
+            [ Plain $ byteString $ Text.encodeUtf8 token
             , toField ':'
             , Many $ intersperse (toField ',') (map serializeLexemeRanking ranking)
             ]

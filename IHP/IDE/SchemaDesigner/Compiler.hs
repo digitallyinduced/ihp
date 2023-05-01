@@ -26,7 +26,7 @@ compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyCo
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values |> map TextExpression |> map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> ";"
 compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
-compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (get #name constraint)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
+compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (constraint.name)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
 compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP COLUMN " <> compileIdentifier columnName <> ";"
 compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compileIdentifier tableName <> " RENAME COLUMN " <> compileIdentifier from <> " TO " <> compileIdentifier to <> ";"
@@ -165,7 +165,7 @@ compileExpressionWithOptionalParenthese expression = "(" <> compileExpression ex
 
 compareStatement (CreateEnumType {}) _ = LT
 compareStatement (StatementCreateTable CreateTable {}) (AddConstraint {}) = LT
-compareStatement (AddConstraint { constraint = a }) (AddConstraint { constraint = b }) = compare (get #name a) (get #name b)
+compareStatement (AddConstraint { constraint = a }) (AddConstraint { constraint = b }) = compare (a.name) (b.name)
 compareStatement (AddConstraint {}) _ = GT
 compareStatement _ _ = EQ
 

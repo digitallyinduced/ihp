@@ -22,10 +22,10 @@ instance View ShowForeignKeyHoverCardView where
         where
             renderField field = [hsx|
                 <div class="mb-2">
-                    <div style="font-size: 12px; color: rgba(197, 207, 211, 0.8)">{get #fieldName field}:</div>
+                    <div style="font-size: 12px; color: rgba(197, 207, 211, 0.8)">{field.fieldName}:</div>
 
                     <div>
-                        {get #fieldValue field}
+                        {field.fieldValue}
                     </div>
                 </div>
             |]

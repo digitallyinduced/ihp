@@ -131,12 +131,12 @@ testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
 
 assertSuccess :: ByteString -> SResponse -> IO ()
 assertSuccess body response = do
-    get #simpleStatus response `shouldBe` status200
-    get #simpleBody response `shouldBe` (cs body)
+    response.simpleStatus `shouldBe` status200
+    response.simpleBody `shouldBe` (cs body)
 
 assertFailure :: SResponse -> IO ()
 assertFailure response = do
-    get #simpleStatus response `shouldBe` status400
+    response.simpleStatus `shouldBe` status400
 
 config = do
     option Development
@@ -220,4 +220,4 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             pathTo (TestUUIDList ["8dd57d19-490a-4323-8b94-6081ab93bf34", "fdb15f8e-2fe9-441a-ae0e-da56956b1722"]) `shouldBe` "/test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34%2Cfdb15f8e-2fe9-441a-ae0e-da56956b1722"
         it "generates correct path when used with Breadcrumbs" $ withContext do
             let breadcrumb = breadcrumbLink "Test" TestAction
-            get #url breadcrumb `shouldBe` Just "/test/Test"
+            breadcrumb.url `shouldBe` Just "/test/Test"

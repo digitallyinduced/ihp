@@ -13,10 +13,10 @@ import Database.PostgreSQL.Simple.FromField
 import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
 import Database.PostgreSQL.Simple.TypeInfo.Macro as TI
 import Data.Attoparsec.ByteString.Char8 as Attoparsec
-import Data.String.Conversions (cs)
 import Data.Aeson
 
 import IHP.Postgres.TimeParser (PGInterval(..))
+import qualified Data.Text.Encoding as Text
 
 instance FromField PGInterval where
     fromField f v =
@@ -39,4 +39,4 @@ instance FromJSON PGInterval where
      parseJSON = withText "PGInterval" $ \text -> pure (PGInterval (encodeUtf8 text))
 
 instance ToJSON PGInterval where
-    toJSON (PGInterval pgInterval) = String (cs pgInterval)
+    toJSON (PGInterval pgInterval) = String (Text.decodeUtf8 pgInterval)

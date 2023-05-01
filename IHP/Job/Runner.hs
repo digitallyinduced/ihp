@@ -37,7 +37,7 @@ dedicatedProcessMainLoop jobWorkers = do
     threadId <- Concurrent.myThreadId
     exitSignalsCount <- newIORef 0
     workerId <- UUID.nextRandom
-    let logger = ?context |> get #logger
+    let logger = ?context.logger
 
     Log.info ("Starting worker " <> tshow workerId)
 
@@ -90,7 +90,7 @@ devServerMainLoop :: (?modelContext :: ModelContext) => FrameworkConfig -> PGLis
 devServerMainLoop frameworkConfig pgListener jobWorkers = do
     workerId <- UUID.nextRandom
     let ?context = frameworkConfig
-    let logger = frameworkConfig |> get #logger
+    let logger = frameworkConfig.logger
 
     Log.info ("Starting worker " <> tshow workerId)
 

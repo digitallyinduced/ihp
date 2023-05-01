@@ -41,7 +41,7 @@ instance View EditValueView where
             </div>|]
                 where
                     contextMenuId = "context-menu-column-" <> tshow id
-                    id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
+                    id = (cs (fromMaybe "" ((fromJust (headMay fields)).fieldValue)))
 
             renderField id DynamicField { .. } | (tshow targetName) == (tshow fieldName) && targetId == id = [hsx|<td>
                 <form id="fieldForm" method="POST" action={UpdateValueAction}>

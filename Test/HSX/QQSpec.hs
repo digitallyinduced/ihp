@@ -29,7 +29,7 @@ tests = do
 
         it "should work with complex haskell expressions" do
             let project = Project { name = "Testproject" }
-            [hsx|<h1>Project: {get #name project}</h1>|] `shouldBeHtml` "<h1>Project: Testproject</h1>"
+            [hsx|<h1>Project: {project.name}</h1>|] `shouldBeHtml` "<h1>Project: Testproject</h1>"
 
         it "should support lambdas and pattern matching on constructors" do
             let placeData = PlaceId "Punches Cross"

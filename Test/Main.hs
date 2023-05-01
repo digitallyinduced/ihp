@@ -43,17 +43,10 @@ import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
-import qualified Test.Postgres.Point
-import qualified Test.Postgres.Polygon
-import qualified Test.Postgres.Interval
-import qualified Test.Postgres.TSVector
 import qualified Test.FileStorage.MimeTypesSpec
 import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.PGListenerSpec
-import qualified Test.GraphQL.ParserSpec
-import qualified Test.GraphQL.CompilerSpec
-import qualified Test.GraphQL.SchemaCompilerSpec
 import qualified Test.SEO.Sitemap
 
 main :: IO ()
@@ -83,17 +76,10 @@ main = hspec do
     Test.RouterSupportSpec.tests
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
-    Test.Postgres.Point.tests
-    Test.Postgres.Polygon.tests
-    Test.Postgres.Interval.tests
-    Test.Postgres.TSVector.tests
     Test.FileStorage.MimeTypesSpec.tests
     Test.DataSync.DynamicQueryCompiler.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
-    Test.GraphQL.ParserSpec.tests
-    Test.GraphQL.CompilerSpec.tests
-    Test.GraphQL.SchemaCompilerSpec.tests
     Test.SEO.Sitemap.tests

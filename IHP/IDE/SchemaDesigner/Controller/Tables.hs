@@ -63,7 +63,7 @@ instance Controller TablesController where
         let tableName = param "tableName"
         let tableId = param "tableId"
 
-        let oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
+        let oldTableName = ((.name) . unsafeGetCreateTable) (statements !! tableId)
         let validationResult = tableName |> validateTable statements (Just oldTableName)
         case validationResult of
             Failure message -> do
@@ -84,9 +84,9 @@ validateTable statements = validateNameInSchema "table name" (getAllObjectNames 
 
 updateReferenceTableOfForeignKeyConstraint constraint newTableName statements =
     let Just constraintId = elemIndex constraint statements
-        tableName = get #tableName constraint
-        columnName = get #columnName (get #constraint constraint)
-        constraintName = get #constraintName constraint
+        tableName = constraint.tableName
+        columnName = constraint.constraint.columnName
+        constraintName = constraint.constraintName
         referenceTable = newTableName
-        Just onDelete = get #onDelete (get #constraint constraint)
+        Just onDelete = constraint.constraint.onDelete
     in updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId

@@ -12,3 +12,8 @@ haddock-build
 ProjectGenerator/result
 dist-newstyle
 .vscode
+
+# Devenv
+.devenv*
+devenv.local.nix
+.direnv

@@ -26,7 +26,7 @@ passwordStrength = 17
 -- >         |> ifValid \case
 -- >             Left user -> ..
 -- >             Right user -> do
--- >                 user <- get #passwordHash user |> liftIO . hashPassword
+-- >                 user <- user.passwordHash |> liftIO . hashPassword
 -- >                 user <- createRecord user
 -- > 
 hashPassword :: Text -> IO Text
@@ -50,9 +50,7 @@ instance VerifiyPassword (Maybe Text) where
 -- >>> verifyPassword user "hunter2"
 -- True
 verifyPassword :: (HasField "passwordHash" entity passwordField, VerifiyPassword passwordField) => entity -> Text -> Bool
-verifyPassword entity plainText = verifyPassword' passwordHash plainText
-    where
-        passwordHash = getField @"passwordHash" entity
+verifyPassword entity plainText = verifyPassword' entity.passwordHash plainText
 {-# INLINE verifyPassword #-}
 
 

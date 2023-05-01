@@ -141,7 +141,7 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
         emptyListIfTablesDoesntExists operation = do
             result <- Exception.try operation
             case result of
-                Left (EnhancedSqlError { sqlError }) | get #sqlErrorMsg sqlError == "relation \"schema_migrations\" does not exist" -> pure []
+                Left (EnhancedSqlError { sqlError }) | sqlError.sqlErrorMsg == "relation \"schema_migrations\" does not exist" -> pure []
                 Right result -> pure result
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result
@@ -154,9 +154,9 @@ withAppModelContext inner =
             logger <- defaultLogger
 
             modelContext <- createModelContext
-                (get #dbPoolIdleTime frameworkConfig)
-                (get #dbPoolMaxConnections frameworkConfig)
-                (get #databaseUrl frameworkConfig)
+                (frameworkConfig.dbPoolIdleTime)
+                (frameworkConfig.dbPoolMaxConnections)
+                (frameworkConfig.databaseUrl)
                 logger
 
             pure (frameworkConfig, logger, modelContext)

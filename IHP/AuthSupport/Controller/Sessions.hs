@@ -91,7 +91,7 @@ createSessionAction = do
                     user :: record <- user
                             |> incrementField #failedLoginAttempts
                             |> updateRecord
-                    when (get #failedLoginAttempts user >= maxFailedLoginAttempts user) do
+                    when (user.failedLoginAttempts >= maxFailedLoginAttempts user) do
                         Lockable.lock user
                         pure ()
                     redirectTo buildNewSessionAction
@@ -169,7 +169,7 @@ class ( Typeable record
     -- __Example: Disallow login until user is confirmed__
     --
     -- > beforeLogin user = do
-    -- >     unless (get #isConfirmed user) do
+    -- >     unless (user.isConfirmed) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
     -- >         redirectTo NewSessionAction
     beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext) => record -> IO ()

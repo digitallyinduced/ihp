@@ -248,7 +248,7 @@ paramOrNothing !name =
 paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
 paramOrError !name =
     let
-        RequestContext { requestBody } = ?context |> get #requestContext
+        RequestContext { requestBody } = ?context.requestContext
     in case requestBody of
         FormBody {} -> case queryOrBodyParam name of
                 Just value -> case readParameter @paramType value of
@@ -275,7 +275,7 @@ allParams = case requestBody of
             FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
             JSONBody { jsonPayload } -> error "allParams: Not supported for JSON requests"
     where
-        RequestContext { request, requestBody } = ?context |> get #requestContext
+        RequestContext { request, requestBody } = ?context.requestContext
 
 -- | Input parser for 'param'.
 --

@@ -29,14 +29,14 @@ buildPlan mailName applicationName controllerName' =
 -- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
 qualifiedViewModuleName :: MailConfig -> Text -> Text
 qualifiedViewModuleName config mailName =
-    get #applicationName config <> ".Mail." <> get #controllerName config <> "." <> ucfirst mailName
+    config.applicationName <> ".Mail." <> config.controllerName <> "." <> ucfirst mailName
 
 buildPlan' :: [Statement] -> MailConfig -> [GeneratorAction]
 buildPlan' schema config =
         let
-            controllerName = get #controllerName config
-            name = get #mailName config
-            singularName = config |> get #modelName
+            controllerName = config.controllerName
+            name = config.mailName
+            singularName = config.modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
             nameWithSuffix = if "Mail" `isSuffixOf` name
@@ -57,7 +57,7 @@ buildPlan' schema config =
             mail =
                 ""
                 <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
-                <> "import " <> get #applicationName config <> ".View.Prelude\n"
+                <> "import " <> config.applicationName <> ".View.Prelude\n"
                 <> "import IHP.MailPrelude\n"
                 <> "\n"
                 <> "data " <> nameWithSuffix <> " = " <> nameWithSuffix <> " { " <> singularVariableName <> " :: " <> singularName <> " }\n"
@@ -70,7 +70,7 @@ buildPlan' schema config =
                 <> "        Hello World\n"
                 <> "    |]\n"
         in
-            [ EnsureDirectory { directory = get #applicationName config <> "/Mail/" <> controllerName }
-            , CreateFile { filePath = get #applicationName config <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = mail }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = config.applicationName <> "/Mail/" <> controllerName }
+            , CreateFile { filePath = config.applicationName <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = mail }
+            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]

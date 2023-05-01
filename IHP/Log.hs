@@ -100,9 +100,9 @@ unknown = log Unknown
 -- | Write a log if the given log level is greater than or equal to the logger's log level.
 writeLog :: (FastLogger.ToLogStr string) => LogLevel -> Logger -> string -> IO ()
 writeLog level logger text = do
-    let write = get #write logger
-    let formatter = get #formatter logger
-    when (level >= get #level logger) do
+    let write = logger.write
+    let formatter = logger.formatter
+    when (level >= logger.level) do
         write (\time -> formatter time level (toLogStr text))
 
 -- | Wraps 'RequestLogger' from wai-extra to log to an IHP logger.

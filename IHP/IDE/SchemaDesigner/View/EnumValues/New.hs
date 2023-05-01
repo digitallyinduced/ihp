@@ -21,7 +21,7 @@ instance View NewEnumValueView where
     |]
         where
             table = findStatementByName enumName statements
-            values = maybe [] (get #values) table
+            values = maybe [] (.values) table
 
             modalContent = [hsx|
                 <form method="POST" action={CreateEnumValueAction}>

@@ -51,12 +51,12 @@ newtype HtmlView = HtmlView Html
 instance View HtmlView where
     html (HtmlView html) = [hsx|{html}|]
 
-renderStatus job = case get #status job of
+renderStatus job = case job.status of
     JobStatusNotStarted -> [hsx|<span class="badge badge-secondary">Not Started</span>|]
     JobStatusRunning -> [hsx|<span class="badge badge-primary">Running</span>|]
-    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Failed</span>|]
+    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Failed</span>|]
     JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
-    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (get #lastError job)}>Retry</span>|]
+    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Retry</span>|]
     JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
@@ -121,12 +121,12 @@ renderBaseJobTablePaginated table jobs pagination =
 renderBaseJobTableRow :: BaseJob -> Html
 renderBaseJobTableRow job = [hsx|
         <tr>
-            <td>{get #id job}</td>
-            <td>{get #updatedAt job |> timeAgo}</td>
+            <td>{job.id}</td>
+            <td>{job.updatedAt |> timeAgo}</td>
             <td>{renderStatus job}</td>
-            <td><a href={ViewJobAction (get #table job) (get #id job)} class="text-primary">Show</a></td>
+            <td><a href={ViewJobAction (job.table) (job.id)} class="text-primary">Show</a></td>
             <td>
-                <form action={RetryJobAction (get #table job) (get #id job)} method="POST">
+                <form action={RetryJobAction (job.table) (job.id)} method="POST">
                     <button type="submit" style={retryButtonStyle} class="btn btn-link text-secondary">Retry</button>
                 </form>
             </td>
@@ -156,19 +156,19 @@ renderNewBaseJobForm table = [hsx|
 |]
 
 renderBaseJobDetailView :: BaseJob -> Html
-renderBaseJobDetailView job = let table = get #table job in [hsx|
+renderBaseJobDetailView job = let table = job.table in [hsx|
     <br>
-        <h5>Viewing Job {get #id job} in {table |> columnNameToFieldLabel}</h5>
+        <h5>Viewing Job {job.id} in {table |> columnNameToFieldLabel}</h5>
     <br>
     <table class="table">
         <tbody>
             <tr>
                 <th>Updated At</th>
-                <td>{get #updatedAt job |> timeAgo} ({get #updatedAt job})</td>
+                <td>{job.updatedAt |> timeAgo} ({job.updatedAt})</td>
             </tr>
             <tr>
                 <th>Created At</th>
-                <td>{get #createdAt job |> timeAgo} ({get #createdAt job})</td>
+                <td>{job.createdAt |> timeAgo} ({job.createdAt})</td>
             </tr>
             <tr>
                 <th>Status</th>
@@ -176,7 +176,7 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
             </tr>
             <tr>
                 <th>Last Error</th>
-                <td>{fromMaybe "No error" (get #lastError job)}</td>
+                <td>{fromMaybe "No error" (job.lastError)}</td>
             </tr>
         </tbody>
     </table>
@@ -184,12 +184,12 @@ renderBaseJobDetailView job = let table = get #table job in [hsx|
     <div class="d-flex flex-row">
         <form class="mr-2" action="/jobs/DeleteJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
-            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+            <input type="hidden" id="id" name="id" value={tshow $ job.id}>
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>
         <form action="/jobs/RetryJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
-            <input type="hidden" id="id" name="id" value={tshow $ get #id job}>
+            <input type="hidden" id="id" name="id" value={tshow $ job.id}>
             <button type="submit" class="btn btn-primary">Run again</button>
         </form>
     </div>

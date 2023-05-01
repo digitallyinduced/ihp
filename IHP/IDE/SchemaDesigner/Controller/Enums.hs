@@ -47,7 +47,7 @@ instance Controller EnumsController where
         statements <- readSchema
         let enumName = param "enumName"
         let enumId = param "enumId"
-        let oldEnumName = get #name (statements !! enumId)
+        let oldEnumName = (statements !! enumId).name
         let validationResult = enumName |> validateEnum statements (Just oldEnumName)
         case validationResult of
             Failure message -> do
@@ -63,7 +63,7 @@ instance Controller EnumsController where
         redirectTo TablesAction
 
 updateEnum :: Int -> Text -> [Statement] -> [Statement]
-updateEnum enumId enumName list = replace enumId CreateEnumType { name = enumName, values = (get #values (list !! enumId))} list
+updateEnum enumId enumName list = replace enumId CreateEnumType { name = enumName, values = (list !! enumId).values } list
 
 deleteEnum :: Int -> [Statement] -> [Statement]
 deleteEnum tableId list = delete (list !! tableId) list

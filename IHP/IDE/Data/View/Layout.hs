@@ -45,7 +45,7 @@ tableHead rows tableName =
         </thead>
     |]
     where
-        columnNames rows = map (get #fieldName) (fromMaybe [] (head rows))
+        columnNames rows = map (.fieldName) (fromMaybe [] (head rows))
         renderColumnHead name = [hsx|<th>{name}</th>|]
 
 renderRows :: [[DynamicField]] -> Html -> Text -> Html
@@ -62,8 +62,8 @@ sqlValueToText Nothing = "NULL"
 
 renderId id = take 4 (cs id) <> ".." <> reverse (take 4 (reverse (cs id)))
 
-isBoolField fieldName tableCols = case (find (\c -> get #columnName c == (cs fieldName)) tableCols) of
-    Just columnDef -> (get #columnType columnDef) == "boolean"
+isBoolField fieldName tableCols = case (find (\c -> c.columnName == (cs fieldName)) tableCols) of
+    Just columnDef -> (columnDef.columnType) == "boolean"
     Nothing -> False
 
 isSqlFunction :: Text -> Bool
@@ -78,7 +78,7 @@ isSqlFunction_ text = text `elem`
     , "NOW()"
     , "NULL"]
 
-fillField col value isBoolField = "fillField('" <> get #columnName col <> "', '" <> value <> "'," <> isBoolField <> ");"
+fillField col value isBoolField = "fillField('" <> col.columnName <> "', '" <> value <> "'," <> isBoolField <> ");"
 
 getColDefaultValue :: ColumnDefinition -> Text
 getColDefaultValue ColumnDefinition { columnDefault, isNullable } = case columnDefault of
@@ -101,7 +101,7 @@ isBooleanParam :: Bool -> ColumnDefinition -> Html
 isBooleanParam isBool def = [hsx|
 <input
     type="hidden"
-    name={get #columnName def <> "-isBoolean"}
+    name={def.columnName <> "-isBoolean"}
     value={inputValue isBool}
     />
 |]
