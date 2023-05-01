@@ -31,14 +31,14 @@ buildPlan viewName applicationName controllerName' =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
+    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
 
 buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
 buildPlan' schema config =
         let
-            controllerName = get #controllerName config
-            name = get #viewName config
-            singularName = config |> get #modelName |> lcfirst |> singularize |> ucfirst -- TODO: `singularize` Should Support Lower-Cased Words
+            controllerName = config.controllerName
+            name = config.viewName
+            singularName = config.modelName |> lcfirst |> singularize |> ucfirst -- TODO: `singularize` Should Support Lower-Cased Words
             pluralName = singularName |> lcfirst |> pluralize |> ucfirst -- TODO: `pluralize` Should Support Lower-Cased Words
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
@@ -57,7 +57,7 @@ buildPlan' schema config =
                 , ("NewView", newView)
                 ]
 
-            paginationEnabled = get #paginationEnabled config
+            paginationEnabled = config.paginationEnabled
 
             modelFields :: [Text]
             modelFields =  [ modelNameToTableName pluralVariableName, pluralVariableName ]
@@ -74,7 +74,7 @@ buildPlan' schema config =
             |]
                 where
                     moduleName = qualifiedViewModuleName config nameWithoutSuffix
-                    applicationName = get #applicationName config
+                    applicationName = config.applicationName
 
 
 
@@ -218,7 +218,7 @@ buildPlan' schema config =
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
-            [ EnsureDirectory { directory = get #applicationName config <> "/View/" <> controllerName }
-            , CreateFile { filePath = get #applicationName config <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = config.applicationName <> "/View/" <> controllerName }
+            , CreateFile { filePath = config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
+            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]

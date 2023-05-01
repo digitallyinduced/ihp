@@ -103,7 +103,7 @@ stop PGListener { notifyLoopAsync } = do
 -- > pgListener <- PGListener.init
 -- >
 -- > let callback notification = do
--- >         let payload :: Text = cs (get #notificationData notification)
+-- >         let payload :: Text = cs (notification.notificationData)
 -- >         putStrLn ("Received notification: " <> payload)
 -- > 
 -- > subscription <- pgListener |> PGListener.subscribe "my_channel" callback
@@ -134,7 +134,7 @@ subscribe channel callback pgListener = do
             callback message `Exception.catch` logException
     let subscription = Subscription { .. }
 
-    modifyIORef' (get #subscriptions pgListener) (HashMap.insertWith mappend channel [subscription] )
+    modifyIORef' (pgListener.subscriptions) (HashMap.insertWith mappend channel [subscription] )
 
     pure subscription
 
@@ -154,7 +154,7 @@ subscribeJSON :: Aeson.FromJSON jsonValue => Channel -> (jsonValue -> IO ()) -> 
 subscribeJSON channel callback pgListener = subscribe channel callback' pgListener
     where
         callback' notification = do
-            let payload = (get #notificationData notification)
+            let payload = (notification.notificationData)
             case Aeson.decodeStrict' payload of
                 Just payload -> callback payload
                 Nothing -> logError pgListener ("PGListener.subscribeJSON: Failed to parse " <> tshow payload)
@@ -171,19 +171,19 @@ unsubscribe :: Subscription -> PGListener -> IO ()
 unsubscribe subscription@(Subscription { .. }) pgListener = do
     let
         deleteById :: [Subscription] -> [Subscription]
-        deleteById = List.deleteBy (\a b -> get #id a == get #id b) subscription
-    modifyIORef' (get #subscriptions pgListener) (HashMap.adjust deleteById channel)
+        deleteById = List.deleteBy (\a b -> a.id == b.id) subscription
+    modifyIORef' (pgListener.subscriptions) (HashMap.adjust deleteById channel)
     uninterruptibleCancel reader
     pure ()     
 
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel
 listenToChannelIfNeeded :: Channel -> PGListener -> IO ()
 listenToChannelIfNeeded channel pgListener = do
-    listeningTo <- MVar.readMVar (get #listeningTo pgListener)
+    listeningTo <- MVar.readMVar (pgListener.listeningTo)
     let alreadyListening = channel `Set.member` listeningTo
 
     unless alreadyListening do
-        MVar.putMVar (get #listenTo pgListener) channel
+        MVar.putMVar (pgListener.listenTo) channel
             
 
             
@@ -221,7 +221,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                 Async.withAsync listenLoop \listenLoopAsync -> do
                     forever do
                         notification <- PG.getNotification databaseConnection
-                        let channel = get #notificationChannel notification
+                        let channel = notification.notificationChannel
 
                         allSubscriptions <- readIORef subscriptions
                         let channelSubscriptions = allSubscriptions
@@ -229,7 +229,7 @@ notifyLoop listeningToVar listenToVar subscriptions = do
                                 |> fromMaybe []
 
                         forEach channelSubscriptions \subscription -> do
-                            let inChan = get #inChan subscription
+                            let inChan = subscription.inChan
                             Queue.writeChan inChan notification
 
     -- Initial delay (in microseconds)

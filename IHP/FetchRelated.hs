@@ -194,12 +194,12 @@ instance (relatedModel ~ GetModelByTableName relatedTable, Table relatedModel) =
 -- In the view we can just access the comments like this:
 --
 -- > [hsx|
--- >     <h1>{get #title post}</h1>
+-- >     <h1>{post.title}</h1>
 -- >     <h2>Comments:</h2>
--- >     {post |> get #comments}
+-- >     {post.comments}
 -- > |]
 --
--- The @post |> get #comments@ returns a list of the comments belonging to the post.
+-- The @post.comments@ returns a list of the comments belonging to the post.
 -- The type of post is @Include "comments"@ Post instead of the usual @Post@. This way the state of a fetched nested resource is tracked at the type level.
 --
 fetchRelated :: forall model field fieldValue fetchModel. (

@@ -29,7 +29,7 @@ startPostgres = do
 
     let ManagedProcess { outputHandle, errorHandle } = process
 
-    let isDebugMode = ?context |> get #isDebugMode
+    let isDebugMode = ?context.isDebugMode
 
     let handleOutdatedDatabase line =
             -- Always log fatal errors to the output:
@@ -121,7 +121,7 @@ waitUntilReady process callback = do
 
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do
-    let isDebugMode = ?context |> get #isDebugMode
+    let isDebugMode = ?context.isDebugMode
     threadDelay 1000000
     (_, stdout, _) <- Process.readProcessWithExitCode "pg_ctl" ["status"] ""
     if "server is running" `isInfixOf` (cs stdout)

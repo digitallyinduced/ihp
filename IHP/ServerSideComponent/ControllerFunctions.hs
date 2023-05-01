@@ -25,7 +25,7 @@ $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { ta
 
 setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => state -> IO ()
 setState state = do
-    oldState <- get #state <$> readIORef ?instanceRef
+    oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render
             |> Blaze.renderHtml
@@ -43,6 +43,6 @@ setState state = do
 
 
 getState :: _ => _
-getState = get #state <$> readIORef ?instanceRef
+getState = (.state) <$> readIORef ?instanceRef
 
 deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}

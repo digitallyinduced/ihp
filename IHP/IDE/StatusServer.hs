@@ -210,7 +210,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     -- Warnings should come after the actual errors.
                     errors = errorOutput
                             |> parseErrorOutput
-                            |> sortBy (comparing (get #isWarning))
+                            |> sortBy (comparing (.isWarning))
             parseErrorOutput :: [ByteString] -> [CompilerError]
             parseErrorOutput output =
                     splitToSections (reverse output) []
@@ -261,9 +261,7 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
                     |> map (\f -> f lines)
                     |> catMaybes
 
-            toolServerPort = ?context
-                |> get #portConfig
-                |> get #toolServerPort
+            toolServerPort = ?context.portConfig.toolServerPort
 
 app :: (?context :: Context) => IORef [(Websocket.Connection, Concurrent.MVar ())] -> StatusServerState -> Websocket.ServerApp
 app stateRef statusServerState pendingConnection = do
@@ -280,8 +278,8 @@ app stateRef statusServerState pendingConnection = do
             Concurrent.threadDelay 100000 -- 100ms
 
             isCompiling <- getCompilingStatus
-            standardOutput' <- readIORef (get #standardOutput statusServerState)
-            errorOutput' <- readIORef (get #errorOutput statusServerState)
+            standardOutput' <- readIORef (statusServerState.standardOutput)
+            errorOutput' <- readIORef (statusServerState.errorOutput)
 
             let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling
             let html = Blaze.renderHtml errorContainer
@@ -314,10 +312,8 @@ modelContextTroubleshooting lines =
 
 getCompilingStatus :: (?context :: Context) => IO Bool
 getCompilingStatus = do
-    devServerState <- ?context
-        |> get #appStateRef
-        |> readIORef
+    devServerState <- readIORef ?context.appStateRef
 
-    pure case (get #appGHCIState devServerState) of
+    pure case (devServerState.appGHCIState) of
             AppGHCILoading { } -> True
             _ -> False

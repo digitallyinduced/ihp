@@ -71,7 +71,7 @@ startToolServer' port isDebugMode = do
 
     session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (get #sessionCookie frameworkConfig) session
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) session
     let modelContext = notConnectedModelContext undefined
     pgListener <- PGListener.init modelContext
     autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
@@ -91,7 +91,7 @@ startToolServer' port isDebugMode = do
             |> Warp.setPort port
             |> Warp.setBeforeMainLoop openAppUrl
 
-    let logMiddleware = if isDebugMode then get #requestLoggerMiddleware frameworkConfig else IHP.Prelude.id
+    let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
     Warp.runSettings warpSettings $
             staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
@@ -146,5 +146,5 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
 readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
 readDatabaseNeedsMigration = do
     context <- theDevServerContext
-    state <- readIORef (get #appStateRef context)
-    readIORef (get #databaseNeedsMigration state)
+    state <- readIORef (context.appStateRef)
+    readIORef (state.databaseNeedsMigration)

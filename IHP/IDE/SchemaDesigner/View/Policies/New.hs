@@ -38,7 +38,7 @@ instance View NewPolicyView where
                             type="text"
                             class="form-control"
                             autofocus="autofocus"
-                            value={get #name policy}
+                            value={policy.name}
                             />
                     </div>
 
@@ -76,13 +76,13 @@ instance View NewPolicyView where
             modalTitle = "New Policy"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
-            using = get #using policy
+            using = policy.using
                     |> maybe "" Compiler.compileExpression
 
-            check = get #check policy
+            check = policy.check
                     |> maybe "" Compiler.compileExpression
 
             autocompleteSuggestions =
                     columns
-                    |> map (get #name)
+                    |> map (.name)
                     |> intercalate ","

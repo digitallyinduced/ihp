@@ -95,11 +95,11 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 createTable = find isCreateTableStatement statements
 
                 isCreateTableStatement :: Statement -> Bool
-                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) | get #name table == tableName = True
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) | table.name == tableName = True
                 isCreateTableStatement otherwise = False
 
                 (Just actualTable) = actualSchema |> find \case
-                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
+                        StatementCreateTable { unsafeGetCreateTable = table } -> table.name == tableName
                         otherwise                                                            -> False
         patchTable (s:rest) = s:(patchTable rest)
         patchTable [] = []
@@ -132,7 +132,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                     Just createTable@(StatementCreateTable { unsafeGetCreateTable = createTable' }) ->
                         let
                             from = tableName
-                            to = get #name createTable'
+                            to = createTable'.name
                         in
                             (RenameTable { from, to }):(applyRenameTable (fixIdentifiers from to (delete createTable statements)))
                     Nothing -> s:(applyRenameTable statements)
@@ -141,11 +141,11 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 createTable = find isCreateTableStatement statements
 
                 isCreateTableStatement :: Statement -> Bool
-                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (get #name table /= get #name actualTable') && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
+                isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (table.name /= actualTable'.name) && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
                 isCreateTableStatement otherwise = False
 
                 (Just actualTable) = actualSchema |> find \case
-                        StatementCreateTable { unsafeGetCreateTable = table } -> get #name table == tableName
+                        StatementCreateTable { unsafeGetCreateTable = table } -> table.name == tableName
                         otherwise                                                            -> False
 
                 actualTable' :: CreateTable
@@ -163,10 +163,10 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         applyRenameTable [] = []
 
         toDropStatement :: Statement -> Maybe Statement
-        toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = get #name table }
+        toDropStatement StatementCreateTable { unsafeGetCreateTable = table } = Just DropTable { tableName = table.name }
         toDropStatement CreateEnumType { name } = Just DropEnumType { name }
         toDropStatement CreateIndex { indexName } = Just DropIndex { indexName }
-        toDropStatement AddConstraint { tableName, constraint } = case get #name constraint of
+        toDropStatement AddConstraint { tableName, constraint } = case constraint.name of
                 Just constraintName -> Just DropConstraint { tableName, constraintName }
                 Nothing -> Nothing
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
@@ -218,10 +218,10 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 createColumn column = AddColumn { tableName, column }
 
                 dropColumn :: Column -> Statement
-                dropColumn column = DropColumn { tableName, columnName = get #name column }
+                dropColumn column = DropColumn { tableName, columnName = column.name }
 
                 applyRenameColumn (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
-                        Just matchingCreateColumn -> RenameColumn { tableName, from = columnName, to = get #name (get #column matchingCreateColumn) } : (applyRenameColumn (filter ((/=) matchingCreateColumn) statements))
+                        Just matchingCreateColumn -> RenameColumn { tableName, from = columnName, to = matchingCreateColumn.column.name } : (applyRenameColumn (filter ((/=) matchingCreateColumn) statements))
                         Nothing -> s:(applyRenameColumn statements)
                     where
                         matchingCreateColumn :: Maybe Statement
@@ -232,7 +232,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                 |> find \case
                                     Column { name } -> name == columnName
                                     otherwise       -> False
-                                |> maybe False (\c -> (c :: Column) { name = get #name addColumn } == addColumn)
+                                |> maybe False (\c -> (c :: Column) { name = addColumn.name } == addColumn)
                         isMatchingCreateColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
                 applyRenameColumn [] = []
@@ -258,9 +258,9 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                     Column { name } -> name == columnName
                                     otherwise       -> False
 
-                        updateConstraint = if get #isUnique dropColumn
-                            then DropConstraint { tableName, constraintName = tableName <> "_" <> (get #name dropColumn) <> "_key" }
-                            else AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames = [get #name dropColumn] }, deferrable = Nothing, deferrableType = Nothing }
+                        updateConstraint = if dropColumn.isUnique
+                            then DropConstraint { tableName, constraintName = tableName <> "_" <> (dropColumn.name) <> "_key" }
+                            else AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames = [dropColumn.name] }, deferrable = Nothing, deferrableType = Nothing }
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -283,7 +283,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                 -- > ALTER TABLE table ALTER COLUMN column SET DEFAULT 'value'
                 --
                 applySetDefault (s@(DropColumn { columnName }):statements) = case matchingCreateColumn of
-                        Just matchingCreateColumn -> case get #defaultValue (get #column matchingCreateColumn) of
+                        Just matchingCreateColumn -> case matchingCreateColumn.column.defaultValue of
                             Just value -> SetDefaultValue { tableName, columnName, value }:rest
                             Nothing -> DropDefaultValue { tableName, columnName }:rest
                             where
@@ -326,9 +326,9 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                     Column { name } -> name == columnName
                                     otherwise       -> False
 
-                        updateConstraint = if get #notNull dropColumn
-                            then DropNotNull { tableName, columnName = get #name dropColumn }
-                            else SetNotNull { tableName, columnName = get #name dropColumn }
+                        updateConstraint = if dropColumn.notNull
+                            then DropNotNull { tableName, columnName = dropColumn.name }
+                            else SetNotNull { tableName, columnName = dropColumn.name }
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -471,7 +471,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
     where
         uniqueConstraint =
             if isUnique
-                then [ AddConstraint { tableName = get #name table, constraint = UniqueConstraint (Just $ (get #name table) <>"_" <> name <> "_key") [name], deferrable = Nothing, deferrableType = Nothing } ]
+                then [ AddConstraint { tableName = table.name, constraint = UniqueConstraint (Just $ (table.name) <>"_" <> name <> "_key") [name], deferrable = Nothing, deferrableType = Nothing } ]
                 else []
 
         normalizeName :: Text -> Text

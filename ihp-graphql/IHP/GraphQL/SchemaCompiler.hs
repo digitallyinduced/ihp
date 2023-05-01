@@ -168,9 +168,7 @@ columnToRecordField table Column { name, columnType, notNull } =
                         else \v -> v) $ postgresTypeToGraphQLType columnType
             }
     where
-        primaryKeyColumns = table
-                |> get #primaryKeyConstraint
-                |> get #primaryKeyColumnNames
+        primaryKeyColumns = table.primaryKeyConstraint.primaryKeyColumnNames
         isPrimaryKey = name `elem` primaryKeyColumns
 
 columnToNewRecordField :: CreateTable -> Column -> FieldDefinition
@@ -186,7 +184,7 @@ removeNonNull (NonNullType type_) = type_
 removeNonNull type_ = type_
 
 removeNonNullFromFieldDefinition :: FieldDefinition -> FieldDefinition
-removeNonNullFromFieldDefinition fieldDefinition = fieldDefinition { type_ = removeNonNull (get #type_ fieldDefinition) }
+removeNonNullFromFieldDefinition fieldDefinition = fieldDefinition { type_ = removeNonNull fieldDefinition.type_ }
 
 postgresTypeToGraphQLType :: PostgresType -> Type
 postgresTypeToGraphQLType PText = NamedType "String"

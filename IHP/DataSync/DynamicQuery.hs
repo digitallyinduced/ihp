@@ -162,7 +162,7 @@ recordIds :: [[Field]] -> [UUID]
 recordIds result = result
         |> concat
         |> filter (\Field { fieldName } -> fieldName == "id")
-        |> map (get #fieldValue)
+        |> map (.fieldValue)
         |> mapMaybe \case
             UUIDValue uuid -> Just uuid
             otherwise      -> Nothing

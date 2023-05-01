@@ -74,15 +74,15 @@ addColumn options@(AddColumnOptions { .. }) =
                         isTable otherwise = False
                         (Just table) = find isTable statements
                         suggestedPolicy = suggestPolicy statements table
-                    in if (get #name suggestedPolicy /= "" && not (doesHaveExistingPolicies statements tableName))
+                    in if (suggestedPolicy.name /= "" && not (doesHaveExistingPolicies statements tableName))
                             then
                                 statements
                                 |> enableRowLevelSecurity tableName
                                 |> addPolicy AddPolicyOptions
                                         { tableName = tableName
-                                        , name = get #name suggestedPolicy
-                                        , using = get #using suggestedPolicy
-                                        , check = get #check suggestedPolicy
+                                        , name = suggestedPolicy.name
+                                        , using = suggestedPolicy.using
+                                        , check = suggestedPolicy.check
                                         }
                             else statements
                 else statements
@@ -162,16 +162,16 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
               (True, True) -> primaryKeyConstraint
 
         updateForeignKeyConstraints = map \case
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (get #name oldColumn) ->
-                    let newName = Text.replace (get #name oldColumn) columnName <$> fkName
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
+                    let newName = Text.replace (oldColumn.name) columnName <$> fkName
                     in statement { constraint = constraint { columnName, name = newName } }
                 index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
                     let
                         updateIndexColumn :: IndexColumn -> IndexColumn
-                        updateIndexColumn indexColumn@(IndexColumn { column = VarExpression varName }) | varName == (get #name oldColumn) = indexColumn { column = VarExpression columnName }
+                        updateIndexColumn indexColumn@(IndexColumn { column = VarExpression varName }) | varName == (oldColumn.name) = indexColumn { column = VarExpression columnName }
                         updateIndexColumn otherwise = otherwise
                     in
-                        (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (get #name oldColumn) columnName indexName }
+                        (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (oldColumn.name) columnName indexName }
                 otherwise -> otherwise
         findOldColumn statements = mapMaybe findOldColumn' statements
                 |> head
@@ -403,7 +403,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                                 { columns = [IntExpression 1]
                                 , from = DotExpression (VarExpression "public") refTableName
                                 , alias = Nothing
-                                , whereClause = EqExpression (DotExpression (VarExpression refTableName) refColumnName) (DotExpression (VarExpression tableName) (get #name column))
+                                , whereClause = EqExpression (DotExpression (VarExpression refTableName) refColumnName) (DotExpression (VarExpression tableName) (column.name))
                                 }
                             )
                         )
@@ -430,7 +430,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                 schema
                     |> mapMaybe (\case
                         AddConstraint { tableName = fkTable, constraint = fk@(ForeignKeyConstraint { columnName = fkCol }) } ->
-                            if fkTable == tableName && fkCol == get #name column
+                            if fkTable == tableName && fkCol == column.name
                                 then Just fk
                                 else Nothing
                         otherwise -> Nothing)
@@ -466,12 +466,12 @@ deleteTable tableName statements =
 updateTable :: Int -> Text -> Schema -> Schema
 updateTable tableId tableName statements =
     let
-        oldTableName = (get #name . unsafeGetCreateTable) (statements !! tableId)
+        oldTableName = ((.name) . unsafeGetCreateTable) (statements !! tableId)
     in
         statements
         |> map \case
             (StatementCreateTable table@(CreateTable { name })) | name == oldTableName -> StatementCreateTable (table { name = tableName })
-            constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName -> (constraint :: Statement) { tableName, constraint = c { name = Text.replace oldTableName tableName <$> (get #name c) } }
+            constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName -> (constraint :: Statement) { tableName, constraint = c { name = Text.replace oldTableName tableName <$> (c.name) } }
             index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
@@ -494,13 +494,13 @@ addUpdatedAtTrigger tableName schema =
             , tableName
             , for = ForEachRow
             , whenCondition = Nothing
-            , functionName = get #functionName setUpdatedAtToNowTrigger
+            , functionName = setUpdatedAtToNowTrigger.functionName
             , arguments = []
             }
 
         addFunctionOperator :: [Statement]
         addFunctionOperator =
-            if hasFunction (get #functionName setUpdatedAtToNowTrigger)
+            if hasFunction (setUpdatedAtToNowTrigger.functionName)
                 then []
                 else [setUpdatedAtToNowTrigger]
 
@@ -612,7 +612,7 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
         --
         -- An index references a table if it references the target table and one of the index expressions contains a reference to our column
         isReferenced :: Statement -> Bool
-        isReferenced CreateIndex { tableName = indexTableName, columns } = indexTableName == tableName && expressionsReferencesColumn (map (get #column) columns)
+        isReferenced CreateIndex { tableName = indexTableName, columns } = indexTableName == tableName && expressionsReferencesColumn (map (.column) columns)
         isReferenced otherwise = False
 
         -- | Returns True if a list of expressions references the columnName

@@ -17,7 +17,7 @@ definitionToText TypeSystemDefinition { typeSystemDefinition } = typeSystemDefin
 operationToText :: OperationDefinition -> Text
 operationToText operation = type_
     where
-        type_ = case get #operationType operation of
+        type_ = case operation.operationType of
             Query -> "query"
             Mutation -> "mutation"
             Subscription -> "subscription"

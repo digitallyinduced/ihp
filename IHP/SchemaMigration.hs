@@ -29,9 +29,7 @@ migrate :: (?modelContext :: ModelContext) => MigrateOptions -> IO ()
 migrate options = do
     createSchemaMigrationsTable
 
-    let minimumRevision = options
-            |> get #minimumRevision
-            |> fromMaybe 0
+    let minimumRevision = fromMaybe 0 options.minimumRevision
 
     openMigrations <- findOpenMigrations minimumRevision
     forEach openMigrations runMigration
@@ -58,7 +56,7 @@ createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
     -- Hide this query from the log
     let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
+    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
 
     -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
     -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
@@ -75,7 +73,7 @@ createSchemaMigrationsTable = do
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
 findOpenMigrations !minimumRevision = do
     let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (get #logger modelContext) { write = \_ -> pure ()} }
+    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
 
     migratedRevisions <- findMigratedRevisions
     migrations <- findAllMigrations

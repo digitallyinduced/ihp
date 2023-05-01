@@ -92,7 +92,7 @@ class BuildMail mail where
     --
     -- __Example:__
     --
-    -- > to ConfirmationMail { .. } = Address { addressName = Just (get #name user), addressEmail = get #email user }
+    -- > to ConfirmationMail { .. } = Address { addressName = Just (user.name), addressEmail = user.email }
     --
     -- __Example:__ Send all emails to a fixed email address while in development mode
     --
@@ -102,7 +102,7 @@ class BuildMail mail where
     -- >         if isDevelopment then
     -- >             "staging@example.com"
     -- >         else
-    -- >             get #email admin
+    -- >             admin.email
     -- >     }
     --
     to :: (?context :: context, ConfigProvider context) => mail -> Address

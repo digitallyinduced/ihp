@@ -130,9 +130,9 @@ data PaginationView =
 --
 -- Can also be written using get:
 --
--- > renderedHtml = (get #styledPagination theCSSFramework) theCSSFramework paginationView
+-- > renderedHtml = (theCSSFramework.styledPagination) theCSSFramework paginationView
 --
--- That's important to understand here. We get a 'styledPagination' function using 'get #styledPagination theCSSFramework'.
+-- That's important to understand here. We get a 'styledPagination' function using 'theCSSFramework.styledPagination'.
 -- Next, we apply 'theCSSFramework' to that function. We do that so because the 'styledPagination' function internally
 -- might want to call other functions of the CSSFramework type. But we might want to override some functions of the CSSFramework.
 --
@@ -157,13 +157,13 @@ data PaginationView =
 -- Now, when we render the 'myPage' we will get '<div><button style="color: red">button</button></div>' (a red button, while our customCSS specified it should be green).
 --
 -- Our way to fix this is to "late-bind" the calls, by manually passing around a CSSFramework. Here we added that second 'CSSFramework' to all functions.
--- Notice how 'styledPagination' is getting the correct 'styledButton' by calling 'get #styledButton cssFramework':
+-- Notice how 'styledPagination' is getting the correct 'styledButton' by calling 'cssFramework.styledButton':
 --
 -- > data CSSFramework = CSSFramework { styledPagination :: CSSFramework -> Html, styledButton :: CSSFramework -> Html }
 -- >
 -- > bootstrapCSS = CSSFramework { styledPagination, styledButton }
 -- >    where
--- >        styledPagination cssFramework = [hsx|<div>{get #styledButton cssFramework}</div>|]
+-- >        styledPagination cssFramework = [hsx|<div>{cssFramework.styledButton}</div>|]
 -- >        styledButton cssFramework = [hsx|<button style="color: red">button</button>|]]
 -- >
 -- > myPage = [hsx|{styledPagination bootstrapCSS bootstrapCSS}|]

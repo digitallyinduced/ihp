@@ -87,7 +87,7 @@ instance Controller DataController where
         tableNames <- fetchTableNames connection
         let tableName = param "tableName"
         tableCols <- fetchTableCols connection tableName
-        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
+        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
         let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (map (const "?") values) <> ")"
         PG.execute connection (PG.Query . cs $! query) values
         PG.close connection
@@ -114,8 +114,8 @@ instance Controller DataController where
         tableCols <- fetchTableCols connection tableName
         primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (get #columnName col) <> "_")) (param @Bool (cs (get #columnName col) <> "-isBoolean")) (param @Text (cs (get #columnName col)))) tableCols
-        let columns :: [Text] = map (\col -> cs (get #columnName col)) tableCols
+        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
+        let columns :: [Text] = map (\col -> cs (col.columnName)) tableCols
         let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
         let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns (map (const "?") values))) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))

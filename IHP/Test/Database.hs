@@ -54,7 +54,7 @@ deleteDatabase masterDatabaseUrl testDatabase = do
     withConnection masterDatabaseUrl \connection -> do
         -- The WITH FORCE is required to force close open connections
         -- Otherwise the DROP DATABASE takes a few seconds to execute
-        PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (get #name testDatabase)]
+        PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (testDatabase.name)]
     pure ()
 
 importSql url file = do

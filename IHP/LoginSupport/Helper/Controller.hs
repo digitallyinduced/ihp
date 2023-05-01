@@ -105,7 +105,7 @@ ensureIsAdmin = ensureIsRole @admin
 -- >     redirectToPath "/"
 --
 login :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
-login user = Session.setSession (sessionKey @user) (tshow (get #id user))
+login user = Session.setSession (sessionKey @user) (tshow (user.id))
 {-# INLINABLE login #-}
 
 -- | Log's out a user

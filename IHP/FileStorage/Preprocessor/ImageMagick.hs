@@ -55,7 +55,7 @@ applyImageMagick convertTo otherParams fileInfo = do
         let convertedFilePath = tempPath <> "/converted." <> cs convertTo
 
         fileInfo
-            |> get #fileContent
+            |> (.fileContent)
             |> LBS.writeFile tempFilePath
 
         let params :: [String] = [tempFilePath] <> otherParams <> [convertedFilePath]

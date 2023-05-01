@@ -126,10 +126,10 @@ instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Pr
 -- >
 -- > let project = Project { name = "Hello World", isPublic = False }
 --
--- >>> get #name project
+-- >>> project.name
 -- "Hello World"
 --
--- >>> get #isPublic project
+-- >>> project.isPublic
 -- False
 get :: forall model name value. (KnownSymbol name, Record.HasField name model value) => Proxy name -> model -> value
 get _ record = Record.getField @name record
@@ -269,7 +269,7 @@ instance IsString string => IsString (Maybe string) where
 -- __Example:__ Within HSX
 --
 -- > renderUser :: User -> Html
--- > renderUser user = [hsx|<div>User: {get #name user}</div>|]
+-- > renderUser user = [hsx|<div>User: {user.name}</div>|]
 -- >
 -- > render = [hsx|{forEach users renderUser}|]
 --
@@ -294,7 +294,7 @@ forEach elements function = forM_ elements function
 -- __Example:__ Within HSX
 --
 -- > renderUser :: (Int, User) -> Html
--- > renderUser (index, user) = [hsx|<div>User {index}: {get #name user}</div>|]
+-- > renderUser (index, user) = [hsx|<div>User {index}: {user.name}</div>|]
 -- >
 -- > render = [hsx|{forEachWithIndex users renderUser}|]
 --
@@ -394,9 +394,9 @@ class CopyFields (fields :: [Symbol]) destinationRecord sourceRecord where
     -- Useful to rewrite getter-setter code like this:
     --
     -- > let newProject = newRecord @Project
-    -- >     |> set #name (get #name otherProject)
-    -- >     |> set #isPublic (get #isPublic otherProject)
-    -- >     |> set #userId (get #userId otherProject)
+    -- >     |> set #name (otherProject.name)
+    -- >     |> set #isPublic (otherProject.isPublic)
+    -- >     |> set #userId (otherProject.userId)
     --
     -- With 'copyFields' this can be written like this:
     --

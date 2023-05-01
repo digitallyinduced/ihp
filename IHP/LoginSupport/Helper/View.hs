@@ -15,7 +15,7 @@ currentUser :: (?context :: ControllerContext, user ~ CurrentUserRecord, Typeabl
 currentUser = fromMaybe (error "Application.Helper.View.currentUser: Not logged in") currentUserOrNothing
 
 currentUserId :: forall user userId. (?context :: ControllerContext, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = currentUser @user |> get #id
+currentUserId = (currentUser @user).id
 
 currentUserOrNothing :: forall user. (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => Maybe user
 currentUserOrNothing = fromFrozenContext @(Maybe user)

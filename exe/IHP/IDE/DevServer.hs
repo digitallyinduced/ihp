@@ -260,10 +260,7 @@ startAppGHCI :: (?context :: Context) => IO ()
 startAppGHCI = do
     let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
-    let appPort :: Int = ?context
-            |> get #portConfig
-            |> get #appPort
-            |> fromIntegral
+    let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
 
     process <- startGHCI
@@ -337,7 +334,7 @@ checkDatabaseIsOutdated = do
     pure (not (isEmpty diff))
 
 updateDatabaseIsOutdated state = ((do
-            let databaseNeedsMigrationRef = state |> get #databaseNeedsMigration
+            let databaseNeedsMigrationRef = state.databaseNeedsMigration
             databaseNeedsMigration <- checkDatabaseIsOutdated
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
         ) `catch` (\(exception :: SomeException) -> do

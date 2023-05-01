@@ -243,7 +243,7 @@ instance (model ~ GetModelById (Id' table), value ~ Id' table, HasField "id" mod
 fetchSQLQuery :: (PG.FromRow model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
 fetchSQLQuery theQuery = do
     let (sql, theParameters) = toSQL' theQuery
-    trackTableRead (get #selectFrom theQuery)
+    trackTableRead (theQuery.selectFrom)
     sqlQuery (Query $ cs sql) theParameters
 
 -- | Returns the latest record or Nothing

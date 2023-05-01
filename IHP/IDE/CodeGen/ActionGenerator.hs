@@ -40,14 +40,14 @@ buildPlan actionName applicationName controllerName doGenerateView=
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 -- qualifiedViewModuleName :: ActionConfig -> Text -> Text
 -- qualifiedViewModuleName config viewName =
---    get #applicationName config <> ".View." <> get #controllerName config <> "." <> viewName
+--    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
 
 generateGenericAction :: [Statement] -> ActionConfig -> Bool -> [GeneratorAction]
 generateGenericAction schema config doGenerateView =
         let
-            controllerName = get #controllerName config
-            name = ucfirst $ get #actionName config
-            singularName = config |> get #modelName
+            controllerName = config.controllerName
+            name = ucfirst $ config.actionName
+            singularName = config.modelName
             nameWithSuffix = if "Action" `isSuffixOf` name
                     then name
                     else name <> "Action" -- e.g. TestAction
@@ -149,6 +149,6 @@ generateGenericAction schema config doGenerateView =
                 else typesContentWithParameter
 
         in
-            [ AddAction { filePath = get #applicationName config <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent}
-            , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = get #applicationName config <> "/Types.hs", fileContent = chosenType }
+            [ AddAction { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent}
+            , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = config.applicationName <> "/Types.hs", fileContent = chosenType }
             ]

@@ -355,11 +355,11 @@ buildBaseJobTable tableName = do
 buildBaseJob :: forall job. (DisplayableJob job) => job -> BaseJob
 buildBaseJob job = BaseJob
     (tableName @job)
-    (unsafeCoerce $ get #id job) -- model Id type -> UUID. Pls don't use integer IDs for your jobs :)
-    (get #status job)
-    (get #updatedAt job)
-    (get #createdAt job)
-    (get #lastError job)
+    (unsafeCoerce $ job.id) -- model Id type -> UUID. Pls don't use integer IDs for your jobs :)
+    (job.status)
+    (job.updatedAt)
+    (job.createdAt)
+    (job.lastError)
 
 
 -- | We can't always access the type of our job in order to use type application syntax for 'tableName'.

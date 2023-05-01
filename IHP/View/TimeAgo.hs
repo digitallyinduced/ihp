@@ -23,12 +23,12 @@ import qualified Text.Blaze.Html5.Attributes as A
 --
 -- __Example:__ Generated HTML
 --
--- >>> <div>{timeAgo (get #createdAt project)}</div>
+-- >>> <div>{timeAgo (project.createdAt)}</div>
 -- <div><time class="time-ago">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
--- >>> <div>{timeAgo (get #createdAt project)}</div>
+-- >>> <div>{timeAgo (project.createdAt)}</div>
 -- <div><time class="time-ago">a while ago</time></div>
 timeAgo :: UTCTime -> Html
 timeAgo = timeElement "time-ago"
@@ -44,12 +44,12 @@ timeAgo = timeElement "time-ago"
 --
 -- __Example:__ Generated HTML
 --
--- >>> <div>{dateTime (get #createdAt project)}</div>
+-- >>> <div>{dateTime (project.createdAt)}</div>
 -- <div><time class="date-time">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
--- >>> <div>{dateTime (get #createdAt project)}</div>
+-- >>> <div>{dateTime (project.createdAt)}</div>
 -- <div><time class="date-time">31.08.2007, 16:47 Uhr</time></div>
 dateTime :: UTCTime -> Html
 dateTime = timeElement "date-time"
@@ -65,12 +65,12 @@ dateTime = timeElement "date-time"
 --
 -- __Example:__ Generated HTML
 --
--- >>> <div>{date (get #createdAt project)}</div>
+-- >>> <div>{date (project.createdAt)}</div>
 -- <div><time class="date">31.08.2007, 16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
--- >>> <div>{date (get #createdAt project)}</div>
+-- >>> <div>{date (project.createdAt)}</div>
 -- <div><time class="date">31.08.2007</time></div>
 date :: UTCTime -> Html
 date = timeElement "date"
@@ -86,12 +86,12 @@ date = timeElement "date"
 --
 -- __Example:__ Generated HTML
 --
--- >>> <div>{time (get #createdAt project)}</div>
+-- >>> <div>{time (project.createdAt)}</div>
 -- <div><time class="time">16:47</time></div>
 --
 -- __Example:__ HTML after javascript helpers have been applied
 --
--- >>> <div>{time (get #createdAt project)}</div>
+-- >>> <div>{time (project.createdAt)}</div>
 -- <div><time class="time">16:47 Uhr</time></div>
 time :: UTCTime -> Html
 time = timeElement "time"

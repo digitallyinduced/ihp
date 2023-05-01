@@ -23,7 +23,7 @@ instance View NewForeignKeyView where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] (get #columns . unsafeGetCreateTable) table
+            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
 
             modalContent = [hsx|
                 <form method="POST" action={CreateForeignKeyAction}>

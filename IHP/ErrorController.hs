@@ -50,7 +50,7 @@ handleNoResponseReturned controller = do
 
         |]
     let title = [hsx|No response returned in {tshow controller}|]
-    let RequestContext { respond } = get #requestContext ?context
+    let RequestContext { respond } = ?context.requestContext
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
@@ -174,11 +174,8 @@ displayException exception action additionalInfo = do
     -- to the error tracking service (e.g. sentry). Usually this service also writes
     -- the error message to the stderr output
     --
-    let exceptionTracker = ?applicationContext
-            |> get #frameworkConfig
-            |> get #exceptionTracker
-            |> get #onException
-    let request = get #request ?requestContext
+    let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
+    let request = ?requestContext.request
 
 
     exceptionTracker (Just request) exception
@@ -202,7 +199,7 @@ genericHandler exception controller additionalInfo = do
     let (errorMessage, errorTitle) = if ?context.frameworkConfig.environment == Environment.Development
             then (devErrorMessage, devTitle)
             else (prodErrorMessage, prodTitle)
-    let RequestContext { respond } = get #requestContext ?context
+    let RequestContext { respond } = ?context.requestContext
 
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError errorTitle errorMessage))
 
@@ -227,44 +224,44 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
         handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
         handleSqlError exception = do
             let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let sqlError = exception.sqlError
-            let title = [hsx|{get #sqlErrorMsg sqlError}|]
+            let title = [hsx|{sqlError.sqlErrorMsg}|]
             let errorMessage = [hsx|
                         <h2>While running the following Query:</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{get #sqlErrorQuery exception}</code>
+                            <code>{exception.sqlErrorQuery}</code>
                         </div>
 
                         <h2>With Query Parameters:</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{get #sqlErrorQueryParams exception}</code>
+                            <code>{exception.sqlErrorQueryParams}</code>
                         </div>
 
                         <h2>Details:</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
         Nothing -> case fromException exception of
             -- Catching  `relation "..." does not exist`
             Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (get #sqlErrorMsg sqlError)
-                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg sqlError)
+                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
                 -> Just (handlePostgresOutdatedError exception "A table is missing.")
             
             -- Catching  `columns "..." does not exist`
             Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (get #sqlErrorMsg sqlError)
-                && "does not exist" `ByteString.isSuffixOf` (get #sqlErrorMsg sqlError)
+                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
                 -> Just (handlePostgresOutdatedError exception "A column is missing.")
             -- Catching other SQL Errors
             Just exception -> Just (handleSqlError exception)
@@ -288,7 +285,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
                         codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -332,7 +329,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
@@ -353,7 +350,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{name}</q> was invalid|]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -398,7 +395,7 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
-            let RequestContext { respond } = get #requestContext ?context
+            let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Nothing -> Nothing
 
@@ -409,7 +406,7 @@ recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext) => SomeExc
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->
-            let requestContext = get #requestContext ?context
+            let requestContext = ?context.requestContext
             in
                 let ?context = requestContext
                 in Just handleNotFound

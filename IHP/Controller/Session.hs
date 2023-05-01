@@ -161,5 +161,5 @@ sessionVault = case vaultLookup of
         Just session -> session
         Nothing -> error "sessionInsert: The session vault is missing in the request"
     where
-        RequestContext { request, vault } = get #requestContext ?context
+        RequestContext { request, vault } = ?context.requestContext
         vaultLookup = Vault.lookup vault (Wai.vault request)

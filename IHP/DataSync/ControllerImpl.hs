@@ -57,7 +57,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
             case message of
                 Right decodedMessage -> do
-                    let requestId = get #requestId decodedMessage
+                    let requestId = decodedMessage.requestId
 
                     Exception.mask \restore -> do
                         -- Handle the messages in an async way
@@ -69,7 +69,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                             case result of
                                 Left (e :: Exception.SomeException) -> do
                                     let errorMessage = case fromException e of
-                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs (get #sqlErrorMsg (get #sqlError enhancedSqlError))
+                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs (enhancedSqlError.sqlError.sqlErrorMsg)
                                             Nothing -> cs (displayException e)
                                     Log.error (tshow e)
                                     sendJSON DataSyncError { requestId, errorMessage }
@@ -95,10 +95,10 @@ buildMessageHandler ::
     => _ -> _ -> _ -> _ -> (DataSyncMessage -> IO ())
 buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage = handleMessage
     where
-            pgListener = ?applicationContext |> get #pgListener
+            pgListener = ?applicationContext.pgListener
             handleMessage :: DataSyncMessage -> IO ()
             handleMessage DataSyncQuery { query, requestId, transactionId } = do
-                ensureRLSEnabled (get #table query)
+                ensureRLSEnabled (query.table)
 
                 let (theQuery, theParams) = compileQuery query
 
@@ -109,7 +109,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
             handleMessage CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
-                tableNameRLS <- ensureRLSEnabled (get #table query)
+                tableNameRLS <- ensureRLSEnabled (query.table)
 
                 subscriptionId <- UUID.nextRandom
 
@@ -123,7 +123,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
 
-                let tableName = get #table query
+                let tableName = query.table
 
                 -- We need to keep track of all the ids of entities we're watching to make
                 -- sure that we only send update notifications to clients that can actually
@@ -327,8 +327,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 transactionId <- UUID.nextRandom
 
 
-                let takeConnection = ?modelContext
-                                    |> get #connectionPool
+                let takeConnection = ?modelContext.connectionPool
                                     |> Pool.takeResource
 
                 let releaseConnection (connection, localPool) = do
@@ -376,7 +375,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 cleanupAllSubscriptions :: _ => (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
 cleanupAllSubscriptions = do
     state <- getState
-    let pgListener = ?applicationContext |> get #pgListener
+    let pgListener = ?applicationContext.pgListener
 
     case state of
         DataSyncReady { asyncs } -> forEach asyncs uninterruptibleCancel
@@ -400,7 +399,7 @@ runInModelContextWithTransaction function Nothing = function
 
 findTransactionById :: (?state :: IORef DataSyncController) => UUID -> IO DataSyncTransaction
 findTransactionById transactionId = do
-    transactions <- get #transactions <$> readIORef ?state
+    transactions <- (.transactions) <$> readIORef ?state
     case HashMap.lookup transactionId transactions of
         Just transaction -> pure transaction
         Nothing -> error "No transaction with that id"
@@ -414,14 +413,14 @@ findTransactionById transactionId = do
 --
 ensureBelowTransactionLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowTransactionLimit = do
-    transactions <- get #transactions <$> readIORef ?state
+    transactions <- (.transactions) <$> readIORef ?state
     let transactionCount = HashMap.size transactions
     when (transactionCount >= maxTransactionsPerConnection) do
         error ("You've reached the transaction limit of " <> tshow maxTransactionsPerConnection <> " transactions")
 
 ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowSubscriptionsLimit = do
-    subscriptions <- get #subscriptions <$> readIORef ?state
+    subscriptions <- (.subscriptions) <$> readIORef ?state
     let subscriptionsCount = HashMap.size subscriptions
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
         error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")

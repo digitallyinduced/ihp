@@ -26,7 +26,7 @@ passwordStrength = 17
 -- >         |> ifValid \case
 -- >             Left user -> ..
 -- >             Right user -> do
--- >                 user <- get #passwordHash user |> liftIO . hashPassword
+-- >                 user <- user.passwordHash |> liftIO . hashPassword
 -- >                 user <- createRecord user
 -- > 
 hashPassword :: Text -> IO Text

@@ -61,7 +61,7 @@ instance Controller ColumnsController where
         statements <- readSchema
         let (Just table) = findStatementByName name statements
         let table = findStatementByName tableName statements
-        let columns = maybe [] (get #columns . unsafeGetCreateTable) table
+        let columns = maybe [] ((.columns) . unsafeGetCreateTable) table
         let column = columns !! columnId
         let enumNames = nameList (getCreateEnum statements)
         render EditColumnView { .. }
@@ -133,8 +133,8 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (get #onDelete (get #constraint statement)) }}) statements
-        onDelete <- case (get #onDelete (get #constraint statement)) of
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = statement.constraint.onDelete }}) statements
+        onDelete <- case statement.constraint.onDelete of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
             Just SetNull -> do pure "SetNull"
@@ -173,7 +173,7 @@ instance Controller ColumnsController where
 toggleUniqueInColumn :: Text -> Int -> Statement -> Statement
 toggleUniqueInColumn tableName columnId (StatementCreateTable table@CreateTable { name, columns })
     | name == tableName = StatementCreateTable $
-        table { columns = (replace columnId ((columns !! columnId) { isUnique = (not (get #isUnique (columns !! columnId))) }) columns) }
+        table { columns = (replace columnId ((columns !! columnId) { isUnique = (not (columns !! columnId).isUnique) }) columns) }
 toggleUniqueInColumn tableName columnId statement = statement
 
 deleteColumnInTable :: Text -> Int -> Statement -> Statement
@@ -188,7 +188,7 @@ updateForeignKeyConstraint tableName columnName constraintName referenceTable on
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName = filter \case
-    AddConstraint { constraint } | get #name constraint == Just constraintName -> False
+    AddConstraint { constraint } | constraint.name == Just constraintName -> False
     otherwise -> True
 
 
@@ -209,7 +209,7 @@ getCreateEnum statements = filter isCreateEnumType statements
 isCreateEnumType CreateEnumType {} = True
 isCreateEnumType _ = False
 
-nameList statements = map (get #name) statements
+nameList statements = map (.name) statements
 
 
 validateColumn :: Validator Text

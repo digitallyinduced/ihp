@@ -15,5 +15,5 @@ data BreadcrumbItem =
 instance Show BreadcrumbItem where
     show breadcrumbItem = [plain|{ breadcrumbLabel = "#{breadcrumbLabel}", url = #{url} }|]
         where
-            breadcrumbLabel = renderHtml $ get #breadcrumbLabel breadcrumbItem
-            url = ClassyPrelude.show $ get #url breadcrumbItem
+            breadcrumbLabel = renderHtml $ breadcrumbItem.breadcrumbLabel
+            url = ClassyPrelude.show $ breadcrumbItem.url

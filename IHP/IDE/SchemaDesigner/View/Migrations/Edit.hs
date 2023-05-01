@@ -23,7 +23,7 @@ instance View EditView where
 
 renderForm :: Migration -> Text -> Html
 renderForm migration sqlStatements = [hsx|
-<form method="POST" action={UpdateMigrationAction (get #revision migration)}>
+<form method="POST" action={UpdateMigrationAction (migration.revision)}>
     <div class="form-group" id="form-group-migration_sqlStatements">
         <textarea name="sqlStatements" placeholder="" id="migration_sqlStatements" class="form-control">{sqlStatements}</textarea>
     </div>

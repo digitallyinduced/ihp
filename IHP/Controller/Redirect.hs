@@ -26,7 +26,7 @@ import IHP.ControllerSupport
 --
 -- __Example:__
 --
--- > redirectTo ShowProjectAction { projectId = get #id project }
+-- > redirectTo ShowProjectAction { projectId = project.id }
 --
 -- Use 'redirectToPath' if you want to redirect to a non-action url.
 redirectTo :: (?context :: ControllerContext, HasPath action) => action -> IO ()
@@ -55,7 +55,7 @@ redirectToPath path = redirectToUrl (?context.frameworkConfig.baseUrl <> path)
 -- Use 'redirectToPath' if you want to redirect to a relative path like @/hello-world.html@
 redirectToUrl :: (?context :: ControllerContext) => Text -> IO ()
 redirectToUrl url = do
-    let RequestContext { respond } = ?context |> get #requestContext
+    let RequestContext { respond } = ?context.requestContext
     let !parsedUrl = fromMaybe
             (error ("redirectToPath: Unable to parse url: " <> show url))
             (parseURI (cs url))
@@ -99,7 +99,7 @@ redirectBack = redirectBackWithFallback "/"
 -- >         |> incrementField #likesCount
 -- >         |> updateRecord
 -- >
--- >     redirectBackWithFallback (pathTo ShowPostAction { postId = get #id post })
+-- >     redirectBackWithFallback (pathTo ShowPostAction { postId = post.id })
 --
 redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
 redirectBackWithFallback fallbackPathOrUrl = do

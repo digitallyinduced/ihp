@@ -31,7 +31,7 @@ validateCanView field user = do
 -- > Project { teamId :: Maybe TeamId }
 --
 -- Validation for the value `Project { teamId = Nothing }` should result in `Success`.
--- The usual validation logic will just do a `Project { teamId = Nothing} |> get #teamId |> fetchOneOrNothing`.
+-- The usual validation logic will just do a `Project { teamId = Nothing}.teamId |> fetchOneOrNothing`.
 -- Simplified it's a call to `fetchOneOrNothing Nothing`, further Simplified it's `Nothing`.
 -- The usual validation logic will now threat that `Nothing` like a 404 model not found error (e.g. when a invalid project id is given).
 --

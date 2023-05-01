@@ -21,4 +21,4 @@ instance View ShowEnumView where
     |]
         where
             table = findStatementByName name statements
-            values = maybe [] (get #values) table
+            values = maybe [] (.values) table

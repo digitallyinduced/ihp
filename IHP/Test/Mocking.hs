@@ -61,7 +61,7 @@ withIHPApp application configBuilder hspecAction = do
         let withTestDatabase = Exception.bracket initTestDatabase cleanupTestDatabase
 
         withTestDatabase \testDatabase -> do
-            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (get #url testDatabase) logger
+            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (testDatabase.url) logger
 
             session <- Vault.newKey
             pgListener <- PGListener.init modelContext
@@ -229,9 +229,9 @@ withUser user callback =
         insertSession key value = pure ()
 
         newVault = Vault.insert vaultKey newSession (Wai.vault request)
-        RequestContext { request, vault = vaultKey } = get #requestContext ?mocking
+        RequestContext { request, vault = vaultKey } = ?mocking.requestContext
 
-        sessionValue = Serialize.encode (get #id user)
+        sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)
 
 -- | Turns a record id into a value that can be used with 'callActionWithParams'
@@ -240,14 +240,14 @@ withUser user callback =
 --
 -- Let's say you have a test like this:
 --
--- >  let postId = cs $ show $ get #id post
+-- >  let postId = cs $ show $ post.id
 -- >
 -- >  let params = [ ("postId", postId) ]
 --
 -- You can replace the @cs $ show $@ with a cleaner 'idToParam':
 --
 --
--- >  let postId = idToParam (get #id libraryOpening)
+-- >  let postId = idToParam (libraryOpening.id)
 -- >
 -- >  let params = [ ("postId", postId) ]
 --

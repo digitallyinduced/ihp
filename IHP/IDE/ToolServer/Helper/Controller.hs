@@ -32,10 +32,7 @@ import qualified Data.Text.IO as IO
 
 -- | Returns the port used by the running app. Usually returns @8000@.
 appPort :: (?context :: ControllerContext) => Socket.PortNumber
-appPort = (unsafePerformIO (fromContext @ToolServerApplication))
-        |> get #devServerContext
-        |> get #portConfig
-        |> get #appPort
+appPort = (unsafePerformIO (fromContext @ToolServerApplication)).devServerContext.portConfig.appPort
 
 openEditor :: Text -> Int -> Int -> IO ()
 openEditor path line col = do
@@ -85,18 +82,18 @@ findApplications = do
             removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
 theDevServerContext :: (?context :: ControllerContext) => IO Context
-theDevServerContext = get #devServerContext <$> (fromContext @ToolServerApplication)
+theDevServerContext = (.devServerContext) <$> (fromContext @ToolServerApplication)
 
 clearDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
 clearDatabaseNeedsMigration = do
     context <- theDevServerContext
-    state <- readIORef (get #appStateRef context)
-    writeIORef (get #databaseNeedsMigration state) False
+    state <- readIORef (context.appStateRef)
+    writeIORef (state.databaseNeedsMigration) False
     pure ()
 
 markDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
 markDatabaseNeedsMigration = do
     context <- theDevServerContext
-    state <- readIORef (get #appStateRef context)
-    writeIORef (get #databaseNeedsMigration state) True
+    state <- readIORef (context.appStateRef)
+    writeIORef (state.databaseNeedsMigration) True
     pure ()

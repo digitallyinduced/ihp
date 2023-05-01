@@ -16,7 +16,7 @@ class CanView user model where
 -- 
 -- > action EditPostAction { postId } = do
 -- >     post <- fetch postId
--- >     accessDeniedUnless (get #authorId post == currentUserId)
+-- >     accessDeniedUnless (post.authorId == currentUserId)
 -- >     
 -- >     renderHtml EditView { .. }
 --

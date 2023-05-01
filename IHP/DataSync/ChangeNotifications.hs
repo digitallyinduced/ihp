@@ -114,7 +114,7 @@ createNotificationFunction table = [i|
 |]
 
     where
-        tableName = get #tableName table
+        tableName = table.tableName
 
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName
@@ -138,7 +138,7 @@ makeCachedInstallTableChangeTriggers = do
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
-channelName table = "did_change_" <> (cs $ get #tableName table)
+channelName table = "did_change_" <> (cs $ table.tableName)
 
 
 instance FromJSON ChangeNotification where

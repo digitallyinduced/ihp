@@ -45,7 +45,7 @@ instance Controller EnumValuesController where
         let valueId = param "valueId"
         let enumName = param "enumName"
         let enum = findStatementByName enumName statements
-        let values = maybe [] (get #values) enum
+        let values = maybe [] (.values) enum
         let value = (cs (values !! valueId))
         render EditEnumValueView { .. }
 
@@ -55,7 +55,7 @@ instance Controller EnumValuesController where
         let valueId = param "valueId"
         let newValue = param "enumValueName" :: Text
         let enum = findStatementByName enumName statements
-        let values = maybe [] (get #values) enum
+        let values = maybe [] (.values) enum
         let value = values !! valueId
         let validationResult = newValue |> validateEnumValue statements (Just value)
         case validationResult of

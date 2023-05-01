@@ -31,7 +31,7 @@ instance View NewRowView where
             tableBody = [hsx|<tbody>{forEach rows renderRow}</tbody>|]
             renderRow fields = [hsx|<tr>{forEach fields (renderField id)}</tr>|]
                 where
-                    id = (cs (fromMaybe "" (get #fieldValue (fromJust (headMay fields)))))
+                    id = (cs (fromMaybe "" ((fromJust (headMay fields)).fieldValue)))
             renderField id DynamicField { .. } | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="no-link border rounded p-1" href={EditRowValueAction tableName (cs fieldName) id}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
             renderField id DynamicField { .. } | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName id} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
             renderField id DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}><a class="no-link" href={EditRowValueAction tableName (cs fieldName) id}>{sqlValueToText fieldValue}</a></span></td>|]
@@ -53,9 +53,9 @@ instance View NewRowView where
 
             renderFormField col = [hsx|
                     <div class="form-group">
-                        <label class="row-form">{get #columnName col}</label>
+                        <label class="row-form">{col.columnName}</label>
                         <span style="float:right;">
-                            <a class="text-muted row-form">{get #columnType col}</a>
+                            <a class="text-muted row-form">{col.columnType}</a>
                         </span>
 
                         <div class="d-flex">
@@ -65,26 +65,26 @@ instance View NewRowView where
 
             onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
             renderInputMethod :: ColumnDefinition -> Html 
-            renderInputMethod col | (get #columnType col) == "boolean" = [hsx|
+            renderInputMethod col | (col.columnType) == "boolean" = [hsx|
                             {isBooleanParam True col}
                             <input
-                                id={get #columnName col <> "-alt"}
+                                id={col.columnName <> "-alt"}
                                 type="text"
-                                name={get #columnName col <> "-inactive"}
+                                name={col.columnName <> "-inactive"}
                                 class="form-control text-monospace text-secondary d-none"
                                 />
-                            <div class="form-control" id={get #columnName col <> "-boxcontainer"}>
+                            <div class="form-control" id={col.columnName <> "-boxcontainer"}>
                                 <input
-                                    id={get #columnName col <> "-input"}
+                                    id={col.columnName <> "-input"}
                                     type="checkbox"
-                                    name={get #columnName col}
-                                    checked={get #columnDefault col == Just "true"}
+                                    name={col.columnName}
+                                    checked={col.columnDefault == Just "true"}
                                     />
                             </div>
                             <input
-                                id={get #columnName col <> "-hidden"}
+                                id={col.columnName <> "-hidden"}
                                 type="hidden"
-                                name={get #columnName col}
+                                name={col.columnName}
                                 value={inputValue False}
                                 />
                             <div class="input-group-append">
@@ -94,18 +94,18 @@ instance View NewRowView where
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "true"}>NULL</a>
                                     <a class="dropdown-item">
                                         <input
-                                            id={get #columnName col <> "-sqlbox"}
+                                            id={col.columnName <> "-sqlbox"}
                                             type="checkbox"
-                                            name={get #columnName col <> "_"}
+                                            name={col.columnName <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
                                             class="mr-1"
-                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, true)"}
+                                            onclick={"sqlModeCheckbox('" <> col.columnName <> "', this, true)"}
                                             />
-                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                        <label class="form-check-label" for={col.columnName <> "-sqlbox"}> Parse as SQL</label>
                                     </a>
                                     <input
                                         type="hidden"
-                                        name={get #columnName col <> "_"}
+                                        name={col.columnName <> "_"}
                                         value={inputValue False}
                                         />
                                 </div>
@@ -123,44 +123,44 @@ instance View NewRowView where
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "false"}>NULL</a>
                                     <a class="dropdown-item">
                                         <input
-                                            id={get #columnName col <> "-sqlbox"}
+                                            id={col.columnName <> "-sqlbox"}
                                             type="checkbox"
-                                            name={get #columnName col <> "_"}
+                                            name={col.columnName <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
                                             class="mr-1"
-                                            onclick={"sqlModeCheckbox('" <> get #columnName col <> "', this, false)"}
+                                            onclick={"sqlModeCheckbox('" <> col.columnName <> "', this, false)"}
                                             />
-                                        <label class="form-check-label" for={get #columnName col <> "-sqlbox"}> Parse as SQL</label>
+                                        <label class="form-check-label" for={col.columnName <> "-sqlbox"}> Parse as SQL</label>
                                     </a>
                                     <input
                                         type="hidden"
-                                        name={get #columnName col <> "_"}
+                                        name={col.columnName <> "_"}
                                         value={inputValue False}
                                         />
                                 </div>
                             |]
                                 where
                                     isForeignKeyColumn :: Bool
-                                    isForeignKeyColumn = "_id" `Text.isSuffixOf` (get #columnName col)
+                                    isForeignKeyColumn = "_id" `Text.isSuffixOf` (col.columnName)
 
 
                                     theInput :: Html
                                     theInput = [hsx|
                                         <input
-                                            id={get #columnName col <> "-input"}
+                                            id={col.columnName <> "-input"}
                                             type="text"
-                                            name={get #columnName col}
+                                            name={col.columnName}
                                             class={classes ["form-control", ("text-monospace", isSqlFunction (getColDefaultValue col)), ("is-foreign-key-column", isForeignKeyColumn)]}
                                             value={renderDefaultWithoutType (getColDefaultValue col)}
-                                            oninput={"stopSqlModeOnInput('" <> get #columnName col <> "')"}
+                                            oninput={"stopSqlModeOnInput('" <> col.columnName <> "')"}
                                         />
                                     |]
 
                                     select :: Html
                                     select = [hsx|
                                         <select
-                                            id={get #columnName col <> "-input"}
-                                            name={get #columnName col}
+                                            id={col.columnName <> "-input"}
+                                            name={col.columnName}
                                             class={classes ["form-control", ("is-foreign-key-column", isForeignKeyColumn)]}
                                             value={renderDefaultWithoutType (getColDefaultValue col)}
                                             data-select-url={selectUrl}
@@ -168,4 +168,4 @@ instance View NewRowView where
                                     |]
 
                                     selectUrl :: Text
-                                    selectUrl = pathTo AutocompleteForeignKeyColumnAction { tableName, columnName = get #columnName col, term = "" }
+                                    selectUrl = pathTo AutocompleteForeignKeyColumnAction { tableName, columnName = col.columnName, term = "" }

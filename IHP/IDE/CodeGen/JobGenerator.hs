@@ -29,15 +29,15 @@ buildPlan jobName applicationName = do
 -- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
 qualifiedJobModuleName :: JobConfig -> Text
 qualifiedJobModuleName config =
-    get #applicationName config <> ".Job." <> unqualifiedJobModuleName config
+    config.applicationName <> ".Job." <> unqualifiedJobModuleName config
 
 unqualifiedJobModuleName :: JobConfig -> Text
-unqualifiedJobModuleName config = Text.replace "Job" "" (get #modelName config)
+unqualifiedJobModuleName config = Text.replace "Job" "" (config.modelName)
 
 buildPlan' :: JobConfig -> [GeneratorAction]
 buildPlan' config =
         let
-            name = get #modelName config
+            name = config.modelName
             tableName = modelNameToTableName nameWithSuffix
             nameWithSuffix = if "Job" `isSuffixOf` name
                 then name
@@ -49,7 +49,7 @@ buildPlan' config =
             job =
                 ""
                 <> "module " <> qualifiedJobModuleName config <> " where\n"
-                <> "import " <> get #applicationName config <> ".Controller.Prelude\n"
+                <> "import " <> config.applicationName <> ".Controller.Prelude\n"
                 <> "\n"
                 <> "instance Job " <> nameWithSuffix <> " where\n"
                 <> "    perform " <> nameWithSuffix <> " { .. } = do\n"
@@ -73,7 +73,7 @@ buildPlan' config =
             emptyWorkerHs :: Text
             emptyWorkerHs =
                         let
-                            applicationName = get #applicationName config
+                            applicationName = config.applicationName
                         in cs [plain|module #{applicationName}.Worker where
 
 import IHP.Prelude
@@ -91,13 +91,13 @@ instance Worker #{applicationName}Application where
         ]
 |]
         in
-            [ EnsureDirectory { directory = get #applicationName config <> "/Job" }
+            [ EnsureDirectory { directory = config.applicationName <> "/Job" }
             , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
-            , CreateFile { filePath = get #applicationName config <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
+            , CreateFile { filePath = config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
             ]
-            <> if get #isFirstJobInApplication config
-                    then [ CreateFile { filePath = get #applicationName config <> "/Worker.hs", fileContent = emptyWorkerHs } ]
+            <> if config.isFirstJobInApplication
+                    then [ CreateFile { filePath = config.applicationName <> "/Worker.hs", fileContent = emptyWorkerHs } ]
                     else
-                        [ AddImport { filePath = get #applicationName config <> "/Worker.hs", fileContent = "import " <> qualifiedJobModuleName config }
-                        , AppendToMarker { marker = "-- Generator Marker", filePath = get #applicationName config <> "/Worker.hs", fileContent = "        , worker @" <> nameWithSuffix }
+                        [ AddImport { filePath = config.applicationName <> "/Worker.hs", fileContent = "import " <> qualifiedJobModuleName config }
+                        , AppendToMarker { marker = "-- Generator Marker", filePath = config.applicationName <> "/Worker.hs", fileContent = "        , worker @" <> nameWithSuffix }
                         ]
