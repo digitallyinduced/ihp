@@ -285,6 +285,7 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
+On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={comapny.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
 
 ### Image Preprocessing
 
