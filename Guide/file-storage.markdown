@@ -326,7 +326,7 @@ To store an image as a jpeg and reduce its quality use this:
 
 ```haskell
 let uploadLogo = uploadToStorageWithOptions $ def
-        { preprocess = applyImageMagick "jpg" "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"  }
+        { preprocess = applyImageMagick "jpg" ["-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"] }
 ```
 
 ### Content Disposition
