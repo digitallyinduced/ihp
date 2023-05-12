@@ -206,7 +206,12 @@ IHP follows the well-known [MVC](https://en.wikipedia.org/wiki/Model%E2%80%93vie
 
 A controller belongs to an application. The default application is called `Web` (that's why all the controller and views are located there). Your whole project can consist of multiple sub-applications. Typically your production app will need e.g. an admin back-end application next to the default web application.
 
-We can use the built-in code generators to generate a controller for our posts. Inside the development server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Click on `Controller`:
+We can use the built-in code generators to generate a controller for our posts. A handy way to do it, is by right clicking on the table, and selecting `Generate Controller`.
+
+![](images/first-project/generate_controller.png)
+
+
+Or, we can do it manually. Inside the development server, click on `CODEGEN` to open the [Code Generator](http://localhost:8001/Generators). There you can see everything that can be generated. Clicking on `Controller`:
 
 ![](images/first-project/code_gen_1.png)
 
