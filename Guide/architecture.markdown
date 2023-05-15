@@ -114,7 +114,8 @@ Your global, non-page specific, JavaScript code can be placed in `app.js`.
 E.g. the `app.js` could look like this:
 
 ```javascript
-$(function () {
+$(document).on('ready turbolinks:load', function () {
+    // This is called on the first page load *and* also when the page is changed by turbolinks
     initNavbarEffects();
 });
 
