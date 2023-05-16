@@ -367,11 +367,11 @@ We provide two custom events
 -   `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
 
 ```javascript
-document.addEventListener('ihp:load', () => {
+$(document).on('ready turbolinks:load', () => {
     console.log('Page Loaded');
 });
 
-document.addEventListener('ihp:unload', () => {
+$(document).on('beforeunload', () => {
     console.log('Page Unloaded');
 });
 ```

@@ -115,13 +115,25 @@ E.g. the `app.js` could look like this:
 
 ```javascript
 $(document).on('ready turbolinks:load', function () {
-    // This is called on the first page load *and* also when the page is changed by turbolinks
-    initNavbarEffects();
-});
+    // This is called on the first page load *and* also when the page is changed by turbolinks.
 
-function initNavbarEffects() {
-    // ...
-}
+    // We make sure also the bind our events only once, so if a user navigates to
+    // another page and back, we won't try to bind the same event twice.
+        // Init sortable.
+    document.querySelectorAll('.js-my-selector').forEach(function (elem) {
+
+        // Check if the element is already initialized.
+        if (Boolean(elem.jsMySelectorInitialized) === false) {
+
+            // Bind event handlers here.
+            // ...
+
+            // Mark the element as initialized, so we won't bind the event handler twice.
+            elem.jsMySelectorInitialized = true;
+        }
+    });
+
+});
 ```
 
 In your `Web.View.Layout` just import the `app.js`:
