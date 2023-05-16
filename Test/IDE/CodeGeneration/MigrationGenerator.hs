@@ -1354,6 +1354,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
             it "should ignore did_update_.. triggers by IHP.PGListener" do
                 let actualSchema = sql $ cs [plain|
                     CREATE TRIGGER did_update_plans AFTER UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.notify_did_change_plans();
+                    CREATE TRIGGER did_insert_offices AFTER INSERT ON public.offices FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_offices();
+                    CREATE TRIGGER did_delete_company_profiles AFTER DELETE ON public.company_profiles FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_company_profiles();
                 |]
                 let targetSchema = []
                 let migration = []

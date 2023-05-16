@@ -66,11 +66,7 @@ When the Visual Editor is not powerful enough, just switch back to the code edit
 
 After we have added a few data structures to our `Schema.sql`, our running Postgres database is still empty. This is because we still need to import our database schema into the database.
 
-**In the Schema Designer:** Click on `Push to DB`:
-
-![Push to DB Button](images/database/schema-designer-push-to-db.png)
-
-**In the command line:** Run `make db` while the server is running.
+Run `make db` while the server is running.
 
 This will delete and re-create the current database and import the `Schema.sql`. After importing the Schema, it will also import the `Application/Fixtures.sql` which is used for pre-populating the empty database with some data. It's equivalent to running `psql < Schema.sql; psql < Fixtures.sql` inside an empty database.
 
@@ -88,9 +84,9 @@ You can dump your current database state into the `Fixtures.sql` by running `mak
 
 You can also update the database while keeping its contents.
 
-**In the Schema Designer:** Click on `Update DB`:
+**In the Schema Designer:** Click on `Migrate DB`:
 
-![Push to DB Button](images/database/schema-designer-push-to-db.png)
+![Push to DB Button](images/database/schema-designer-migrate-db.png)
 
 **In the command line:** Run `make dumpdb` and after that `make db`.
 

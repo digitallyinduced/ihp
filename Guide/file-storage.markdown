@@ -285,6 +285,7 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
+On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={comapny.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
 
 ### Image Preprocessing
 
@@ -295,7 +296,7 @@ This accepts any kind of image file compatible with ImageMagick, converts it to 
 ```haskell
 action UpdateCompanyAction { companyId } = do
     let uploadLogo = uploadToStorageWithOptions $ def
-            { preprocess = applyImageMagick "png" ["-resize", "'512x512^'", "-gravity", "north", "-extent", "512x512", "-quality", "100%", "-strip"]  }
+            { preprocess = applyImageMagick "png" ["-resize", "512x512^", "-gravity", "north", "-extent", "512x512", "-quality", "100%", "-strip"]  }
 
     company <- fetch companyId
     company
@@ -326,7 +327,7 @@ To store an image as a jpeg and reduce its quality use this:
 
 ```haskell
 let uploadLogo = uploadToStorageWithOptions $ def
-        { preprocess = applyImageMagick "jpg" "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip"  }
+        { preprocess = applyImageMagick "jpg" ["-resize", "1024x1024^", "-gravity", "north", "-extent", "1024x1024", "-quality", "85%", "-strip"] }
 ```
 
 ### Content Disposition
