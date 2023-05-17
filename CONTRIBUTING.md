@@ -32,6 +32,9 @@ make -B build/ihp-lib
 
 Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
 
+We need to make sure not to commit the changes of `IHP/ihp.nix`
+To help us with that, you can run this from the root of your project `cd IHP && git update-index --assume-unchanged ihp.nix`, so git will ignore your changes.
+
 The best workflow is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
