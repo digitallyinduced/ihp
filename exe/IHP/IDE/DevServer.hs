@@ -150,10 +150,6 @@ handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = d
         RunningAppGHCI { } -> pure state
         otherwise -> pure state
 
-handleAction state AssetChanged = do
-    notifyAssetChange
-    pure state
-
 handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileChanged = do
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> do

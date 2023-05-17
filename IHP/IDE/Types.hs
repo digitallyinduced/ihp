@@ -44,7 +44,6 @@ data Action =
     | UpdateAppGHCIState AppGHCIState
     | AppModulesLoaded { success :: !Bool }
     | AppStarted
-    | AssetChanged
     | HaskellFileChanged
     | SchemaChanged
     | UpdateStatusServerState !StatusServerState

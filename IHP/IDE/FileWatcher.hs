@@ -7,6 +7,7 @@ import qualified System.FSNotify as FS
 import IHP.IDE.Types
 import qualified Data.Time.Clock as Clock
 import qualified Data.List as List
+import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
 
 withFileWatcher :: (?context :: Context) => IO () -> IO ()
 withFileWatcher inner = withAsync callback \_ -> inner
@@ -29,7 +30,7 @@ handleFileChange event = do
         else if isSchemaSQL filePath
             then dispatch SchemaChanged
             else if isAssetFile filePath
-                then dispatch AssetChanged
+                then notifyAssetChange
                 else mempty
 
 shouldActOnFileChange :: FS.ActionPredicate
