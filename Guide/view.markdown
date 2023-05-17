@@ -373,6 +373,8 @@ $(document).on('beforeunload', () => {
 });
 ```
 
+There's also a custom event `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+
 Note that when using jQuery there's a some difference from using `document.addEventListener`, which you can read about [here](https://api.jquery.com/ready/).
 Notably the part about "If the DOM becomes ready and the browser fires `DOMContentLoaded` before the code calls `.ready( handler )`, the function handler will still be executed."
 
