@@ -12,61 +12,14 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "Controller Generator Tests:" do
         let schema = [
-                    StatementCreateTable CreateTable {
-                        name = "pages"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                        ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                    },
-                    StatementCreateTable CreateTable {
-                        name = "people"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                                ,
-                            Column
-                                { name = "name"
-                                , columnType = PText
-                                , defaultValue = Nothing
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                                ,
-                            Column
-                                { name = "email"
-                                , columnType = PText
-                                , defaultValue = Nothing
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                        ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                    }
-                ]
+                    StatementCreateTable (defCreateTablePKID "pages" ["id"] [idColumn])
+                  , StatementCreateTable (defCreateTablePKID "people" ["id"] [idColumn, colText "name" , colText "email"]) 
+                  ]
         it "should build a controller with name \"pages\"" do
             let rawControllerName = "pages"
             let controllerName = tableNameToControllerName rawControllerName

@@ -1,5 +1,5 @@
 {-|
-Module: Test.IDE.CodeGeneration.MailGenerator
+Module: Test.IDE.CodeGeneration.MailGenerator/ID
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module Test.IDE.CodeGeneration.MailGenerator where
@@ -12,27 +12,12 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
-
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "Mail Generator Tests:" do
         let schema = [
-                    StatementCreateTable CreateTable {
-                        name = "users"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                        ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        }
+                    StatementCreateTable $ defCreateTablePKID "users" ["id"] [idColumn]
                     ]
         it "should build a mail with name \"PurchaseConfirmationMail\"" do
             let mailName = "PurchaseConfirmationMail"

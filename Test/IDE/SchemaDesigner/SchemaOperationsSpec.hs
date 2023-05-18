@@ -6,11 +6,12 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
+import IHP.IDE.Defaults.TableColumnDefaults
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
-        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+        let tableA = StatementCreateTable $ emptyTable {name = "a"}
+        let tableB = StatementCreateTable $ emptyTable {name = "b"}
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -103,16 +104,14 @@ tests = do
 
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
-                let table = StatementCreateTable CreateTable
-                                {
-                                name = "posts"
-                                , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let table = StatementCreateTable $ 
+                        emptyTable { name = "posts" 
+                                    , columns = [emptyColumn { name = "user_id" 
+                                                             , columnType = PUUID
+                                                             }
+                                                ]
+                                   }
+                
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = "Users can manage their posts"
@@ -125,16 +124,9 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest an empty policy if no user_id column exists" do
-                let table = StatementCreateTable CreateTable
-                                {
-                                name = "posts"
-                                , columns =
-                                    [ Column { name = "title", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let table = StatementCreateTable $ emptyTable { name = "posts"
+                                                              , columns = [colText "title"]
+                                                              }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
                         { name = ""
@@ -147,24 +139,22 @@ tests = do
                 SchemaOperations.suggestPolicy schema table `shouldBe` expectedPolicy
 
             it "should suggest a policy if it can find a one hop path to a user_id column" do
-                let tasksTable = StatementCreateTable CreateTable
-                                { name = "tasks"
-                                , columns =
-                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
-                let taskListsTable = StatementCreateTable CreateTable
-                                { name = "task_lists"
-                                , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let tasksTable = StatementCreateTable $ emptyTable  { name = "tasks"
+                                                                    , columns = [t_l_idcol]
+                                                                    }
+                               
+                                where t_l_idcol = emptyColumn { name = "task_list_id"
+                                                              , columnType =  PUUID
+                                                              , notNull = True
+                                                              } 
+                                
+                let taskListsTable = StatementCreateTable $ emptyTable 
+                                            { name = "task_lists" 
+                                            , columns = pure $ emptyColumn { name = "user_id" 
+                                                                           , columnType = PUUID
+                                                                           }
+                                            }
+
                 let schema =
                             [ tasksTable
                             , taskListsTable
@@ -182,23 +172,16 @@ tests = do
         describe "addColumn" do
             it "should add an index if withIndex = true" do
                 let inputSchema = [tableA]
+                    colCreatedAt = emptyColumn { defaultValue = (Just (CallExpression "NOW" []))
+                                               , name =  "created_at" 
+                                               , columnType = PTimestampWithTimezone
+                                               , notNull  = True
+                                               }
 
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ emptyTable { name = "a"
+                                                                            , columns =  [colCreatedAt]
+                                                                            }
+
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let expectedSchema = [tableAWithCreatedAt, index]
@@ -223,22 +206,7 @@ tests = do
             it "should add a trigger to updated_at columns" do
                 let inputSchema = [tableA]
 
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "updated_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable tableAWithCreatedAtTable
 
                 let function = CreateFunction
                             { functionName = "set_updated_at_to_now"
@@ -281,22 +249,15 @@ tests = do
             it "should add a policy if autoPolicy = true" do
                 let inputSchema = [tableA]
 
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "user_id"
-                                        , columnType = PUUID
-                                        , defaultValue = Nothing
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ 
+                                            emptyTable { name = "a" 
+                                                       , columns = [ emptyColumn { name = "user_id"
+                                                                                 , columnType = PUUID
+                                                                                 , notNull = True
+                                                                                 } 
+                                                                    ]
+                                                        }
+
 
                 let index = CreateIndex
                         { indexName = "a_user_id_index"
@@ -342,22 +303,7 @@ tests = do
 
         describe "deleteColumn" do
             it "should delete an referenced index" do
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable tableAWithCreatedAtTable
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let inputSchema = [tableAWithCreatedAt, index]
@@ -372,22 +318,7 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
             
             it "should delete a updated_at trigger" do
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "updated_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
 
                 let function = CreateFunction
                             { functionName = "set_updated_at_to_now"
@@ -420,22 +351,12 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
             
             it "should delete an referenced policy" do
-                let tableAWithUserId = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "user_id"
-                                        , columnType = PUUID
-                                        , defaultValue = Just (CallExpression "ihp_user_id" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithUserId = StatementCreateTable $ emptyTable {name = "a", columns = ihpuser}
+
+                                where ihpuser = [ setColumnDefaultVal (Just (CallExpression "ihp_user_id" ([]))) $
+                                                  setColumn "user_id" PUUID
+                                                ]
+                            
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
                 let inputSchema = [tableAWithUserId, policy]
@@ -450,39 +371,17 @@ tests = do
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
         describe "update" do
             it "update a column's name, type, default value and not null" do
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "updated_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
 
-                let tableAWithUpdatedColumn = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at2"
-                                        , columnType = PText
-                                        , defaultValue = Nothing
-                                        , notNull = False
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithUpdatedColumn = StatementCreateTable 
+                                                $ emptyTable { name = "a"
+                                                             , columns = [ emptyColumn { name = "created_at2" 
+                                                                                       , columnType = PText 
+                                                                                       , notNull = False
+                                                                                       }
+                                                                         ]
+                                                             }
+                            
 
                 let inputSchema = [tableAWithCreatedAt]
                 let expectedSchema = [tableAWithUpdatedColumn]
@@ -501,39 +400,18 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates a primary key" do
-                let tableWithPK = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "id2"
-                                        , columnType = PUUID
-                                        , defaultValue = Nothing
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableWithPK = StatementCreateTable $ 
+                                    defCreateTablePKID "a" ["id"] 
+                                        [setColumnN "id2" PUUID
+                                        ]
 
-                let tableWithoutPK = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "id"
-                                        , columnType = PUUID
-                                        , defaultValue = Nothing
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableWithoutPK = StatementCreateTable $ 
+                        emptyTable { name = "a" 
+                                   , columns = [ emptyColumn { name = "id"
+                                                            , columnType = PUUID
+                                                            }
+                                              ]
+                                   }
 
                 let inputSchema = [tableWithoutPK]
                 let expectedSchema = [tableWithPK]
@@ -552,39 +430,30 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "updates referenced foreign key constraints" do
-                let tasksTable = StatementCreateTable CreateTable
-                                { name = "tasks"
-                                , columns =
-                                    [ Column { name = "task_list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
-                let taskListsTable = StatementCreateTable CreateTable
-                                { name = "task_lists"
-                                , columns =
-                                    [ Column { name = "user_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let tasksTable = StatementCreateTable $
+                                    emptyTable { name = "tasks"
+                                               , columns = [setColumnN "task_list_id" PUUID
+                                                           ]
+                                               }
+                
+                let taskListsTable = StatementCreateTable $
+                                    emptyTable { name = "tasks"
+                                               , columns = [ setColumnN "list_id" PUUID
+                                                           ]
+                                               }
+                
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
                             , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
 
-                let tasksTable' = StatementCreateTable CreateTable
-                                { name = "tasks"
-                                , columns =
-                                    [ Column { name = "list_id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                                    ]
-                                , primaryKeyConstraint = PrimaryKeyConstraint []
-                                , constraints = []
-                                , unlogged = False
-                                }
+                let tasksTable' = StatementCreateTable $
+                                    emptyTable { name = "tasks"
+                                               , columns = [setColumnN "list_id" PUUID
+                                                           ]
+                                               }
+                
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
@@ -605,40 +474,16 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
             it "update a column's indexes" do
-                let tableAWithCreatedAt = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "updated_at"
-                                        , columnType = PTimestampWithTimezone
-                                        , defaultValue = Just (CallExpression "NOW" [])
-                                        , notNull = True
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithCreatedAt = StatementCreateTable $ tableAWithCreatedAtTable
+
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
-                let tableAWithUpdatedColumn = StatementCreateTable CreateTable
-                            { name = "a"
-                            , columns = [
-                                    Column
-                                        { name = "created_at"
-                                        , columnType = PText
-                                        , defaultValue = Nothing
-                                        , notNull = False
-                                        , isUnique = False
-                                        , generator = Nothing
-                                        }
-                            ]
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
-                            }
+                let tableAWithUpdatedColumn = StatementCreateTable $
+                                        emptyTable { name = "a"
+                                                   , columns = [setColumn "created_at" PText
+                                                               ]
+                                                   }
+       
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let inputSchema = [tableAWithCreatedAt, index]
@@ -683,3 +528,23 @@ parseSqlStatements sql =
     case Megaparsec.runParser Parser.parseDDL "input" sql of
             Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError) -- For better error reporting in hspec
             Right statements -> statements
+
+
+-- Repeated Values in Tests:
+
+
+{- | A common table that appears in test:
+
+Defined as:
+
+@
+tableAWithCreatedAtTable :: CreateTable
+tableAWithCreatedAtTable = defCreateTable "a" [ setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                                                setColumnN "updated_at" PTimestampWithTimezone
+                                              ]
+@
+-}
+tableAWithCreatedAtTable :: CreateTable
+tableAWithCreatedAtTable = defCreateTable "a" [ setColumnDefaultVal (Just (CallExpression "NOW" ([]))) $ 
+                                                setColumnN "updated_at" PTimestampWithTimezone
+                                              ]
