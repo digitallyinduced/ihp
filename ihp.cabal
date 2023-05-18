@@ -34,7 +34,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
-            , wai-middleware-static
+            , wai-app-static
             , wai-util
             , bytestring
             , network-uri

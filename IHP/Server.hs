@@ -5,7 +5,6 @@ import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Middleware.Static
 import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
@@ -37,6 +36,10 @@ import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
 
+import qualified Network.Wai.Application.Static as Static
+import qualified WaiAppStatic.Storage.Filesystem as Static
+import qualified WaiAppStatic.Types as Static
+
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
     -- We cannot use 'Main.Utf8.withUtf8' here, as this for some reason breaks live reloading
@@ -57,7 +60,7 @@ run configBuilder = do
                 let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
 
                 sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
-                staticMiddleware <- initStaticMiddleware frameworkConfig
+                staticApp <- initStaticApp frameworkConfig
                 let corsMiddleware = initCorsMiddleware frameworkConfig
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
                 let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
@@ -65,12 +68,11 @@ run configBuilder = do
                 withBackgroundWorkers pgListener frameworkConfig 
                     . runServer frameworkConfig
                     . customMiddleware
-                    . staticMiddleware
                     . corsMiddleware
                     . sessionMiddleware
                     . requestLoggerMiddleware
                     . methodOverridePost 
-                    $ application
+                    $ application staticApp
 
 {-# INLINABLE run #-}
 
@@ -82,58 +84,34 @@ withBackgroundWorkers pgListener frameworkConfig app = do
             then withAsync (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) (const app)
             else app
 
--- | Returns a middleware that returns files stored in the app's @static/@ directory and IHP's own @static/@  directory
+-- | Returns a WAI app that servers files stored in the app's @static/@ directory and IHP's own @static/@  directory
 --
 -- HTTP Cache headers are set automatically. This includes Cache-Control, Last-Mofified and ETag
 --
 -- The cache strategy works like this:
 -- - In dev mode we disable the browser cache for the app's @static/@ directory to make sure that always the latest CSS and JS is used
--- - In production mode: If the files are stored in @static/vendor@/ we cache up to 30 days. For all other files we cache up to one day. It's best for vendor files to have e.g. the version as part of the file name. So @static/vendor/jquery.js@ should become @static/vendor/jquery-3.6.1.js@. That way when updating jquery you will have no issues with the cache.
--- - Static files in IHP's @static/@ directory can be cached up to 30 days
-initStaticMiddleware :: FrameworkConfig -> IO Middleware
-initStaticMiddleware FrameworkConfig { environment } = do
-        libDirectory <- cs <$> findLibDirectory
+-- - In production mode: We cache files forever. IHP's 'assetPath' helper will add a hash to files to cache bust when something has changed.
+initStaticApp :: FrameworkConfig -> IO Application
+initStaticApp frameworkConfig = do
+    libDir <- cs <$> findLibDirectory
 
-        -- We have different caching rules for the app `static/` directory and the IHP `static/` directory
-        appStaticCache <- initCaching (CustomCaching getAppCacheHeader)
-        ihpStaticCache <- initCaching (CustomCaching getIHPCacheHeader)
-        let appCachingOptions = defaultOptions { cacheContainer = appStaticCache }
-        let ihpCachingOptions = defaultOptions { cacheContainer = ihpStaticCache }
+    let
+        maxAge = case frameworkConfig.environment of
+            Env.Development -> Static.MaxAgeSeconds 0
+            Env.Production -> Static.MaxAgeForever
 
-        let middleware =
-                      staticPolicyWithOptions appCachingOptions (addBase "static/")
-                    . staticPolicyWithOptions ihpCachingOptions (addBase (libDirectory <> "static/"))
-        pure middleware
-    where
-        -- In dev mode we disable the browser cache to make sure that always the latest CSS and JS is used
-        -- In production mode we cache static assets up to one day
-        getAppCacheHeader fileMeta =
-            case environment of
-                Env.Development -> [("Cache-Control", "no-cache,no-store,must-revalidate")]
-                Env.Production ->
-                    let
-                        -- Cache file in `static/vendor` for one month. Code that is stored in `vendor` should
-                        -- have the version number in it's file name. So `static/vendor/jquery.js` should become
-                        -- `static/vendor/jquery-3.6.1.js`. That way when updating jquery you will have no issues
-                        -- with the cache.
-                        isVendorFile = "static/vendor/" `List.isPrefixOf` (fm_fileName fileMeta)
-                        vendorCacheControl = ("Cache-Control", "no-transform,public,max-age=2592000,s-maxage=2592000")
-                        -- All other app files are cached for a day
-                        appCacheControl = ("Cache-Control", "no-transform,public,max-age=86400,s-maxage=86400")
-                    in
-                        [ if isVendorFile then vendorCacheControl else appCacheControl
-                        , ("Last-Modified", fm_lastModified fileMeta)
-                        , ("ETag", fm_etag fileMeta)
-                        , ("Vary", "Accept-Encoding")
-                        ]
+        
+        frameworkStaticDir = libDir <> "/static/"
+        frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
+                { Static.ss404Handler = Just ErrorController.handleNotFound
+                , Static.ssMaxAge = maxAge
+                }
+        appSettings = (Static.defaultWebAppSettings "static/")
+                { Static.ss404Handler = Just (Static.staticApp frameworkSettings)
+                , Static.ssMaxAge = maxAge
+                }
 
-        -- Files in IHP's own static directory are cached for one month
-        getIHPCacheHeader fileMeta =
-                    [ ("Cache-Control", "no-transform,public,max-age=2592000,s-maxage=2592000")
-                    , ("Last-Modified", fm_lastModified fileMeta)
-                    , ("ETag", fm_etag fileMeta)
-                    , ("Vary", "Accept-Encoding")
-                    ]
+    pure (Static.staticApp appSettings)
 
 initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
@@ -153,15 +131,16 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
-application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application
-application request respond = do
+application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Application
+application staticApp request respond = do
         requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
         let ?context = requestContext
         let builtinControllers = let ?application = () in
                 [ webSocketApp @AutoRefresh.AutoRefreshWSApp
                 , webSocketAppWithCustomPath @AutoRefresh.AutoRefreshWSApp "" -- For b.c. with older versions of ihp-auto-refresh.js
                 ]
-        frontControllerToWAIApp RootApplication builtinControllers ErrorController.handleNotFound
+
+        frontControllerToWAIApp RootApplication builtinControllers (staticApp request respond)
 {-# INLINABLE application #-}
 
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()

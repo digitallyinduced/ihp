@@ -54,13 +54,12 @@ handleNoResponseReturned controller = do
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
-handleNotFound :: (?context :: RequestContext) => IO ResponseReceived
-handleNotFound = do
+handleNotFound :: Request -> Respond -> IO ResponseReceived
+handleNotFound request respond = do
     response <- buildNotFoundResponse
-    let RequestContext { respond } = ?context
     respond response
 
-buildNotFoundResponse :: forall context. (?context :: context, ConfigProvider context) => IO Response
+buildNotFoundResponse :: IO Response
 buildNotFoundResponse = do
     hasCustomNotFound <- Directory.doesFileExist "static/404.html"
     if hasCustomNotFound
@@ -68,7 +67,7 @@ buildNotFoundResponse = do
         else pure defaultNotFoundResponse
 
 -- | The default IHP 404 not found page
-defaultNotFoundResponse :: forall context. (?context :: context, ConfigProvider context) => Response
+defaultNotFoundResponse :: Response
 defaultNotFoundResponse = responseBuilder status404 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder $ H.docTypeHtml ! A.lang "en" $ [hsx|
 <head>
     <meta charset="utf-8"/>
@@ -409,7 +408,7 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
             let requestContext = ?context.requestContext
             in
                 let ?context = requestContext
-                in Just handleNotFound
+                in Just (handleNotFound ?context.request ?context.respond)
         Nothing -> Nothing
 
 handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
