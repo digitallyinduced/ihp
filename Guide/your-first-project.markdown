@@ -457,7 +457,7 @@ instance View ShowView where
     html ShowView { .. } = [hsx|
         {breadcrumb}
         <h1>{post.title}</h1>
-        <div>{post.body}</p>
+        <p>{post.body}</p>
 
     |]
         where
