@@ -35,7 +35,11 @@ Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;
 We need to make sure not to commit the changes of `IHP/ihp.nix`
 To help us with that, you can run this from the root of your project `cd IHP && git update-index --assume-unchanged ihp.nix`, so git will ignore your changes.
 
-The best workflow is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+It is important to update your custom `default.nix` file and set the `rev` to the latest commit every time you perform a `git pull` from within IHP. This is because certain components continue to use the version defined in `default.nix`, even if you have a local IHP.
+
+### Alternative method
+
+Another workflow, instead of the simpler `./start`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci
