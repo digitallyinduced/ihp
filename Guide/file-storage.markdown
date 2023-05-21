@@ -248,14 +248,14 @@ renderForm company = formFor company [hsx|
 
 ##### File Field Additional Attributes
 
-If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) you can descirbe them under the `additionalAttributes` property:
+If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) you can describe them under the `additionalAttributes` property:
 
 ```haskell
 renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    {(fileField #logoUrl) {additionalAttributes = [("accept", "image/*")]} }
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*")] } }
 
     {submitButton}
 |]
@@ -290,7 +290,7 @@ renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    {(fileField #logoUrl) {additionalAttributes = [("accept", "image/*"), ("data-preview", "#logoUrlPreview")]} }
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*"), ("data-preview", "#logoUrlPreview")] } }
 
     <img id="logoUrlPreview"/>
 
@@ -309,7 +309,7 @@ renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    {(fileField #logoUrl) {required = True}}
+    {(fileField #logoUrl) { required = True }}
 
     {submitButton}
 |]
@@ -333,7 +333,7 @@ buildCompany company = company
     |> fill @["name"]
     |> validateField #name nonEmpty
     |> validateField #logoUrl nonEmpty -- Validate that the logoUrl is not empty.
-    |> return -- We're inside an IO, so we need to `return`
+    |> pure -- We're inside an IO, so we need to use `pure`
 
 ```
 
