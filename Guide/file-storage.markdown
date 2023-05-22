@@ -190,19 +190,25 @@ CREATE TABLE companies (
 );
 ```
 
+Note that the `logo_url` is a Maybe type, as the logo is optional. However, even if you wanted the logo to be required, you would still need to use a Maybe type, as the logo is not uploaded as part of the form submission. We will see soon how we can still ensure it's required.
+
 You can use the [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) function to save a user upload to the storage:
 
 ```haskell
 action UpdateCompanyAction { companyId } = do
     company <- fetch companyId
     company
-        |> fill @'["name"]
+        |> buildCompany
         |> uploadToStorage #logoUrl
         >>= ifValid \case
             Left company -> render EditView { .. }
             Right company -> do
                 company <- company |> updateRecord
                 redirectTo EditCompanyAction { .. }
+
+buildCompany company = company
+    |> fill @["name"]
+    |> validateField #name nonEmpty
 ```
 
 The call to [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
@@ -240,9 +246,22 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-##### Custom File Field
+##### File Field Additional Attributes
 
-If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) helper doesn't allow, you can also use a handwritten file input:
+If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) you can describe them under the `additionalAttributes` property:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*")] } }
+
+    {submitButton}
+|]
+```
+
+If for some reason you'd want to use hand written `input` you can still do that:
 
 ```haskell
 renderForm :: Company -> Html
@@ -271,13 +290,7 @@ renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    <input
-        type="file"
-        name="logoUrl"
-        class="form-control-file"
-        accept="image/*"
-        data-preview="#logoUrlPreview"
-    />
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*"), ("data-preview", "#logoUrlPreview")] } }
 
     <img id="logoUrlPreview"/>
 
@@ -285,7 +298,49 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={comapny.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
+On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={company.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
+
+### Required Uploads
+
+As notes above, the `logoUrl` must be a Maybe type, but there are cases where we want to ensure a file is uploaded as part of the record submission. We can add required to the form:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    {(fileField #logoUrl) { required = True }}
+
+    {submitButton}
+|]
+```
+
+That's handy, however frontend validation is enough, we need to do server side validation as well. We can do that by
+slightly changing the order of our commands:
+
+```haskell
+action UpdateCompanyAction { companyId } = do
+    company <- fetch companyId
+    company
+        -- Now we first upload the image, and populate the `logoUrl` field.
+        |> uploadToStorage #logoUrl
+        >>= buildCompany
+        >>= ifValid \case
+        -- ...
+
+
+buildCompany company = company
+    |> fill @["name"]
+    |> validateField #name nonEmpty
+    |> validateField #logoUrl nonEmpty -- Validate that the logoUrl is not empty.
+    |> pure -- We're inside an IO, so we need to use `pure`
+
+```
+
+Note that `|> buildCompany` was changed to `>>= buildCompany`.
+
+Now we have server side validation as well, and if a file isn't loaded, the user will see "The field cannot be empty". Your code however should still check that the `logoUrl` is not empty before using it.
+
 
 ### Image Preprocessing
 
