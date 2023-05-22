@@ -103,7 +103,7 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 -- This is how you can render a form with a @id="post-form"@ id attribute and a custom @data-post-id@ attribute:
 --
 -- > renderForm :: Post -> Html
--- > renderForm post = formFor post [hsx|
+-- > renderForm post = formForWithOptions formOptions post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
@@ -136,7 +136,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- If you want to use this with e.g. a custom form action, remember that 'formForWithoutJavascript' is just a shortcut for 'formForWithOptions':
 --
 -- > renderForm :: Post -> Html
--- > renderForm post = formFor post [hsx|
+-- > renderForm post = formForWithOptions formOptions post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
@@ -144,6 +144,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- >
 -- > formOptions :: FormContext Post -> FormContext Post
 -- > formOptions formContext = formContext
+-- >     |> set #formAction (pathTo BespokeNewPostAction)
 -- >     |> set #disableJavascriptSubmission True
 --
 formForWithoutJavascript :: forall record. (
