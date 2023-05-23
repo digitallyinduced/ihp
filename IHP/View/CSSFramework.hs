@@ -201,16 +201,12 @@ instance Default CSSFramework where
                         </option>
                     |]
 
+
             styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
             styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
                 [hsx|
                     {label}
-                    <fieldset
-                        class={classes ["flex flex-col gap-2", inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                        autofocus={autofocus}
-                        {...additionalAttributes}
-                    >
-
+                    <fieldset>
                         {forEach (options fieldType) (getRadio)}
                     </fieldset>
 
@@ -219,14 +215,25 @@ instance Default CSSFramework where
                 |]
                 where
                     label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
-                    inputClass = (styledInputClass cssFramework formField, True)
                     inputInvalidClass = styledInputInvalidClass cssFramework formField
                     helpText = styledFormFieldHelp cssFramework formField
 
                     -- Get a single radio button.
+                    -- @todo: We're not using `inputClass` as it destroys the layout of the radio buttons.
                     getRadio (optionLabel, optionValue) = [hsx|
-                        <div class="flex flex-row gap-2 items-center">
-                            <input type="radio" id={optionId} name={fieldName} value={optionValue} checked={optionValue == fieldValue} disabled={disabled} required={required}/>
+                        <div class="form-check">
+                            <input
+                                class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                                type="radio"
+                                id={optionId}
+                                name={fieldName}
+                                value={optionValue}
+                                checked={optionValue == fieldValue}
+                                disabled={disabled}
+                                required={required}
+                                autofocus={autofocus}
+                                {...additionalAttributes}
+                            />
                             {label}
                         </div>
                     |]
@@ -234,7 +241,7 @@ instance Default CSSFramework where
                             -- @todo: Need to find a way to guarantee that the id is unique and html valid.
                             -- use `generateUniqueId`?
                             optionId = fieldInputId <> "-" <> optionValue
-                            label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
+                            label = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
             styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
             styledTextareaFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
@@ -900,7 +907,7 @@ tailwind = def
             [hsx|
                 {label}
                 <fieldset
-                    class={classes ["flex flex-col gap-2", inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                    class={classes ["flex flex-col gap-2", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                     autofocus={autofocus}
                     {...additionalAttributes}
                 >
@@ -920,7 +927,18 @@ tailwind = def
                 -- Get a single radio button.
                 getRadio (optionLabel, optionValue) = [hsx|
                     <div class="flex flex-row gap-2 items-center">
-                        <input type="radio" id={optionId} name={fieldName} value={optionValue} checked={optionValue == fieldValue} disabled={disabled} required={required}/>
+                        <input
+                            class={classes [(inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                            type="radio"
+                            id={optionId}
+                            name={fieldName}
+                            value={optionValue}
+                            checked={optionValue == fieldValue}
+                            disabled={disabled}
+                            required={required}
+                            autofocus={autofocus}
+                            {...additionalAttributes}
+                        />
                         {label}
                     </div>
                 |]
