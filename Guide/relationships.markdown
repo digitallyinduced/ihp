@@ -339,7 +339,7 @@ and cuts down on clutter from `newtype` definitions.
 
 ### Multiple Nested Records
 
-`fetchRelated` can be handy to quickly fetch nested record. However, one of its limitations is that you can only go down one level. For example, if you have a `Post` with a `Comment` and that `Comment` references a  `User` (the comment author), you can't fetch the `User`.
+`fetchRelated` can be handy to quickly fetch nested records. However, one of its limitations is that you can only go down one level. For example, if you have a `Post` with a `Comment` and that `Comment` references a  `User` (the comment author), you can't fetch the `User`.
 
 A common way for solving this would be using a custom data type, and fetching the data manually. Let's take the above example, and assume we have this schema:
 
