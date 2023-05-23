@@ -35,6 +35,7 @@ instance Default CSSFramework where
                 , styledTextareaFormField
                 , styledCheckboxFormField
                 , styledSelectFormField
+                , styledRadioFormField
                 , styledFormGroup
                 , styledSubmitButton
                 , styledSubmitButtonClass
@@ -72,6 +73,7 @@ instance Default CSSFramework where
                         HiddenInput -> styledTextFormField cssFramework "hidden" formField validationResult
                         TextareaInput -> styledTextareaFormField cssFramework formField validationResult
                         SelectInput {} -> styledSelectFormField cssFramework formField validationResult
+                        RadioInput {} -> styledRadioFormField cssFramework formField validationResult
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
                     validationResult :: Blaze.Html
@@ -197,6 +199,38 @@ instance Default CSSFramework where
                         <option value={optionValue} selected={optionValue == fieldValue}>
                             {optionLabel}
                         </option>
+                    |]
+
+            styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+            styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
+                [hsx|
+                    {label}
+                    <fieldset
+                        class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                        value={fieldValue}
+
+                        required={required}
+                        autofocus={autofocus}
+                        {...additionalAttributes}
+                    >
+
+                        {forEach (options fieldType) (getOption)}
+                    </fieldset>
+
+                    {validationResult}
+                    {helpText}
+                |]
+                where
+                    label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+                    inputClass = (styledInputClass cssFramework formField, True)
+                    inputInvalidClass = styledInputInvalidClass cssFramework formField
+                    helpText = styledFormFieldHelp cssFramework formField
+
+                    -- Get a single radio button.
+                    -- @todo: Add label.
+                    getOption (optionLabel, optionValue) = [hsx|
+                        <input type="radio" name={fieldName} value={optionValue} checked={optionValue == fieldValue} disabled={disabled}/>
+                        {optionLabel}
                     |]
 
             styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
@@ -429,6 +463,7 @@ bootstrap4 = def
                     HiddenInput -> styledTextFormField cssFramework "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True } validationResult
                     TextareaInput -> styledTextareaFormField cssFramework formField validationResult
                     SelectInput {} -> styledSelectFormField cssFramework formField validationResult
+                    RadioInput {} -> styledRadioFormField cssFramework formField validationResult
                     FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
                 validationResult :: Blaze.Html
@@ -695,6 +730,7 @@ tailwind = def
     , styledTextareaFormField
     , styledCheckboxFormField
     , styledSelectFormField
+    , styledRadioFormField
     , styledSubmitButtonClass
     , styledFormGroupClass
     , styledFormFieldHelp
@@ -856,6 +892,10 @@ tailwind = def
                     </option>
                 |]
 
+        styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
+            -- @todo
+            mempty
 
         styledInputClass _ FormField {} = "focus:ring-blue-500 focus:border-blue-500 block w-full border-gray-300 rounded-md"
         styledInputInvalidClass _ _ = "is-invalid"
