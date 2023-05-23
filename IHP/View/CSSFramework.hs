@@ -219,7 +219,6 @@ instance Default CSSFramework where
                     helpText = styledFormFieldHelp cssFramework formField
 
                     -- Get a single radio button.
-                    -- @todo: We're not using `inputClass` as it destroys the layout of the radio buttons.
                     getRadio (optionLabel, optionValue) = [hsx|
                         <div class="form-check">
                             <input
