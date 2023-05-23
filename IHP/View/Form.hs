@@ -759,13 +759,13 @@ selectField field items = FormField
         FormContext { model } = ?formContext
 {-# INLINE selectField #-}
 
--- | Select inputs require you to pass a list of possible values to select.
+-- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for `selectField`.
 --
 -- > formFor project [hsx|
--- >     {selectField #userId users}
+-- >     {radioField #userId users}
 -- > |]
 --
--- In the example above the variable users contains all the possible option values for the select.
+-- In the example above the variable users contains all the possible option values for the radios.
 --
 -- You also need to define a instance @CanSelect User@:
 --
@@ -777,14 +777,20 @@ selectField field items = FormField
 -- >     -- And here we specify the <option>-text
 -- >     selectLabel user = user.name
 --
--- Given the above example, the rendered form will look like this:
+-- Given the above example, the rendered form will look like this (omitting classes for brevity):
 --
 -- > <!-- Assuming: users = [User { id = 1, name = "Marc" }, User { id = 2, name = "Andreas" }] -->
 -- > <form ...>
--- >     <select name="user_id">
--- >         <option value="1">Marc</option>
--- >         <option value="2">Andreas</option>
--- >     </select>
+-- >     <fieldset>
+-- >         <div>
+-- >           <input type="radio" id="option1" value="1"/>
+-- >           <label for="option1">Marc</label>
+-- >         </div>
+-- >         <div>
+-- >           <input type="radio" id="option2" value="2"/>
+-- >           <label for="option2">Andreas</label>
+-- >         </div>
+-- >     </fieldset>
 -- > </form>
 --
 -- If you want a certain value to be preselected, set the value in the controller. For example, to have the first user be preselected in the above example:
