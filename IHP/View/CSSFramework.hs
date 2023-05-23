@@ -207,14 +207,11 @@ instance Default CSSFramework where
                     {label}
                     <fieldset
                         class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                        value={fieldValue}
-
-                        required={required}
                         autofocus={autofocus}
                         {...additionalAttributes}
                     >
 
-                        {forEach (options fieldType) (getOption)}
+                        {forEach (options fieldType) (getRadio)}
                     </fieldset>
 
                     {validationResult}
@@ -227,11 +224,15 @@ instance Default CSSFramework where
                     helpText = styledFormFieldHelp cssFramework formField
 
                     -- Get a single radio button.
-                    -- @todo: Add label.
-                    getOption (optionLabel, optionValue) = [hsx|
-                        <input type="radio" name={fieldName} value={optionValue} checked={optionValue == fieldValue} disabled={disabled}/>
-                        {optionLabel}
+                    getRadio (optionLabel, optionValue) = [hsx|
+                        <input type="radio" id={optionId} name={fieldName} value={optionValue} checked={optionValue == fieldValue} disabled={disabled} required={required}/>
+                        {label}
                     |]
+                        where
+                            -- @todo: Need to find a way to guarantee that the id is unique and html valid.
+                            -- use `generateUniqueId`?
+                            optionId = fieldInputId <> "-" <> optionValue
+                            label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
             styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
             styledTextareaFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
