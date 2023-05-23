@@ -195,28 +195,28 @@ tests = do
                     }
 
                 it "should render" do
-                    let radio = baseSelect
-                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let select = baseSelect
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with disabled" do
-                    let radio = baseSelect { disabled = True }
-                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let select = baseSelect { disabled = True }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with selected" do
-                    let radio = baseSelect { fieldValue = "b" }
-                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
+                    let select = baseSelect { fieldValue = "b" }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
 
                 it "should render with custom placeholder" do
-                    let radio = baseSelect { placeholder = "Pick something" }
-                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let select = baseSelect { placeholder = "Pick something" }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with additional attributes" do
-                    let radio = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
-                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
             describe "radio" do
                 let baseRadio = FormField
-                        { fieldType = SelectInput [("First Value", "a"), ("Second Value", "b")]
+                        { fieldType = RadioInput [("First Value", "a"), ("Second Value", "b")]
                         , fieldName = "user_id"
                         , fieldLabel = "User"
                         , fieldValue = ""
@@ -237,21 +237,20 @@ tests = do
                     }
 
                 it "should render" do
-                    let select = baseRadio
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let radio = baseRadio
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-a\" name=\"user_id\" value=\"a\"><label class=\"form-check-label\" for=\"project_user_id-a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-b\" name=\"user_id\" value=\"b\"><label class=\"form-check-label\" for=\"project_user_id-b\">Second Value</label></div></fieldset>  </div>"
 
                 it "should render with disabled" do
-                    let select = baseRadio { disabled = True }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    let radio = baseRadio { disabled = True }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-a\" name=\"user_id\" value=\"a\" disabled=\"disabled\"><label class=\"form-check-label\" for=\"project_user_id-a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-b\" name=\"user_id\" value=\"b\" disabled=\"disabled\"><label class=\"form-check-label\" for=\"project_user_id-b\">Second Value</label></div></fieldset>  </div>"
 
                 it "should render with checked" do
-                    let select = baseRadio { fieldValue = "b" }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
+                    let radio = baseRadio { fieldValue = "b" }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-a\" name=\"user_id\" value=\"a\"><label class=\"form-check-label\" for=\"project_user_id-a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-b\" name=\"user_id\" value=\"b\" checked=\"checked\"><label class=\"form-check-label\" for=\"project_user_id-b\">Second Value</label></div></fieldset>  </div>"
 
                 it "should render with additional attributes" do
-                    let select = baseRadio { additionalAttributes = [ ("data-x", "true") ] }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
-
+                    let radio = baseRadio { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo`  "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-a\" name=\"user_id\" value=\"a\" data-x=\"true\"><label class=\"form-check-label\" for=\"project_user_id-a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id-b\" name=\"user_id\" value=\"b\" data-x=\"true\"><label class=\"form-check-label\" for=\"project_user_id-b\">Second Value</label></div></fieldset>  </div>"
 
             describe "textarea field" do
                 let baseTextField = FormField
