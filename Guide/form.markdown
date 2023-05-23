@@ -62,6 +62,7 @@ IHP has the most commonly-used form controls built in. In general the form contr
 - [`{hiddenField #projectId}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:hiddenField)
 - [`{checkboxField #termsAccepted}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:checkboxField)
 - [`{selectField #projectId allProjects}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField)
+- [`{radioField #projectId allProjects}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:radioField)
 - [`{fileFile #profilePicture}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField)
 - [`{submitButton}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:submitButton)
 
@@ -518,15 +519,18 @@ action NewInviteAction = do
 ```
 
 
-## Select Inputs
+## Select and Radio Inputs
+
+The following section refers to the `<select>` and `<input type="radio">` HTML elements.
 
 Select inputs require you to pass a list of possible values to select.
 
-You can use the [`selectField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField) helper for select inputs:
+You can use the [`selectField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField) or [`radioField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:radioField) helper for select inputs:
 
 ```haskell
 formFor project [hsx|
     {selectField #userId users}
+    {radioField #userId users}
 |]
 ```
 
@@ -610,7 +614,7 @@ instance CanSelect ContentType where
     -- You can also use the following shortcut: selectLabel = tshow
 ```
 
-The helper function [`allEnumValues @ContentType`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:allEnumValues) can then be used in your 
+The helper function [`allEnumValues @ContentType`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:allEnumValues) can then be used in your
 view to generate the list of select fields:
 
 ```haskell
@@ -646,7 +650,7 @@ formFor subscription [hsx|
 
 ### Select Inputs with Integers
 
-It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item. 
+It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item.
 
 The form can look like this:
 
@@ -828,7 +832,7 @@ renderForm post = formForWithOptions post options [hsx||]
 
 options :: FormContext Post -> FormContext Post
 options formContext =
-    formContext 
+    formContext
     |> set #disableJavascriptSubmission True
 ```
 
