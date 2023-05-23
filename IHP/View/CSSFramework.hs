@@ -58,7 +58,7 @@ instance Default CSSFramework where
             styledFlashMessages cssFramework flashMessages = forEach flashMessages (cssFramework.styledFlashMessage cssFramework)
 
             styledFormField :: CSSFramework -> FormField -> Blaze.Html
-            styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledTextareaFormField} formField =
+            styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField} formField =
                 formGroup renderInner
                 where
                     renderInner = case formField.fieldType of
@@ -448,7 +448,7 @@ bootstrap4 = def
 
 
         styledFormField :: CSSFramework -> FormField -> Blaze.Html
-        styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledTextareaFormField} formField =
+        styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField} formField =
             formGroup renderInner
             where
                 renderInner = case formField.fieldType of

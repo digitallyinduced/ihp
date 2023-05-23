@@ -824,7 +824,7 @@ radioField field items = FormField
         , additionalAttributes = []
         , cssFramework = ?formContext.cssFramework
         , helpText = ""
-        , placeholder = "Please select"
+        , placeholder = ""
         , required = False
         , autofocus = False
     }
