@@ -237,9 +237,7 @@ instance Default CSSFramework where
                         </div>
                     |]
                         where
-                            -- @todo: Need to find a way to guarantee that the id is unique and html valid.
-                            -- use `generateUniqueId`?
-                            optionId = fieldInputId <> "-" <> optionValue
+                            optionId = fieldInputId <> "_" <> optionValue
                             label = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
             styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
@@ -942,9 +940,7 @@ tailwind = def
                     </div>
                 |]
                     where
-                        -- @todo: Need to find a way to guarantee that the id is unique and html valid.
-                        -- use `generateUniqueId`?
-                        optionId = fieldInputId <> "-" <> optionValue
+                        optionId = fieldInputId <> "_" <> optionValue
                         label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
 
