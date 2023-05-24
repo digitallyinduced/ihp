@@ -759,7 +759,7 @@ selectField field items = FormField
         FormContext { model } = ?formContext
 {-# INLINE selectField #-}
 
--- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for `selectField`.
+-- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for 'selectField'.
 --
 -- > formFor project [hsx|
 -- >     {radioField #userId users}
