@@ -92,7 +92,7 @@ tests = do
                 it "should render with help text" do
                     let textField = baseTextField { helpText = "Enter your first name" }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-fname\"><label class=\"form-label\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\"> <small class=\"form-text\">Enter your first name</small></div>"
-                
+
                 it "should render with additional attributes" do
                     let textField = baseTextField { additionalAttributes = [ ("min", "1"), ("max", "100") ] }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-fname\"><label class=\"form-label\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\" min=\"1\" max=\"100\"> </div>"
@@ -167,7 +167,7 @@ tests = do
                 it "should render with help text" do
                     let checkbox = baseCheckbox { helpText = "Is the user active?" }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  <small class=\"form-text\">Is the user active?</small></div></div>"
-                
+
                 it "should render with additional attributes" do
                     let checkbox = baseCheckbox { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\" data-x=\"true\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  </div></div>"
@@ -213,7 +213,45 @@ tests = do
                 it "should render with additional attributes" do
                     let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
-            
+
+            describe "radio" do
+                let baseRadio = FormField
+                        { fieldType = RadioInput [("First Value", "a"), ("Second Value", "b")]
+                        , fieldName = "user_id"
+                        , fieldLabel = "User"
+                        , fieldValue = ""
+                        , fieldInputId = "project_user_id"
+                        , validatorResult = Nothing
+                        , fieldClass = ""
+                        , labelClass = ""
+                        , disabled = False
+                        , disableLabel = False
+                        , disableGroup = False
+                        , disableValidationResult = False
+                        , additionalAttributes = []
+                        , cssFramework = cssFramework
+                        , helpText = ""
+                        , placeholder = ""
+                        , required = False
+                        , autofocus = False
+                    }
+
+                it "should render" do
+                    let radio = baseRadio
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_a\" name=\"user_id\" value=\"a\"><label class=\"form-check-label\" for=\"project_user_id_a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_b\" name=\"user_id\" value=\"b\"><label class=\"form-check-label\" for=\"project_user_id_b\">Second Value</label></div></fieldset>  </div>"
+
+                it "should render with disabled" do
+                    let radio = baseRadio { disabled = True }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_a\" name=\"user_id\" value=\"a\" disabled=\"disabled\"><label class=\"form-check-label\" for=\"project_user_id_a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_b\" name=\"user_id\" value=\"b\" disabled=\"disabled\"><label class=\"form-check-label\" for=\"project_user_id_b\">Second Value</label></div></fieldset>  </div>"
+
+                it "should render with checked" do
+                    let radio = baseRadio { fieldValue = "b" }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_a\" name=\"user_id\" value=\"a\"><label class=\"form-check-label\" for=\"project_user_id_a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_b\" name=\"user_id\" value=\"b\" checked=\"checked\"><label class=\"form-check-label\" for=\"project_user_id_b\">Second Value</label></div></fieldset>  </div>"
+
+                it "should render with additional attributes" do
+                    let radio = baseRadio { additionalAttributes = [ ("data-x", "true") ] }
+                    styledFormField cssFramework cssFramework radio `shouldRenderTo`  "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><fieldset><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_a\" name=\"user_id\" value=\"a\" data-x=\"true\"><label class=\"form-check-label\" for=\"project_user_id_a\">First Value</label></div><div class=\"form-check\"><input class=\"form-check-input\" type=\"radio\" id=\"project_user_id_b\" name=\"user_id\" value=\"b\" data-x=\"true\"><label class=\"form-check-label\" for=\"project_user_id_b\">Second Value</label></div></fieldset>  </div>"
+
             describe "textarea field" do
                 let baseTextField = FormField
                         { fieldType = TextareaInput
@@ -238,7 +276,7 @@ tests = do
                 it "should render" do
                     let textField = baseTextField
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-body\"><label class=\"form-label\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\">Hello\nWorld!</textarea></div>"
-                
+
                 it "should render with additional attributes" do
                     let textField = baseTextField { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-body\"><label class=\"form-label\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\" data-x=\"true\">Hello\nWorld!</textarea></div>"
@@ -410,7 +448,7 @@ tests = do
                 it "should render with help text" do
                     let textField = baseTextField { helpText = "Enter your first name" }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\"> <small class=\"form-text text-muted\">Enter your first name</small></div>"
-                
+
                 it "should render with additional attributes" do
                     let textField = baseTextField { additionalAttributes = [ ("min", "1"), ("max", "100") ] }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-fname\"><label class=\"\" for=\"fname\">First name:</label><input type=\"text\" name=\"firstname\" placeholder=\"Your firstname\" id=\"fname\" class=\"form-control\" min=\"1\" max=\"100\"> </div>"
@@ -460,7 +498,7 @@ tests = do
                 it "should render with help text" do
                     let checkbox = baseCheckbox { helpText = "Is the user active?" }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  <small class=\"form-text text-muted\">Is the user active?</small></div></div>"
-                
+
                 it "should render with additional attributes" do
                     let checkbox = baseCheckbox { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework checkbox `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-user_is_active\"><div class=\"form-check\"><input type=\"checkbox\" name=\"is_active\" class=\"form-check-input\" id=\"user_is_active\" checked=\"checked\" data-x=\"true\"><input type=\"hidden\" name=\"is_active\" value=\"off\"><label class=\"form-check-label\" for=\"user_is_active\">Is Active</label>  </div></div>"
@@ -506,7 +544,7 @@ tests = do
                 it "should render with additional attributes" do
                     let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
-            
+
             describe "textarea field" do
                 let baseTextField = FormField
                         { fieldType = TextareaInput
@@ -531,7 +569,7 @@ tests = do
                 it "should render" do
                     let textField = baseTextField
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-body\"><label class=\"\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\">Hello\nWorld!</textarea></div>"
-                
+
                 it "should render with additional attributes" do
                     let textField = baseTextField { additionalAttributes = [ ("data-x", "true") ] }
                     styledFormField cssFramework cssFramework textField `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-body\"><label class=\"\" for=\"body\">Body:</label><textarea name=\"body\" placeholder=\"Describe your issue\" id=\"body\" class=\"form-control\" data-x=\"true\">Hello\nWorld!</textarea></div>"
@@ -638,7 +676,7 @@ tests = do
                 it "should support show of BreadcrumbItem" do
                     let breadcrumbItem = breadcrumbText "First item"
                     show breadcrumbItem `shouldBe` "{ breadcrumbLabel = \"First item\", url = Nothing }"
-        
+
         describe "tailwind" do
             let cssFramework = tailwind
 

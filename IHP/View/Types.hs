@@ -101,6 +101,7 @@ data InputType
     | DateTimeInput
     | PasswordInput
     | SelectInput { options :: ![(Text, Text)] }
+    | RadioInput { options :: ![(Text, Text)] }
     | FileInput
 
 
@@ -182,6 +183,7 @@ data CSSFramework = CSSFramework
     , styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+    , styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
     , styledFormGroup :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html
     -- | The primary form submit button
     , styledSubmitButton :: CSSFramework -> SubmitButton -> Blaze.Html
