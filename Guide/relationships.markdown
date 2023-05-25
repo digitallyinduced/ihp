@@ -383,9 +383,7 @@ fetchPostWithRecords postId = do
     post <- fetch postId
 
     -- Comments referencing the post ID.
-    comments <- query @Comment
-        |> filterWhere (#postId, postId)
-        |> fetch
+    comments <- fetch post.comments
 
     -- Authors of the comments.
     commentUsers <- query @User
