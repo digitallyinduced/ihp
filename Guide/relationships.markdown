@@ -382,7 +382,13 @@ fetchPostWithRecords :: (?modelContext :: ModelContext) => Id Post -> IO PostWit
 fetchPostWithRecords postId = do
     post <- fetch postId
 
-    -- Comments referencing the post ID.
+    -- Fetch Comments referencing the post ID.
+    -- Eventhough we haven't used `fetchRelated` on the Post we still have the `post.comments` field.
+    -- This field field is a query builder with the right `WHERE` condition already applied (referencing the Post ID),
+    -- so we only need to `fetch` and don't have to use the more verbose `query`:
+    -- comments <- query @Comment
+    --     |> filterWhere (#postId, postId)
+    --     |> fetch
     comments <- fetch post.comments
 
     -- Authors of the comments.
