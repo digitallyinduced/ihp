@@ -437,9 +437,7 @@ showComment comment commentUsers =
     |]
     where
         authorName = commentUsers
-            |> filter (\user -> user.id == comment.userId)
-            -- There should be a single user.
-            |> head
+            |> find (\user -> user.id == comment.userId)
             -- Get the user's name. As `head` returns a Maybe value we need to use `maybe mempty` which means
             -- if no user found, don't show anything.
             |> maybe mempty (get #name)
