@@ -4,11 +4,9 @@ module IHP.DataSync.REST.Controller where
 import IHP.ControllerPrelude hiding (OrderByClause)
 import IHP.DataSync.REST.Types
 import Data.Aeson
-import Data.Aeson.TH
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Vector as Vector
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Control.Exception as Exception
@@ -20,14 +18,11 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified Data.Text as Text
 import qualified Data.Scientific as Scientific
 
-import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
-import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
 
-import qualified Data.Attoparsec.Text as Attoparsec
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))

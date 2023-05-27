@@ -32,21 +32,16 @@ module IHP.Job.Dashboard (
 ) where
 
 import IHP.Prelude
-import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
 import IHP.ModelSupport
 import IHP.ControllerPrelude
 import Unsafe.Coerce
 import IHP.Job.Queue ()
-import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
 import IHP.Pagination.Types
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import Network.Wai (requestMethod)
-import Network.HTTP.Types.Method (methodGet, methodPost)
-import GHC.TypeLits
+import Network.HTTP.Types.Method (methodPost)
 
 import IHP.Job.Dashboard.Types
 import IHP.Job.Dashboard.View

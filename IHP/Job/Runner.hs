@@ -20,7 +20,6 @@ import qualified System.Exit as Exit
 import qualified System.Timeout as Timeout
 import qualified IHP.PGListener as PGListener
 
-import IHP.Log.Types
 import qualified IHP.Log as Log
 
 -- | Used by the RunJobs binary

@@ -26,13 +26,8 @@ import qualified Control.Exception as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 
-import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 
-import Control.Concurrent.Chan
-import Control.Concurrent
-import System.Timeout
-import Data.Function (fix)
 import qualified Network.WebSockets.Connection as WebSocket
 
 class WSApp state where

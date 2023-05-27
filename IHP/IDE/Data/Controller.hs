@@ -17,7 +17,6 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
-import Data.Functor ((<&>))
 
 instance Controller DataController where
     action ShowDatabaseAction = do

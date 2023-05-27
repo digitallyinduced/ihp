@@ -12,7 +12,6 @@ where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import qualified Control.Concurrent.Async as Async
 import qualified IHP.PGListener as PGListener
 import qualified Control.Concurrent as Concurrent
 

@@ -17,7 +17,7 @@ module IHP.IDE.Data.View.Layout
 
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
+import IHP.IDE.ToolServer.Routes ()
 import qualified Data.Text as Text
 import IHP.IDE.ToolServer.Helper.View
 

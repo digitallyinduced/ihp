@@ -7,17 +7,10 @@ import IHP.IDE.SchemaDesigner.View.Migrations.Index
 import IHP.IDE.SchemaDesigner.View.Migrations.New
 import IHP.IDE.SchemaDesigner.View.Migrations.Edit
 
-import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, findForeignKey, findTableIndex)
-import IHP.IDE.SchemaDesigner.Controller.Helper
-import IHP.IDE.SchemaDesigner.Controller.Validation
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout)
 
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import qualified Data.Maybe as Maybe
-import qualified Data.List as List
 
-import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 import qualified IHP.SchemaMigration as SchemaMigration
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller
@@ -26,7 +19,6 @@ import IHP.Log.Types
 import qualified Control.Exception as Exception
 import qualified System.Directory as Directory
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
 
 instance Controller MigrationsController where
     beforeAction = setLayout schemaDesignerLayout

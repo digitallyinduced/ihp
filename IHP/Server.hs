@@ -9,24 +9,19 @@ import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
-import IHP.ModelSupport
 import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Environment as Env
-import IHP.Log.Types
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
 import qualified IHP.ErrorController as ErrorController
-import Control.Exception (finally)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.LibDir
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
-import qualified Control.Concurrent.Async as Async
-import qualified Data.List as List
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Control.Exception as Exception
@@ -37,7 +32,6 @@ import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
 
 import qualified Network.Wai.Application.Static as Static
-import qualified WaiAppStatic.Storage.Filesystem as Static
 import qualified WaiAppStatic.Types as Static
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()

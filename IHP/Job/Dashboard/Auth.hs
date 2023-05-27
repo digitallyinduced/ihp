@@ -12,7 +12,6 @@ module IHP.Job.Dashboard.Auth (
 ) where
 
 import IHP.Prelude
-import GHC.TypeLits
 import IHP.ControllerPrelude
 import System.Environment (lookupEnv)
 

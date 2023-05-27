@@ -7,13 +7,9 @@ import IHP.IDE.SchemaDesigner.View.Policies.New
 import IHP.IDE.SchemaDesigner.View.Policies.Edit
 
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace, findForeignKey, findTableIndex)
+import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName)
 import IHP.IDE.SchemaDesigner.Controller.Helper
-import IHP.IDE.SchemaDesigner.Controller.Validation
 
-import qualified Data.Text as Text
-import qualified Data.Maybe as Maybe
-import qualified Data.List as List
 
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 

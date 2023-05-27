@@ -11,13 +11,10 @@ import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.RouterSupport
 import qualified Prelude
-import Network.Wai
-import Data.Attoparsec.ByteString.Char8 (Parser)
 import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
 import IHP.ApplicationContext
-import IHP.RouterSupport (RouteParser)
 
 routeComponent :: forall component controller application.
     ( Typeable component

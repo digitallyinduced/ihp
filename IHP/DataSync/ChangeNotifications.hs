@@ -11,17 +11,11 @@ module IHP.DataSync.ChangeNotifications
 
 import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import IHP.ModelSupport
 import Data.String.Interpolate.IsString (i)
 import Data.Aeson
 import Data.Aeson.TH
-import qualified Control.Concurrent.MVar as MVar
-import IHP.DataSync.DynamicQuery (transformColumnNamesToFieldNames)
 import qualified IHP.DataSync.RowLevelSecurity as RLS
-import qualified IHP.PGListener as PGListener
-import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 

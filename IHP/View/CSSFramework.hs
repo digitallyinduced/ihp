@@ -17,7 +17,6 @@ import IHP.ModelSupport
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
-import IHP.View.Types (PaginationView(linkPrevious, pagination))
 
 
 -- | Provides an unstyled CSSFramework

@@ -1,10 +1,8 @@
 module IHP.IDE.SchemaDesigner.View.Migrations.Edit where
 import IHP.ViewPrelude
-import IHP.IDE.ToolServer.Helper.View
 import IHP.SchemaMigration
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
-import IHP.IDE.CodeGen.Types
+import IHP.IDE.ToolServer.Routes ()
 
 data EditView = EditView
     { migration :: Migration

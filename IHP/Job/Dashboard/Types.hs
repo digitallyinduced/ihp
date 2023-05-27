@@ -12,16 +12,11 @@ module IHP.Job.Dashboard.Types (
 
 import IHP.Prelude
 import IHP.ControllerPrelude
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import IHP.ViewPrelude (Html, View, hsx, html, timeAgo, columnNameToFieldLabel, JobStatus(..))
+import IHP.ViewPrelude (Html)
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
 import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import IHP.Job.Queue () -- get FromField definition for JobStatus
 
-import IHP.Job.Dashboard.Auth
 
 data BaseJob = BaseJob {
     table :: Text

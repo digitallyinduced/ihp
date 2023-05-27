@@ -9,11 +9,8 @@ import IHP.Prelude
 import IHP.DataSync.DynamicQuery
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.List as List
 
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])

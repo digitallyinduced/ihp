@@ -11,7 +11,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import IHP.ModelSupport

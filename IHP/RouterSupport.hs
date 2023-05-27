@@ -39,7 +39,6 @@ import IHP.FrameworkConfig
 import IHP.ApplicationContext hiding (frameworkConfig)
 import Data.UUID
 import Network.HTTP.Types.Method
-import GHC.Records
 import IHP.Controller.RequestContext
 import Network.Wai
 import IHP.ControllerSupport

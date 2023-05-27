@@ -41,14 +41,13 @@ module IHP.ViewPrelude (
 import IHP.Prelude
 import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
-import Text.Blaze (preEscapedText, stringValue, text, (!))
+import Text.Blaze (stringValue, (!))
 import Text.Blaze.Html5 (preEscapedToHtml, preEscapedTextValue)
 import IHP.View.Form
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml
 import IHP.View.TimeAgo
 import IHP.ValidationSupport
-import IHP.Controller.RequestContext
 import IHP.RouterSupport
 import IHP.ModelSupport
 import IHP.FrameworkConfig

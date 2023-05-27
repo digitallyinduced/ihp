@@ -43,11 +43,9 @@ import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
-import qualified IHP.IDE.Types
 import qualified IHP.PGListener as PGListener
 
 import qualified Network.Wai.Application.Static as Static
-import qualified WaiAppStatic.Storage.Filesystem as Static
 import qualified WaiAppStatic.Types as Static
 
 withToolServer :: (?context :: Context) => IO () -> IO ()

@@ -2,7 +2,6 @@ module IHP.Job.Dashboard.Utils where
 
 import IHP.Prelude
 import IHP.ModelSupport
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 
 numberOfPagesForTable :: (?modelContext::ModelContext) => Text -> Int -> IO Int
