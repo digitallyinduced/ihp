@@ -29,6 +29,7 @@ import Network.Minio
 import qualified Data.Conduit.Binary as Conduit
 import qualified Network.Wai.Parse as Wai
 
+import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.TMap as TMap
@@ -90,6 +91,12 @@ storeFile fileInfo directory = storeFileWithOptions fileInfo (def { directory })
 storeFileWithOptions :: (?context :: context, ConfigProvider context) => Wai.FileInfo LByteString -> StoreFileOptions -> IO StoredFile
 storeFileWithOptions fileInfo options = do
     objectId <- UUID.nextRandom
+
+    let isFileNameEmpty = fileInfo
+            |> (.fileName)
+            |> null
+
+    let fileName = if isFileNameEmpty then UUID.toText objectId else cs (fileInfo.fileName)
 
     let directory = options.directory
     let objectPath = directory <> "/" <> UUID.toText objectId
@@ -178,7 +185,7 @@ storeFileFromPath path options = do
 
     fileContent <- LBS.readFile (cs path)
     let file = Wai.FileInfo
-            { fileName = ""
+            { fileName = cs $ getFilename path
             , fileContentType
             , fileContent
             }
@@ -364,3 +371,12 @@ storage :: (?context :: context, ConfigProvider context) => FileStorage
 storage = ?context.frameworkConfig.appConfig
         |> TMap.lookup @FileStorage
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
+
+
+getFilename :: (?context :: context, ConfigProvider context) => Text -> Text
+getFilename path =
+    case reverse parts of
+        fileName : _ -> fileName
+        _ -> ""
+    where
+        parts = T.splitOn "/" path
