@@ -96,6 +96,7 @@ storeFileWithOptions fileInfo options = do
             |> (.fileName)
             |> null
 
+    -- If there is an existing filename, use it. Otherwise assign it a new UUID.
     let fileName = if isFileNameEmpty then UUID.toText objectId else cs (fileInfo.fileName)
 
     let directory = options.directory
@@ -373,6 +374,7 @@ storage = ?context.frameworkConfig.appConfig
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
 
 
+-- | Returns the filename from a path.
 getFilename :: (?context :: context, ConfigProvider context) => Text -> Text
 getFilename path =
     case reverse parts of
