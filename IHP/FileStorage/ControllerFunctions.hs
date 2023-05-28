@@ -99,7 +99,7 @@ storeFileWithOptions fileInfo options = do
     let fileName = if isFileNameEmpty then UUID.toText objectId else cs (fileInfo.fileName)
 
     let directory = options.directory
-    let objectPath = directory <> "/" <> UUID.toText objectId
+    let objectPath = directory <> "/" <> fileName
     let preprocess = options.preprocess
 
     fileInfo <- preprocess fileInfo
