@@ -21,7 +21,6 @@ module IHP.PGListener
 
 import IHP.Prelude hiding (init)
 import IHP.ModelSupport
-import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
@@ -29,7 +28,6 @@ import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.UUID.V4 as UUID
 import Control.Concurrent.MVar (MVar)
 import qualified Control.Concurrent.MVar as MVar
-import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict as HashMap
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List

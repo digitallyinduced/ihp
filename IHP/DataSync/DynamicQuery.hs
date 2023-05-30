@@ -8,13 +8,9 @@ module IHP.DataSync.DynamicQuery where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
 import Data.Aeson
-import qualified Data.HashMap.Strict as HashMap
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified IHP.QueryBuilder as QueryBuilder
 import Data.Aeson.TH
 import qualified GHC.Generics

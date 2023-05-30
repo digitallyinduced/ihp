@@ -5,10 +5,8 @@ import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Indexes.Edit
 
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
-import IHP.IDE.SchemaDesigner.Controller.Validation
 
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
 

@@ -9,7 +9,6 @@ import IHP.IDE.CodeGen.View.NewView
 import IHP.IDE.CodeGen.View.NewMail
 import IHP.IDE.CodeGen.View.NewAction
 import IHP.IDE.CodeGen.View.NewApplication
-import IHP.IDE.CodeGen.View.NewMigration
 import IHP.IDE.CodeGen.View.NewJob
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
@@ -26,8 +25,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
 import System.Directory
-import qualified IHP.SchemaMigration as SchemaMigration
-import IHP.Log.Types
 
 instance Controller CodeGenController where
     action GeneratorsAction = do

@@ -5,7 +5,6 @@ import Network.Wai (responseLBS, responseBuilder, responseFile)
 import qualified Network.Wai
 import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
-import IHP.ModelSupport
 import qualified Data.ByteString.Lazy
 import qualified IHP.ViewSupport as ViewSupport
 import qualified Data.Aeson

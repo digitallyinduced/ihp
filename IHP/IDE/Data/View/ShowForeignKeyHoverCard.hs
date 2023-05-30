@@ -1,10 +1,7 @@
 module IHP.IDE.Data.View.ShowForeignKeyHoverCard where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.Data.View.Layout
-import IHP.IDE.ToolServer.Routes
 
 data ShowForeignKeyHoverCardView = ShowForeignKeyHoverCardView
     { record :: [DynamicField]

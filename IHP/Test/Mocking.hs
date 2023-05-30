@@ -9,17 +9,13 @@ module IHP.Test.Mocking where
 import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
-import           Database.PostgreSQL.Simple                (connectPostgreSQL)
-import           Network.HTTP.Types.Header
 import qualified Network.HTTP.Types.Status                 as HTTP
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
-import qualified IHP.ApplicationContext                    as ApplicationContext
 import           IHP.ApplicationContext                    (ApplicationContext (..))
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import qualified IHP.Controller.Context                    as Context
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
@@ -32,7 +28,6 @@ import qualified IHP.Test.Database as Database
 import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
-import qualified IHP.Controller.Session as Session
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize

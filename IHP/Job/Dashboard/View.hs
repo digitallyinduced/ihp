@@ -8,13 +8,12 @@ Description:  Views for Job dashboard
 module IHP.Job.Dashboard.View where
 
 import IHP.Prelude
-import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo, columnNameToFieldLabel)
+import IHP.ViewPrelude (JobStatus(..), ControllerContext, Html, View, hsx, html, timeAgo)
 import qualified Data.List as List
 import IHP.Job.Dashboard.Types
 import IHP.Job.Dashboard.Utils
 import IHP.Pagination.Types
 import IHP.Pagination.ViewFunctions
-import qualified IHP.Log as Log
 
 -- | Provides a type-erased view. This allows us to specify a view as a return type without needed
 -- to know exactly what type the view will be, which in turn allows for custom implmentations of

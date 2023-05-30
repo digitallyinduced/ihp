@@ -6,7 +6,6 @@ import IHP.ServerSideComponent.Types as SSC
 import IHP.ServerSideComponent.ControllerFunctions as SSC
 
 import qualified Data.Aeson as Aeson
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
 instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
     initialState = ComponentsController

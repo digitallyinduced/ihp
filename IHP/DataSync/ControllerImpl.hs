@@ -5,11 +5,9 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 import qualified Control.Exception as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.Key as Aeson
 
 import Data.Aeson.TH
-import Data.Aeson
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
@@ -23,15 +21,11 @@ import IHP.DataSync.DynamicQueryCompiler
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.ByteString.Builder as ByteString
 import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
-import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
 
-import qualified Data.Attoparsec.Text as Attoparsec
-import qualified Network.WebSockets as WS
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
 $(deriveToJSON defaultOptions 'DataSyncResult)

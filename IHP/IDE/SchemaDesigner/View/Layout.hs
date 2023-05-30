@@ -21,8 +21,6 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
 import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
-import qualified Text.Megaparsec as Megaparsec
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html

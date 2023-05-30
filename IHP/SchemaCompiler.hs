@@ -13,7 +13,6 @@ import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import Control.Monad.Fail
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
