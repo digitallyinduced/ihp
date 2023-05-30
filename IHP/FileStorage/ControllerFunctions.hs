@@ -92,8 +92,10 @@ storeFileWithOptions :: (?context :: context, ConfigProvider context) => Wai.Fil
 storeFileWithOptions fileInfo options = do
     objectId <- UUID.nextRandom
 
+    let fileName = options.fileName |> fromMaybe objectId
+
     let directory = options.directory
-    let objectPath = directory <> "/" <> UUID.toText objectId
+    let objectPath = directory <> "/" <> UUID.toText fileName
     let preprocess = options.preprocess
 
     fileInfo <- preprocess fileInfo

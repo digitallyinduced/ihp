@@ -12,6 +12,8 @@ IHP provides a simple file storage system to upload files to Amazon S3 or any S3
 
 When you're just starting out with IHP, we recommend you use the `static/` directory storage for now. When you move your project to production and things are getting more professional you can always switch to S3. Keep in mind: All files in the `static/` directory are typically publicly accessible.
 
+For security reasons all uploaded files get a random UUID as their file name. This makes it impossible to guess the URL of a file and also makes sure it's not possible to upload a file with a malicious file name.
+
 ## Configuration
 
 ### Static Directory
@@ -455,6 +457,36 @@ let options :: StoreFileOptions = def
 storedFile <- storeFileWithOptions file options
 let url = storedFile.url
 ```
+
+There's also [`storeFileFromPath`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileFromPath) to copy an existing file and [`storeFileFromUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileFromPath) to grab a file from a remote url.
+
+When copying a file from path it's possible that you'd like to keep the same name of the original name. Note that
+"original name" in this context means the UUID the file was saved in.
+
+```haskell
+import qualified Data.UUID as UUID
+
+let file = fileOrNothing "file"
+        |> fromMaybe (error "no file given")
+
+-- Save the original file.
+let options :: StoreFileOptions = def
+        { directory = "pictures"
+        }
+
+storedFile <- storeFileWithOptions file options
+
+-- Save a copy of the file as a thumbnail.
+let options :: StoreFileOptions = def
+        { directory = "pictures/thumbnails"
+        -- Convert to a 100x100 thumbnail.
+        , preprocess = applyImageMagick "jpg" ["-resize", "100x100^", "-gravity", "center", "-extent", "100x100", "-quality", "85%", "-strip"]
+        , fileName = UUID.fromText $ cs file.fileName -- Convert the original file name to a UUID.
+        }
+
+storedFileThumbnail <- storeFileFromPath storedFile.path options
+```
+
 
 ### Accessing Uploaded Files without Storing them
 
