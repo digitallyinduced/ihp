@@ -442,9 +442,9 @@ showComment comment commentUsers =
     where
         authorName = commentUsers
             |> find (\user -> user.id == comment.userId)
-            -- Get the user's name. As `head` returns a Maybe value we need to use `maybe mempty` which means
+            -- Get the user's name. As `head` returns a Maybe value we need to use `maybe ""` which means
             -- if no user found, don't show anything.
-            |> maybe mempty (get #name)
+            |> maybe "" (get #name)
 ```
 
 
