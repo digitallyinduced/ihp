@@ -25,6 +25,7 @@ data StoreFileOptions = StoreFileOptions
     { directory :: Text -- ^ Directory on S3 or inside the @static@ where all files are placed
     , contentDisposition :: Wai.FileInfo LByteString -> IO (Maybe Text) -- ^ The browser uses the content disposition header to detect if the file should be shown inside the browser or should be downloaded as a file attachment. You can provide a function here that returns a custom content-disposition header based on the uploaded file. This currently only works with the S3 storage. See 'contentDispositionAttachmentAndFileName' for standard configuration.
     , preprocess :: Wai.FileInfo LByteString -> IO (Wai.FileInfo LByteString) -- ^ Can be used to preprocess the file before storing it inside the storage. See 'applyImageMagick' for preprocessing images.
+    , fileName :: Maybe UUID -- ^ Optional filename. We use UUID for security measures.
     }
 
 instance Default StoreFileOptions where
@@ -32,6 +33,7 @@ instance Default StoreFileOptions where
         { directory = ""
         , contentDisposition = const (pure Nothing)
         , preprocess = pure
+        , fileName = Nothing
         }
 
 -- | A signed url to a file. See 'createTemporaryDownloadUrl'
