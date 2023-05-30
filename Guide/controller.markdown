@@ -312,11 +312,16 @@ You will need to import [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-Vi
 
 ### Rendering a Static File
 
-Use [`renderFile path contentType`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderFile) to respond with a static file:
+Use [`renderFile`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderFile) to respond with a static file:
 
 ```haskell
 action ExampleAction = do
-    renderFile "static/terms.pdf" "application/pdf"
+    -- Allow the code to work both on Static and S3 storage types.
+    let storagePrefix = case storage of
+            StaticDirStorage -> "static/"
+            _ -> ""
+
+    renderFile (storagePrefix <> "terms.pdf") "application/pdf"
 ```
 
 ### Rendering a Not Found Message
