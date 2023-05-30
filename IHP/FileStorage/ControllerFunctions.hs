@@ -15,6 +15,7 @@ module IHP.FileStorage.ControllerFunctions
 , createTemporaryDownloadUrlFromPathWithExpiredAt
 , uploadToStorage
 , uploadToStorageWithOptions
+, storage
 ) where
 
 import IHP.Prelude
