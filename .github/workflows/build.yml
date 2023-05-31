@@ -41,6 +41,7 @@ jobs:
     - name: Build Binaries for Cachix
       run: |
           export TARBALL_URL=`aws s3 presign s3://${{ secrets.S3_BUCKET }}/releases/${{ github.sha }}.tar.gz`
+          export hash=$(nix-prefetch-url --unpack "$TARBALL_URL" --name "ihp-tarball" | tail -1)
           cd ihp-boilerplate
           echo "<?php" >> replace.php
           echo "\$file_contents = file_get_contents('./default.nix');" >> replace.php
@@ -49,7 +50,7 @@ jobs:
           echo '$new_content_with_ref = str_replace("p.ihp", "p.ihp wreq mmark mmark-ext strip-ansi-escape stripe-signature stripe-concepts http-conduit haskell-to-elm aeson-casing tz tagsoup ihp-zip ihp-sentry ihp-oauth-google ihp-oauth-github minio-hs ihp-stripe minio-hs hs-brotli wai-middleware-brotli fakedata jwt ihp-openai", $new_content_with_ref);' >> replace.php
           echo "file_put_contents('./default.nix', \$new_content_with_ref);" >> replace.php
           echo "?>" >> replace.php
-          php replace.php "builtins.fetchTarball \"$TARBALL_URL\""
+          php replace.php "builtins.fetchTarball { url = \"$TARBALL_URL\"; sha265 = \"$hash\"; }"
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
