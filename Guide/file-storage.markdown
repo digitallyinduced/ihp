@@ -609,6 +609,7 @@ And add it to the `FrontController`
 -- ...
 import Web.Controller.ImageStyle
 
+instance FrontController WebApplication where
     controllers =
         [ startPage StartPageAction
         -- Generator Marker
@@ -699,7 +700,7 @@ haskellEnv = import "${ihp}/NixSupport/default.nix" {
     ];
 ```
 
-Then we need to generate a private and public key pair. We can do it in our Config file. and save the keys in the Config for later use.
+Then we need to generate a private and public key pair. We can do it in our Config file, and save the keys for later use.
 
 ```haskell
 -- Config/Config.hs
@@ -795,7 +796,7 @@ extractDirectoryAndUUID inputText =
         parts = T.splitOn "/" trimmedText
 ```
 
-The `RenderImageStyleAction` should now get another argument - the signed token.
+We need to change `RenderImageStyleAction` to get another argument, the signed token.
 
 
 ```haskell
