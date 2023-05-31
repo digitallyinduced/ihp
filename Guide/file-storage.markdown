@@ -580,9 +580,7 @@ config = do
 
 Image style is a common feature in web applications. It allows you to define different styles for an image, like a thumbnail or a preview image. The image style is then applied to the image when it's viewed. One image can have multiple image styles. So on one page it would appear as a thumbnail, on another page it would appear with a 400px x 200px dimension. The original image remains as is, untouched, and whenever there is a demand for an image style then it is generated on the fly. If an image style was already generated then it is served, saving the effort of re-generating it.
 
-Let's see how we can implement that. At first, without any access control, only accept the original image along with the desired dimensions and generate the image style on the fly.
-
-We add an action to the `ImageStyleController` that accepts the original image path, the desired width and height.
+Let's see how we can implement that. At first, without any access control. We add an action to the `ImageStyleController` that accepts the original image path, the desired width, and height.
 
 ```haskell
 -- Web/Types.hs
