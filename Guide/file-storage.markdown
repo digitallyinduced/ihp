@@ -610,7 +610,7 @@ And add it to the `FrontController`
 import Web.Controller.ImageStyle
 
     controllers =
-        [ startPage LandingPagesAction
+        [ startPage StartPageAction
         -- Generator Marker
         , parseRoute @ImageStyleController
         -- ...
