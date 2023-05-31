@@ -575,3 +575,108 @@ config = do
 ```
 
 [You can find a full list of `WaiParser.set...` functions on the `Network.Wai.Parse` documentation](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:setMaxRequestKeyLength)
+
+## Image Style Implementation
+
+Image style is a common feature in web applications. It allows you to define different styles for an image, like a thumbnail or a preview image. The image style is then applied to the image when it's viewed. One image can have multiple image styles. So on one page it would appear as a thumbnail, on another page it would appear with a 400px x 200px dimension. The original image remains as is, untouched, and whenever there is a demand for an image style then it is generated on the fly. If an image style was already generated then it is served, saving the effort of re-generating it.
+
+Let's see how we can implement that. At first, without any access control, only accept the original image along with the desired dimensions and generate the image style on the fly.
+
+We add an action to the `ImageStyleController` that accepts the original image path, the desired width and height.
+
+```haskell
+-- Web/Types.hs
+-- ...
+data ImageStyleController
+    = RenderImageStyleAction { width :: !Int, height :: !Int, originalImagePath :: !Text}
+    deriving (Eq, Show, Data)
+```
+
+Wire the new route.
+
+```haskell
+-- Web/Routes.hs
+-- ...
+instance AutoRoute ImageStyleController
+```
+
+And add it to the `FrontController`
+
+```haskell
+-- Web/FrontController.hs
+
+-- Controller Imports
+-- ...
+import Web.Controller.ImageStyle
+
+    controllers =
+        [ startPage LandingPagesAction
+        -- Generator Marker
+        , parseRoute @ImageStyleController
+        -- ...
+        ]
+```
+
+Then we have our controller logic.
+
+```haskell
+-- Web/Controller/ImageStyle.hs
+
+module Web.Controller.ImageStyle where
+
+import Web.Controller.Prelude
+import IHP.ControllerSupport
+import System.Directory (doesFileExist)
+import qualified Data.Text as T
+
+
+instance Controller ImageStyleController where
+    action RenderImageStyleAction { width, height, originalImagePath } = do
+        -- Get the original image directory and UUID from the path.
+        let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
+
+        let size = show width <> "x" <> show height
+        let imageStylePathDirectory = originalImageDirectory <> "/imageStyles/" <> size
+        let imageStylePath = imageStylePathDirectory <> "/" <> uuid
+
+        -- If we use a StaticDirStorage storage then we need to prefix the path with the `static/` folder.
+        let storagePrefix = case storage of
+                StaticDirStorage -> "static/"
+                _ -> ""
+
+        fileExists <- doesFileExist (cs $ storagePrefix <> imageStylePath)
+
+        if fileExists
+            then do
+                -- Image style found.
+                renderFile (cs $ storagePrefix <> imageStylePath) "application/jpg"
+            else do
+                -- Image style not found, so create it.
+                let options :: StoreFileOptions = def
+                        { directory = imageStylePathDirectory
+                        , preprocess = applyImageMagick "jpg" ["-resize", cs size <> "^", "-gravity", "center", "-extent", cs size, "-quality", "85%", "-strip"]
+                        }
+
+                storedFile <- storeFileFromPath (cs $ storagePrefix <> originalImageDirectory <> "/" <> uuid) options
+
+                renderFile (cs $ storagePrefix <> storedFile.path) "application/jpg"
+
+-- | Extracts the directory and UUID from a path like "pictures/8ed22caa-11ea-4c45-a05e-91a51e72558d"
+extractDirectoryAndUUID :: (?context :: context, ConfigProvider context) => Text -> (Text, Text)
+extractDirectoryAndUUID inputText =
+    case reverse parts of
+        uuid : pathSegments -> (T.intercalate "/" (reverse pathSegments), uuid)
+        _ -> ("", "")
+    where
+        frameworkConfig = ?context.frameworkConfig
+        trimmedText = T.replace (frameworkConfig.baseUrl <> "/") "" inputText
+        parts = T.splitOn "/" trimmedText
+```
+
+Now, from any `Show` action, we can use the image style. Here we create a 400px x 200px image style for the original image.
+
+```haskell
+[hsx|<img src={pathTo $ RenderImageStyleAction 400 200 imageUrl} />|]
+where
+    imageUrl = "http://localhost:8000/static/picture/b4c8f55c-16d6-41f0-9503-77352b134e14"
+```
