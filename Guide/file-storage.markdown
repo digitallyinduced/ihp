@@ -746,14 +746,10 @@ instance Controller ImageStyleController where
         -- Verify the signed token.
         let Config.RsaPublicAndPrivateKeys (publicKey, _) = getAppConfig @Config.RsaPublicAndPrivateKeys
 
-        signDecoded <- case cs signed |> Base64.decode of
-                -- Seems like the token is not base64 encoded, so we can deny access.
-                Left msg -> fail "Access denied"
-                -- If the token was decoded successfully, then we can verify it.
-                Right signature -> pure signature
-
         -- Verify the token, and deny or allow access based on the result.
-        accessDeniedUnless (RSA.verify (Just Hash.Algorithms.SHA256) publicKey (cs $ originalImagePath <> size) signDecoded)
+        accessDeniedUnless case cs signed |> Base64.decode of
+            Left msg -> False
+            Right signed -> RSA.verify (Just Hash.Algorithms.SHA256) publicKey (cs $ originalImagePath <> size) signed
 
         -- Get the original image directory and UUID from the path.
         let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
