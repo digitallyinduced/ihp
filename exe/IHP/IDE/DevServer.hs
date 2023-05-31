@@ -173,6 +173,7 @@ handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileCha
                 AppGHCILoading { .. } -> AppGHCILoading { .. }
                 AppGHCIModulesLoaded { .. } -> AppGHCILoading { .. }
                 RunningAppGHCI { .. } -> AppGHCILoading { .. }
+                AppGHCINotStarted -> AppGHCINotStarted
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
