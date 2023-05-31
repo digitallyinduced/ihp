@@ -63,7 +63,6 @@ module IHP.QueryBuilder
 , OrderByDirection (..)
 )
 where
-import qualified Prelude
 import IHP.Prelude
 import Database.PostgreSQL.Simple.Types (In (In))
 import Database.PostgreSQL.Simple.ToField
@@ -74,7 +73,6 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
-import Debug.Trace
 import qualified GHC.Generics
 
 class DefaultScope table where

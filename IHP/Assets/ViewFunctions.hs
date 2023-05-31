@@ -9,7 +9,6 @@ module IHP.Assets.ViewFunctions
 ) where
 
 import IHP.Prelude
-import IHP.Assets.Types
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as Config
 

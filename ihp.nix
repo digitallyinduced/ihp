@@ -17,7 +17,7 @@
 , inflections
 , text
 , postgresql-simple
-, wai-middleware-static
+, wai-app-static
 , wai-util
 , aeson
 , uuid
@@ -88,7 +88,7 @@ mkDerivation {
     inflections
     text
     postgresql-simple
-    wai-middleware-static
+    wai-app-static
     wai-util
     aeson
     uuid

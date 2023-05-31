@@ -4,21 +4,18 @@ import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Schema.Code
-import IHP.IDE.SchemaDesigner.View.Schema.Error
 import IHP.IDE.SchemaDesigner.View.Schema.GeneratedCode
 import IHP.IDE.SchemaDesigner.View.Schema.SchemaUpdateFailed
 
 import IHP.IDE.SchemaDesigner.Parser
-import IHP.IDE.SchemaDesigner.Compiler
-import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, findStatementByName, removeQuotes, replace)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified System.Process as Process
 import System.Exit
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import IHP.IDE.SchemaDesigner.Controller.Tables ()
 import IHP.IDE.SchemaDesigner.View.Layout
-import IHP.IDE.SchemaDesigner.Controller.Tables
+import IHP.IDE.ToolServer.Routes ()
 import IHP.IDE.SchemaDesigner.Controller.Helper
 
 instance Controller SchemaController where

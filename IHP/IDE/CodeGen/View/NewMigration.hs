@@ -2,7 +2,7 @@ module IHP.IDE.CodeGen.View.NewMigration where
 
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Layout
+import IHP.IDE.ToolServer.Routes ()
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.CodeGen.View.Generators (renderPlan)
 

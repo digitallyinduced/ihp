@@ -9,7 +9,7 @@ import IHP.IDE.SchemaDesigner.View.Tables.Index
 import IHP.IDE.SchemaDesigner.View.Tables.Edit
 
 import IHP.IDE.SchemaDesigner.Types
-import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, replace, schemaDesignerLayout)
+import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, schemaDesignerLayout)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation

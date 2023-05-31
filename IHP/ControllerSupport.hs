@@ -37,7 +37,6 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
 import IHP.ApplicationContext (ApplicationContext (..))
-import qualified IHP.ApplicationContext as ApplicationContext
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
@@ -54,7 +53,6 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
-import qualified Data.Typeable as Typeable
 import qualified Data.TMap as TypeMap
 
 type Action' = IO ResponseReceived

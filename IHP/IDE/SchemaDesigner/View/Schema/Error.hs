@@ -1,7 +1,6 @@
 module IHP.IDE.SchemaDesigner.View.Schema.Error where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.View.Layout
 
 data ErrorView = ErrorView
     { error :: ByteString

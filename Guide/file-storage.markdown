@@ -12,6 +12,8 @@ IHP provides a simple file storage system to upload files to Amazon S3 or any S3
 
 When you're just starting out with IHP, we recommend you use the `static/` directory storage for now. When you move your project to production and things are getting more professional you can always switch to S3. Keep in mind: All files in the `static/` directory are typically publicly accessible.
 
+For security reasons all uploaded files get a random UUID as their file name. This makes it impossible to guess the URL of a file and also makes sure it's not possible to upload a file with a malicious file name.
+
 ## Configuration
 
 ### Static Directory
@@ -190,19 +192,25 @@ CREATE TABLE companies (
 );
 ```
 
+Note that the `logo_url` is a Maybe type, as the logo is optional. However, even if you wanted the logo to be required, you would still need to use a Maybe type, as the logo is not uploaded as part of the form submission. We will see soon how we can still ensure it's required.
+
 You can use the [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) function to save a user upload to the storage:
 
 ```haskell
 action UpdateCompanyAction { companyId } = do
     company <- fetch companyId
     company
-        |> fill @'["name"]
+        |> buildCompany
         |> uploadToStorage #logoUrl
         >>= ifValid \case
             Left company -> render EditView { .. }
             Right company -> do
                 company <- company |> updateRecord
                 redirectTo EditCompanyAction { .. }
+
+buildCompany company = company
+    |> fill @["name"]
+    |> validateField #name nonEmpty
 ```
 
 The call to [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
@@ -240,9 +248,22 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-##### Custom File Field
+##### File Field Additional Attributes
 
-If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) helper doesn't allow, you can also use a handwritten file input:
+If you need to more customization on the file field which the [`fileField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:fileField) you can describe them under the `additionalAttributes` property:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*")] } }
+
+    {submitButton}
+|]
+```
+
+If for some reason you'd want to use hand written `input` you can still do that:
 
 ```haskell
 renderForm :: Company -> Html
@@ -271,13 +292,7 @@ renderForm :: Company -> Html
 renderForm company = formFor company [hsx|
     {(textField #name)}
 
-    <input
-        type="file"
-        name="logoUrl"
-        class="form-control-file"
-        accept="image/*"
-        data-preview="#logoUrlPreview"
-    />
+    {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*"), ("data-preview", "#logoUrlPreview")] } }
 
     <img id="logoUrlPreview"/>
 
@@ -285,7 +300,49 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={comapny.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
+On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={company.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
+
+### Required Uploads
+
+As notes above, the `logoUrl` must be a Maybe type, but there are cases where we want to ensure a file is uploaded as part of the record submission. We can add required to the form:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    {(fileField #logoUrl) { required = True }}
+
+    {submitButton}
+|]
+```
+
+That's handy, however frontend validation is enough, we need to do server side validation as well. We can do that by
+slightly changing the order of our commands:
+
+```haskell
+action UpdateCompanyAction { companyId } = do
+    company <- fetch companyId
+    company
+        -- Now we first upload the image, and populate the `logoUrl` field.
+        |> uploadToStorage #logoUrl
+        >>= buildCompany
+        >>= ifValid \case
+        -- ...
+
+
+buildCompany company = company
+    |> fill @["name"]
+    |> validateField #name nonEmpty
+    |> validateField #logoUrl nonEmpty -- Validate that the logoUrl is not empty.
+    |> pure -- We're inside an IO, so we need to use `pure`
+
+```
+
+Note that `|> buildCompany` was changed to `>>= buildCompany`.
+
+Now we have server side validation as well, and if a file isn't loaded, the user will see "The field cannot be empty". Your code however should still check that the `logoUrl` is not empty before using it.
+
 
 ### Image Preprocessing
 
@@ -400,6 +457,36 @@ let options :: StoreFileOptions = def
 storedFile <- storeFileWithOptions file options
 let url = storedFile.url
 ```
+
+There's also [`storeFileFromPath`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileFromPath) to copy an existing file and [`storeFileFromUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:storeFileFromPath) to grab a file from a remote url.
+
+When copying a file from path it's possible that you'd like to keep the same name of the original name. Note that
+"original name" in this context means the UUID the file was saved in.
+
+```haskell
+import qualified Data.UUID as UUID
+
+let file = fileOrNothing "file"
+        |> fromMaybe (error "no file given")
+
+-- Save the original file.
+let options :: StoreFileOptions = def
+        { directory = "pictures"
+        }
+
+storedFile <- storeFileWithOptions file options
+
+-- Save a copy of the file as a thumbnail.
+let options :: StoreFileOptions = def
+        { directory = "pictures/thumbnails"
+        -- Convert to a 100x100 thumbnail.
+        , preprocess = applyImageMagick "jpg" ["-resize", "100x100^", "-gravity", "center", "-extent", "100x100", "-quality", "85%", "-strip"]
+        , fileName = UUID.fromText $ cs file.fileName -- Convert the original file name to a UUID.
+        }
+
+storedFileThumbnail <- storeFileFromPath storedFile.path options
+```
+
 
 ### Accessing Uploaded Files without Storing them
 

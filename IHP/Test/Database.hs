@@ -3,11 +3,8 @@ module IHP.Test.Database where
 import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
-import qualified System.Process as Process
 import qualified Data.Text as Text
 import qualified Data.ByteString as ByteString
 import qualified IHP.LibDir as LibDir

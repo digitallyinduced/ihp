@@ -103,7 +103,7 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 -- This is how you can render a form with a @id="post-form"@ id attribute and a custom @data-post-id@ attribute:
 --
 -- > renderForm :: Post -> Html
--- > renderForm post = formFor post [hsx|
+-- > renderForm post = formForWithOptions formOptions post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
@@ -136,7 +136,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- If you want to use this with e.g. a custom form action, remember that 'formForWithoutJavascript' is just a shortcut for 'formForWithOptions':
 --
 -- > renderForm :: Post -> Html
--- > renderForm post = formFor post [hsx|
+-- > renderForm post = formForWithOptions formOptions post [hsx|
 -- >     {textField #title}
 -- >     {textareaField #body}
 -- >     {submitButton}
@@ -144,6 +144,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- >
 -- > formOptions :: FormContext Post -> FormContext Post
 -- > formOptions formContext = formContext
+-- >     |> set #formAction (pathTo BespokeNewPostAction)
 -- >     |> set #disableJavascriptSubmission True
 --
 formForWithoutJavascript :: forall record. (
@@ -235,7 +236,7 @@ nestedFormFor field nestedRenderForm = forEach children renderChild
     where
         parentFormContext :: FormContext parentRecord
         parentFormContext = ?formContext
-        
+
         renderChild :: childRecord -> Html5.Html
         renderChild record = let ?formContext = buildNestedFormContext record in [hsx|
             {hiddenField #id}
@@ -757,6 +758,86 @@ selectField field items = FormField
         fieldName = symbolVal field
         FormContext { model } = ?formContext
 {-# INLINE selectField #-}
+
+-- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for 'selectField'.
+--
+-- > formFor project [hsx|
+-- >     {radioField #userId users}
+-- > |]
+--
+-- In the example above the variable users contains all the possible option values for the radios.
+--
+-- You also need to define a instance @CanSelect User@:
+--
+-- > instance CanSelect User where
+-- >     -- Here we specify that the <option> value should contain a `Id User`
+-- >     type SelectValue User = Id User
+-- >     -- Here we specify how to transform the model into <option>-value
+-- >     selectValue user = user.id
+-- >     -- And here we specify the <option>-text
+-- >     selectLabel user = user.name
+--
+-- Given the above example, the rendered form will look like this (omitting classes for brevity):
+--
+-- > <!-- Assuming: users = [User { id = 1, name = "Marc" }, User { id = 2, name = "Andreas" }] -->
+-- > <form ...>
+-- >     <fieldset>
+-- >         <div>
+-- >           <input type="radio" id="option1" value="1"/>
+-- >           <label for="option1">Marc</label>
+-- >         </div>
+-- >         <div>
+-- >           <input type="radio" id="option2" value="2"/>
+-- >           <label for="option2">Andreas</label>
+-- >         </div>
+-- >     </fieldset>
+-- > </form>
+--
+-- If you want a certain value to be preselected, set the value in the controller. For example, to have the first user be preselected in the above example:
+--
+-- > action NewProjectAction = do
+-- >     users <- query @User |> fetch
+-- >     let userId = headMay users |> maybe def (.id)
+-- >     let target = newRecord @Project |> set #userId userId
+-- >     render NewView { .. }
+radioField :: forall fieldName model item.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model (SelectValue item)
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName model)
+    , CanSelect item
+    , InputValue (SelectValue item)
+    ) => Proxy fieldName -> [item] -> FormField
+radioField field items = FormField
+        { fieldType =
+            let
+                itemToTuple :: item -> (Text, Text)
+                itemToTuple item = (selectLabel item, inputValue (selectValue item))
+            in
+                 RadioInput (map itemToTuple items)
+        , fieldName = cs fieldName
+        , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
+        , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
+        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
+        , validatorResult = getValidationViolation field model
+        , fieldClass = ""
+        , labelClass = ""
+        , disabled = False
+        , disableLabel = False
+        , disableGroup = False
+        , disableValidationResult = False
+        , additionalAttributes = []
+        , cssFramework = ?formContext.cssFramework
+        , helpText = ""
+        , placeholder = ""
+        , required = False
+        , autofocus = False
+    }
+    where
+        fieldName = symbolVal field
+        FormContext { model } = ?formContext
+{-# INLINE radioField #-}
 
 class CanSelect model where
     -- | Here we specify the type of the @<option>@ value, usually an @Id model@

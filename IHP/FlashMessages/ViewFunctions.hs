@@ -5,7 +5,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.FlashMessages.ViewFunctions where
 
-import IHP.Prelude
 import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ViewSupport

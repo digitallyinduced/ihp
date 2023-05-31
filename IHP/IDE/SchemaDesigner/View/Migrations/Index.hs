@@ -3,9 +3,8 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Helper.View
 import IHP.SchemaMigration
 import IHP.IDE.ToolServer.Types
-import IHP.IDE.ToolServer.Routes
+import IHP.IDE.ToolServer.Routes ()
 
-import qualified Data.Time.Clock as Clock
 import qualified Data.Time.Clock.POSIX as Clock
 
 type Revision = Int

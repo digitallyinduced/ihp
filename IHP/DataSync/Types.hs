@@ -2,10 +2,7 @@ module IHP.DataSync.Types where
 
 import IHP.Prelude
 import Data.Aeson
-import IHP.QueryBuilder
 import IHP.DataSync.DynamicQuery
-import Data.HashMap.Strict (HashMap)
-import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple as PG
 import Control.Concurrent.MVar as MVar
 

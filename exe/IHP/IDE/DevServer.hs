@@ -4,10 +4,9 @@ import ClassyPrelude
 import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
-import Control.Concurrent (threadDelay, myThreadId)
+import Control.Concurrent (myThreadId)
 import System.Exit
 import System.Posix.Signals
-import qualified System.FSNotify as FS
 
 import IHP.IDE.Types
 import IHP.IDE.Postgres
@@ -21,7 +20,6 @@ import Data.String.Conversions (cs)
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
-import qualified Data.Time.Clock as Clock
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log

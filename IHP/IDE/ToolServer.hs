@@ -14,7 +14,6 @@ import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Middleware.Static hiding ((<|>))
 import Network.Wai.Session (withSession)
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
@@ -44,8 +43,10 @@ import IHP.Controller.Layout
 import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
-import qualified IHP.IDE.Types
 import qualified IHP.PGListener as PGListener
+
+import qualified Network.Wai.Application.Static as Static
+import qualified WaiAppStatic.Types as Static
 
 withToolServer :: (?context :: Context) => IO () -> IO ()
 withToolServer inner = withAsyncBound async (\_ -> inner)
@@ -75,16 +76,15 @@ startToolServer' port isDebugMode = do
     let modelContext = notConnectedModelContext undefined
     pgListener <- PGListener.init modelContext
     autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+    staticApp <- initStaticApp
+
     let applicationContext = ApplicationContext { modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?context = requestContext
-            frontControllerToWAIApp toolServerApplication [] ErrorController.handleNotFound
-
-    libDirectory <- cs <$> LibDir.findLibDirectory
-    let staticMiddleware :: Wai.Middleware = staticPolicy (addBase (libDirectory <> "static/"))
+            frontControllerToWAIApp toolServerApplication [] (staticApp request respond)
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
     let warpSettings = Warp.defaultSettings
@@ -94,11 +94,20 @@ startToolServer' port isDebugMode = do
     let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
     Warp.runSettings warpSettings $
-            staticMiddleware $ logMiddleware $ methodOverridePost $ sessionMiddleware
+            logMiddleware $ methodOverridePost $ sessionMiddleware
                 $ Websocket.websocketsOr
                     Websocket.defaultConnectionOptions
                     LiveReloadNotificationServer.app
                     application
+
+initStaticApp :: IO Wai.Application
+initStaticApp = do
+    libDirectory <- cs <$> LibDir.findLibDirectory
+    let staticSettings = (Static.defaultWebAppSettings (libDirectory <> "static/"))
+            { Static.ss404Handler = Just ErrorController.handleNotFound
+            , Static.ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days
+            }
+    pure (Static.staticApp staticSettings)
 
 openUrl :: Text -> IO ()
 openUrl url = do

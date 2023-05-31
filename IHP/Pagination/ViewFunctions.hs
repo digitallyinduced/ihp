@@ -15,13 +15,11 @@ import IHP.HSX.QQ (hsx)
 
 import IHP.Controller.Param (paramOrNothing)
 
-import IHP.View.Classes
 import qualified Network.Wai as Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
 import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPageLink, styledPaginationDotDot, styledPaginationItemsPerPageSelector, styledPaginationLinkPrevious, styledPaginationLinkNext)
-import IHP.View.CSSFramework
 
 
 -- | Render a navigation for your pagination. This is to be used in your view whenever

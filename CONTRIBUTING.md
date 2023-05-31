@@ -20,7 +20,7 @@ cd myproject
 ./start
 ```
 
-Running `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. When it starts normally, just CTRL+C to exit.
+Running `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. You can keep `./start` running, as it will pick up any changes to the custom app or the IHP, and save you the hassle of manually recompiling from ghci on every change.
 
 Clone the IHP repository into the project directory. The `IHP` directory is added to the GHC search path in applicationGhciConfig. Therefore when the `IHP` directory exists, GHC will load all IHP modules from there.
 
@@ -32,7 +32,14 @@ make -B build/ihp-lib
 
 Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
 
-The best workflow is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+We need to make sure not to commit the changes of `IHP/ihp.nix`
+To help us with that, you can run this from the root of your project `cd IHP && git update-index --assume-unchanged ihp.nix`, so git will ignore your changes.
+
+It is important to update your custom `default.nix` file and set the `rev` to the latest commit every time you perform a `git pull` from within IHP. This is because certain components continue to use the version defined in `default.nix`, even if you have a local IHP.
+
+### Alternative method
+
+Another workflow, instead of the simpler `./start`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci

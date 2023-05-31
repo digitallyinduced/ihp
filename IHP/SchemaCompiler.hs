@@ -13,7 +13,6 @@ import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
 import IHP.IDE.SchemaDesigner.Types
-import Control.Monad.Fail
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
@@ -807,7 +806,9 @@ compileInclude :: (?schema :: Schema) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
-        hasManyIncludes = columnsReferencingTable name |> map compileHasMany
+        hasManyIncludes = columnsReferencingTable name
+                |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
+                |> map compileHasMany
         typeArgs = dataTypeArguments table
         modelName = tableNameToModelName name
         modelConstructor = modelName <> "'"
@@ -824,7 +825,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
         compileBelongsTo column = includeType (columnNameToFieldName column.name) ("(GetModelById " <> columnNameToFieldName column.name <> ")")
 
         compileHasMany :: (Text, Text) -> Text
-        compileHasMany (refTableName, refColumnName) = includeType (columnNameToFieldName refTableName) ("[" <> tableNameToModelName refTableName <> "]")
+        compileHasMany (refTableName, refColumnName) = includeType refColumnName ("[" <> tableNameToModelName refTableName <> "]")
 
 
 compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text

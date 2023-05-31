@@ -8,13 +8,9 @@ module IHP.IDE.CodeGen.MigrationGenerator where
 import IHP.Prelude
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import IHP.ModelSupport hiding (withTransaction)
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
-import IHP.Log.Types
-import IHP.SchemaMigration
 import qualified System.Process as Process
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import IHP.IDE.SchemaDesigner.Types
