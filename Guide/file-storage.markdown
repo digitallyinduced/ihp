@@ -818,5 +818,7 @@ where
     Config.RsaPublicAndPrivateKeys (_, privateKey) = getAppConfig @Config.RsaPublicAndPrivateKeys
     signed = case RSA.sign Nothing (Just Hash.Algorithms.SHA256) privateKey (cs $ imageUrl <> "400x200") of
         Left msg -> error $ "Cannot sign image URL, private key is invalid:" <> show msg
+        -- Base 64 decode the token so that it can be used in the URL.
+        -- and use `cs` to convert it to `Text`.
         Right signature -> signature |> Base64.encode |> cs
 ```
