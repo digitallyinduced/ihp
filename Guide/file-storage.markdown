@@ -628,7 +628,7 @@ module Web.Controller.ImageStyle where
 import Web.Controller.Prelude
 import IHP.ControllerSupport
 import System.Directory (doesFileExist)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 
 instance Controller ImageStyleController where
@@ -666,12 +666,12 @@ instance Controller ImageStyleController where
 extractDirectoryAndUUID :: (?context :: context, ConfigProvider context) => Text -> (Text, Text)
 extractDirectoryAndUUID inputText =
     case reverse parts of
-        uuid : pathSegments -> (T.intercalate "/" (reverse pathSegments), uuid)
+        uuid : pathSegments -> (Text.intercalate "/" (reverse pathSegments), uuid)
         _ -> ("", "")
     where
         frameworkConfig = ?context.frameworkConfig
-        trimmedText = T.replace (frameworkConfig.baseUrl <> "/") "" inputText
-        parts = T.splitOn "/" trimmedText
+        trimmedText = Text.replace (frameworkConfig.baseUrl <> "/") "" inputText
+        parts = Text.splitOn "/" trimmedText
 ```
 
 Now, from any `Show` action, we can use the image style. Here we create a 400px x 200px image style for the original image.
@@ -731,7 +731,7 @@ module Web.Controller.ImageStyle where
 import Web.Controller.Prelude
 import IHP.ControllerSupport
 import System.Directory (doesFileExist)
-import qualified Data.Text as T
+import qualified Data.Text as Text
 
 -- Imports for the signed token.
 import Crypto.PubKey.RSA.PKCS15 as RSA
@@ -784,12 +784,12 @@ instance Controller ImageStyleController where
 extractDirectoryAndUUID :: (?context :: context, ConfigProvider context) => Text -> (Text, Text)
 extractDirectoryAndUUID inputText =
     case reverse parts of
-        uuid : pathSegments -> (T.intercalate "/" (reverse pathSegments), uuid)
+        uuid : pathSegments -> (Text.intercalate "/" (reverse pathSegments), uuid)
         _ -> ("", "")
     where
         frameworkConfig = ?context.frameworkConfig
-        trimmedText = T.replace (frameworkConfig.baseUrl <> "/") "" inputText
-        parts = T.splitOn "/" trimmedText
+        trimmedText = Text.replace (frameworkConfig.baseUrl <> "/") "" inputText
+        parts = Text.splitOn "/" trimmedText
 ```
 
 We need to change `RenderImageStyleAction` to get another argument, the signed token.
