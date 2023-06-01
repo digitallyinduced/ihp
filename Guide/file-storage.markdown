@@ -622,7 +622,6 @@ Then we have our controller logic.
 
 ```haskell
 -- Web/Controller/ImageStyle.hs
-
 module Web.Controller.ImageStyle where
 
 import Web.Controller.Prelude
@@ -630,20 +629,15 @@ import IHP.ControllerSupport
 import System.Directory (doesFileExist)
 import qualified Data.Text as Text
 
-
 instance Controller ImageStyleController where
     action RenderImageStyleAction { width, height, originalImagePath } = do
+        let size = show width <> "x" <> show height
+
         -- Get the original image directory and UUID from the path.
         let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
 
-        let size = show width <> "x" <> show height
         let imageStylePathDirectory = originalImageDirectory <> "/imageStyles/" <> size
         let imageStylePath = imageStylePathDirectory <> "/" <> uuid
-
-        -- If we use a StaticDirStorage storage then we need to prefix the path with the `static/` folder.
-        let storagePrefix = case storage of
-                StaticDirStorage -> "static/"
-                _ -> ""
 
         fileExists <- doesFileExist (cs $ storagePrefix <> imageStylePath)
 
@@ -706,26 +700,76 @@ Then we need to generate a private and public key pair. We can do it in our Conf
 -- Config/Config.hs
 import Crypto.PubKey.RSA as RSA
 
-newtype RsaPublicAndPrivateKeys = RsaPublicAndPrivateKeys (RSA.PublicKey, RSA.PrivateKey)
+data RsaPublicAndPrivateKeys = RsaPublicAndPrivateKeys { publicKey :: RSA.PublicKey, privateKey :: RSA.PrivateKey }
 
 config :: ConfigBuilder
 config = do
     -- See https://ihp.digitallyinduced.com/Guide/config.html
-    -- for what you can do here
 
     -- ...
 
     -- Private and public keys to sign and verify image style URLs.
-    -- The 300 means how large your URL can be.
-    -- The 65537 is the public exponent of RSA.
-    -- You can probably leave those values as is.
     (publicKey, privateKey) <- liftIO $ liftIO $ RSA.generate 300 65537
-    option $ RsaPublicAndPrivateKeys (publicKey, privateKey)
+    option $ RsaPublicAndPrivateKeys publicKey privateKey
+
+```
+
+Add a few helper functions, a few for the Controllers.
+
+```haskell
+-- Application/Helper/Controller.hs
+
+module Application.Helper.Controller where
+
+-- ...
+import Config
+import Crypto.PubKey.RSA as RSA
+import Data.ByteString.Base64 as Base64
+import Crypto.PubKey.RSA.PKCS15 as RSA.PKCS15
+import Crypto.Hash.Algorithms as Hash.Algorithms
+
+
+-- | The RSA public key, can be used to verify image style URLs that were signed.
+rsaPublicKey :: (?context :: ControllerContext) => RSA.PublicKey
+rsaPublicKey = (getAppConfig @Config.RsaPublicAndPrivateKeys).publicKey
+
+-- | The RSA private key, can be used to sign image style URLs.
+rsaPrivateKey :: (?context :: ControllerContext) => RSA.PrivateKey
+rsaPrivateKey = (getAppConfig @Config.RsaPublicAndPrivateKeys).privateKey
+
+rsaSignatureMatches :: (?context :: ControllerContext) =>  Text -> Text -> Bool
+rsaSignatureMatches original signature = case Base64.decode $ cs signature of
+    Left msg -> False
+    Right decodedSignature -> RSA.PKCS15.verify (Just Hash.Algorithms.SHA256) rsaPublicKey (cs original) decodedSignature
+```
+
+And one for the View helper.
+
+```haskell
+-- Application/Helper/View.hs
+module Application.Helper.View where
+
+import IHP.ViewPrelude
+import Crypto.PubKey.RSA.PKCS15 as RSA
+import Crypto.Hash.Algorithms as Hash.Algorithms
+import Data.ByteString.Base64 as Base64
+import Application.Helper.Controller
+
+-- Here you can add functions which are available in all your views
+
+-- | Sign the image URL to prevent tampering.
+signImageUrl :: (?context::ControllerContext) => Text -> Int -> Int -> Text
+signImageUrl imageUrl width height= case RSA.sign Nothing (Just Hash.Algorithms.SHA256) rsaPrivateKey (cs $ imageUrl <> size) of
+    Left msg -> error $ "Cannot sign image URL, private key is invalid:" <> show msg
+    Right signature -> signature |> Base64.encode |> cs
+    where
+        size = show width <> "x" <> show height
 ```
 
 Your Controller will now look like this:
 
 ```haskell
+-- Web/Controller/ImageStyle.hs
 module Web.Controller.ImageStyle where
 
 import Web.Controller.Prelude
@@ -743,25 +787,15 @@ instance Controller ImageStyleController where
     action RenderImageStyleAction { width, height, originalImagePath, signed } = do
         let size = show width <> "x" <> show height
 
-        -- Verify the signed token.
-        let Config.RsaPublicAndPrivateKeys (publicKey, _) = getAppConfig @Config.RsaPublicAndPrivateKeys
-
         -- Verify the token, and deny or allow access based on the result.
-        accessDeniedUnless case cs signed |> Base64.decode of
-            Left msg -> False
-            Right signed -> RSA.verify (Just Hash.Algorithms.SHA256) publicKey (cs $ originalImagePath <> size) signed
+        -- Also, deny access if there's `../` in the path, to prevent traversal attacks.
+        accessDeniedUnless (rsaSignatureMatches (originalImagePath <> size) signed || not (Text.isInfixOf "../" originalImagePath))
 
         -- Get the original image directory and UUID from the path.
         let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
 
-
         let imageStylePathDirectory = originalImageDirectory <> "/imageStyles/" <> size
         let imageStylePath = imageStylePathDirectory <> "/" <> uuid
-
-        -- If we use a StaticDirStorage storage then we need to prefix the path with the `static/` folder.
-        let storagePrefix = case storage of
-                StaticDirStorage -> "static/"
-                _ -> ""
 
         fileExists <- doesFileExist (cs $ storagePrefix <> imageStylePath)
 
@@ -811,10 +845,5 @@ where
     imageUrl = "http://localhost:8000/static/picture/b4c8f55c-16d6-41f0-9503-77352b134e14"
 
     -- Sign the image URL to prevent tampering.
-    Config.RsaPublicAndPrivateKeys (_, privateKey) = getAppConfig @Config.RsaPublicAndPrivateKeys
-    signed = case RSA.sign Nothing (Just Hash.Algorithms.SHA256) privateKey (cs $ imageUrl <> "400x200") of
-        Left msg -> error $ "Cannot sign image URL, private key is invalid:" <> show msg
-        -- Base 64 decode the token so that it can be used in the URL.
-        -- and use `cs` to convert it to `Text`.
-        Right signature -> signature |> Base64.encode |> cs
+    signed = signImageUrl imageUrl 400 200
 ```
