@@ -51,8 +51,4 @@
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
 :set -package ghc
-
--- We don't load Main.hs here as the dev server itself will also call :l
--- This will then trigger two loads of the Main.hs, which doubles the
--- initial startup time
--- :l Main.hs
+:l Main.hs
