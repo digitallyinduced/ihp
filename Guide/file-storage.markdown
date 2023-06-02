@@ -712,8 +712,6 @@ data RsaPublicAndPrivateKeys = RsaPublicAndPrivateKeys { publicKey :: RSA.Public
 
 config :: ConfigBuilder
 config = do
-    -- See https://ihp.digitallyinduced.com/Guide/config.html
-
     -- ...
 
     -- Private and public keys to sign and verify image style URLs.
