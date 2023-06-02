@@ -291,8 +291,9 @@ parseFuncs parseIdType = [
                             -- We couldn't parse the UUID, so try Maybe (Id record),
                             -- where we have a @Just@ prefix before the UUID.
                             queryValue
-                                |> (\val -> cs $ Text.replace "Just " "" $ cs val)
-                                |> fromASCIIBytes
+                                |> cs
+                                |> Text.replace "Just " ""
+                                |> UUID.fromText
                                 |> \case
                                     Just uuid -> Just uuid |> unsafeCoerce |> Right
                                     Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
