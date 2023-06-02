@@ -286,13 +286,19 @@ parseFuncs parseIdType = [
                 Just queryValue -> queryValue
                     |> fromASCIIBytes
                     |> \case
-                        Just uuid ->
-                            let idValue = if "Just" `Text.isPrefixOf` (UUID.toText uuid)
-                                then Text.replace "Just" "" (UUID.toText uuid) |> UUID.fromText |> unsafeCoerce
-                                else uuid |> unsafeCoerce
-                            in idValue |> Right
-                        Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+                        Just uuid -> uuid |> unsafeCoerce |> Right
+                        Nothing ->
+                            -- We couldn't parse the UUID, so try Maybe (Id record),
+                            -- where we have a @Just@ prefix before the UUID.
+                            queryValue
+                                |> (\val -> cs $ Text.replace "Just " "" $ cs val)
+                                |> fromASCIIBytes
+                                |> \case
+                                    Just uuid -> Just uuid |> unsafeCoerce |> Right
+                                    Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+
                 Nothing -> Left NotMatched
+
             ]
 {-# INLINABLE parseFuncs #-}
 
