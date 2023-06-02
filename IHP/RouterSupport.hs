@@ -633,8 +633,9 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> \(kvs :: [(String, String)]) -> zip (showTerms action) kvs
                     -- If an Id type was present in the action, it will be returned as Nothing by @showTerms@
                     -- as we are not able to match on the type using reflection.
-                    -- In this case we default back to the @show@ representation.
-                    |> map (\(v1, (k, v2)) -> (k, fromMaybe v2 v1))
+                    -- In this case we default back to the @show@ representation, making sure to remove
+                    -- the "Just" prefix.
+                    |> map (\(v1, (k, v2)) -> (k, fromMaybe (cs $ Text.replace "Just" "" $ cs v2) v1))
                     |> map (\(k, v) -> if isEmpty v
                         then ""
                         else  k <> "=" <> URI.encode v)
@@ -645,7 +646,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?context :: RequestContext) => Parser StdMethod
 getMethod =
-    case parseMethod ?context.request.requestMethod of 
+    case parseMethod ?context.request.requestMethod of
         Left error -> fail (ByteString.unpack error)
         Right method -> pure method
 {-# INLINABLE getMethod #-}
