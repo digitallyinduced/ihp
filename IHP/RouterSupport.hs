@@ -48,6 +48,7 @@ import GHC.TypeLits
 import Data.Data
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
 import Network.HTTP.Types.URI
 import qualified Data.List as List
 import Unsafe.Coerce
@@ -285,7 +286,11 @@ parseFuncs parseIdType = [
                 Just queryValue -> queryValue
                     |> fromASCIIBytes
                     |> \case
-                        Just uuid -> uuid |> unsafeCoerce |> Right
+                        Just uuid ->
+                            let idValue = if "Just" `Text.isPrefixOf` (UUID.toText uuid)
+                                then Text.replace "Just" "" (UUID.toText uuid) |> UUID.fromText |> unsafeCoerce
+                                else uuid |> unsafeCoerce
+                            in idValue |> Right
                         Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
                 Nothing -> Left NotMatched
             ]
@@ -634,15 +639,8 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     -- If an Id type was present in the action, it will be returned as Nothing by @showTerms@
                     -- as we are not able to match on the type using reflection.
                     -- In this case we default back to the @show@ representation, making sure to remove
-                    -- the "Just" prefix, or to remove the "Nothing".
-                    |> map (\(v1, (k, v2)) ->
-                        let
-                            defaultValue =
-                                if "Nothing" == v2 then ""
-                                else Text.replace "Just" "" $ cs v2
-                        in
-                        (k, fromMaybe (cs defaultValue) v1)
-                        )
+                    -- the "Nothing".
+                    |> map (\(v1, (k, v2)) -> (k, fromMaybe (cs $ Text.replace "Nothing" "" $ cs v2) v1))
                     |> map (\(k, v) -> if isEmpty v
                         then ""
                         else  k <> "=" <> URI.encode v)

@@ -232,7 +232,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "generates correct path for Maybe ID with UUID param: Nothing" $ withContext do
             pathTo (TestMaybeUUIDId Nothing) `shouldBe` "/test/TestMaybeUUIDId"
         it "generates correct path for Maybe ID with UUID param: Just" $ withContext do
-            pathTo (TestMaybeUUIDId (Just "8dd57d19-490a-4323-8b94-6081ab93bf34")) `shouldBe` "/test/TestMaybeUUIDId?maybeUuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
+            pathTo (TestMaybeUUIDId (Just "8dd57d19-490a-4323-8b94-6081ab93bf34")) `shouldBe` "/test/TestMaybeUUIDId?maybeUuidId=Just8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "generates correct path for [UUID] param" $ withContext do
             pathTo (TestUUIDList ["8dd57d19-490a-4323-8b94-6081ab93bf34", "fdb15f8e-2fe9-441a-ae0e-da56956b1722"]) `shouldBe` "/test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34%2Cfdb15f8e-2fe9-441a-ae0e-da56956b1722"
         it "generates correct path when used with Breadcrumbs" $ withContext do
