@@ -292,7 +292,7 @@ parseFuncs parseIdType = [
                             -- where we have a @Just@ prefix before the UUID.
                             queryValue
                                 |> cs
-                                |> Text.replace "Just " ""
+                                |> Text.replace "Just" ""
                                 |> UUID.fromText
                                 |> \case
                                     Just uuid -> Just uuid |> unsafeCoerce |> Right
