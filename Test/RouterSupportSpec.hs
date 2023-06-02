@@ -201,7 +201,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "parses Maybe Id with UUID param: Nothing" $ withContext do
             runSession (testGet "test/TestMaybeUUIDId") application >>= assertSuccess "Nothing"
         it "parses Maybe Id with UUID param: Just" $ withContext do
-            runSession (testGet "test/TestMaybeUUIDId?maybeUuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "Just 8dd57d19-490a-4323-8b94-6081ab93bf34"
+            runSession (testGet "test/TestMaybeUUIDId?maybeUuidId=Just8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "Just 8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "parses [UUID] param: empty" $ withContext do
             runSession (testGet "test/TestUUIDList") application >>= assertSuccess "[]"
         it "parses [UUID] param: one element" $ withContext do
