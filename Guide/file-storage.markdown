@@ -680,7 +680,7 @@ The above implementation is not secure. Anyone can request any image style of an
 
 Another concern we have is what if somehow the path will get have `../` in it, and the user will be able to traverse the file system. We need to prevent that as well.
 
-We start by adding the `cryptonite` package to the `default.nix` file, and re-start `./start` to get the package.
+We start by adding the `jwt` package to the `default.nix` file, and re-start `./start` to get the package.
 
 ```nix
 # default.nix
@@ -690,15 +690,23 @@ haskellEnv = import "${ihp}/NixSupport/default.nix" {
         cabal-install
         base
         # ...
-        cryptonite # <--- ADD THIS
+        jwt # <--- ADD THIS
     ];
 ```
 
-Then we need to generate a private and public key pair. We can do it in our Config file, and save the keys for later use.
+Then we need to generate a private and public key pair. We execute from the root of the project the following command (don't add add passphrase):
+
+```bash
+ssh-keygen -t rsa -b 4096 -m PEM -f ./Config/jwtRS256.key
+openssl rsa -in ./Config/jwtRS256.key -pubout -outform PEM -out ./Config/jwtRS256.key.pub
+```
 
 ```haskell
 -- Config/Config.hs
 import Crypto.PubKey.RSA as RSA
+import Control.Exception (catch)
+import qualified Data.ByteString as BS
+import Web.JWT
 
 data RsaPublicAndPrivateKeys = RsaPublicAndPrivateKeys { publicKey :: RSA.PublicKey, privateKey :: RSA.PrivateKey }
 
@@ -709,8 +717,20 @@ config = do
     -- ...
 
     -- Private and public keys to sign and verify image style URLs.
-    (publicKey, privateKey) <- liftIO $ liftIO $ RSA.generate 300 65537
-    option $ RsaPublicAndPrivateKeys publicKey privateKey
+    privateKeyContent <- liftIO $ readRsaKeyFromFile "./Config/jwtRS256.key"
+    publicKeyContent <- liftIO $ readRsaKeyFromFile "./Config/jwtRS256.key.pub"
+
+    case (readRsaSecret privateKeyContent, readRsaPublicKey publicKeyContent) of
+        (Just privateKey, Just publicKey) -> option $ RsaPublicAndPrivateKeys publicKey privateKey
+        _ -> error "Failed to read RSA keys, please execute from the root of your project: ssh-keygen -t rsa -b 4096 -m PEM -f ./Config/jwtRS256.key && openssl rsa -in ./Config/jwtRS256.key -pubout -outform PEM -out ./Config/jwtRS256.key.pub"
+
+
+readRsaKeyFromFile :: FilePath -> IO BS.ByteString
+readRsaKeyFromFile path = do
+    catch (BS.readFile path) handleException
+  where
+    handleException :: IOError -> IO BS.ByteString
+    handleException _ = return BS.empty
 
 ```
 
