@@ -789,7 +789,7 @@ instance Controller ImageStyleController where
 
         -- Verify the token, and deny or allow access based on the result.
         -- Also, deny access if there's `../` in the path, to prevent traversal attacks.
-        accessDeniedUnless (rsaSignatureMatches (originalImagePath <> size) signed || not (Text.isInfixOf "../" originalImagePath))
+        accessDeniedUnless (rsaSignatureMatches (originalImagePath <> size) signed && not (Text.isInfixOf "../" originalImagePath))
 
         -- Get the original image directory and UUID from the path.
         let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
