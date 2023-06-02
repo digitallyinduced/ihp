@@ -66,6 +66,7 @@ data TestController
   | TestInteger { p1 :: Integer, p2 :: Maybe Integer, p3 :: [Integer] }
   | TestIntegerId { integerId :: Id Band }
   | TestUUIDId { uuidId :: Id Performance }
+  | TestMaybeUUIDId { maybeUuidId :: Maybe (Id Performance) }
   | TestUUIDList { uuidList :: [UUID] }
   deriving (Eq, Show, Data)
 
@@ -105,6 +106,10 @@ instance Controller TestController where
         renderPlain (cs $ ClassyPrelude.show integerId)
     action TestUUIDId { .. } = do
         renderPlain (cs $ ClassyPrelude.show uuidId)
+    action TestMaybeUUIDId { ..} =
+        case maybeUuidId of
+            Just uuidId -> renderPlain ("Just " <> cs (ClassyPrelude.show uuidId))
+            Nothing -> renderPlain "Nothing"
     action TestUUIDList { .. } = do
         renderPlain $ cs $ ClassyPrelude.show uuidList
 
@@ -193,6 +198,10 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             runSession (testGet "test/TestIntegerId?integerId=123") application >>= assertSuccess "123"
         it "parses Id with UUID param" $ withContext do
             runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "parses Maybe Id with UUID param: Nothing" $ withContext do
+            runSession (testGet "test/TestMaybeUUIDId") application >>= assertSuccess "Nothing"
+        it "parses Maybe Id with UUID param: Just" $ withContext do
+            runSession (testGet "test/TestMaybeUUIDId?maybeUuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "Just 8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "parses [UUID] param: empty" $ withContext do
             runSession (testGet "test/TestUUIDList") application >>= assertSuccess "[]"
         it "parses [UUID] param: one element" $ withContext do
@@ -218,8 +227,12 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             pathTo (TestTextListAction ["hello", "there"]) `shouldBe` "/test/TestTextList?textList=hello%2Cthere"
         it "generates correct path for [Int] param" $ withContext do
             pathTo (TestIntListAction [1,2,3]) `shouldBe` "/test/TestIntList?intList=1%2C2%2C3"
-        it "generates correct path for UUID param" $ withContext do
+        it "generates correct path for Id with UUID param" $ withContext do
             pathTo (TestUUIDId "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "generates correct path for Maybe ID with UUID param: Nothing" $ withContext do
+            pathTo (TestMaybeUUIDId Nothing) `shouldBe` "/test/TestMaybeUUIDId"
+        it "generates correct path for Maybe ID with UUID param: Just" $ withContext do
+            pathTo (TestMaybeUUIDId (Just "8dd57d19-490a-4323-8b94-6081ab93bf34")) `shouldBe` "/test/TestMaybeUUIDId?maybeUuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "generates correct path for [UUID] param" $ withContext do
             pathTo (TestUUIDList ["8dd57d19-490a-4323-8b94-6081ab93bf34", "fdb15f8e-2fe9-441a-ae0e-da56956b1722"]) `shouldBe` "/test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34%2Cfdb15f8e-2fe9-441a-ae0e-da56956b1722"
         it "generates correct path when used with Breadcrumbs" $ withContext do
