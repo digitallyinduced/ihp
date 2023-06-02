@@ -289,7 +289,7 @@ parseFuncs parseIdType = [
                         Just uuid -> uuid |> unsafeCoerce |> Right
                         Nothing ->
                             -- We couldn't parse the UUID, so try Maybe (Id UUID),
-                            -- where we have a @Just@ prefix before the UUID, or a "Nothing" string.
+                            -- where we have a @Just@ prefix before the UUID, or a @Nothing@ string.
                             if (cs queryValue == ("Nothing" :: Text))
                                 -- This is a @Nothing@
                                 then Nothing |> unsafeCoerce |> Right
