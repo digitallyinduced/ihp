@@ -291,6 +291,7 @@ parseFuncs parseIdType = [
                             -- We couldn't parse the UUID, so try Maybe (Id record),
                             -- where we have a @Just@ prefix before the UUID, or a "Nothing" string.
                             if (cs queryValue == ("Nothing" :: Text))
+                                -- This is a @Nothing@
                                 then Nothing |> unsafeCoerce |> Right
                                 else
                                     queryValue
@@ -298,6 +299,7 @@ parseFuncs parseIdType = [
                                         |> Text.replace "Just" ""
                                         |> UUID.fromText
                                         |> \case
+                                            -- We were able to parse the UUID, so wrap it in a @Just@.
                                             Just uuid -> Just uuid |> unsafeCoerce |> Right
                                             Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
 
