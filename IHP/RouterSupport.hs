@@ -289,14 +289,17 @@ parseFuncs parseIdType = [
                         Just uuid -> uuid |> unsafeCoerce |> Right
                         Nothing ->
                             -- We couldn't parse the UUID, so try Maybe (Id record),
-                            -- where we have a @Just@ prefix before the UUID.
-                            queryValue
-                                |> cs
-                                |> Text.replace "Just" ""
-                                |> UUID.fromText
-                                |> \case
-                                    Just uuid -> Just uuid |> unsafeCoerce |> Right
-                                    Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+                            -- where we have a @Just@ prefix before the UUID, or a "Nothing" string.
+                            if (cs queryValue == ("Nothing" :: Text))
+                                then Nothing |> unsafeCoerce |> Right
+                                else
+                                    queryValue
+                                        |> cs
+                                        |> Text.replace "Just" ""
+                                        |> UUID.fromText
+                                        |> \case
+                                            Just uuid -> Just uuid |> unsafeCoerce |> Right
+                                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
 
                 Nothing -> Left NotMatched
 
@@ -645,9 +648,8 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> \(kvs :: [(String, String)]) -> zip (showTerms action) kvs
                     -- If an Id type was present in the action, it will be returned as Nothing by @showTerms@
                     -- as we are not able to match on the type using reflection.
-                    -- In this case we default back to the @show@ representation, making sure to remove
-                    -- the "Nothing".
-                    |> map (\(v1, (k, v2)) -> (k, fromMaybe (cs $ Text.replace "Nothing" "" $ cs v2) v1))
+                    -- In this case we default back to the @show@ representation.
+                    |> map (\(v1, (k, v2)) -> (k, fromMaybe v2 v1))
                     |> map (\(k, v) -> if isEmpty v
                         then ""
                         else  k <> "=" <> URI.encode v)

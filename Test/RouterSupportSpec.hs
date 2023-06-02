@@ -199,7 +199,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "parses Id with UUID param" $ withContext do
             runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "parses Maybe Id with UUID param: Nothing" $ withContext do
-            runSession (testGet "test/TestMaybeUUIDId") application >>= assertSuccess "Nothing"
+            runSession (testGet "test/TestMaybeUUIDId?maybeUuidId=Nothing") application >>= assertSuccess "Nothing"
         it "parses Maybe Id with UUID param: Just" $ withContext do
             runSession (testGet "test/TestMaybeUUIDId?maybeUuidId=Just8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "Just 8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "parses [UUID] param: empty" $ withContext do
@@ -230,7 +230,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "generates correct path for Id with UUID param" $ withContext do
             pathTo (TestUUIDId "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "generates correct path for Maybe ID with UUID param: Nothing" $ withContext do
-            pathTo (TestMaybeUUIDId Nothing) `shouldBe` "/test/TestMaybeUUIDId"
+            pathTo (TestMaybeUUIDId Nothing) `shouldBe` "/test/TestMaybeUUIDId?maybeUuidId=Nothing"
         it "generates correct path for Maybe ID with UUID param: Just" $ withContext do
             pathTo (TestMaybeUUIDId (Just "8dd57d19-490a-4323-8b94-6081ab93bf34")) `shouldBe` "/test/TestMaybeUUIDId?maybeUuidId=Just8dd57d19-490a-4323-8b94-6081ab93bf34"
         it "generates correct path for [UUID] param" $ withContext do
