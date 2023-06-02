@@ -288,7 +288,7 @@ parseFuncs parseIdType = [
                     |> \case
                         Just uuid -> uuid |> unsafeCoerce |> Right
                         Nothing ->
-                            -- We couldn't parse the UUID, so try Maybe (Id record),
+                            -- We couldn't parse the UUID, so try Maybe (Id UUID),
                             -- where we have a @Just@ prefix before the UUID, or a "Nothing" string.
                             if (cs queryValue == ("Nothing" :: Text))
                                 -- This is a @Nothing@
