@@ -54,7 +54,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     ```
 
 6. **Remove `.envrc` from your `.gitignore`**
-    ```bash
+    ```diff
     -.envrc
     ```
 
