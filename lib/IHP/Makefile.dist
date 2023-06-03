@@ -98,7 +98,8 @@ endif
 
 all: build/ihp-lib build/Generated/Types.hs
 
-.envrc: echo "This command is deprecated. Please use 'devenv up' instead"
+.envrc:
+	echo "This command is deprecated. Please use 'devenv up' instead"
 
 build/bin:
 	mkdir -p build/bin
