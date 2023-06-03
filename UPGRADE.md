@@ -28,14 +28,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
         ```diff
         -ref = "refs/tags/v1.0.1";
-        +rev = "500cd2a3b11e48f5d7732fc5fcf08eb02e3c7ab2";
-        ```
-
-        or once v1.0.2 will be out:
-
-        ```diff
-        -ref = "refs/tags/v1.0.1";
-        +ref = "refs/tags/v1.0.2";
+        +ref = "refs/tags/v1.1.0";
         ```
 
     - **IHP Pro & IHP Business**
