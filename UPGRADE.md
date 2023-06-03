@@ -324,6 +324,12 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 13. **Migration finished**
 
+    Finnaly approve the new `.envrc`:
+    
+    ```bash
+    direnv allow
+    ```
+
     Now you can start your project. The recommended way is to call `devenv up`.
 
     The old `./start` also still works.
