@@ -25,8 +25,15 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
         Open `default.nix` and change the git commit in line 4 to the following:
 
         ```diff
-        -ref = "refs/tags/v1.0.0";
-        +rev = "1c8756d85900bef453589142f53b806c6eb5dfc7";
+        -ref = "refs/tags/v1.0.1";
+        +rev = "500cd2a3b11e48f5d7732fc5fcf08eb02e3c7ab2";
+        ```
+
+        or once v1.0.2 will be out:
+
+        ```diff
+        -ref = "refs/tags/v1.0.1";
+        +ref = "refs/tags/v1.0.2";
         ```
 
     - **IHP Pro & IHP Business**
@@ -43,9 +50,9 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 
 4. **Add devenv and direnv specific code to `.gitignore`**
-    ```diff
-    +.devenv
-    +.direnv
+    ```
+    .devenv
+    .direnv
     ```
 
 5. **Clear your `.envrc`**
@@ -55,13 +62,12 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 6. **Remove `.envrc` from your `.gitignore`**
     ```diff
-    -.envrc
+    .envrc
     ```
 
-    The .envrc is now supposed to be commited to your git repository. The file is now not automatically generated anymore.
-    Please also don't use `make .envrc` anymore, as this will override your `.envrc` file.
+    The `.envrc` is now supposed to be committed to your git repository. The file is no longer automatically generated. Ensure you don't use `make .envrc` anymore, as this will override your `.envrc` file.
 
-7. **Create `devenv.nix`**
+7. **Edit `devenv.nix`**
 
     ```nix
     { pkgs, inputs, config, ... }:
@@ -94,20 +100,9 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     }
     ```
 
-8. **Create `.devenv.yaml`**
+8. **Copy packages form `default.nix` to `devenv.nix`:**
 
-    ```yaml
-    inputs:
-        nixpkgs:
-            url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e
-        ihp:
-            url: github:digitallyinduced/ihp?ref=1c8756d85900bef453589142f53b806c6eb5dfc7
-            flake: false
-    ```
-
-9. **Copy packages form `default.nix` to `devenv.nix`:**
-
-    Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration.
+    Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration. If you haven't, you can skip this part.
 
     E.g. if this is our `default.nix`:
 
@@ -150,7 +145,12 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
         ];
 
         # <--- Custom native packages
-        packages = with pkgs; [ nodejs ];
+        # https://devenv.sh/packages/
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+            imagemagick
+            nodejs
+        ];
 
         ihp.enable = true;
 
@@ -172,7 +172,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     }
     ```
 
-10. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
+9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
     Did you do any changes to `nixpkgs-config.nix` in your project? For reference, if the file looks like below, you don't need to do anything here:
 
@@ -219,7 +219,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
     If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
 
-11. **Create `.envrc` file**
+10. **Create `.envrc` file**
 
     ```bash
     source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
@@ -227,7 +227,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     use devenv
     ```
 
-12. **Migrate env vars from `./start` to `.envrc`**
+11. **Migrate env vars from `./start` to `.envrc`**
 
     Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
 
@@ -237,27 +237,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     #!/usr/bin/env bash
     # Script to start the local dev server
 
-    set -e
-
-    # On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
-    #
-    # The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
-    # and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
-    # and will close the remaining lazy bytestring handles.
-    if [[ $OSTYPE == 'darwin'* ]]; then
-        ulimit -n 4096
-    fi
-
-
-    # Unless the RunDevServer binary is available, we rebuild the .envrc cache with nix-shell
-    # and config cachix for using our binary cache
-    command -v RunDevServer >/dev/null 2>&1 \
-        || { echo "PATH_add $(nix-shell -j auto --cores 0 --run 'printf %q $PATH')" > .envrc; }
-
-    # Now we have to load the PATH variable from the .envrc cache
-    direnv allow
-    eval "$(direnv hook bash)"
-    eval "$(direnv export bash)"
+    # ...
 
     # You can define custom env vars here:
     # export CUSTOM_ENV_VAR=".."
@@ -277,62 +257,24 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
     use devenv
 
+    ## Add the exports from your start script here:
+
     +export SES_ACCESS_KEY="XXXX"
     +export SES_SECRET_KEY="XXXX"
     +export SES_REGION="us-east-1"
     ```
 
-    After that, remove the `ulimit` workaround, the manual `.envrc` setup and the env variables from the start script:
+    After that, your `start` script it not needed anymore, and you can delete it.
 
-    ```diff
-    #!/usr/bin/env bash
-    # Script to start the local dev server
+12. **Migration finished**
 
-    set -e
+    Finally, approve the new `.envrc`:
 
-    -# On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
-    -#
-    -# The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
-    -# and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
-    -# and will close the remaining lazy bytestring handles.
-    -if [[ $OSTYPE == 'darwin'* ]]; then
-    -    ulimit -n 4096
-    -fi
-
-
-    -# Unless the RunDevServer binary is available, we rebuild the .envrc cache with nix-shell
-    -# and config cachix for using our binary cache
-    -command -v RunDevServer >/dev/null 2>&1 \
-    -    || { echo "PATH_add $(nix-shell -j auto --cores 0 --run 'printf %q $PATH')" > .envrc; }
-
-    -# Now we have to load the PATH variable from the .envrc cache
-    -direnv allow
-    -eval "$(direnv hook bash)"
-    -eval "$(direnv export bash)"
-
-    -# You can define custom env vars here:
-    -# export CUSTOM_ENV_VAR=".."
-
-    -export SES_ACCESS_KEY="XXXX"
-    -export SES_SECRET_KEY="XXXX"
-    -export SES_REGION="us-east-1"
-
-    # Finally start the dev server
-    RunDevServer
-    ```
-
-
-13. **Migration finished**
-
-    Finnaly approve the new `.envrc`:
-    
     ```bash
     direnv allow
     ```
 
-    Now you can start your project. The recommended way is to call `devenv up`.
-
-    The old `./start` also still works.
+    Now you can start your project with `devenv up`.
 
 
 # Upgrade to 1.0.1 from 1.0.0
@@ -389,12 +331,12 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     ```
 
     Now you can start your project as usual with `./start`.
-    
+
     If you've been using a release candidate before, you need to run `nix-store --gc` before. Otherwise nix might use the cached release candidate.
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     - The function `getFrameworkConfig` has been removed:
 
         ```haskell
@@ -408,7 +350,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     - `Couldn't match type 'CurrentAdminRecord' with 'Admin' arising from a use of 'currentAdminOrNothing'`
 
       To make `currentAdmin` etc. more consistent with `currentUser` functions, we have removed the explicit type argument passed to these functions.
-      
+
       E.g. the following:
       ```haskell
       currentAdminOrNothing @Admin
@@ -418,7 +360,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
       currentAdminOrNothing
       ```
       Additionally you need to specify the `CurrentAdminRecord` inside your `Web/Types.hs`:
-      
+
       ```haskell
       type instance CurrentAdminRecord = Admin
       ```
@@ -452,9 +394,9 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     TODO
-   
+
 # Upgrade to Beta 0.19.0 from Beta 0.18.0
 1. **Switch IHP version**
 
@@ -565,7 +507,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     ```
 
 4. **Newtype Generics**
-    
+
     We don't use the "Newtype Generics" package as much as expected. To keep IHP lightweight we've removed that package from IHP.
 
     The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
@@ -575,9 +517,9 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     If you use functionality of `newtype-generics` beyond wrapping and unwrapping the Id values, [please add `newtype-generics` to your `default.nix` and run `make -B .envrc` again](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-haskell-package).
 
 5. **SMTP Mail**
-    
+
     If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
-    
+
     Change code like this:
 
     ```haskell
@@ -659,7 +601,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
                 let (Just location) = (lookup "Location" (responseHeaders response))
                 location `shouldBe` "http://localhost:8000/Posts"
     ```
-    
+
 
 # Upgrade to Beta 0.15.0 from Beta 0.14.0
 1. **Switch IHP version**
@@ -679,7 +621,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.15 URL into your `default.nix`.
 2. **Patch `Config/nix/nixpkgs-config.nix`**
-    
+
     Open `Config/nix/nixpkgs-config.nix` and replace it with this:
 
     ```diff
@@ -987,7 +929,7 @@ Now you can start your project as usual with `./start`.
 ## Update `Main.hs`
 
 1. Add import for `import IHP.Job.Types` to your `Main.hs`:
-    
+
     ```haskell
     import IHP.Job.Types
     ```
@@ -1051,7 +993,7 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.Mail.Types
 
-instance FrameworkConfig where 
+instance FrameworkConfig where
     environment = Development
     appHostname = "localhost"
 ```
@@ -1137,7 +1079,7 @@ Remove the `ViewContext` from the `instance View`:
 +instance View EditView where
 ```
 
-Does the view have a custom view-specific layout? 
+Does the view have a custom view-specific layout?
 
 ```diff
 -instance View ShowEnumView ViewContext where
