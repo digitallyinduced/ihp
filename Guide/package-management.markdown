@@ -63,14 +63,8 @@ in
     haskellEnv
 ```
 
-Run `nix-shell` to see that your project still builds fine. After that run `make -B .envrc` to rebuild the development environment used by IHP. Now you can run `./start` again to start the development server. The `mmark` can now be used as expected:
+Run `devenv up` again to start the development server, and `mmark` should now be used as expected:
 
-```bash
-nix-shell
-# All good? Proceed
-make -B .envrc
-./start
-```
 
 ## Using a Native Dependency
 
@@ -137,7 +131,7 @@ in
     haskellEnv
 ```
 
-If running, stop your development server. Now run `make -B .envrc`. This will install ImageMagick locally to your project.
+If running, stop your development server. Now run `devenv up`. This will install ImageMagick locally to your project.
 
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
@@ -267,13 +261,7 @@ import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
 }
 ```
 
-After that try to run `nix-shell` again. This will most likely work now.
-
-When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to rebuild the `.envrc` file. Otherwise, the new package might not be visible to all tools:
-
-```bash
-make -B .envrc
-```
+After that try to run `devenv up`.
 
 ### Building Postgres With Extensions
 
@@ -352,7 +340,7 @@ import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
 }
 ```
 
-Run `make -B .envrc` to rebuild the development environment.
+Run `devenv up` to rebuild the development environment.
 
 We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
 

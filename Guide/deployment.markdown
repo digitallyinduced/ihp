@@ -211,7 +211,7 @@ IHP apps are typically configured using environment variables:
 1. Set the env `IHP_ENV=Production` to enable production mode
 2. Set `IHP_BASEURL=https://{yourdomain}`
 3. Configure any custom settings
-   (This includes ´make -B .envrc´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
+   (This includes ´devenv up´ to download and build any extra Haskell packages, such as the mmark package in the tutorial)
 
 If you deploy behind an Nginx proxy or similar which handles SSL certificates, so the IHP instance only sees http, the `IHP_BASEURL` must still have `https` as it is used to form absolute URLs.
 
@@ -397,7 +397,7 @@ let
     ...
 ```
 
-Now you need to remake your environment using `make -B .envrc`.
+Now you need to remake your environment using `devenv up`.
 
 Next add `import IHP.Sentry` to your `Config/Config.hs`:
 

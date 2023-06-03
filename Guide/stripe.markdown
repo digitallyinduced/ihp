@@ -30,7 +30,7 @@ let
     ...
 ```
 
-Now you need to remake your environment using `make -B .envrc`.
+Now you need to remake your environment using `devenv up`.
 
 
 Next add `import IHP.Stripe.Config` to your `Config/Config.hs`:
@@ -91,7 +91,7 @@ Even if you have only a single plan for now, it's helpful to model this in our a
 
 Open the `Application/Schema.sql` and add this:
 
-```sql 
+```sql
 CREATE TABLE plans (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
@@ -205,7 +205,7 @@ instance Controller CheckoutSessionsController where
         -- It's best to have a dedicated "payment success" page, where
         -- this action then should redirect to.
         redirectToPath "/"
-    
+
     action CheckoutCancelAction = do
         -- You typically want to redirect the user to the page where the payment process
         -- was started. E.g. `redirectTo PricingAction`.
@@ -228,7 +228,7 @@ Open `Web/FrontController.hs` and enable the new controller:
 import Web.Controller.CheckoutSessions
 
 instance FrontController WebApplication where
-    controllers = 
+    controllers =
         [ startPage StartpageAction
         -- ...
 
@@ -295,7 +295,7 @@ instance StripeEventController where
                 putStrLn "Stripe CheckoutSessionCompleted: CheckoutSession not found."
                 pure ()
 
-    on InvoiceFinalized { subscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency } = do 
+    on InvoiceFinalized { subscriptionId, stripeInvoiceId, invoiceUrl, invoicePdf, createdAt, total, currency } = do
         pure () -- We'll handle this later
     on OtherEvent = do
         putStrLn "Skipping OtherEvent"
@@ -315,7 +315,7 @@ import Web.Controller.StripeWebhook
 import IHP.Stripe.Types
 
 instance FrontController WebApplication where
-    controllers = 
+    controllers =
         [ startPage StartpageAction
         -- ...
         , parseRoute @SubscriptionsController
@@ -343,7 +343,7 @@ on CustomerSubscriptionUpdated { subscription = stripeSubscription } = do
             |> fetchOneOrNothing
     case maybeSubscription of
         Just subscription -> do
-            subscription 
+            subscription
                 |> set #endsAt (if stripeSubscription.cancelAtPeriodEnd
                         then stripeSubscription.currentPeriodEnd
                         else Nothing)
@@ -358,7 +358,7 @@ on CustomerSubscriptionDeleted { subscriptionId } = do
     case maybeSubscription of
         Just subscription -> do
             now <- getCurrentTime
-            subscription 
+            subscription
                 |> set #endsAt now
                 |> set #isActive False
                 |> updateRecord

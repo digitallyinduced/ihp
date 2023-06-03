@@ -19,7 +19,7 @@ The following setup and tests can be viewed in the [Blog example](https://github
             hspec
         ];
 ```
-2. Rebuild enviorement with `make -B .envrc`
+2. Rebuild environment with `devenv up`
 3. Create a new `Test/Main.hs` module. Here you will import all your test specs.
 
 ```haskell

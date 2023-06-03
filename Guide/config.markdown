@@ -165,7 +165,8 @@ In your `default.nix` file, add:
             wai-extra # <-- And This One
         ];
 ```
-Run, `nix-shell --run 'make -B .envrc'` to update the environment.
+
+Run `devenv up` to update the environment.
 Once that succeeds, we can use it in your `Config/Config.hs`:
 
 Add two imports, one for Gzip compression, another for Brotli compression:

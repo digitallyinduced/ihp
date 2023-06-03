@@ -32,7 +32,7 @@ For that open your projects `default.nix` and add `nodejs` to `otherDeps`:
 Now you need to rebuild your local dev environment:
 
 ```bash
-nix-shell --run 'make -B .envrc'
+devenv up
 ```
 
 After that, you have `node` and `npm` available in your project.

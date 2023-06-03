@@ -37,10 +37,8 @@ Now change the git commit hash in line 4 next to `rev = ` to your chosen git com
 Then rebuild everything by running the following:
 
 ```bash
-nix-shell -j auto --cores 0 --run 'make -B .envrc'
+devenv up
 ```
-
-After that, you can use the project as usual by using `./start`.
 
 When the commit you're trying out is not merged into the master branch this will fail because nix is doing only a shallow-clone of the repo. Follow the steps in "Updating to a specific Git Commit" below to fix this.
 
@@ -76,7 +74,5 @@ let
 Then rebuild everything by running the following:
 
 ```bash
-nix-shell -j auto --cores 0 --run 'make -B .envrc'
+devenv up
 ```
-
-After that, you can use the project as usual by using `./start`.
