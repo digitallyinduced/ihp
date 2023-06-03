@@ -41,7 +41,7 @@ in
 After that stop your local development server and run the following command to install the package:
 
 ```
-make -B .envrc
+devenv up
 ```
 
 Now you can run `./start` again and the `ihp-oauth-google` package is enabled.
@@ -107,7 +107,7 @@ Open `Web/FrontController.hs` and
 2. Add `GoogleOAuthController` to the list of controllers:
     ```haskell
     instance FrontController WebApplication where
-        controllers = 
+        controllers =
             [ startPage StartpageAction
             -- ...
             , parseRoute @GoogleOAuthController -- <----- ADD THIS
@@ -278,7 +278,7 @@ in
 After that stop your local development server and run the following command to install the package:
 
 ```
-make -B .envrc
+devenv up
 ```
 
 Now you can run `./start` again and the `ihp-oauth-github` package is enabled.
@@ -366,7 +366,7 @@ Open `Web/FrontController.hs` and
 2. Add `GithubOAuthController` to the list of controllers:
     ```haskell
     instance FrontController WebApplication where
-        controllers = 
+        controllers =
             [ startPage StartpageAction
             -- ...
             , parseRoute @GithubOAuthController -- <----- ADD THIS
@@ -394,7 +394,7 @@ This ensures that we can write [`pathTo NewSessionWithGithubAction`](https://ihp
 
 ### Config
 
-Before the controller can be used, we need to configure the github client id and client secret. 
+Before the controller can be used, we need to configure the github client id and client secret.
 
 [Follow this Guide by GitHub to create a GitHub app and get your client id and secret.](https://docs.github.com/en/developers/apps/building-github-apps/creating-a-github-app). During the setup you need to provide a **Callback URL**. Set this to `http://localhost:8000/GithubConnectCallback`.
 

@@ -376,7 +376,7 @@ The [`applyImageMagick`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStora
         ];
 ```
 
-After that run `make -B .envrc` and restart your development server.
+After that run `devenv up` and restart your development server.
 
 #### Jpegs
 

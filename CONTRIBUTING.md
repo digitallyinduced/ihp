@@ -145,10 +145,6 @@ If you get an error like `can't satisfy package ihp` or all other IHP packages w
 
 Try to run `make -B build/ihp-lib` to create the symlink.
 
-### `direnv: error .envrc file not found`
-
-In the project directory, try `make -B .envrc`
-
 ### `error: Could not find module 'Generated.Types'`
 
 You may receive this error when trying to load modules into GHCI like `:l Main`. Run `chmod go-w .` to change the permissions so the `.ghci` file could be loaded properly.

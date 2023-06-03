@@ -37,7 +37,7 @@ Now change the git commit hash in line 4 next to `rev = ` to your chosen git com
 Then rebuild everything by running the following:
 
 ```bash
-nix-shell -j auto --cores 0 --run 'make -B .envrc'
+devenv up
 ```
 
 After that, you can use the project as usual by using `./start`.
@@ -76,7 +76,7 @@ let
 Then rebuild everything by running the following:
 
 ```bash
-nix-shell -j auto --cores 0 --run 'make -B .envrc'
+devenv up
 ```
 
 After that, you can use the project as usual by using `./start`.

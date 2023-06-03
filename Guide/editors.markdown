@@ -244,7 +244,7 @@ in
     haskellEnv
 ```
 
-Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
+Run `dev env` to remake your dev env.
 
 After that you can use the following command to start hoogle at `localhost:8080`:
 

@@ -615,7 +615,7 @@ in
     haskellEnv
 ```
 
-Stop the development server by pressing CTRL+C. Then update the local development environment by running `make -B .envrc`. This will download and install the mmark package. Now restart the development server by typing `./start` again.
+Stop the development server by pressing CTRL+C. Then update the local development environment by running `devenv up`. This will download and install the `mmark` package.
 
 #### Markdown Rendering
 

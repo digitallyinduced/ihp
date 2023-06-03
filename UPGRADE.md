@@ -67,7 +67,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     .envrc
     ```
 
-    The `.envrc` is now supposed to be committed to your git repository. The file is no longer automatically generated. Ensure you don't use `make .envrc` anymore, as this will override your `.envrc` file.
+    The `.envrc` should now be committed to your git repository, as the file is no longer automatically generated. The `make .envrc` command will no longer work, and is not needed anymore.
 
 7. **Edit `devenv.nix`**
 
@@ -174,7 +174,13 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     }
     ```
 
-9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
+9. **Delete `default.nix`**
+
+    ```bash
+    rm default.nix
+    ```
+
+10. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
     Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
 
@@ -221,7 +227,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
     If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
 
-10. **Create `.envrc` file**
+11. **Create `.envrc` file**
 
     ```bash
     source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
@@ -229,7 +235,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     use devenv
     ```
 
-11. **Migrate env vars from `./start` to `.envrc`**
+12. **Migrate env vars from `./start` to `.envrc`**
 
     Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
 
@@ -268,7 +274,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
     After that, your `start` script it not needed anymore, and you can delete it.
 
-12. **Migration finished**
+13. **Migration finished**
 
     Finally, approve the new `.envrc`:
 
