@@ -7,7 +7,18 @@ After updating your project, please consult the segments from your current relea
 
 This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similiar to the IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
 
-1. **Switch IHP version**
+1. **Install devenv.sh**
+
+    Before you can start the upgrade process, make sure to install devenv.sh:
+
+    ```bash
+    cachix use devenv
+    nix-env -if https://github.com/cachix/devenv/tarball/latest
+    ```
+
+    [You can also follow the installation instructions from the devenv.sh website](https://devenv.sh/getting-started/)
+
+2. **Switch IHP version**
 
     - **IHP Basic**
 
@@ -22,7 +33,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.1.0 URL into your `default.nix`.
 
-2. **Remake Env**
+3. **Remake Env**
 
     Run the following commands:
 
@@ -31,18 +42,18 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     ```
 
 
-3. **Add devenv and direnv specific code to `.gitignore`**
+4. **Add devenv and direnv specific code to `.gitignore`**
     ```diff
     +.devenv
     +.direnv
     ```
 
-4. **Clear your `.envrc`**
+5. **Clear your `.envrc`**
     ```bash
     rm .envrc
     ```
 
-5. **Remove `.envrc` from your `.gitignore`**
+6. **Remove `.envrc` from your `.gitignore`**
     ```bash
     -.envrc
     ```
@@ -50,7 +61,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     The .envrc is now supposed to be commited to your git repository. The file is now not automatically generated anymore.
     Please also don't use `make .envrc` anymore, as this will override your `.envrc` file.
 
-6. **Create `devenv.nix`**
+7. **Create `devenv.nix`**
 
     ```nix
     { pkgs, inputs, config, ... }:
@@ -70,7 +81,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     }
     ```
 
-7. **Create `.devenv.yaml`**
+8. **Create `.devenv.yaml`**
 
     ```yaml
     inputs:
@@ -81,7 +92,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
             flake: false
     ```
 
-8. **Copy packages form `default.nix` to `devenv.nix`:**
+9. **Copy packages form `default.nix` to `devenv.nix`:**
 
     Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration.
 
@@ -148,7 +159,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     }
     ```
 
-9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
+10. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
     Did you do any changes to `nixpkgs-config.nix` in your project? For reference, if the file looks like below, you don't need to do anything here:
 
@@ -195,7 +206,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
     If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
 
-10. **Create `.envrc` file**
+11. **Create `.envrc` file**
 
     ```bash
     source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
@@ -203,7 +214,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     use devenv
     ```
 
-11. **Migrate env vars from `./start` to `.envrc`**
+12. **Migrate env vars from `./start` to `.envrc`**
 
     Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
 
@@ -298,7 +309,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     ```
 
 
-12. **Migration finished**
+13. **Migration finished**
 
     Now you can start your project. The recommended way is to call `devenv up`.
 
