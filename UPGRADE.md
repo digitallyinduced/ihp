@@ -3,6 +3,308 @@ This document describes breaking changes, as well as how to fix them, that have 
 After updating your project, please consult the segments from your current release until now.
 
 
+# Upgrade to 1.1.0 from 1.0.1
+
+This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similiar to the IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
+
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v1.0.0";
+        +rev = "1c8756d85900bef453589142f53b806c6eb5dfc7";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.1.0 URL into your `default.nix`.
+
+2. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    nix-shell --run 'make -B build/ihp-lib'
+    ```
+
+
+3. **Add devenv and direnv specific code to `.gitignore`**
+    ```diff
+    +.devenv
+    +.direnv
+    ```
+
+4. **Clear your `.envrc`**
+    ```bash
+    rm .envrc
+    ```
+
+5. **Remove `.envrc` from your `.gitignore`**
+    ```bash
+    -.envrc
+    ```
+
+    The .envrc is now supposed to be commited to your git repository. The file is now not automatically generated anymore.
+    Please also don't use `make .envrc` anymore, as this will override your `.envrc` file.
+
+6. **Create `devenv.nix`**
+
+    ```nix
+    { pkgs, inputs, config, ... }:
+
+    {
+        imports = [
+            "${inputs.ihp}/NixSupport/devenv.nix"
+        ];
+
+        # https://devenv.sh/packages/
+        packages = [ ];
+
+        ihp.enable = true;
+        ihp.projectPath = ./.;
+
+        # See full reference at https://devenv.sh/reference/options/
+    }
+    ```
+
+7. **Create `.devenv.yaml`**
+
+    ```yaml
+    inputs:
+        nixpkgs:
+            url: github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e
+        ihp:
+            url: github:digitallyinduced/ihp?ref=1c8756d85900bef453589142f53b806c6eb5dfc7
+            flake: false
+    ```
+
+8. **Copy packages form `default.nix` to `devenv.nix`:**
+
+    Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration.
+
+    E.g. if this is our `default.nix`:
+
+    ```nix
+    # default.nix
+    let
+        ihp = ...;
+        haskellEnv = import "${ihp}/NixSupport/default.nix" {
+            ihp = ihp;
+            haskellDeps = p: with p; [
+                cabal-install
+                base
+                wai
+                text
+                hlint
+                p.ihp
+
+                # <---- Custom packages start here
+                http-streams
+                ihp-stripe
+            ];
+            otherDeps = p: with p; [
+                # <---- Custom native packages
+                nodejs
+            ];
+            projectPath = ./.;
+        };
+    in
+        haskellEnv
+    ```
+
+    We need to adjust the `devenv.nix` like this:
+
+    ```nix
+    { pkgs, inputs, config, ... }:
+
+    {
+        imports = [
+            "${inputs.ihp}/NixSupport/devenv.nix"
+        ];
+
+        # <--- Custom native packages
+        packages = with pkgs; [ nodejs ];
+
+        ihp.enable = true;
+
+        # <--- Custom haskell packages
+        ihp.haskellPackages = (p: with p; [
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            p.ihp
+
+            http-streams
+            ihp-stripe
+        ]);
+        ihp.projectPath = ./.;
+
+        # See full reference at https://devenv.sh/reference/options/
+    }
+    ```
+
+9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
+
+    Did you do any changes to `nixpkgs-config.nix` in your project? For reference, if the file looks like below, you don't need to do anything here:
+
+    ```nix
+    # Config/nix/nixpkgs-config.nix
+    # Standard nixpkgs-config.nix, nothing to do here
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+    }
+    ```
+
+    If you have done any changes to that file, it might look like this:
+
+    ```nix
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+        dontCheckPackages = ["openai-hs"];
+        doJailbreakPackages = ["readable" "pdftotext"];
+    }
+    ```
+
+    The `dontCheckPackages` and `doJailbreakPackages` options need to be moved to `devenv.nix`:
+
+    ```diff
+    { pkgs, inputs, config, ... }:
+
+    {
+        # ...
+
+        ihp.enable = true;
+
+        # ...
+
+    +    ihp.dontCheckPackages = ["openai-hs"];
+    +    ihp.doJailbreakPackages = ["readable" "pdftotext"];
+    }
+    ```
+
+    If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
+
+10. **Create `.envrc` file**
+
+    ```bash
+    source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
+
+    use devenv
+    ```
+
+11. **Migrate env vars from `./start` to `.envrc`**
+
+    Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+
+    E.g. this `start` script:
+
+    ```bash
+    #!/usr/bin/env bash
+    # Script to start the local dev server
+
+    set -e
+
+    # On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
+    #
+    # The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
+    # and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
+    # and will close the remaining lazy bytestring handles.
+    if [[ $OSTYPE == 'darwin'* ]]; then
+        ulimit -n 4096
+    fi
+
+
+    # Unless the RunDevServer binary is available, we rebuild the .envrc cache with nix-shell
+    # and config cachix for using our binary cache
+    command -v RunDevServer >/dev/null 2>&1 \
+        || { echo "PATH_add $(nix-shell -j auto --cores 0 --run 'printf %q $PATH')" > .envrc; }
+
+    # Now we have to load the PATH variable from the .envrc cache
+    direnv allow
+    eval "$(direnv hook bash)"
+    eval "$(direnv export bash)"
+
+    # You can define custom env vars here:
+    # export CUSTOM_ENV_VAR=".."
+
+    export SES_ACCESS_KEY="XXXX"
+    export SES_SECRET_KEY="XXXX"
+    export SES_REGION="us-east-1"
+
+    # Finally start the dev server
+    RunDevServer
+    ```
+
+    Needs to be turned into an `.envrc` file like this:
+
+    ```diff
+    source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
+
+    use devenv
+
+    +export SES_ACCESS_KEY="XXXX"
+    +export SES_SECRET_KEY="XXXX"
+    +export SES_REGION="us-east-1"
+    ```
+
+    After that, remove the `ulimit` workaround, the manual `.envrc` setup and the env variables from the start script:
+
+    ```diff
+    #!/usr/bin/env bash
+    # Script to start the local dev server
+
+    set -e
+
+    -# On macOS the default max count of open files is 256. IHP needs atleast 1024 to run well.
+    -#
+    -# The wai-static-middleware sometimes doesn't close it's file handles directly (likely because of it's use of lazy bytestrings)
+    -# and then we usually hit the file limit of 256 at some point. With 1024 the limit is usually never hit as the GC kicks in earlier
+    -# and will close the remaining lazy bytestring handles.
+    -if [[ $OSTYPE == 'darwin'* ]]; then
+    -    ulimit -n 4096
+    -fi
+
+
+    -# Unless the RunDevServer binary is available, we rebuild the .envrc cache with nix-shell
+    -# and config cachix for using our binary cache
+    -command -v RunDevServer >/dev/null 2>&1 \
+    -    || { echo "PATH_add $(nix-shell -j auto --cores 0 --run 'printf %q $PATH')" > .envrc; }
+
+    -# Now we have to load the PATH variable from the .envrc cache
+    -direnv allow
+    -eval "$(direnv hook bash)"
+    -eval "$(direnv export bash)"
+
+    -# You can define custom env vars here:
+    -# export CUSTOM_ENV_VAR=".."
+
+    -export SES_ACCESS_KEY="XXXX"
+    -export SES_SECRET_KEY="XXXX"
+    -export SES_REGION="us-east-1"
+
+    # Finally start the dev server
+    RunDevServer
+    ```
+
+
+12. **Migration finished**
+
+    Now you can start your project. The recommended way is to call `devenv up`.
+
+    The old `./start` also still works.
+
+
 # Upgrade to 1.0.1 from 1.0.0
 1. **Switch IHP version**
 
