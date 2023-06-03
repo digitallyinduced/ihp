@@ -5,7 +5,9 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.1.0 from 1.0.1
 
-This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similiar to the IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
+This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
+
+Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed.
 
 1. **Install devenv.sh**
 
@@ -274,7 +276,8 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     direnv allow
     ```
 
-    Now you can start your project with `devenv up`.
+    This will take some time, as all your packages are now being built.
+    Finally, you can start your project with `devenv up`.
 
 
 # Upgrade to 1.0.1 from 1.0.0
