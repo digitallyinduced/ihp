@@ -16,6 +16,7 @@ module IHP.FileStorage.ControllerFunctions
 , uploadToStorage
 , uploadToStorageWithOptions
 , storage
+, storagePrefix
 ) where
 
 import IHP.Prelude
@@ -367,3 +368,9 @@ storage :: (?context :: context, ConfigProvider context) => FileStorage
 storage = ?context.frameworkConfig.appConfig
         |> TMap.lookup @FileStorage
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
+
+-- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
+storagePrefix :: (?context :: ControllerContext) => Text
+storagePrefix = case storage of
+    StaticDirStorage -> "static/"
+    _ -> ""
