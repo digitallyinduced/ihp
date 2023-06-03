@@ -164,11 +164,11 @@ Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-Validatio
 
 ## Don't auto-open the app in the browser
 
-To prevent the IHP development server from automatically opening the development tooling in your web browser when running `./start`, set the `IHP_BROWSER` environment variable to `echo`:
+To prevent the IHP development server from automatically opening the development tooling in your web browser when running `devenv up`, set the `IHP_BROWSER` environment variable to `echo`:
 
 ```bash
 export IHP_BROWSER=echo
-./start
+devenv up
 ```
 
 This will then just print out the URL which would be opened on start.

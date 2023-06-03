@@ -185,7 +185,7 @@ When something goes wrong you can also run `haskell-language-server` inside the 
 
 ### Customizing the Web Browser used by IHP
 
-When running `./start` the application will automatically be opened in your default browser. You can manually specificy a browser by setting the env var `IHP_BROWSER`:
+When running `devenv up` the application will automatically be opened in your default browser. You can manually specify a browser by setting the env var `IHP_BROWSER`:
 
 ```bash
 export IHP_BROWSER=firefox
@@ -206,7 +206,7 @@ export IHP_BASEURL=http://some-other-host:8000 # App Url, Default: http://localh
 export IHP_IDE_BASEURL=http://some-other-host:8001 # SchemaDesigner etc., Default: http://localhost:8001
 ```
 
-Next time you use the dev server via `./start` all links will use the right `IHP_BASEURL` instead of using `localhost:8000`;
+Next time you use the dev server via `devenv up` all links will use the right `IHP_BASEURL` instead of using `localhost:8000`;
 
 ### Hoogle
 
@@ -244,7 +244,7 @@ in
     haskellEnv
 ```
 
-Run `nix-shell --run 'make -B .envrc'` to remake your dev env.
+Run `devenv up` to remake your dev environment.
 
 After that you can use the following command to start hoogle at `localhost:8080`:
 

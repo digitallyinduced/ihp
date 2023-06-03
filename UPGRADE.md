@@ -3,6 +3,279 @@ This document describes breaking changes, as well as how to fix them, that have 
 After updating your project, please consult the segments from your current release until now.
 
 
+# Upgrade to 1.1.0 from 1.0.1
+
+This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
+
+Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
+
+1. **Install devenv.sh**
+
+    Before you can start the upgrade process, make sure to install devenv.sh:
+
+    ```bash
+    cachix use devenv
+    nix-env -if https://github.com/cachix/devenv/tarball/latest
+    ```
+
+    [You can also follow the installation instructions from the devenv.sh website](https://devenv.sh/getting-started/)
+
+2. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `default.nix` and change the git commit in line 4 to the following:
+
+        ```diff
+        -ref = "refs/tags/v1.0.1";
+        +ref = "refs/tags/v1.1.0";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.1.0 URL into your `default.nix`.
+
+3. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    nix-shell --run 'make -B build/ihp-lib'
+    ```
+
+
+4. **Add devenv and direnv specific code to `.gitignore`**
+    ```
+    .devenv*
+    devenv.local.nix
+    .direnv
+    ```
+
+5. **Clear your `.envrc`**
+    ```bash
+    rm .envrc
+    ```
+
+6. **Remove `.envrc` from your `.gitignore`**
+    ```diff
+    .envrc
+    ```
+
+    The `.envrc` should now be committed to your git repository, as the file is no longer automatically generated. The `make .envrc` command will no longer work, and is not needed anymore.
+
+7. **Edit `devenv.nix`**
+
+    Add a new file `devenv.nix` with the following content:
+
+    ```nix
+    { pkgs, inputs, config, ... }:
+
+    {
+        # See full reference at https://devenv.sh/reference/options/
+        # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+        imports = [
+            "${inputs.ihp}/NixSupport/devenv.nix"
+        ];
+
+        # https://devenv.sh/packages/
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+        ];
+
+        ihp.enable = true;
+        ihp.projectPath = ./.;
+
+        ihp.haskellPackages = p: with p; [
+            # Haskell dependencies go here
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            ihp
+        ];
+    }
+    ```
+
+8. **Copy packages from `default.nix` to `devenv.nix`:**
+
+    Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration. If you haven't, you can skip this part.
+
+    E.g. if this is our `default.nix`:
+
+    ```nix
+    # default.nix
+    let
+        ihp = ...;
+        haskellEnv = import "${ihp}/NixSupport/default.nix" {
+            ihp = ihp;
+            haskellDeps = p: with p; [
+                cabal-install
+                base
+                wai
+                text
+                hlint
+                p.ihp
+
+                # <---- Custom packages start here
+                http-streams
+                ihp-stripe
+            ];
+            otherDeps = p: with p; [
+                # <---- Custom native packages
+                nodejs
+            ];
+            projectPath = ./.;
+        };
+    in
+        haskellEnv
+    ```
+
+    We need to adjust the `devenv.nix` like this:
+
+    ```nix
+    { pkgs, inputs, config, ... }:
+
+    {
+        imports = [
+            "${inputs.ihp}/NixSupport/devenv.nix"
+        ];
+
+        # <--- Custom native packages
+        # https://devenv.sh/packages/
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+            imagemagick
+            nodejs
+        ];
+
+        ihp.enable = true;
+
+        # <--- Custom haskell packages
+        ihp.haskellPackages = (p: with p; [
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            p.ihp
+
+            http-streams
+            ihp-stripe
+        ]);
+        ihp.projectPath = ./.;
+
+        # See full reference at https://devenv.sh/reference/options/
+    }
+    ```
+
+9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
+
+    Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
+
+    ```nix
+    # Config/nix/nixpkgs-config.nix
+    # Standard nixpkgs-config.nix, nothing to do here
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+    }
+    ```
+
+    If you have done any changes to that file, it might look like this:
+
+    ```nix
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+        dontCheckPackages = ["openai-hs"];
+        doJailbreakPackages = ["readable" "pdftotext"];
+    }
+    ```
+
+    The `dontCheckPackages` and `doJailbreakPackages` options need to be moved to `devenv.nix`:
+
+    ```diff
+    { pkgs, inputs, config, ... }:
+
+    {
+        # ...
+
+        ihp.enable = true;
+
+        # ...
+
+    +    ihp.dontCheckPackages = ["openai-hs"];
+    +    ihp.doJailbreakPackages = ["readable" "pdftotext"];
+    }
+    ```
+
+    If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
+
+10. **Create `.envrc` file**
+
+    ```bash
+    source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
+
+    use devenv
+    ```
+
+11. **Migrate env vars from `./start` to `.envrc`**
+
+    Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+
+    E.g. this `start` script:
+
+    ```bash
+    #!/usr/bin/env bash
+    # Script to start the local dev server
+
+    # ...
+
+    # You can define custom env vars here:
+    # export CUSTOM_ENV_VAR=".."
+
+    export SES_ACCESS_KEY="XXXX"
+    export SES_SECRET_KEY="XXXX"
+    export SES_REGION="us-east-1"
+
+    # Finally start the dev server
+    RunDevServer
+    ```
+
+    Needs to be turned into an `.envrc` file like this:
+
+    ```diff
+    source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
+
+    use devenv
+
+    ## Add the exports from your start script here:
+
+    +export SES_ACCESS_KEY="XXXX"
+    +export SES_SECRET_KEY="XXXX"
+    +export SES_REGION="us-east-1"
+    ```
+
+    After that, your `start` script it not needed anymore, and you can delete it.
+
+12. **Migration finished**
+
+    Finally, approve the new `.envrc`:
+
+    ```bash
+    direnv allow
+    ```
+
+    This will take some time, as all your packages are now being built.
+    Finally, you can start your project with `devenv up`.
+
+
 # Upgrade to 1.0.1 from 1.0.0
 1. **Switch IHP version**
 
@@ -57,12 +330,12 @@ After updating your project, please consult the segments from your current relea
     ```
 
     Now you can start your project as usual with `./start`.
-    
+
     If you've been using a release candidate before, you need to run `nix-store --gc` before. Otherwise nix might use the cached release candidate.
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     - The function `getFrameworkConfig` has been removed:
 
         ```haskell
@@ -76,7 +349,7 @@ After updating your project, please consult the segments from your current relea
     - `Couldn't match type 'CurrentAdminRecord' with 'Admin' arising from a use of 'currentAdminOrNothing'`
 
       To make `currentAdmin` etc. more consistent with `currentUser` functions, we have removed the explicit type argument passed to these functions.
-      
+
       E.g. the following:
       ```haskell
       currentAdminOrNothing @Admin
@@ -86,7 +359,7 @@ After updating your project, please consult the segments from your current relea
       currentAdminOrNothing
       ```
       Additionally you need to specify the `CurrentAdminRecord` inside your `Web/Types.hs`:
-      
+
       ```haskell
       type instance CurrentAdminRecord = Admin
       ```
@@ -120,9 +393,9 @@ After updating your project, please consult the segments from your current relea
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     TODO
-   
+
 # Upgrade to Beta 0.19.0 from Beta 0.18.0
 1. **Switch IHP version**
 
@@ -233,7 +506,7 @@ After updating your project, please consult the segments from your current relea
     ```
 
 4. **Newtype Generics**
-    
+
     We don't use the "Newtype Generics" package as much as expected. To keep IHP lightweight we've removed that package from IHP.
 
     The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
@@ -243,9 +516,9 @@ After updating your project, please consult the segments from your current relea
     If you use functionality of `newtype-generics` beyond wrapping and unwrapping the Id values, [please add `newtype-generics` to your `default.nix` and run `make -B .envrc` again](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-haskell-package).
 
 5. **SMTP Mail**
-    
+
     If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
-    
+
     Change code like this:
 
     ```haskell
@@ -327,7 +600,7 @@ After updating your project, please consult the segments from your current relea
                 let (Just location) = (lookup "Location" (responseHeaders response))
                 location `shouldBe` "http://localhost:8000/Posts"
     ```
-    
+
 
 # Upgrade to Beta 0.15.0 from Beta 0.14.0
 1. **Switch IHP version**
@@ -347,7 +620,7 @@ After updating your project, please consult the segments from your current relea
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.15 URL into your `default.nix`.
 2. **Patch `Config/nix/nixpkgs-config.nix`**
-    
+
     Open `Config/nix/nixpkgs-config.nix` and replace it with this:
 
     ```diff
@@ -655,7 +928,7 @@ Now you can start your project as usual with `./start`.
 ## Update `Main.hs`
 
 1. Add import for `import IHP.Job.Types` to your `Main.hs`:
-    
+
     ```haskell
     import IHP.Job.Types
     ```
@@ -719,7 +992,7 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.Mail.Types
 
-instance FrameworkConfig where 
+instance FrameworkConfig where
     environment = Development
     appHostname = "localhost"
 ```
@@ -805,7 +1078,7 @@ Remove the `ViewContext` from the `instance View`:
 +instance View EditView where
 ```
 
-Does the view have a custom view-specific layout? 
+Does the view have a custom view-specific layout?
 
 ```diff
 -instance View ShowEnumView ViewContext where

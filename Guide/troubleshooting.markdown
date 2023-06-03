@@ -83,7 +83,7 @@ This is caused by a change we did to our binary cache. Open `~/.config/nix/nix.c
 When you try to start a `nix-shell`, an error like this happens:
 
 ```bash
-$ ./start
+$ devenv up
 error: file '/build/db/.s.PGSQL.5432' has an unsupported type
 ```
 

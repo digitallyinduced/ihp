@@ -12,7 +12,7 @@ It's as simple as passing the `--purescript-halogen` option to `ihp-new`:
 ihp-new --purescript-halogen my-ihp-purescript-halogen-project
 ```
 
-This will generate a ready-to-go IHP app with PureScript + Halogen set up. To check that everything is working as expected, simply run `./start` as usual. The welcome page should say both "It's working" and "PureScript + Halogen is also working!", which tells you that the setup works as expected.
+This will generate a ready-to-go IHP app with PureScript + Halogen set up. To check that everything is working as expected, simply run `devenv up` as usual. The welcome page should say both "It's working" and "PureScript + Halogen is also working!", which tells you that the setup works as expected.
 
 ### Troubleshooting
 

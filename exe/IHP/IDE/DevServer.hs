@@ -39,7 +39,7 @@ main = withUtf8 do
     ensureUserIsNotRoot
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
-    -- Like: $ DEBUG=1 ./start
+    -- Like: $ DEBUG=1 devenv up
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
     logger <- Log.newLogger def
@@ -73,7 +73,7 @@ main = withUtf8 do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) =
     case postgresState of
         PostgresReady -> onPostgresReady
         PostgresStarted {} -> onPostgresReady

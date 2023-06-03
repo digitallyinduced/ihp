@@ -20,7 +20,7 @@ It's as simple as passing the `--elm` option to `ihp-new`:
 ihp-new --elm my-ihp-elm-project
 ```
 
-This will generate a ready-to-go IHP app with Elm set up. To check that everything is working as expected, simply run `./start` as usual. The welcome page should say both "It's working" and "Elm is working!", which tells you that the setup works as expected.
+This will generate a ready-to-go IHP app with Elm set up. To check that everything is working as expected, simply run `devenv up` as usual. The welcome page should say both "It's working" and "Elm is working!", which tells you that the setup works as expected.
 
 ### Troubleshooting
 

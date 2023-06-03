@@ -78,7 +78,7 @@ The development server automatically picks other ports when they are already in 
 
 In the background, the built-in development server starts a PostgreSQL database connected to your application. Don't worry about manually setting up the database. It also runs a WebSocket server to power live reloads on file saves inside your app.
 
-The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `./start` again).
+The very first time you start this might take a while, and in rare cases may even require a restart (press CTRL+C and run `devenv up` again).
 
 ### Hello Haskell World
 
@@ -615,7 +615,7 @@ in
     haskellEnv
 ```
 
-Stop the development server by pressing CTRL+C. Then update the local development environment by running `make -B .envrc`. This will download and install the mmark package. Now restart the development server by typing `./start` again.
+Stop the development server by pressing CTRL+C. Then update the local development environment by running `devenv up`. This will download and install the `mmark` package.
 
 #### Markdown Rendering
 
