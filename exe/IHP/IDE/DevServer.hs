@@ -265,8 +265,8 @@ startAppGHCI = do
     libDirectory <- LibDir.findLibDirectory
 
     let loadAppCommands =
-            [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
-            , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
+            [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
+             ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
             ]
 
