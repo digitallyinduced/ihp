@@ -102,7 +102,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     }
     ```
 
-8. **Copy packages form `default.nix` to `devenv.nix`:**
+8. **Copy packages from `default.nix` to `devenv.nix`:**
 
     Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `devenv.nix` configuration. If you haven't, you can skip this part.
 
