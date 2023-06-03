@@ -174,7 +174,7 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
-    Did you do any changes to `nixpkgs-config.nix` in your project? For reference, if the file looks like below, you don't need to do anything here:
+    Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
 
     ```nix
     # Config/nix/nixpkgs-config.nix
