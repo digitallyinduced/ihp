@@ -44,8 +44,6 @@ After that stop your local development server and run the following command to i
 devenv up
 ```
 
-Now you can run `./start` again and the `ihp-oauth-google` package is enabled.
-
 ### Schema Changes
 
 For Google OAuth Login to work, we need to add a `google_user_id TEXT` column to our `users` table. The column needs to be nullable and have `NULL` as the default value.
@@ -280,9 +278,6 @@ After that stop your local development server and run the following command to i
 ```
 devenv up
 ```
-
-Now you can run `./start` again and the `ihp-oauth-github` package is enabled.
-
 
 ### Schema Changes
 

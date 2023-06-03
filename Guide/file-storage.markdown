@@ -72,19 +72,15 @@ You need to replace `eu-central-1` with your availability zone and `my-bucket-na
 
 The AWS access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars.
 
-For easy development you can add these env vars to your `./start` script:
+For easy development you can add these env vars to your `.envrc` file:
 
 ```bash
-#!/usr/bin/env bash
-# Script to start the local dev server
+source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
 
-# ...
+use devenv
 
 export AWS_ACCESS_KEY_ID="YOUR KEY"            # <---------
 export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
-
-# Finally start the dev server
-RunDevServer
 ```
 
 ### Minio
@@ -117,19 +113,17 @@ You need to replace `https://minio.example.com` with your minio server and `my-b
 
 The Minio access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars.
 
-For easy development you can add these env vars to your `./start` script:
+For easy development you can add these env vars to your `.envrc` file:
 
 ```bash
-#!/usr/bin/env bash
-# Script to start the local dev server
+source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
+
+use devenv
 
 # ...
 
 export MINIO_ACCESS_KEY="YOUR KEY"            # <---------
 export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
-
-# Finally start the dev server
-RunDevServer
 ```
 
 ### Filebase
@@ -163,19 +157,15 @@ You need to replace `my-bucket-name` with the name of your bucket.
 
 The Filebase access key and secret key have to be provided using the `FILEBASE_KEY` and `FILEBASE_SECRET` env vars.
 
-For easy development you can add these env vars to your `./start` script:
+For easy development you can add these env vars to your `.envrc` file:
 
 ```bash
-#!/usr/bin/env bash
-# Script to start the local dev server
+source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
 
-# ...
+use devenv
 
 export FILEBASE_KEY="YOUR KEY"            # <---------
 export FILEBASE_SECRET="YOUR SECRET"     # <---------
-
-# Finally start the dev server
-RunDevServer
 ```
 
 ## Uploading

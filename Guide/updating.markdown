@@ -40,8 +40,6 @@ Then rebuild everything by running the following:
 devenv up
 ```
 
-After that, you can use the project as usual by using `./start`.
-
 When the commit you're trying out is not merged into the master branch this will fail because nix is doing only a shallow-clone of the repo. Follow the steps in "Updating to a specific Git Commit" below to fix this.
 
 ## Updating to a specific Git Commit
@@ -78,5 +76,3 @@ Then rebuild everything by running the following:
 ```bash
 devenv up
 ```
-
-After that, you can use the project as usual by using `./start`.
