@@ -46,7 +46,8 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
 4. **Add devenv and direnv specific code to `.gitignore`**
     ```
-    .devenv
+    .devenv*
+    devenv.local.nix
     .direnv
     ```
 
