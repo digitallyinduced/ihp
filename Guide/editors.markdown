@@ -244,7 +244,7 @@ in
     haskellEnv
 ```
 
-Run `devenv up` to remake your dev env.
+Run `devenv up` to remake your dev environment.
 
 After that you can use the following command to start hoogle at `localhost:8080`:
 
