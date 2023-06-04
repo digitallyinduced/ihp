@@ -169,6 +169,22 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         # See full reference at https://devenv.sh/reference/options/
     }
     ```
+    
+    After that adjust the `default.nix` to read it's packages from the `devenv.nix`:
+
+    ```nix
+    # default.nix
+    let
+        ihp = ...;
+        haskellEnv = import "${ihp}/NixSupport/default.nix" {
+            ihp = ihp;
+            haskellDeps = (import ./devenv.nix { pkgs = {}; inputs = {}; config = {}; }).ihp.haskellPackages;
+            otherDeps = pkgs: (import ./devenv.nix { inherit pkgs; inputs = {}; config = {}; }).packages;
+            projectPath = ./.;
+        };
+    in
+        haskellEnv
+    ```
 
 9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
