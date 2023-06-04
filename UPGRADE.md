@@ -186,6 +186,8 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         haskellEnv
     ```
 
+This means that from now on when adding new packages, you need to do it in a single file - `devenv.nix`
+
 9. **Copy settings from `Config/nix/nixpkgs-config.nix` to `devenv.nix`**
 
     Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
