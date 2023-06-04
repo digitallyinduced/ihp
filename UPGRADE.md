@@ -329,26 +329,24 @@ This means that from now on when adding new packages, you need to do it in a sin
         ihp = ihp;
         haskellPackagesDir = ./haskell-packages/.;
         additionalNixpkgsOptions = additionalNixpkgsOptions;
-        dontCheckPackages = ["openai-hs"];
-        doJailbreakPackages = ["readable" "pdftotext"];
+        dontCheckPackages = ["my-failing-package"];
+        doJailbreakPackages = ["my-jailbreak-package"];
     }
     ```
 
-    The `dontCheckPackages` and `doJailbreakPackages` options need to be moved to `devenv.nix`:
+    The `dontCheckPackages` and `doJailbreakPackages` options need to be moved to `flake.nix`:
 
     ```diff
-    { pkgs, inputs, config, ... }:
-
-    {
-        # ...
-
-        ihp.enable = true;
+    devenvConfig = { pkgs, inputs, config, ... }: {
 
         # ...
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+        ];
 
-    +    ihp.dontCheckPackages = ["openai-hs"];
-    +    ihp.doJailbreakPackages = ["readable" "pdftotext"];
-    }
+    +   ihp.dontCheckPackages = [ "my-failing-package" ];
+    +   ihp.doJailbreakPackages = [ "my-jailbreak-package" ];
+    };
     ```
 
     If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
