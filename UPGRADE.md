@@ -25,7 +25,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     .direnv
     ```
 
-3. **Edit your `.envrc`**
+3. **Edit your `.envrc` and migrate env vars from `./start`**
 
     ```
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
@@ -40,14 +40,58 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     # E.g. export AWS_ACCESS_KEY_ID="XXXXX"
     ```
 
-4. **Remove `.envrc` from your `.gitignore`**
+   Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+
+    E.g. this `start` script:
+
+    ```bash
+    #!/usr/bin/env bash
+    # Script to start the local dev server
+
+    # ...
+
+    # You can define custom env vars here:
+    # export CUSTOM_ENV_VAR=".."
+
+    export SES_ACCESS_KEY="XXXX"
+    export SES_SECRET_KEY="XXXX"
+    export SES_REGION="us-east-1"
+
+    # Finally start the dev server
+    RunDevServer
+    ```
+
+    Needs to be turned into an `.envrc` file like this:
+
+    ```diff
+    if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
+    source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
+
+    fi
+
+    use flake . --impure
+
+    ## Add the exports from your start script here:
+
+    +export SES_ACCESS_KEY="XXXX"
+    +export SES_SECRET_KEY="XXXX"
+    +export SES_REGION="us-east-1"
+    ```
+
+    After that, your `start` script it not needed anymore, and you can delete it.
+
+4. **Delete `start` script**
+
+    The `start` script is not needed anymore, and can be deleted.
+
+5. **Remove `.envrc` from your `.gitignore`**
     ```diff
     .envrc
     ```
 
     The `.envrc` should now be committed to your git repository, as the file is no longer automatically generated. The `make .envrc` command will no longer work, and is not needed anymore.
 
-5. **Create a `flake.nix`**
+6. **Create a `flake.nix`**
 
     Add a new file `flake.nix` with the following content:
 
@@ -128,7 +172,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     }
     ```
 
-6. **Copy packages from `default.nix` to `flake.nix`:**
+7. **Copy packages from `default.nix` to `flake.nix`:**
 
     Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `flake.nix` configuration. If you haven't, you can skip this part.
 
@@ -264,7 +308,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
 This means that from now on when adding new packages, you need to do it in a single file - `devenv.nix`
 
-7. **Copy settings from `Config/nix/nixpkgs-config.nix` to `flake.nix`**
+8. **Copy settings from `Config/nix/nixpkgs-config.nix` to `flake.nix`**
 
     Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
 
@@ -310,45 +354,6 @@ This means that from now on when adding new packages, you need to do it in a sin
     ```
 
     If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
-
-8. **Migrate env vars from `./start` to `.envrc`**
-
-    Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
-
-    E.g. this `start` script:
-
-    ```bash
-    #!/usr/bin/env bash
-    # Script to start the local dev server
-
-    # ...
-
-    # You can define custom env vars here:
-    # export CUSTOM_ENV_VAR=".."
-
-    export SES_ACCESS_KEY="XXXX"
-    export SES_SECRET_KEY="XXXX"
-    export SES_REGION="us-east-1"
-
-    # Finally start the dev server
-    RunDevServer
-    ```
-
-    Needs to be turned into an `.envrc` file like this:
-
-    ```diff
-    source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cfd0f51481d17f77586997/direnvrc" "sha256-YBzqskFZxmNb3kYVoKD9ZixoPXJh1C9ZvTLGFRkauZ0="
-
-    use devenv
-
-    ## Add the exports from your start script here:
-
-    +export SES_ACCESS_KEY="XXXX"
-    +export SES_SECRET_KEY="XXXX"
-    +export SES_REGION="us-east-1"
-    ```
-
-    After that, your `start` script it not needed anymore, and you can delete it.
 
 9. **Migration finished**
 
