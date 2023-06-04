@@ -304,7 +304,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     { src = ./.; }).defaultNix
     ```
 
-This means that from now on when adding new packages, you need to do it in a single file - `devenv.nix`
+This means that from now on when adding new packages, you need to do it in a single file - `flake.nix`
 
 8. **Copy settings from `Config/nix/nixpkgs-config.nix` to `flake.nix`**
 
