@@ -38,7 +38,7 @@ startPostgres = do
             -- If we're in debug mode, log all output
             if "FATAL" `ByteString.isInfixOf` line
                 then if "database files are incompatible with server" `ByteString.isInfixOf` line
-                    then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run './start' again." :: Text)
+                    then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run 'devenv up' again." :: Text)
                     else Log.error line
                 else when isDebugMode (Log.debug line)
 

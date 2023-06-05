@@ -6,71 +6,141 @@
 
 IHP is using the Nix Package Manager for managing its dependencies, such as Haskell packages, compilers, and even Postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
 
+Internally IHP is using [devenv.sh](https://devenv.sh/) together with [nix flakes](https://devenv.sh/guides/using-with-flakes/).
+
 ## Using a Haskell Package
 
-To install a Haskell package from Hackage (the standard Haskell package registry), open the `default.nix` file and append the package name.
+To install a Haskell package from Hackage (the standard Haskell package registry), open the `flake.nix` file and append the package name.
 
-Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `default.nix`. The file will look like this:
-
-```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
-    };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        compiler = "ghc865";
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-        ];
-        otherDeps = p: with p; [
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
-```
-
-In the list following `haskellDeps` we can see a few haskell dependencies already. We have to append `mmark` to the list:
+Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `flake.nix`. The file will look like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
     };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        compiler = "ghc865";
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-            mmark
-        ];
-        otherDeps = p: with p; [
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
+}
 ```
 
-Run `nix-shell` to see that your project still builds fine. After that run `make -B .envrc` to rebuild the development environment used by IHP. Now you can run `./start` again to start the development server. The `mmark` can now be used as expected:
+In the list following `haskellPackages` we can see a few haskell dependencies already. We have to append `mmark` to the list:
 
-```bash
-nix-shell
-# All good? Proceed
-make -B .envrc
-./start
+```nix
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
+    };
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                    mmark
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
+}
 ```
+
+Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flake.nix` has changed.
+
+Run `devenv up` again to start the development server, and `mmark` should now be used as expected:
+
 
 ## Using a Native Dependency
 
@@ -78,66 +148,131 @@ Sometimes your project uses some other software tool that is not included with I
 
 Let's say we want to add [ImageMagick](https://imagemagick.org/) to transform and resize images uploaded by the users of our application.
 
-All dependencies of our project are listed in `default.nix` at the root of the project directory. The file looks like this:
+All dependencies of our project are listed in `flake.nix` at the root of the project directory. The file looks like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
     };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        compiler = "ghc865";
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            classy-prelude
-            wai
-            text
-            hlint
-            ihp
-            wreq
-        ];
-        otherDeps = p: with p; [
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
+}
 ```
 
-We now just have to add `imagemagick` to `otherDeps`:
+We now just have to add `imagemagick` to `packages`:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
-    };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        compiler = "ghc865";
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            classy-prelude
-            wai
-            text
-            hlint
-            ihp
-            wreq
-        ];
-        otherDeps = p: with p; [
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
 
-            imagemagick # <-----------------------
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
 
-        ];
-        projectPath = ./.;
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
     };
-in
-    haskellEnv
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+
+                packages = with pkgs; [
+                    imagemagick
+                ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
+}
 ```
 
-If running, stop your development server. Now run `make -B .envrc`. This will install ImageMagick locally to your project.
+Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment and install ImageMagick. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
@@ -147,31 +282,67 @@ You can look up the package name for the software you depend on inside the nixpk
 
 ### Using a Different Version of a Haskell Package
 
-Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `default.nix`:
+Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `flake.nix`:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
     };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        compiler = "ghc865";
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-            google-oauth2
-        ];
-        otherDeps = p: with p; [
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                    google-oauth2
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
+}
 ```
 
 This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
@@ -213,7 +384,7 @@ mkDerivation {
 
 Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any Haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
 
-Go back to your project directory and run `nix-shell`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
+Go back to your project directory and run `nix flake update`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
 
 This step might fail with an error like `Encountered missing or private dependencies`:
 
@@ -256,26 +427,75 @@ error: build of '/nix/store/nngc65qyw3bdf6zn84ca0jpxz19mmcv6-ghc-8.8.3-with-pack
 
 This is usually caused by a version mismatch between what the package expects and what is given by nix. You can disable version checking by "jailbreaking" the package.
 
-To jailbreak the package open `Config/nix/nixpkgs-config.nix` and append `"google-oauth2"` to the `doJailbreakPackages` list:
+To jailbreak the package open `flake.nix` and append `"google-oauth2"` to the `doJailbreakPackages` list:
 
 ```nix
-{ ihp }:
-import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
-    ihp = ihp;
-    haskellPackagesDir = ./haskell-packages/.;
-    doJailbreakPackages = [ "google-oauth2" ];
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
+    };
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+
+                doJailbreakPackages = [ "google-oauth2" ];
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
 }
 ```
 
-After that try to run `nix-shell` again. This will most likely work now.
-
-When the run of `nix-shell` succeeds, you also need to run `make -B .envrc` to rebuild the `.envrc` file. Otherwise, the new package might not be visible to all tools:
-
-```bash
-make -B .envrc
-```
+After that try to run `devenv up`.
 
 ### Building Postgres With Extensions
+
+**TODO: Fix this for IHP v1.1.0**
 
 For some applications you may want to install custom postgres extension
 libraries and have them available in the nix store.
@@ -322,37 +542,95 @@ installed extension.
 
 Nix will try to run a test suite for a package when it's building it from source code. Sometimes the tests fail which will stop you from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.
 
-Open `Config/nix/nixpkgs-config.nix` and append the package name to the `dontCheckPackages` list:
+Open `flake.nix` and append the package name to the `dontCheckPackages` list:
 
 ```nix
-{ ihp }:
-import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
-    ihp = ihp;
-    haskellPackagesDir = ./haskell-packages/.;
-    dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
+
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
+    };
+
+    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+        let
+            devenvConfig = { pkgs, inputs, config, ... }: {
+                # See full reference at https://devenv.sh/reference/options/
+                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                
+                ihp.enable = true;
+                ihp.projectPath = ./.;
+
+                ihp.haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+
+                dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
+            };
+            
+            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
+                otherDeps = p: (devenvConfig inputs).packages;
+                projectPath = ./.;
+                includeDevTools = false;
+                optimized = false;
+            };
+            forEachSystem = nixpkgs.lib.genAttrs (import systems);
+        in
+            {
+                devShells = forEachSystem (system: {
+                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                        inherit inputs pkgs;
+                        modules = [devenvConfig];
+                    };
+                });
+                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
+            };
 }
 ```
 
-After that, you can do `nix-shell` without running the failing tests.
+After that, you can do `nix flake update` without running the failing tests.
 
 ### Nixpkgs Pinning
 
-All projects using IHP are using a specific pinned version of nixpkgs. [The specific version used is defined by IHP in `NixSupport/make-nixpkgs-from-options.nix`](https://github.com/digitallyinduced/ihp/blob/master/NixSupport/make-nixpkgs-from-options.nix#L9).
+All projects using IHP are using a specific pinned version of nixpkgs. The specific version used is defined in your project's `flake.nix`.
 
-You can override the nixpkgs version by setting the `nixPkgsRev` and `nixPkgsSha256` to your custom values:
+You can override the nixpkgs version by setting the `nixpkgs.url` to your custom values:
 
 ```nix
-{ ihp }:
-import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
-    ihp = ihp;
-    haskellPackagesDir = ./haskell-packages/.;
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+        ihp.flake = false;
 
-    nixPkgsRev = "c7f75838c360473805afcf5fb2fa65e678efd94b"; # <---- SET THIS OPTION
-    nixPkgsSha256 = "04vx1j2gybm1693a8wxw6bpcsd4h1jdw541vwic8nfm3n80r4ckm"; # <---- ALSO SET THIS
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=PUT YOUR CUSTOM REVISION HERE";
+
+        systems.url = "github:nix-systems/default";
+        devenv.url = "github:cachix/devenv";
+    };
+
+    # ...
 }
 ```
 
-Run `make -B .envrc` to rebuild the development environment.
+Run `nix flake update` to rebuild the development environment.
 
 We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
 

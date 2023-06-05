@@ -53,6 +53,7 @@ jobs:
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
+          nix flake update
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
 
     - name: Notify IHP Website about the new build
@@ -61,6 +62,10 @@ jobs:
           hash=$(nix-prefetch-url --unpack "$TARBALL_URL" --name "ihp-tarball" | tail -1)
           curl -X POST https://ihp.digitallyinduced.com/CreateBuild -F 'commitSha=${{ github.sha }}' -F "tarballSha256=$hash" --user ${{ secrets.IHP_WEBSITE_AUTH }}
 
+    - run: |
+        cd ihp-boilerplate && nix develop --impure --command "true"
+    # Also build the framework's dev env
     - name: Install devenv.sh
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
-
+    - run: |
+        devenv ci && devenv shell echo ok

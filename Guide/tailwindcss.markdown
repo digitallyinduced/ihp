@@ -14,7 +14,7 @@ We will also have PostCSS added as part of the installation. PostCSS is used for
 
 ### Standalone CLI
 
-Tailwind offers a Standalone CLI for frameworks like IHP, Rails and Phoenix as an alternative to installing npm just for the sake of Tailwind. 
+Tailwind offers a Standalone CLI for frameworks like IHP, Rails and Phoenix as an alternative to installing npm just for the sake of Tailwind.
 
 You can follow the [official article](https://tailwindcss.com/blog/standalone-cli) for checking a standalone Tailwind binary into your project.
 
@@ -37,7 +37,7 @@ otherDeps = p: with p; [
 Now you need to rebuild your local development environment:
 
 ```bash
-nix-shell --run 'make -B .envrc'
+devenv up
 ```
 
 After that, you have `node` and `npm` available in your project.

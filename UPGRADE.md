@@ -3,6 +3,379 @@ This document describes breaking changes, as well as how to fix them, that have 
 After updating your project, please consult the segments from your current release until now.
 
 
+# Upgrade to 1.1.0 from 1.0.1
+
+This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
+
+Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
+
+1. **Install devenv.sh**
+
+    Before you can start the upgrade process, make sure to install devenv.sh:
+
+    ```bash
+    cachix use devenv
+    nix-env -if https://github.com/cachix/devenv/tarball/latest
+    ```
+
+2. **Add devenv and direnv specific code to `.gitignore`**
+    ```
+    .devenv*
+    devenv.local.nix
+    .direnv
+    .env
+    ```
+
+3. **Edit your `.envrc` and migrate env vars from `./start`**
+
+    ```
+    if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
+        source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
+    fi
+
+    use flake . --impure
+
+    # Include .env file if it exists locally
+    if [ -f .env ]
+    then
+        set -o allexport
+        source .env
+        set +o allexport
+    fi
+
+    # Add your env vars here
+    #
+    # E.g. export AWS_ACCESS_KEY_ID="XXXXX"
+    ```
+
+   Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+
+    E.g. this `start` script:
+
+    ```bash
+    #!/usr/bin/env bash
+    # Script to start the local dev server
+
+    # ...
+
+    # You can define custom env vars here:
+    # export CUSTOM_ENV_VAR=".."
+
+    export SES_ACCESS_KEY="XXXX"
+    export SES_SECRET_KEY="XXXX"
+    export SES_REGION="us-east-1"
+
+    # Finally start the dev server
+    RunDevServer
+    ```
+
+    Needs to be turned into an `.envrc` file like this:
+
+    ```diff
+    if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
+        source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
+    fi
+
+    use flake . --impure
+    if [ -f .env ]
+    then
+      set -o allexport
+      source .env
+      set +o allexport
+    fi
+
+    ## Add the exports from your start script here:
+
+    +export SES_ACCESS_KEY="XXXX"
+    +export SES_SECRET_KEY="XXXX"
+    +export SES_REGION="us-east-1"
+    ```
+
+    After that, your `start` script it not needed anymore, and you can delete it.
+
+4. **Delete `start` script**
+
+    The `start` script is not needed anymore, and can be deleted.
+
+5. **Remove `.envrc` from your `.gitignore`**
+    ```diff
+    .envrc
+    ```
+
+    The `.envrc` should now be committed to your git repository, as the file is no longer automatically generated. The `make .envrc` command will no longer work, and is not needed anymore.
+
+6. **Create a `flake.nix`**
+
+    Add a new file `flake.nix` with the following content:
+
+    ```nix
+    {
+        inputs = {
+            # Here you can adjust the IHP version of your project
+            # You can find new releases at https://github.com/digitallyinduced/ihp/releases
+            ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+            ihp.flake = false;
+
+            # See https://ihp.digitallyinduced.com/Guide/package-management.html#nixpkgs-pinning
+            nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+            systems.url = "github:nix-systems/default";
+            devenv.url = "github:cachix/devenv";
+        };
+
+        outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+            let
+                devenvConfig = { pkgs, ... }: {
+                    # See full reference at https://devenv.sh/reference/options/
+                    # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                    # Enable IHP support in devenv.sh
+                    imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                    ihp.enable = true;
+                    ihp.projectPath = ./.;
+
+                    ihp.haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                };
+
+                # Settings when running `nix build`
+                releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                    ihp = ihp;
+                    haskellDeps = (devenvConfig pkgs).ihp.haskellPackages;
+                    otherDeps = p: (devenvConfig pkgs).packages;
+                    projectPath = ./.;
+
+                    # Dev tools are not needed in the release build
+                    includeDevTools = false;
+
+                    # Set optimized = true to get more optimized binaries, but slower build times
+                    optimized = false;
+                };
+                forEachSystem = nixpkgs.lib.genAttrs (import systems);
+            in
+                {
+                    # Dev shells are used for development, e.g. when running `nix develop --impure`
+                    devShells = forEachSystem (system: {
+                        default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                            inherit inputs pkgs;
+                            modules = [devenvConfig];
+                        };
+                    });
+                    # Binaries for deploying IHP apps. These are used by `nix build --impure`
+                    defaultPackage = forEachSystem (system: releaseEnv nixpkgs.legacyPackages.${system});
+                };
+
+        # The following is needed to use the IHP binary cache.
+        # This binary cache provides binaries for all IHP packages and commonly used dependencies for all nixpkgs versions used by IHP.
+        nixConfig = {
+            extra-substituters = "https://digitallyinduced.cachix.org";
+            extra-trusted-public-keys = "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=";
+        };
+    }
+    ```
+
+7. **Copy packages from `default.nix` to `flake.nix`:**
+
+    Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `flake.nix` configuration. If you haven't, you can skip this part.
+
+    E.g. if this is our `default.nix`:
+
+    ```nix
+    # default.nix
+    let
+        ihp = ...;
+        haskellEnv = import "${ihp}/NixSupport/default.nix" {
+            ihp = ihp;
+            haskellDeps = p: with p; [
+                cabal-install
+                base
+                wai
+                text
+                hlint
+                p.ihp
+
+                # <---- Custom packages start here
+                http-streams
+                ihp-stripe
+            ];
+            otherDeps = p: with p; [
+                # <---- Custom native packages
+                nodejs
+            ];
+            projectPath = ./.;
+        };
+    in
+        haskellEnv
+    ```
+
+    We need to adjust the `flake.nix` like this:
+
+    ```nix
+    {
+        inputs = {
+            # Here you can adjust the IHP version of your project
+            # You can find new releases at https://github.com/digitallyinduced/ihp/releases
+            ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
+            ihp.flake = false;
+
+            # See https://ihp.digitallyinduced.com/Guide/package-management.html#nixpkgs-pinning
+            nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
+
+            systems.url = "github:nix-systems/default";
+            devenv.url = "github:cachix/devenv";
+        };
+
+        outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
+            let
+                devenvConfig = { pkgs, ... }: {
+                    # See full reference at https://devenv.sh/reference/options/
+                    # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+
+                    # Enable IHP support in devenv.sh
+                    imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
+                    ihp.enable = true;
+                    ihp.projectPath = ./.;
+
+                    ihp.haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+
+                        # <---- Custom packages start here
+                        http-streams
+                        ihp-stripe
+                    ];
+
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                        nodejs # <-- Added here
+                    ];
+                };
+
+                # Settings when running `nix build`
+                releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
+                    ihp = ihp;
+                    haskellDeps = (devenvConfig pkgs).ihp.haskellPackages;
+                    otherDeps = p: (devenvConfig pkgs).packages;
+                    projectPath = ./.;
+
+                    # Dev tools are not needed in the release build
+                    includeDevTools = false;
+
+                    # Set optimized = true to get more optimized binaries, but slower build times
+                    optimized = false;
+                };
+                forEachSystem = nixpkgs.lib.genAttrs (import systems);
+            in
+                {
+                    # Dev shells are used for development, e.g. when running `nix develop --impure`
+                    devShells = forEachSystem (system: {
+                        default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
+                            inherit inputs pkgs;
+                            modules = [devenvConfig];
+                        };
+                    });
+                    # Binaries for deploying IHP apps. These are used by `nix build --impure`
+                    defaultPackage = forEachSystem (system: releaseEnv nixpkgs.legacyPackages.${system});
+                };
+
+        # The following is needed to use the IHP binary cache.
+        # This binary cache provides binaries for all IHP packages and commonly used dependencies for all nixpkgs versions used by IHP.
+        nixConfig = {
+            extra-substituters = "https://digitallyinduced.cachix.org";
+            extra-trusted-public-keys = "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=";
+        };
+    }
+    ```
+
+    After that adjust the `default.nix` to read it's packages from the `flake.nix`. It's currently there for backwards compatibility reasons, but will be removed in the future:
+
+    ```nix
+    # For backwards compatibility using flake.nix
+    (import
+        (
+            fetchTarball {
+                url = "https://github.com/edolstra/flake-compat/archive/12c64ca55c1014cdc1b16ed5a804aa8576601ff2.tar.gz";
+                sha256 = "0jm6nzb83wa6ai17ly9fzpqc40wg1viib8klq8lby54agpl213w5";
+            }
+        )
+    { src = ./.; }).defaultNix
+    ```
+
+This means that from now on when adding new packages, you need to do it in a single file - `flake.nix`
+
+8. **Copy settings from `Config/nix/nixpkgs-config.nix` to `flake.nix`**
+
+    Did you do any changes to `nixpkgs-config.nix` in your project? Likely you haven't, so you can skip this part. For reference, if the file looks like below, you don't need to do anything here:
+
+    ```nix
+    # Config/nix/nixpkgs-config.nix
+    # Standard nixpkgs-config.nix, nothing to do here
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+    }
+    ```
+
+    If you have done any changes to that file, it might look like this:
+
+    ```nix
+    { ihp, additionalNixpkgsOptions, ... }:
+    import "${toString ihp}/NixSupport/make-nixpkgs-from-options.nix" {
+        ihp = ihp;
+        haskellPackagesDir = ./haskell-packages/.;
+        additionalNixpkgsOptions = additionalNixpkgsOptions;
+        dontCheckPackages = ["my-failing-package"];
+        doJailbreakPackages = ["my-jailbreak-package"];
+    }
+    ```
+
+    The `dontCheckPackages` and `doJailbreakPackages` options need to be moved to `flake.nix`:
+
+    ```diff
+    devenvConfig = { pkgs, inputs, config, ... }: {
+
+        # ...
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+        ];
+
+    +   ihp.dontCheckPackages = [ "my-failing-package" ];
+    +   ihp.doJailbreakPackages = [ "my-jailbreak-package" ];
+    };
+    ```
+
+    If you've pinned the IHP app to a specific nixpkgs version in your `nixpkgs-config.nix`, you need to apply that version to `devenv.yaml` now.
+
+9. **Migration finished**
+
+    Finally, approve the new `.envrc`:
+
+    ```bash
+    direnv allow
+    ```
+
+    This will take some time, as all your packages are now being built.
+    Finally, you can start your project with `devenv up`.
+
+
 # Upgrade to 1.0.1 from 1.0.0
 1. **Switch IHP version**
 
@@ -57,12 +430,12 @@ After updating your project, please consult the segments from your current relea
     ```
 
     Now you can start your project as usual with `./start`.
-    
+
     If you've been using a release candidate before, you need to run `nix-store --gc` before. Otherwise nix might use the cached release candidate.
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     - The function `getFrameworkConfig` has been removed:
 
         ```haskell
@@ -76,7 +449,7 @@ After updating your project, please consult the segments from your current relea
     - `Couldn't match type 'CurrentAdminRecord' with 'Admin' arising from a use of 'currentAdminOrNothing'`
 
       To make `currentAdmin` etc. more consistent with `currentUser` functions, we have removed the explicit type argument passed to these functions.
-      
+
       E.g. the following:
       ```haskell
       currentAdminOrNothing @Admin
@@ -86,7 +459,7 @@ After updating your project, please consult the segments from your current relea
       currentAdminOrNothing
       ```
       Additionally you need to specify the `CurrentAdminRecord` inside your `Web/Types.hs`:
-      
+
       ```haskell
       type instance CurrentAdminRecord = Admin
       ```
@@ -120,9 +493,9 @@ After updating your project, please consult the segments from your current relea
 
 3. **Fix Type Errors:**
     You might see some type errors after upgrading. Here's how to fix them:
-    
+
     TODO
-   
+
 # Upgrade to Beta 0.19.0 from Beta 0.18.0
 1. **Switch IHP version**
 
@@ -233,7 +606,7 @@ After updating your project, please consult the segments from your current relea
     ```
 
 4. **Newtype Generics**
-    
+
     We don't use the "Newtype Generics" package as much as expected. To keep IHP lightweight we've removed that package from IHP.
 
     The `newtype-generics` package provided functions like `pack` and `unpack` to wrap things inside a `newtype` wrapper.
@@ -243,9 +616,9 @@ After updating your project, please consult the segments from your current relea
     If you use functionality of `newtype-generics` beyond wrapping and unwrapping the Id values, [please add `newtype-generics` to your `default.nix` and run `make -B .envrc` again](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-haskell-package).
 
 5. **SMTP Mail**
-    
+
     If you configure a custom SMTP server in your `Config.hs`, you will need to explicitly configure the encryption setting:
-    
+
     Change code like this:
 
     ```haskell
@@ -327,7 +700,7 @@ After updating your project, please consult the segments from your current relea
                 let (Just location) = (lookup "Location" (responseHeaders response))
                 location `shouldBe` "http://localhost:8000/Posts"
     ```
-    
+
 
 # Upgrade to Beta 0.15.0 from Beta 0.14.0
 1. **Switch IHP version**
@@ -347,7 +720,7 @@ After updating your project, please consult the segments from your current relea
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v0.15 URL into your `default.nix`.
 2. **Patch `Config/nix/nixpkgs-config.nix`**
-    
+
     Open `Config/nix/nixpkgs-config.nix` and replace it with this:
 
     ```diff
@@ -655,7 +1028,7 @@ Now you can start your project as usual with `./start`.
 ## Update `Main.hs`
 
 1. Add import for `import IHP.Job.Types` to your `Main.hs`:
-    
+
     ```haskell
     import IHP.Job.Types
     ```
@@ -719,7 +1092,7 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.Mail.Types
 
-instance FrameworkConfig where 
+instance FrameworkConfig where
     environment = Development
     appHostname = "localhost"
 ```
@@ -805,7 +1178,7 @@ Remove the `ViewContext` from the `instance View`:
 +instance View EditView where
 ```
 
-Does the view have a custom view-specific layout? 
+Does the view have a custom view-specific layout?
 
 ```diff
 -instance View ShowEnumView ViewContext where

@@ -11,16 +11,16 @@ Follow the [devenv documentation](https://devenv.sh/getting-started/) to set it 
 ## Running an application against a local copy of the framework
 
 To work on the framework in your application, you need to clone this repository inside your application directory.
-If you don't have a project, first make sure you have the latest version of `ihp-new`, update it by running: `nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new`. Use `ihp-new` to create one. Make sure to run `./start` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
+If you don't have a project, first make sure you have the latest version of `ihp-new`, update it by running: `nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new`. Use `ihp-new` to create one. Make sure to run `devenv up` in your project once. Also make sure that [`direnv`](https://direnv.net/docs/hook.html) is set up in your shell.
 
 ```
 # Set up a local IHP project
 ihp-new myproject
 cd myproject
-./start
+devenv up
 ```
 
-Running `./start` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. You can keep `./start` running, as it will pick up any changes to the custom app or the IHP, and save you the hassle of manually recompiling from ghci on every change.
+Running `devenv up` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. You can keep `devenv up` running, as it will pick up any changes to the custom app or the IHP, and save you the hassle of manually recompiling from ghci on every change.
 
 Clone the IHP repository into the project directory. The `IHP` directory is added to the GHC search path in applicationGhciConfig. Therefore when the `IHP` directory exists, GHC will load all IHP modules from there.
 
@@ -39,7 +39,7 @@ It is important to update your custom `default.nix` file and set the `rev` to th
 
 ### Alternative method
 
-Another workflow, instead of the simpler `./start`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+Another workflow, instead of the simpler `devenv up`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci
@@ -144,10 +144,6 @@ After creating a new test you need to still call it from the `Main` module by ad
 If you get an error like `can't satisfy package ihp` or all other IHP packages when running `ghci` most likely the symlink in `build/ihp-lib` is not set up as expected. IHP uses the symlink `build/ihp-lib` in your application's `.ghci` file to access [`IHP/lib/IHP/applicationGhciConfig`](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/applicationGhciConfig#L39). This `applicationGhciConfig` sets up all the required options for `ghci`.
 
 Try to run `make -B build/ihp-lib` to create the symlink.
-
-### `direnv: error .envrc file not found`
-
-In the project directory, try `make -B .envrc`
 
 ### `error: Could not find module 'Generated.Types'`
 

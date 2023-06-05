@@ -39,7 +39,7 @@ main = withUtf8 do
     ensureUserIsNotRoot
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
-    -- Like: $ DEBUG=1 ./start
+    -- Like: $ DEBUG=1 devenv up
     isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
 
     logger <- Log.newLogger def
@@ -73,7 +73,7 @@ main = withUtf8 do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) = 
+handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) =
     case postgresState of
         PostgresReady -> onPostgresReady
         PostgresStarted {} -> onPostgresReady
@@ -173,6 +173,7 @@ handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileCha
                 AppGHCILoading { .. } -> AppGHCILoading { .. }
                 AppGHCIModulesLoaded { .. } -> AppGHCILoading { .. }
                 RunningAppGHCI { .. } -> AppGHCILoading { .. }
+                AppGHCINotStarted -> AppGHCINotStarted
     pure state { appGHCIState = appGHCIState' }
 
 handleAction state SchemaChanged = do
@@ -264,8 +265,8 @@ startAppGHCI = do
     libDirectory <- LibDir.findLibDirectory
 
     let loadAppCommands =
-            [ ":script " <> cs libDirectory <> "/applicationGhciConfig"
-            , ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
+            [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
+             ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
             , "import qualified ClassyPrelude"
             ]
 
