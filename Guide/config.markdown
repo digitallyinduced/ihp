@@ -35,15 +35,16 @@ config = do
 
 Now the app reads the `STRIPE_PUBLIC_KEY` env variable at startup and makes it available to the app.
 
-Before we proceed we should add a default value for this in dev mode. Open the `start` script and add the following env variables:
+Before we proceed we should add a default value for this in dev mode. Create a file `.env` and add the following env variables:
 
 ```bash
-# Add this before the `RunDevServer` call at the end of the file
+# Add this at the end of the file
 export STRIPE_PUBLIC_KEY="pk_test_..."
-
-# Finally start the dev server
-RunDevServer
 ```
+
+The `.env` is not committed to the repo as it's part of the default `.gitignore` for IHP projects. The `.envrc` has a snippet to load environment variables from `.env` into your shell.
+
+If you are ok to commit your secrets to git repo, you can also put the env vars directly into the `.envrc` file.
 
 #### Using Custom Config Parameters
 
