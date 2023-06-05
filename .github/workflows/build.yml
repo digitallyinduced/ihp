@@ -42,12 +42,8 @@ jobs:
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           nix flake update
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
-
-    - name: "nix develop"
-      run: |
+    - run: |
         cd ihp-boilerplate && nix develop --impure --command "true"
-      
-
     # Also build the framework's dev env
-    - name "IHP Framework devenv"
-      run: devenv ci && devenv shell echo ok
+    - run: |
+        devenv ci && devenv shell echo ok
