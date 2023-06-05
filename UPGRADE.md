@@ -34,11 +34,13 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     fi
 
     use flake . --impure
+
+    # Include .env file if it exists locally
     if [ -f .env ]
     then
-      set -o allexport
-      source .env
-      set +o allexport
+        set -o allexport
+        source .env
+        set +o allexport
     fi
 
     # Add your env vars here
