@@ -145,7 +145,6 @@ clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
 	rm -rf build/db
-	rm -f .envrc
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
