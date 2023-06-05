@@ -10,9 +10,9 @@ Internally IHP is using [devenv.sh](https://devenv.sh/) together with [nix flake
 
 ## Using a Haskell Package
 
-To install a Haskell package from Hackage (the standard Haskell package registry), open the `flakes.nix` file and append the package name.
+To install a Haskell package from Hackage (the standard Haskell package registry), open the `flake.nix` file and append the package name.
 
-Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `flakes.nix`. The file will look like this:
+Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `flake.nix`. The file will look like this:
 
 ```nix
 {
@@ -137,7 +137,7 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
 }
 ```
 
-Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flakes.nix` has changed.
+Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
 Run `devenv up` again to start the development server, and `mmark` should now be used as expected:
 
@@ -148,7 +148,7 @@ Sometimes your project uses some other software tool that is not included with I
 
 Let's say we want to add [ImageMagick](https://imagemagick.org/) to transform and resize images uploaded by the users of our application.
 
-All dependencies of our project are listed in `flakes.nix` at the root of the project directory. The file looks like this:
+All dependencies of our project are listed in `flake.nix` at the root of the project directory. The file looks like this:
 
 ```nix
 {
@@ -272,7 +272,7 @@ We now just have to add `imagemagick` to `packages`:
 }
 ```
 
-Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment and install ImageMagick. This is triggered by `direnv` detecting that the `flakes.nix` has changed.
+Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment and install ImageMagick. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
 When you are inside the project with your terminal, you can also call `imagemagick` to see that it's available.
 
@@ -282,7 +282,7 @@ You can look up the package name for the software you depend on inside the nixpk
 
 ### Using a Different Version of a Haskell Package
 
-Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `flakes.nix`:
+Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `flake.nix`:
 
 ```nix
 {
@@ -427,7 +427,7 @@ error: build of '/nix/store/nngc65qyw3bdf6zn84ca0jpxz19mmcv6-ghc-8.8.3-with-pack
 
 This is usually caused by a version mismatch between what the package expects and what is given by nix. You can disable version checking by "jailbreaking" the package.
 
-To jailbreak the package open `flakes.nix` and append `"google-oauth2"` to the `doJailbreakPackages` list:
+To jailbreak the package open `flake.nix` and append `"google-oauth2"` to the `doJailbreakPackages` list:
 
 ```nix
 {
@@ -542,7 +542,7 @@ installed extension.
 
 Nix will try to run a test suite for a package when it's building it from source code. Sometimes the tests fail which will stop you from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.
 
-Open `flakes.nix` and append the package name to the `dontCheckPackages` list:
+Open `flake.nix` and append the package name to the `dontCheckPackages` list:
 
 ```nix
 {
@@ -610,7 +610,7 @@ After that, you can do `nix flake update` without running the failing tests.
 
 ### Nixpkgs Pinning
 
-All projects using IHP are using a specific pinned version of nixpkgs. The specific version used is defined in your project's `flakes.nix`.
+All projects using IHP are using a specific pinned version of nixpkgs. The specific version used is defined in your project's `flake.nix`.
 
 You can override the nixpkgs version by setting the `nixpkgs.url` to your custom values:
 
