@@ -23,17 +23,25 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     .devenv*
     devenv.local.nix
     .direnv
+    .env
     ```
 
 3. **Edit your `.envrc` and migrate env vars from `./start`**
 
     ```
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
-    source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
-
+        source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
     fi
 
     use flake . --impure
+
+    # Include .env file if it exists locally
+    if [ -f .env ]
+    then
+        set -o allexport
+        source .env
+        set +o allexport
+    fi
 
     # Add your env vars here
     #
@@ -65,11 +73,16 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
     ```diff
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
-    source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
-
+        source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
     fi
 
     use flake . --impure
+    if [ -f .env ]
+    then
+      set -o allexport
+      source .env
+      set +o allexport
+    fi
 
     ## Add the exports from your start script here:
 
