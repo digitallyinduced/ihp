@@ -40,6 +40,7 @@ jobs:
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
+          nix flake build
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Install devenv.sh
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
