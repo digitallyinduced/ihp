@@ -12,7 +12,7 @@ Internally IHP is using [devenv.sh](https://devenv.sh/) together with [nix flake
 
 To install a Haskell package from Hackage (the standard Haskell package registry), open the `flakes.nix` file and append the package name.
 
-Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `default.nix`. The file will look like this:
+Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for rendering markdown in our project. The mmark library is not bundled with IHP, so we need to add this package as a dependency to our project. For that open the `flakes.nix`. The file will look like this:
 
 ```nix
 {
@@ -148,7 +148,7 @@ Sometimes your project uses some other software tool that is not included with I
 
 Let's say we want to add [ImageMagick](https://imagemagick.org/) to transform and resize images uploaded by the users of our application.
 
-All dependencies of our project are listed in `default.nix` at the root of the project directory. The file looks like this:
+All dependencies of our project are listed in `flakes.nix` at the root of the project directory. The file looks like this:
 
 ```nix
 {
@@ -282,7 +282,7 @@ You can look up the package name for the software you depend on inside the nixpk
 
 ### Using a Different Version of a Haskell Package
 
-Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `default.nix`:
+Let's say we want to use [the google-oauth2 package from hackage](https://hackage.haskell.org/package/google-oauth2) to add Google OAuth to our application. We can install the package in our project by adding it to `haskellPackages` in our `flakes.nix`:
 
 ```nix
 {
