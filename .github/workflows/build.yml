@@ -29,7 +29,7 @@ jobs:
         key: ${{ runner.os }}-ghc
     - run: |
           cd ihp-boilerplate
-          php ../.github/patch-flakes.php $GITHUB_SHA
+          php ../.github/patch-flakes.php ${{ github.ref }}
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
