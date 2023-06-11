@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import re
+
 from os import path, getcwd, readlink
 from enum import Enum, unique
 from json import load
@@ -108,12 +110,19 @@ path_exists(
     "start script missing. Is this an IHP project?"
 )
 
-path_exists(
-    "/nix",
-    "Nix installed",
-    "Nix store not found. Is nix installed?"
-)
+nix_output = run_command(["nix", "--version"])
 
+if nix_output.returncode != 0:
+    show_failure("Nix is not installed")
+else:
+    (major, minor) = \
+        re.match(r"nix \(Nix\) (\d+)\.(\d+)", nix_output.stdout).group(1, 2)
+
+    if int(major) < 2 or int(minor) < 4:
+        show_failure("Nix version is not 2.4 or higher")
+    else:
+        show_success("Nix is installed and is a supported version")
+        
 show_step("Checking direnv")
 
 path_exists(
