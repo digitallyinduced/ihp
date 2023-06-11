@@ -371,9 +371,14 @@ This means that from now on when adding new packages, you need to do it in a sin
     ```bash
     direnv allow
     ```
+    
+    You will be asked a few questions like "Do you want to allow configuration setting 'extra-substituters' to be set to 'https://digitallyinduced.cachix.org' (y/N)?"
+    You can answer "y" to all of them. This will take some time, as all your packages are now being built. 
+    Once done, you can commit `flake.lock` to your git repository.
+    
+10. **Start project**
 
-    This will take some time, as all your packages are now being built.
-    Finally, you can start your project with `devenv up`.
+    Start your project with `devenv up`.
 
 
 # Upgrade to 1.0.1 from 1.0.0
