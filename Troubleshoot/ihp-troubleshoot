@@ -115,13 +115,13 @@ nix_output = run_command(["nix", "--version"])
 if nix_output.returncode != 0:
     show_failure("Nix is not installed")
 else:
-    (major, minor) = \
-        re.match(r"nix \(Nix\) (\d+)\.(\d+)", nix_output.stdout).group(1, 2)
+    (major, minor, version_string) = \
+        re.match(r"nix \(Nix\) ((\d+)\.(\d+).*)", nix_output.stdout).group(2, 3, 1)
 
     if int(major) > 2 or (int(major) == 2 and int(minor) >= 4):
-        show_success("Nix is installed and is a supported version")
+        show_success(f"Installed Nix version {version_string} is 2.4 or later")
     else:
-        show_failure("Nix version is not 2.4 or higher")
+        show_failure(f"Installed Nix version {version_string} is before 2.4. Versions of Nix before 2.4 are not supported.")
         
 show_step("Checking direnv")
 
