@@ -31,7 +31,7 @@ data Message = Message
     , content :: !Text
     }
 
-data Role = UserRole | SystemRole
+data Role = UserRole | SystemRole | AssistantRole
 
 instance ToJSON CompletionRequest where
     toJSON CompletionRequest { model, prompt, messages, maxTokens, temperature, presencePenalty, frequencePenalty } =
@@ -48,6 +48,7 @@ instance ToJSON CompletionRequest where
 instance ToJSON Role where
     toJSON UserRole = toJSON ("user" :: Text)
     toJSON SystemRole = toJSON ("system" :: Text)
+    toJSON AssistantRole = toJSON ("assistant" :: Text)
 
 instance ToJSON Message where
     toJSON Message { role, content } =
