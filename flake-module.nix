@@ -20,77 +20,91 @@ ihpFlake:
     # the app can configure IHP using these options from its flake
     options.perSystem = flake-parts-lib.mkPerSystemOption (
         { config, pkgs, system, ...}: {
-            options.ihp.enable = lib.mkEnableOption "Enable IHP support";
+            options.ihp = {
+                enable = lib.mkEnableOption "Enable IHP support";
 
-            options.ihp.ghcCompiler = lib.mkOption {
-                default = pkgs.haskell.packages.ghc944;
-                description = ''
-                    The GHC compiler to use for IHP.
-                '';
-            };
+                ghcCompiler = lib.mkOption {
+                    description = ''
+                        The GHC compiler to use for IHP.
+                    '';
+                    default = pkgs.haskell.packages.ghc944;
+                };
 
-            options.ihp.haskellPackages = lib.mkOption {
-                default = p: with p; [
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                    ihp
-                ];
-                description = ''
-                    List of Haskell packages to be installed in the IHP environment.
-                '';
-            };
+                packages = lib.mkOption {
+                    description = ''
+                        List of packages than should be included in the IHP environment.
+                    '';
+                    type = lib.types.listOf (lib.types.package);
+                    default = [];
+                };
 
-            options.ihp.projectPath = lib.mkOption {
-                type = lib.types.path;
-                description = ''
-                    Path to the IHP project.
-                '';
-            };
+                haskellPackages = lib.mkOption {
+                    description = ''
+                        List of Haskell packages to be installed in the IHP environment.
+                    '';
+                    default = p: [
+                        p.cabal-install
+                        p.base
+                        p.wai
+                        p.text
+                        p.hlint
+                        p.ihp
+                    ];
+                };
 
-            options.ihp.dontCheckPackages = lib.mkOption {
-                default = [];
-                description = ''
-                    List of Haskell package names whose tests are skipped during build
-                '';
-            };
+                projectPath = lib.mkOption {
+                    description = ''
+                        Path to the IHP project. You likely want to set this to `./.`.
+                    '';
+                    type = lib.types.path;
+                };
 
-            options.ihp.doJailbreakPackages = lib.mkOption {
-                default = [];
-                description = ''
-                    List of Haskell package names who are jailbreaked before build
-                '';
-            };
+                dontCheckPackages = lib.mkOption {
+                    description = ''
+                        List of Haskell package names whose tests are skipped during build.
+                    '';
+                    type = lib.types.listOf (lib.types.str);
+                    default = [];
+                };
 
-            options.ihp.dontHaddockPackages = lib.mkOption {
-                default = [];
-                description = ''
-                    List of Haskell package names whose haddock is not build during app build
-                '';
+                doJailbreakPackages = lib.mkOption {
+                    description = ''
+                        List of Haskell package names who are jailbreaked before build.
+                    '';
+                    type = lib.types.listOf (lib.types.str);
+                    default = [];
+                };
+
+                dontHaddockPackages = lib.mkOption {
+                    description = ''
+                        List of Haskell package names whose haddock is not built during app build.
+                    '';
+                    type = lib.types.listOf (lib.types.str);
+                    default = [];
+                };
             };
         }
     );
 
     config = {
         perSystem = { self', lib, pkgs, system, config, ... }: let
+            cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = import "${ihp}/NixSupport/mkGhcCompiler.nix" {
                 inherit pkgs;
-                inherit (config.ihp) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
+                inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
                 ihp = ihp;
-                haskellPackagesDir = config.ihp.projectPath + "/Config/nix/haskell-packages";
+                haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
             };
-        in lib.mkIf config.ihp.enable {
+        in lib.mkIf cfg.enable {
             _module.args.pkgs = import ihpFlake.inputs.nixpkgs { inherit system; };
 
             # release build package
             packages.default = import "${ihp}/NixSupport/default.nix" {
                 ihp = ihp;
-                haskellDeps = config.ihp.haskellPackages;
-                otherDeps = p: config.devenv.shells.default.packages;  # that's pretty oof
-                projectPath = config.ihp.projectPath;
+                haskellDeps = cfg.haskellPackages;
+                otherDeps = p: cfg.packages;
+                projectPath = cfg.projectPath;
 
                 # Dev tools are not needed in the release build
                 includeDevTools = false;
@@ -100,8 +114,8 @@ ihpFlake:
                 optimized = false;
             };
 
-            devenv.shells.default = let cfg = config.ihp; in lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 ];
+            devenv.shells.default = lib.mkIf cfg.enable {
+                packages = [ ghcCompiler.ihp pkgs.postgresql_13 ] ++ cfg.packages;
 
                 /*
                 we currently don't use devenv containers, and they break nix flake show
@@ -151,6 +165,8 @@ ihpFlake:
             };
         };
 
+        # Nix requires this to be interactively allowed on first use for security reasons
+        # Can be circumvented by setting these settings yourself on the system level
         flake.nixConfig = {
             extra-substituters = "https://digitallyinduced.cachix.org";
             extra-trusted-public-keys = "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=";
