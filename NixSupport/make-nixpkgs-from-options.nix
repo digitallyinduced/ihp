@@ -22,7 +22,7 @@ let
       haskell = pkgs.haskell // {
         packages = pkgs.haskell.packages // {
           "${compiler}" = mkGhcCompiler {
-            inherit pkgs ihp dontCheckPackages doJailbreakPackages dontHaddockPackages manualOverrides;
+            inherit pkgs ihp dontCheckPackages doJailbreakPackages dontHaddockPackages manualOverrides haskellPackagesDir;
 
             ghcCompiler = pkgs.haskell.packages."${compiler}";
           };
