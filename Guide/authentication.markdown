@@ -263,6 +263,8 @@ Creating a user is similar to creating any other record. However, one notable di
         let passwordConfirmation = param @Text "passwordConfirmation"
         user
             |> fill @["email", "passwordHash"]
+            -- We ensure that the error message doesn't include
+            -- the entered password.
             |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
             |> validateField #passwordHash nonEmpty
             |> validateField #email isEmail
