@@ -293,21 +293,6 @@ renderForm user = formFor user [hsx|
 |]
 ```
 
-In the case of Editing, the password and password confirmation are optional. If however, the user has changed
-the password, they will also need to confirm it.
-
-
-```haskell
-renderForm :: User -> Html
-renderForm user = formFor user [hsx|
-    {(textField #email)}
-    {(passwordField #passwordHash) {fieldLabel = "Password"}}
-
-    <input type="password" name="passwordConfirmation"/>
-    {submitButton}
-|]
-```
-
 ### Editing a User
 
 When editing an existing user we need to special case the password handling. A user may edit their info, but
@@ -319,12 +304,19 @@ Furthermore, we want to make sure that when we present the form, we don't popula
     action UpdateUserAction { userId } = do
         user <- fetch userId
         let originalPasswordHash = user.passwordHash
+        -- The value from the password confirmation input field.
+        let passwordConfirmation = param @Text "passwordConfirmation"
         user
             |> fill @["email", "passwordHash"]
             -- We only validate the email field isn't empty, as the password
-            -- can remain empty.
+            -- can remain empty. We ensure that the error message doesn't include
+            -- the entered password.
+            |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
+            |> validateField #passwordHash nonEmpty
             |> validateField #email isEmail
-            |> ifValid \case
+            -- After this validation, since it's operation on the IO, we'll need to use >>=.
+            |> validateIsUnique #email
+            >>= ifValid \case
                 Left user -> render EditView { .. }
                 Right user -> do
                     -- If the password hash is empty, then the user did not
@@ -340,6 +332,21 @@ Furthermore, we want to make sure that when we present the form, we don't popula
                         |> updateRecord
                     setSuccessMessage "User updated"
                     redirectTo EditUserAction { .. }
+```
+
+In the case of Editing, the password and password confirmation are optional. If however, the user has changed
+the password, they will also need to confirm it.
+
+
+```haskell
+renderForm :: User -> Html
+renderForm user = formFor user [hsx|
+    {(textField #email)}
+    {(passwordField #passwordHash) {fieldLabel = "Password"}}
+
+    <input type="password" name="passwordConfirmation"/>
+    {submitButton}
+|]
 ```
 
 ### Hashing a Password via CLI
