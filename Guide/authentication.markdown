@@ -283,7 +283,7 @@ The view would look like this, removing the `failedLoginAttempts` that was gener
 renderForm :: User -> Html
 renderForm user = formFor user [hsx|
     {(textField #email)}
-    {(textField #passwordHash) {fieldLabel = "Password"}}
+    {(passwordField #passwordHash) {fieldLabel = "Password"}}
     {submitButton}
 |]
 ```
