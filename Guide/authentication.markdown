@@ -341,6 +341,7 @@ the password, they will also need to confirm it.
 
 
 ```haskell
+-- Web/View/Users/Edit.hs
 renderForm :: User -> Html
 renderForm user = formFor user [hsx|
     {(textField #email)}
