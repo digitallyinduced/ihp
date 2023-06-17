@@ -632,8 +632,7 @@ If the [`StaticDirStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileSt
 
 The signed url is valid for 7 days.
 
-@todo: Add about refresh.
-
+You can use the [`refreshTemporaryDownloadUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:refreshTemporaryDownloadUrl) function to refresh the signed url. See the [example above](#required-uploads-with-a-file-record) for an example.
 
 ## File Upload Limits
 
