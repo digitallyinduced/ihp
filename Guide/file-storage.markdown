@@ -333,6 +333,102 @@ Note that `|> buildCompany` was changed to `>>= buildCompany`.
 
 Now we have server side validation as well, and if a file isn't loaded, the user will see "The field cannot be empty". Your code however should still check that the `logoUrl` is not empty before using it.
 
+### Required Uploads with a File Record
+
+We've just seen how we we're able to validate that the `logoUrl` is required, even though we've set `logoUrl` to be a `Maybe Text`. But what if the logo is indeed required? Modeling it as `Maybe Text` just because `uploadToStorage` returns a `Maybe` value isn't ideal. Just by looking at the model, another developer might, rightfully, assume that the logo is optional.
+
+There's another things that's worth mentioning here, and that's the fact the file names are gone once we upload the file. For security reasons we don't want to use the original file name provided by the user. Instead we use a random UUID as the file name. This makes it impossible to guess the URL of a file and also makes sure it's not possible to upload a file with a malicious file name. But what if we do need the file name?
+
+To solve both problems we can introduce a new model `UploadedFile`:
+
+```sql
+CREATE TABLE uploaded_files (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    signed_url TEXT NOT NULL,
+    signed_url_expired_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    content_type TEXT NOT NULL
+);
+```
+
+This will hold the original file name, the content type and the path where the file was saved. We also store a signed URL that can be used to download the file.
+
+Companies will now reference this new record
+
+```sql
+CREATE TABLE companies (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    uploaded_file_id UUID NOT NULL
+);
+CREATE INDEX companies_uploaded_file_id_index ON companies (uploaded_file_id);
+ALTER TABLE companies ADD CONSTRAINT companies_ref_uploaded_file_id FOREIGN KEY (uploaded_file_id) REFERENCES uploaded_files (id) ON DELETE NO ACTION;
+```
+
+Our Companies controller will now change to:
+
+```haskell
+-- Web/Controller/Companies.hs
+    action CreateCompanyAction = do
+        -- Upload file. If no file provided, we error and short-circuit.
+        let file = fileOrNothing "uploadedFile" |> fromMaybe (error "no file given")
+
+        let options :: StoreFileOptions = def
+                { directory = "uploaded_files"
+                , contentDisposition = contentDispositionAttachmentAndFileName
+                }
+
+        -- Store the file, and get the signed URL.
+        storedFile <- storeFileWithOptions file options
+        signedUrl <- createTemporaryDownloadUrl storedFile
+
+        -- Create the UploadedFile record. Set the signed URL, path, content-type etc.
+        uploadedFile <- newRecord @UploadedFile |> createRecord
+        uploadedFile <- uploadedFile
+            |> set #signedUrl signedUrl.url
+            |> set #signedUrlExpiredAt signedUrl.expiredAt
+            |> set #path storedFile.path
+            |> set #fileName (cs file.fileName)
+            |> set #contentType (cs $ Wai.fileContentType file)
+            |> updateRecord
+
+        let company = newRecord @Company
+        company
+            |> buildCompany
+            -- Reference the newly created UploadedFile record.
+            |> set #uploadedFileId uploadedFile.id
+            |> ifValid \case
+                Left company -> render NewView { .. }
+                Right company -> do
+                    company <- company |> createRecord
+                    setSuccessMessage "Company created"
+                    redirectTo ShowCompanyAction { companyId = company.id }
+```
+
+Our Show action can now change to the following code, that will get the `UploadedFile` out of the company,
+and ensure we have an up-to-date signed URL.
+
+```haskell
+-- Web/Controller/Companies.hs
+    action ShowCompanyAction { companyId } = do
+        company <- fetch companyId
+
+        -- Get the UploadedFile record.
+        uploadedFile <- fetch company.uploadedFileId
+
+        -- Refresh the signed URL, if needed.
+        uploadedFile <- refreshTemporaryDownloadUrlFromFile uploadedFile
+
+        render ShowView { .. }
+```
+
+The company show would now receive the following records:
+
+```haskell
+-- Web/View/Companies/Show.hs
+data ShowView = ShowView { company :: Company, uploadedFile :: UploadedFile }
+```
 
 ### Image Preprocessing
 
@@ -535,6 +631,8 @@ let expiredAt :: UTCTime = signedUrl.expiredAt
 If the [`StaticDirStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Types.html#t:FileStorage) is used, a unsigned normal URL will be returned, as these files are public anyways.
 
 The signed url is valid for 7 days.
+
+@todo: Add about refresh.
 
 
 ## File Upload Limits
