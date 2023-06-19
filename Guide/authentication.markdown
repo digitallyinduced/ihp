@@ -290,7 +290,7 @@ renderForm user = formFor user [hsx|
     {(textField #email)}
     {(passwordField #passwordHash) {fieldLabel = "Password", required = True}}
 
-    {(passwordField #passwordHash) {required = True, fieldLabel = "Password confirmation", fieldName = "passwordConfirmation", validatorResult = Nothing}}
+    {(passwordField #passwordHash) { required = True, fieldLabel = "Password confirmation", fieldName = "passwordConfirmation", validatorResult = Nothing }}
 
     {submitButton}
 |]
@@ -353,7 +353,7 @@ renderForm user = formFor user [hsx|
     {(textField #email)}
     {(passwordField #passwordHash) {fieldLabel = "Password"}}
 
-    {(passwordField #passwordHash) {fieldLabel = "Password confirmation", fieldName = passwordConfirmation", validatorResult = Nothing}}
+    {(passwordField #passwordHash) {fieldLabel = "Password confirmation", fieldName = "passwordConfirmation", validatorResult = Nothing}}
     {submitButton}
 |]
 ```
