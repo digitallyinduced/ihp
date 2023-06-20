@@ -97,18 +97,28 @@ ihpFlake:
             };
         in lib.mkIf cfg.enable {
             # release build package
-            packages.default = import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = cfg.haskellPackages;
-                otherDeps = p: cfg.packages;
-                projectPath = cfg.projectPath;
+            packages = {
+                default = self'.packages.unoptimized-prod-server;
 
-                # Dev tools are not needed in the release build
-                includeDevTools = false;
+                optimized-prod-server = import "${ihp}/NixSupport/default.nix" {
+                    ihp = ihp;
+                    haskellDeps = cfg.haskellPackages;
+                    otherDeps = p: cfg.packages;
+                    projectPath = cfg.projectPath;
+                    # Dev tools are not needed in the release build
+                    includeDevTools = false;
+                    # Set optimized = true to get more optimized binaries, but slower build times
+                    optimized = true;
+                };
 
-                # Set optimized = true to get more optimized binaries, but slower build times
-                # TODO make configurable via option
-                optimized = false;
+                unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
+                    ihp = ihp;
+                    haskellDeps = cfg.haskellPackages;
+                    otherDeps = p: cfg.packages;
+                    projectPath = cfg.projectPath;
+                    includeDevTools = false;
+                    optimized = false;
+                };
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
