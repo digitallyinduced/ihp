@@ -8,13 +8,12 @@ ihpFlake:
 
 # these arguments on the other hand are from the flake where this module is imported
 # i.e. from the flake of any particular IHP app
-{ flake-parts-lib, lib, config, ... }:
+{ inputs, flake-parts-lib, lib, config, ... }:
 
 {
 
     imports = [
-        # we import devenv from ihpFlake so we can lock the version on IHP's side
-        ihpFlake.inputs.devenv.flakeModule
+        inputs.devenv.flakeModule
     ];
 
     # the app can configure IHP using these options from its flake
@@ -97,8 +96,6 @@ ihpFlake:
                 haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
             };
         in lib.mkIf cfg.enable {
-            _module.args.pkgs = import ihpFlake.inputs.nixpkgs { inherit system; };
-
             # release build package
             packages.default = import "${ihp}/NixSupport/default.nix" {
                 ihp = ihp;

@@ -29,7 +29,7 @@
             ];
 
             flake = {
-                flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit withSystem inputs; };
+                flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
                 path = inputs.ihp-boilerplate;
                 description = "Template for an IHP project";
