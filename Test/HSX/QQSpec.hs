@@ -181,6 +181,11 @@ tests = do
             let className = preEscapedTextValue "a&"
             [hsx|<div class={className}></div>|] `shouldBeHtml` "<div class=\"a&\"></div>"
 
+        it "should support support doctype" do
+            -- See https://github.com/digitallyinduced/ihp/issues/1717
+
+            [hsx|<!DOCTYPE html><html lang="en"><body>hello</body></html>|] `shouldBeHtml` "<!DOCTYPE HTML>\n<html lang=\"en\"><body>hello</body></html>"
+
 data Project = Project { name :: Text }
 
 data PlaceId  = PlaceId Text
