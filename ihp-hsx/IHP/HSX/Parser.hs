@@ -279,7 +279,7 @@ hsxSplicedNode = do
 
 hsxElementName :: Parser Text
 hsxElementName = do
-    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-')
+    name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-' || c == '!')
     let isValidParent = name `Set.member` parents
     let isValidLeaf = name `Set.member` leafs
     let isValidCustomWebComponent = "-" `Text.isInfixOf` name
@@ -388,6 +388,7 @@ attributes = Set.fromList
         , "loading"
         , "frameborder", "allow", "allowfullscreen", "nonce", "referrerpolicy", "slot"
         , "kind"
+        , "html"
         ]
 
 parents :: Set Text
@@ -579,6 +580,7 @@ leafs = Set.fromList
         , "link"
         , "meta"
         , "param"
+        , "!DOCTYPE"
         ]
 
 stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNodeWhitespaces nodes)

@@ -100,14 +100,17 @@ Here is an example of a layout calling [`renderFlashMessages`](https://ihp.digit
 
 ```haskell
 defaultLayout :: Html -> Html
-defaultLayout inner = H.docTypeHtml ! A.lang "de" $ [hsx|
-<head></head>
-<body>
-    <div class="container mt-2">
-        {renderFlashMessages}
-        {inner}
-    </div>
-</body>
+defaultLayout inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head></head>
+    <body>
+        <div class="container mt-2">
+            {renderFlashMessages}
+            {inner}
+        </div>
+    </body>
+</html>
 |]
 ```
 
