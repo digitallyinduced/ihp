@@ -474,24 +474,27 @@ This means that the `defaultLayout` in the file `Layout.hs` will now get the `UT
 
 ```haskell
 defaultLayout :: UTCTime -> Html -> Html
-defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
-<head>
-    {metaTags}
+defaultLayout currentTime inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        {metaTags}
 
-    {stylesheets}
-    {scripts}
+        {stylesheets}
+        {scripts}
 
-    <title>{pageTitleOrDefault "App"}</title>
-</head>
-<body>
-    {header}
-    <main>
-        {renderFlashMessages}
-        {inner}
-    </main>
+        <title>{pageTitleOrDefault "App"}</title>
+    </head>
+    <body>
+        {header}
+        <main>
+            {renderFlashMessages}
+            {inner}
+        </main>
 
-    {footer currentTime}
-</body>
+        {footer currentTime}
+    </body>
+</html>
 |]
 
 footer :: UTCTime -> Html

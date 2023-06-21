@@ -18,11 +18,14 @@ Open your `Web/View/Layout.hs` and add a [`{modal}`](https://ihp.digitallyinduce
 
 ```haskell
 defaultLayout :: Html -> Html
-defaultLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
-<body>
-    {inner}
-    {modal}
-</body>
+defaultLayout inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <body>
+        {inner}
+        {modal}
+    </body>
+</html>
 |]
 ```
 

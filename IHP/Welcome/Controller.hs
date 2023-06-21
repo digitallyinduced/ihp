@@ -4,8 +4,6 @@ module IHP.Welcome.Controller where
 import IHP.ControllerPrelude
 import IHP.RouterPrelude
 import IHP.ViewPrelude
-import qualified Text.Blaze.Html5            as H
-import qualified Text.Blaze.Html5.Attributes as A
 
 data WelcomeController = WelcomeAction deriving (Eq, Show, Data)
 
@@ -18,7 +16,7 @@ instance HasPath WelcomeController where
 instance Controller WelcomeController where
     action WelcomeAction = respondHtml (renderLayout view)
 
-view :: H.Html
+view :: Html
 view = [hsx|
 <div style="background-color: #657b83; padding: 2rem; color:hsla(196, 13%, 96%, 1)">
     <div style="max-width: 800px; margin-left: auto; margin-right: auto">
@@ -45,15 +43,18 @@ view = [hsx|
 |]
 
 renderLayout :: Layout
-renderLayout view = H.docTypeHtml ! A.lang "en" $ [hsx|
-<head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
-    <title>Welcome to IHP</title>
+renderLayout view = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+        <title>Welcome to IHP</title>
 
-    <script id="livereload-script" src="/livereload.js"></script>
-</head>
-<body style={bodyStyle}>{view}</body>
+        <script id="livereload-script" src="/livereload.js"></script>
+    </head>
+    <body style={bodyStyle}>{view}</body>
+</html>
 |]
     where
         bodyStyle :: Text

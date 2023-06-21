@@ -9,66 +9,69 @@ import qualified Text.Blaze.Html5.Attributes as A
 import IHP.IDE.ToolServer.Helper.View
 
 toolServerLayout :: Html -> Html
-toolServerLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
-<head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+toolServerLayout inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 
-    <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
-    <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
-    <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
-    <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
+        <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
+        <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
+        <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
+        <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-    <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
-    <script src={assetPath "/vendor/timeago.js"}></script>
-    <script src={assetPath "/vendor/popper.min.js"}></script>
-    <script src={assetPath "/vendor/bootstrap.min.js"}></script>
-    
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
+        <script src={assetPath "/vendor/timeago.js"}></script>
+        <script src={assetPath "/vendor/popper.min.js"}></script>
+        <script src={assetPath "/vendor/bootstrap.min.js"}></script>
+        
 
-    <script src={assetPath "/vendor/turbolinks.js"}></script>
-    <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-    <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
-    <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
-    
+        <script src={assetPath "/vendor/turbolinks.js"}></script>
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
+        <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
+        
 
-    <script src={assetPath "/helpers.js"}></script>
-    <script src={assetPath "/IDE/contextmenu.js"}></script>
+        <script src={assetPath "/helpers.js"}></script>
+        <script src={assetPath "/IDE/contextmenu.js"}></script>
 
-    <script src={assetPath "/vendor/select2.min.js"}></script>
-    <script src={assetPath "/vendor/src-min/ace.js"}></script>
-    <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
-    <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
-    <script src={assetPath "/IDE/ihp-codegen.js"}></script>
-    <script src={assetPath "/IDE/ihp-policy.js"}></script>
-    <script src={assetPath "/IDE/ihp-help.js"}></script>
-    <script src={assetPath "/IDE/query-editor.js"}></script>
-    <script src={assetPath "/IDE/data-hovercard.js"}></script>
-    <script src={assetPath "/IDE/migration-editor.js"}></script>
+        <script src={assetPath "/vendor/select2.min.js"}></script>
+        <script src={assetPath "/vendor/src-min/ace.js"}></script>
+        <script src={assetPath "/vendor/src-min/ext-language_tools.js"}></script>
+        <script src={assetPath "/IDE/ihp-schemadesigner.js"}></script>
+        <script src={assetPath "/IDE/ihp-codegen.js"}></script>
+        <script src={assetPath "/IDE/ihp-policy.js"}></script>
+        <script src={assetPath "/IDE/ihp-help.js"}></script>
+        <script src={assetPath "/IDE/query-editor.js"}></script>
+        <script src={assetPath "/IDE/data-hovercard.js"}></script>
+        <script src={assetPath "/IDE/migration-editor.js"}></script>
 
 
-    <title>IHP IDE</title>
-</head>
-<body class="d-flex h-100 flex-row">
-    <div id="nav">
-        <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
-        <div id="ihp-plan">{ihpEditionTitle}</div>
-        {apps}
-        {schema}
-        {data_}
-        {codegen}
-        {logs}
-        {deploy}
-        {docu}
+        <title>IHP IDE</title>
+    </head>
+    <body class="d-flex h-100 flex-row">
+        <div id="nav">
+            <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
+            <div id="ihp-plan">{ihpEditionTitle}</div>
+            {apps}
+            {schema}
+            {data_}
+            {codegen}
+            {logs}
+            {deploy}
+            {docu}
 
-        {when isBasicEdition getPro}
-        {help}
-        <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
-    </div>
-    <div id="content">
-        {inner}
-    </div>
-</body>
+            {when isBasicEdition getPro}
+            {help}
+            <a href="https://www.digitallyinduced.com/" id="nav-copyright" target="_blank">©<br />digitally induced GmbH</a>
+        </div>
+        <div id="content">
+            {inner}
+        </div>
+    </body>
+</html>
 |]  where
         (AvailableApps appNames) = fromFrozenContext @AvailableApps
         apps = forEach appNames appNavItem
