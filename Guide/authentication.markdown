@@ -290,10 +290,16 @@ renderForm user = formFor user [hsx|
     {(textField #email)}
     {(passwordField #passwordHash) {fieldLabel = "Password", required = True}}
 
-    <input type="password" name="passwordConfirmation" required/>
+    {(passwordField #passwordHash) { required = True, fieldLabel = "Password confirmation", fieldName = "passwordConfirmation", validatorResult = Nothing }}
+
     {submitButton}
 |]
 ```
+
+You'll notice we have two passwordFields. The first one is the password field, and the second one is the password confirmation field. We need to add a `fieldName` to the second one, so that it will be submitted as `passwordConfirmation` instead of `passwordHash`. We also need to set the `validatorResult` to `Nothing`, so that the validation error message doesn't show up twice.
+
+We could have hand written `<input type="password" name="passwordConfirmation" required/>`, however we'd like the theming of the fields to be consistent.
+
 
 ### Editing a User
 
@@ -347,7 +353,7 @@ renderForm user = formFor user [hsx|
     {(textField #email)}
     {(passwordField #passwordHash) {fieldLabel = "Password"}}
 
-    <input type="password" name="passwordConfirmation"/>
+    {(passwordField #passwordHash) { fieldLabel = "Password confirmation", fieldName = "passwordConfirmation", validatorResult = Nothing }}
     {submitButton}
 |]
 ```
