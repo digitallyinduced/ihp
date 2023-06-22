@@ -570,6 +570,15 @@ If you want a certain value to be preselected, set the value in the controller. 
         render NewView { .. }
 ```
 
+In your `Show.hs` file you can re-use the `selectLabel` to render the user name, the same it did on the select list.
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|
+        Selected user: {selectLabel user.name}
+    |]
+```
+
 ### Select Inputs with Nullable Value
 
 Sometimes we want to allow the user to specifically make a choice of missing/none. To have our user-dropdown from the previous example allow this, we need to adjust the [`CanSelect`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#t:CanSelect) instance.
@@ -623,6 +632,15 @@ view to generate the list of select fields:
 |]
     where
       allContentTypes = allEnumValues @ContentType
+```
+
+In your `Show.hs` file you can re-use the `selectLabel` to render the content type, the same it did on the select list.
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|
+        Selected content type: {selectLabel subscription.contentType}
+    |]
 ```
 
 ### Select Inputs with Custom Nullable Enums
