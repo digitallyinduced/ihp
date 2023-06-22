@@ -98,7 +98,7 @@ tests = do
             [hsx|<div><!--my comment--></div>|] `shouldBeHtml` "<div><!-- my comment --></div>"
 
         it "should work with no render comments" do
-            [hsx|<div>{<!--my comment-->}</div>|] `shouldBeHtml` "<div></div>"
+            [hsx|<div>{- my comment -}</div>|] `shouldBeHtml` "<div></div>"
 
         it "should escape variables to avoid XSS" do
             let variableContent :: Text = "<script>alert(1);</script>"
