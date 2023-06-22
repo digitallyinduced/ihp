@@ -13,6 +13,7 @@ module IHP.FileStorage.ControllerFunctions
 , createTemporaryDownloadUrl
 , createTemporaryDownloadUrlFromPath
 , createTemporaryDownloadUrlFromPathWithExpiredAt
+, refreshTemporaryDownloadUrlFromFile
 , uploadToStorage
 , uploadToStorageWithOptions
 , storage
@@ -255,6 +256,41 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
 --
 createTemporaryDownloadUrl :: (?context :: context, ConfigProvider context) => StoredFile -> IO TemporaryDownloadUrl
 createTemporaryDownloadUrl storedFile = createTemporaryDownloadUrlFromPath (storedFile.path)
+
+-- | Use the temporary download URL if the current one is not expired.
+-- Otherwise, create a new temporary download URL and update the record.
+--
+-- __Example:__ Fetch an 'UploadedFile' record (a custom record with @signedUrl@, @signedUrlExpiredAt@ and @path@ ) and use 'refreshTemporaryDownloadUrlFromFile'
+-- to get a fresh signed url if expired date has passed.
+-- and update it with the signed url.
+--
+-- > uploadedFile <- fetch uploadedFileId
+-- > uploadedFile <- refreshTemporaryDownloadUrlFromFile uploadedFile
+refreshTemporaryDownloadUrlFromFile ::
+    ( ?modelContext::ModelContext
+    , ?context :: context
+    , ConfigProvider context
+    , CanUpdate record
+    , HasField "signedUrl" record Text
+    , HasField "signedUrlExpiredAt" record UTCTime
+    , HasField "path" record Text
+    , SetField "signedUrl" record Text
+    , SetField "signedUrlExpiredAt" record UTCTime
+    , SetField "path" record Text
+    ) => record  -> IO record
+refreshTemporaryDownloadUrlFromFile record = do
+    now <- getCurrentTime
+    let diff = diffUTCTime now record.signedUrlExpiredAt
+    if diff > 0
+        then do
+            temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath record.path
+            record
+                |> set #signedUrl (temporaryDownloadUrl |> get #url)
+                |> set #signedUrlExpiredAt (temporaryDownloadUrl |> get #expiredAt)
+                |> updateRecord
+
+        else
+            pure record
 
 contentDispositionAttachmentAndFileName :: Wai.FileInfo LByteString -> IO (Maybe Text)
 contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; filename=\"" <> cs (fileInfo.fileName) <> "\""))
