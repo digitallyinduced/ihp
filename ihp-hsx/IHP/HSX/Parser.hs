@@ -43,8 +43,8 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
     | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
     | SplicedNode !Haskell.Exp -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
-    | CommentNode !Text -- ^ A Comment that is rendered in the final HTML.
-    | NoRenderCommentNode -- ^ A comment that is not rendered in the final HTML.
+    | CommentNode !Text -- ^ A Comment that is rendered in the final HTML
+    | NoRenderCommentNode -- ^ A comment that is not rendered in the final HTML
     deriving (Eq, Show)
 
 -- | Parses a HSX text and returns a 'Node'
