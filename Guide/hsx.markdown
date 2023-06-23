@@ -228,9 +228,32 @@ Spaces and newline characters are removed where possible at HSX parse time.
 
 HTML Comments are supported and can be used like this:
 
+```haskell
+[hsx|
+<div>
+    <!-- Comment with be shown on HTML -->
+    <h1>Hello</h1>
+</div>
+|]
+
+```
+
+We also support a "no render" comments, that can be used for adding comments inside `hsx`, but without being
+rendered to HTML.
+
+```haskell
+[hsx|
+    <div>
+        {- Comment with be shown on HTML -}
+        <h1>Hello</h1>
+    </div>
+|]
+```
+
+Will render to:
+
 ```html
 <div>
-    <!-- Begin of Main Section -->
     <h1>Hello</h1>
 </div>
 ```
