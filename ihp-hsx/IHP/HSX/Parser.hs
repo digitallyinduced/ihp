@@ -142,7 +142,7 @@ hsxComment = do
 hsxNoRenderComment :: Parser Node
 hsxNoRenderComment = do
     string "{-"
-    body :: String <- manyTill (satisfy (const True)) (string "-}")
+    manyTill (satisfy (const True)) (string "-}")
     space
     pure NoRenderCommentNode
 

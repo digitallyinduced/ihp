@@ -88,7 +88,7 @@ parseComment = do
 parseNoRenderComment :: Parser Node
 parseNoRenderComment = do
     string "{-"
-    body :: String <- manyTill (satisfy (const True)) (string "-}")
+    manyTill (satisfy (const True)) (string "-}")
     space
     pure NoRenderCommentNode
 
