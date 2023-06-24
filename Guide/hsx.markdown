@@ -231,7 +231,7 @@ HTML Comments are supported and can be used like this:
 ```haskell
 [hsx|
 <div>
-    <!-- Comment with be shown on HTML -->
+    <!-- Comment will be shown on HTML -->
     <h1>Hello</h1>
 </div>
 |]
@@ -244,7 +244,7 @@ rendered to HTML.
 ```haskell
 [hsx|
     <div>
-        {- Comment with be shown on HTML -}
+        {- Comment will not be shown on HTML -}
         <h1>Hello</h1>
     </div>
 |]
