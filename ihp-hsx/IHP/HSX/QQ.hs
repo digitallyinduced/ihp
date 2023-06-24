@@ -80,6 +80,7 @@ compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
 compileToHaskell (CommentNode value) = [| Html5.textComment value |]
+compileToHaskell (NoRenderCommentNode) = [| mempty |]
 
 
 toStringAttribute :: Attribute -> TH.ExpQ

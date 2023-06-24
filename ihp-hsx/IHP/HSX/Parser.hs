@@ -43,7 +43,8 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
     | PreEscapedTextNode !Text -- ^ Used in @script@ or @style@ bodies
     | SplicedNode !Haskell.Exp -- ^ Inline haskell expressions like @{myVar}@ or @{f "hello"}@
     | Children ![Node]
-    | CommentNode !Text
+    | CommentNode !Text -- ^ A Comment that is rendered in the final HTML
+    | NoRenderCommentNode -- ^ A comment that is not rendered in the final HTML
     deriving (Eq, Show)
 
 -- | Parses a HSX text and returns a 'Node'
@@ -79,7 +80,7 @@ parser = do
     pure node
 
 hsxElement :: Parser Node
-hsxElement = try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
+hsxElement = try hsxNoRenderComment <|> try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
 
 manyHsxElement :: Parser Node
 manyHsxElement = do
@@ -137,6 +138,13 @@ hsxComment = do
     body :: String <- manyTill (satisfy (const True)) (string "-->")
     space
     pure (CommentNode (cs body))
+
+hsxNoRenderComment :: Parser Node
+hsxNoRenderComment = do
+    string "{-"
+    manyTill (satisfy (const True)) (string "-}")
+    space
+    pure NoRenderCommentNode
 
 
 hsxNodeAttributes :: Parser a -> Parser [Attribute]

@@ -48,6 +48,13 @@ tests = do
                     let expected = [UpdateComment { comment = "new", path = [] }]
                     result `shouldBe` expected
 
+                it "should patch no render comment nodes" do
+                    let a = NoRenderCommentNode
+                    let b = NoRenderCommentNode
+                    let result = diffNodes a b
+                    let expected = []
+                    result `shouldBe` expected
+
                 it "should patch PreEscapedText nodes" do
                     let a = PreEscapedTextNode { textContent = "alert(1)" }
                     let b = PreEscapedTextNode { textContent = "alert(2)" }
@@ -59,7 +66,7 @@ tests = do
                     let a = Node {tagName = "span", attributes = [], children = [], startOffset = 0, endOffset = 0}
                     let b = Node {tagName = "span", attributes = [], children = [TextNode {textContent = "string"}, CommentNode {comment = "test"}], startOffset = 0, endOffset = 0}
                     let result = diffNodes a b
-                    let expected = 
+                    let expected =
                             [ CreateNode {html = "string", path = [0]}
                             , CreateNode {html = "<!--test-->", path = [1]}
                             ]
@@ -131,7 +138,7 @@ tests = do
                                 [ CreateNode {html = "<b/>", path = [1]}
                                 ]
                     result `shouldBe` expected
-                
+
                 it "should do efficiently remove old nodes if they are in the middle of the children" do
                     let ?oldHtml = "<div><a/><b/><c/></div>"
                     let ?newHtml = "<div><a/><c/></div>"
