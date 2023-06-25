@@ -163,13 +163,19 @@ isActiveController =
 --
 -- >>> isActiveAction PostsAction
 -- True
+
+-- __Example:__ The browser has requested @\/ShowPossAction@ along with the post ID.
 --
--- Returns @True@ because the current path is the same as the path to the action, does not take into account the search query.
--- Use 'isActivePath' if you need to match path and search query.
+-- >>> -- Get the post ID out of a UUID.
+-- >>> let myUUID = ...
+-- >>> let postId = (Id myUUID) :: Id Post
+-- >>> isActiveAction (ShowPostAction postId)
+-- True
+--
 isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
 isActiveAction controllerAction =
     let
-        currentPath = Wai.rawPathInfo theRequest
+        currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
     in
         currentPath == cs (pathTo controllerAction)
 
