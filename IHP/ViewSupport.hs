@@ -174,10 +174,7 @@ isActiveController =
 --
 isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
 isActiveAction controllerAction =
-    let
-        currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
-    in
-        currentPath == cs (pathTo controllerAction)
+    isActivePath (pathTo controllerAction)
 
 css = plain
 
