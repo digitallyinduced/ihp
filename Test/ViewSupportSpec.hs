@@ -39,6 +39,10 @@ data TestController
     | TestWithParamAction { param :: Text }
   deriving (Eq, Show, Data)
 
+data AnotherTestController
+    = AnotherTestAction
+  deriving (Eq, Show, Data)
+
 instance Controller TestController where
     action TestAction = do
         renderPlain "TestAction"
@@ -46,13 +50,24 @@ instance Controller TestController where
         let output = [plain|
             isActiveAction #{param}: #{isActiveAction $ TestWithParamAction param}
             isActiveAction bar: #{isActiveAction $ TestWithParamAction "bar"}
+
+            isActivePath #{param}: #{isActivePath $ "/test/TestWithParam?param=" <> param}
+            isActivePath bar: #{isActivePath ("/test/TestWithParam?param=bar" :: Text)}
+
+
         |]
         renderPlain $ cs output
 
+
+instance Controller AnotherTestController where
+    action AnotherTestAction = do
+        renderPlain "AnotherTestAction"
+
 instance AutoRoute TestController
+instance AutoRoute AnotherTestController
 
 instance FrontController WebApplication where
-  controllers = [ parseRoute @TestController ]
+  controllers = [ parseRoute @TestController, parseRoute @AnotherTestController ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]
@@ -86,3 +101,13 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction foo: True"
         it "should return False on a different route" $ withContext do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction bar: False"
+    describe "isActivePath" $ do
+        it "should return True on the same route" $ withContext do
+            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
+        it "should return False on a different route" $ withContext do
+            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
+    -- describe "isActiveController" $ do
+    --     it "should return True on the same route" $ withContext do
+    --         runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
+    --     it "should return False on a different route" $ withContext do
+    --         runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
