@@ -43,7 +43,7 @@ in
         List of Haskell package names whose tests are skipped during build
       '';
     };
-    
+
     doJailbreakPackages = lib.mkOption {
       default = [];
       description = ''
@@ -68,16 +68,15 @@ in
       };
     in
     lib.mkIf cfg.enable {
-      packages = [ ghcCompiler.ihp pkgs.postgresql_13 ]; 
+      packages = [ ghcCompiler.ihp pkgs.postgresql_13 ];
 
       languages.haskell.enable = true;
       languages.haskell.package = ghcCompiler.ghc.withPackages cfg.haskellPackages;
 
-      scripts.start.exec = ''
+      processes.devServer.exec = ''
+        pwd
         ${ghcCompiler.ihp}/bin/RunDevServer
       '';
-
-      processes.devServer.exec = "start";
 
       # Disabled for now
       # Can be re-enabled once postgres is provided by devenv instead of IHP
