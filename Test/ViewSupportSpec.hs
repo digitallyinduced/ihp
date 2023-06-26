@@ -53,8 +53,6 @@ instance Controller TestController where
 
             isActivePath #{param}: #{isActivePath $ "/test/TestWithParam?param=" <> param}
             isActivePath bar: #{isActivePath ("/test/TestWithParam?param=bar" :: Text)}
-
-
         |]
         renderPlain $ cs output
 
