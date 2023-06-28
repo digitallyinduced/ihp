@@ -47,15 +47,7 @@ instance Controller TestController where
     action TestAction = do
         renderPlain "TestAction"
     action TestWithParamAction { .. } = do
-        let output = [plain|
-            isActiveAction #{param}: #{isActiveAction $ TestWithParamAction param}
-            isActiveAction bar: #{isActiveAction $ TestWithParamAction "bar"}
-
-            isActivePath #{param}: #{isActivePath $ "/test/TestWithParam?param=" <> param}
-            isActivePath bar: #{isActivePath ("/test/TestWithParam?param=bar" :: Text)}
-        |]
-        renderPlain $ cs output
-
+        render ShowView { .. }
 
 instance Controller AnotherTestController where
     action AnotherTestAction = do
@@ -66,6 +58,17 @@ instance AutoRoute AnotherTestController
 
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController, parseRoute @AnotherTestController ]
+
+data ShowView = ShowView { param :: Text}
+
+instance View ShowView where
+    html ShowView { .. }= [hsx|
+        isActiveAction {param}: {isActiveAction $ TestWithParamAction param}
+        isActiveAction bar: {isActiveAction $ TestWithParamAction "bar"}
+
+        isActivePath {param}: {isActivePath $ "/test/TestWithParam?param=" <> param}
+        isActivePath bar: {isActivePath ("/test/TestWithParam?param=bar" :: Text)}
+    |]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]
@@ -104,8 +107,8 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
         it "should return False on a different route" $ withContext do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
-    -- describe "isActiveController" $ do
-    --     it "should return True on the same route" $ withContext do
-    --         runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
-    --     it "should return False on a different route" $ withContext do
-    --         runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
+    describe "isActiveController" $ do
+        it "should return True on the same route" $ withContext do
+            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
+        it "should return False on a different route" $ withContext do
+            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
