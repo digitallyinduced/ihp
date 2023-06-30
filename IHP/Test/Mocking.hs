@@ -173,12 +173,19 @@ responseBody res =
     f (\chunk -> modifyIORef' content (<> chunk)) (return ())
     toLazyByteString <$> readIORef content
 
-
+-- | Asserts that the response body contains the given text.
 responseBodyShouldContain :: Response -> Text -> IO ()
 responseBodyShouldContain response includedText = do
     body :: Text <- cs <$> responseBody response
     body `shouldSatisfy` (includedText `Text.isInfixOf`)
 
+-- | Asserts that the response body does not contain the given text.
+responseBodyShouldNotContain :: Response -> Text -> IO ()
+responseBodyShouldNotContain response includedText = do
+    body :: Text <- cs <$> responseBody response
+    body `shouldNotSatisfy` (includedText `Text.isInfixOf`)
+
+-- | Asserts that the response status is equal to the given status.
 responseStatusShouldBe :: Response -> HTTP.Status -> IO ()
 responseStatusShouldBe response status = responseStatus response `shouldBe` status
 
