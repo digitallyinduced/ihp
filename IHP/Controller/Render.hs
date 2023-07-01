@@ -89,7 +89,7 @@ renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.
 renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}
 
--- | Render's a generic not found page
+-- | Render's a "Not found" page.
 --
 -- This can be useful e.g. when an entity cannot be found:
 --
@@ -103,6 +103,20 @@ renderNotFound = do
     response <- ErrorController.buildNotFoundResponse
     respondAndExit response
 
+-- | Render's an "Access denied" page.
+--
+-- This can be useful e.g. when an entity cannot be access:
+--
+-- > action ExampleAction = do
+-- >     renderAccessDenied
+--
+-- You can override the default not found error page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+--
+renderAccessDenied :: (?context :: ControllerContext) => IO ()
+renderAccessDenied = do
+    response <- ErrorController.buildAccessDeniedResponse
+    respondAndExit response
+
 data PolymorphicRender
     = PolymorphicRender
         { html :: Maybe (IO ())
@@ -111,7 +125,7 @@ data PolymorphicRender
 
 -- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
 -- Example:
--- 
+--
 -- > show :: Action
 -- > show = do
 -- >     renderPolymorphic polymorphicRender {

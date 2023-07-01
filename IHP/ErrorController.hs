@@ -9,6 +9,7 @@ module IHP.ErrorController
 , handleNotFound
 , handleRouterException
 , buildNotFoundResponse
+, buildAccessDeniedResponse
 ) where
 
 import IHP.Prelude hiding (displayException)
