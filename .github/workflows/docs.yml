@@ -20,6 +20,7 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: Install devenv.sh
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
+      if: matrix.os != 'ARM64'
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
