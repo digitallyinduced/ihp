@@ -19,7 +19,8 @@ import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
-import qualified IHP.ErrorController as ErrorController
+import IHP.Controller.NotFound (buildNotFoundResponse)
+import IHP.Controller.AccessDenied (buildAccessDeniedResponse)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -100,7 +101,7 @@ renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(h
 --
 renderNotFound :: (?context :: ControllerContext) => IO ()
 renderNotFound = do
-    response <- ErrorController.buildNotFoundResponse
+    response <- buildNotFoundResponse
     respondAndExit response
 
 -- | Render's an "Access denied" page.
@@ -114,7 +115,7 @@ renderNotFound = do
 --
 renderAccessDenied :: (?context :: ControllerContext) => IO ()
 renderAccessDenied = do
-    response <- ErrorController.buildAccessDeniedResponse
+    response <- buildAccessDeniedResponse
     respondAndExit response
 
 data PolymorphicRender

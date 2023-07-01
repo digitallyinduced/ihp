@@ -6,7 +6,7 @@ module IHP.Controller.AccessDenied
 
 import IHP.Prelude hiding (displayException)
 import IHP.Controller.RequestContext
-import Network.HTTP.Types (status404)
+import Network.HTTP.Types (status403)
 import Network.Wai
 import Network.HTTP.Types.Header
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
@@ -31,7 +31,7 @@ buildAccessDeniedResponse = do
 
 -- | The default IHP 403 not found page
 defaultAccessDeniedResponse :: Response
-defaultAccessDeniedResponse = responseBuilder status404 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
+defaultAccessDeniedResponse = responseBuilder status403 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>

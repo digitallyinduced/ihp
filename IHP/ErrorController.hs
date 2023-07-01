@@ -114,20 +114,22 @@ postgresHandler exception controller additionalInfo = do
         handlePostgresOutdatedError exception errorText = do
             let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let title = [hsx|Database looks outdated. {errorText}|]
-            let errorMessage = [hsx|
-                        <h2>Possible Solutions</h2>
-                        <div style="margin-bottom: 2rem; font-weight: 400;">
-                            Have you clicked on
-                            <form method="POST" action={ihpIdeBaseUrl <> "/NewMigration"} target="_blank" style="display: inline">
-                                <button type="submit">Migrate DB</button>
-                            </form>
-                            after updating the Schema?
-                        </div>
+            -- @todo: This causes an error.
+            -- let errorMessage = [hsx|
+            --             <h2>Possible Solutions</h2>
+            --             <div style="margin-bottom: 2rem; font-weight: 400;">
+            --                 Have you clicked on
+            --                 <form method="POST" action={ihpIdeBaseUrl <> "/NewMigration"} target="_blank" style="display: inline">
+            --                     <button type="submit">Migrate DB</button>
+            --                 </form>
+            --                 after updating the Schema?
+            --             </div>
 
-                        <h2>Details</h2>
-                        <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
-                    |]
+            --             <h2>Details</h2>
+            --             <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
+            --             <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+            --         |]
+            let errorMessage = [hsx||]
             let RequestContext { respond } = ?context.requestContext
             respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
