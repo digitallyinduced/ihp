@@ -34,6 +34,8 @@ import qualified System.IO as IO
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 
+import IHP.Controller.NotFound (handleNotFound)
+
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
     -- We cannot use 'Main.Utf8.withUtf8' here, as this for some reason breaks live reloading
@@ -59,13 +61,13 @@ run configBuilder = do
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
                 let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
-                withBackgroundWorkers pgListener frameworkConfig 
+                withBackgroundWorkers pgListener frameworkConfig
                     . runServer frameworkConfig
                     . customMiddleware
                     . corsMiddleware
                     . sessionMiddleware
                     . requestLoggerMiddleware
-                    . methodOverridePost 
+                    . methodOverridePost
                     $ application staticApp
 
 {-# INLINABLE run #-}
@@ -94,10 +96,10 @@ initStaticApp frameworkConfig = do
             Env.Development -> Static.MaxAgeSeconds 0
             Env.Production -> Static.MaxAgeForever
 
-        
+
         frameworkStaticDir = libDir <> "/static/"
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
-                { Static.ss404Handler = Just ErrorController.handleNotFound
+                { Static.ss404Handler = Just handleNotFound
                 , Static.ssMaxAge = maxAge
                 }
         appSettings = (Static.defaultWebAppSettings "static/")

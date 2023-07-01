@@ -164,30 +164,3 @@ render !view = do
             , json = Just $ renderJson (ViewSupport.json view)
             }
 
--- | Stops the action execution with an error message when the access condition is True.
---
--- __Example:__ Checking a user is the author of a blog post.
---
--- > action EditPostAction { postId } = do
--- >     post <- fetch postId
--- >     accessDeniedWhen (post.authorId /= currentUserId)
--- >
--- >     renderHtml EditView { .. }
---
--- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedWhen :: (?context::ControllerContext) => Bool -> IO ()
-accessDeniedWhen condition = when condition renderAccessDenied
-
--- | Stops the action execution with an error message when the access condition is False.
---
--- __Example:__ Checking a user is the author of a blog post.
---
--- > action EditPostAction { postId } = do
--- >     post <- fetch postId
--- >     accessDeniedUnless (post.authorId == currentUserId)
--- >
--- >     renderHtml EditView { .. }
---
--- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedUnless :: (?context::ControllerContext) => Bool -> IO ()
-accessDeniedUnless condition = unless condition renderAccessDenied

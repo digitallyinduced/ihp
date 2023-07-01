@@ -13,6 +13,36 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
+import IHP.Controller.Context
+import IHP.ControllerSupport
+
+-- | Stops the action execution with an error message when the access condition is True.
+--
+-- __Example:__ Checking a user is the author of a blog post.
+--
+-- > action EditPostAction { postId } = do
+-- >     post <- fetch postId
+-- >     accessDeniedWhen (post.authorId /= currentUserId)
+-- >
+-- >     renderHtml EditView { .. }
+--
+-- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
+accessDeniedWhen :: (?context::ControllerContext) => Bool -> IO ()
+accessDeniedWhen condition = when condition renderAccessDenied
+
+-- | Stops the action execution with an error message when the access condition is False.
+--
+-- __Example:__ Checking a user is the author of a blog post.
+--
+-- > action EditPostAction { postId } = do
+-- >     post <- fetch postId
+-- >     accessDeniedUnless (post.authorId == currentUserId)
+-- >
+-- >     renderHtml EditView { .. }
+--
+-- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
+accessDeniedUnless :: (?context::ControllerContext) => Bool -> IO ()
+accessDeniedUnless condition = unless condition renderAccessDenied
 
 
 
@@ -110,3 +140,18 @@ customAccessDeniedResponse = do
     -- See https://github.com/yesodweb/wai/issues/644
     page <- LBS.readFile "static/403.html"
     pure $ responseLBS status403 [(hContentType, "text/html")] page
+
+
+-- | Render's an "Access denied" page.
+--
+-- This can be useful e.g. when an entity cannot be access:
+--
+-- > action ExampleAction = do
+-- >     renderAccessDenied
+--
+-- You can override the default not found error page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+--
+renderAccessDenied :: (?context :: ControllerContext) => IO ()
+renderAccessDenied = do
+    response <- buildAccessDeniedResponse
+    respondAndExit response
