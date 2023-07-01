@@ -35,7 +35,6 @@ import IHP.HaskellSupport
 import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
-import IHP.Controller.Render
 import IHP.ModelSupport
 import IHP.ApplicationContext (ApplicationContext (..))
 import Network.Wai.Parse as WaiParse
@@ -340,30 +339,3 @@ getAppConfig = ?context.frameworkConfig.appConfig
 {-# INLINE getAppConfig #-}
 
 
--- | Stops the action execution with an error message when the access condition is True.
---
--- __Example:__ Checking a user is the author of a blog post.
---
--- > action EditPostAction { postId } = do
--- >     post <- fetch postId
--- >     accessDeniedWhen (post.authorId /= currentUserId)
--- >
--- >     renderHtml EditView { .. }
---
--- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedWhen :: Bool -> IO ()
-accessDeniedWhen condition = when condition renderAccessDenied
-
--- | Stops the action execution with an error message when the access condition is False.
---
--- __Example:__ Checking a user is the author of a blog post.
---
--- > action EditPostAction { postId } = do
--- >     post <- fetch postId
--- >     accessDeniedUnless (post.authorId == currentUserId)
--- >
--- >     renderHtml EditView { .. }
---
--- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedUnless :: Bool -> IO ()
-accessDeniedUnless condition = unless condition renderAccessDenied
