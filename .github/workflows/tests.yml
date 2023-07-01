@@ -20,4 +20,5 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: Install devenv
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
+      if: matrix.os != 'ARM64'
     - run: devenv shell tests
