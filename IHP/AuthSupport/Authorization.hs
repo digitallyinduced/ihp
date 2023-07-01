@@ -22,7 +22,7 @@ class CanView user model where
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 accessDeniedWhen :: Bool -> IO ()
-accessDeniedWhen condition = if condition then fail "Access denied" else pure ()
+accessDeniedWhen condition = when condition (fail "Access denied")
 
 -- | Stops the action execution with an error message when the access condition is False.
 --
@@ -36,5 +36,5 @@ accessDeniedWhen condition = if condition then fail "Access denied" else pure ()
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 accessDeniedUnless :: Bool -> IO ()
-accessDeniedUnless condition = if condition then pure () else fail "Access denied"
+accessDeniedUnless condition = unless condition (fail "Access denied")
 
