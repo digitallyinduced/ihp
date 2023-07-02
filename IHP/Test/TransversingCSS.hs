@@ -37,8 +37,6 @@ findCursorsBySelector html query =
 -- * Left: Query parse error.
 --
 -- * Right: List of matching Cursors
---
--- @since 1.5.7
 findAttributeBySelector :: HtmlLBS -> Query -> Text.Text -> Either String [[Text.Text]]
 findAttributeBySelector html query attr =
   map (laxAttribute attr) Control.Applicative.<$> findCursorsBySelector html query
