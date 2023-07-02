@@ -58,6 +58,7 @@
 , lens
 , random
 , hspec
+, html-conduit
 , cereal-text
 , neat-interpolation
 , unagi-chan
