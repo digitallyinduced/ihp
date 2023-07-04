@@ -322,7 +322,7 @@ do
 
 If you need to fetch only a single column, for example only the ID of a record, you need to help the compiler and type hint
 the result, with an `Only` prefix. Here's an example of fetching only the IDs of a `project` table, and converting them to
-`Id Project`
+`Id Project`:
 
 ```haskell
 allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
