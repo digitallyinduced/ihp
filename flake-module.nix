@@ -39,7 +39,8 @@ ihpFlake:
 
                 haskellPackages = lib.mkOption {
                     description = ''
-                        List of Haskell packages to be installed in the IHP environment.
+                        Function returning a list of Haskell packages to be installed in the IHP environment.
+                        The set of Haskell packages is passed to the function.
                     '';
                     default = p: [
                         p.cabal-install
