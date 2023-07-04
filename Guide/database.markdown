@@ -325,12 +325,13 @@ the result, with an `Only` prefix. Here's an example of fetching only the IDs of
 `Id Project`:
 
 ```haskell
-allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
+do
+    allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
 
-let projectIds =
-        allProjectUuids
-            -- Extract the UUIDs, and convert to an ID.
-            |> map (\(Only uuid) -> Id uuid :: Id Project)
+    let projectIds =
+            allProjectUuids
+                -- Extract the UUIDs, and convert to an ID.
+                |> map (\(Only uuid) -> Id uuid :: Id Project)
 ```
 
 ### Scalar Results
