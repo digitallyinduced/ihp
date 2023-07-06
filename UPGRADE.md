@@ -9,11 +9,12 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
 
-1. **Install `devenv`**
+1. **Install `cachix` and `devenv`**
 
     Before you can start the upgrade process, make sure to install devenv.sh:
 
     ```bash
+    nix-env -iA cachix -f https://cachix.org/api/v1/install
     cachix use devenv
     nix-env -if https://github.com/cachix/devenv/tarball/latest
     ```
