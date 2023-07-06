@@ -174,7 +174,9 @@ ihpFlake:
         };
 
         # Nix requires this to be interactively allowed on first use for security reasons
-        # Can be circumvented by setting these settings yourself on the system level
+        # This can be automated by using the --accept-flake-config flag
+        # E.g. nix develop --accept-flake-config
+        # Or by putting accept-flake-config = true into the system's nix.conf
         flake.nixConfig = {
             extra-substituters = "https://digitallyinduced.cachix.org";
             extra-trusted-public-keys = "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=";
