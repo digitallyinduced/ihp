@@ -92,10 +92,8 @@ handleRootFileChange manager state event =
         startWatchingSubDirectory manager state filePath
       else pure ()
     FS.Removed filePath _ true -> 
-      if isDirectoryWatchable filePath then do
-        stopWatchingSubDirectory state filePath
-      else pure ()
-    _ -> 
+      stopWatchingSubDirectory state filePath
+    _ ->
       handleFileChange event
 
 shouldActOnRootFileChange :: FS.ActionPredicate
