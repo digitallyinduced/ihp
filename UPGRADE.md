@@ -9,13 +9,13 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
 
 Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
 
-1. **Install `devenv`**
+1. **Activate flakes in your system's Nix config**
 
-    Before you can start the upgrade process, make sure to install devenv.sh:
+    Before you can start the upgrade process, make sure that you have activated Nix flakes in your Nix config.
+    For that, either `~/.config/nix/nix.conf` (to enable flakes just for your user) or `/etc/nix/nix.conf` (to enable flakes globally) must contain the following snippet:
 
     ```bash
-    cachix use devenv
-    nix-env -if https://github.com/cachix/devenv/tarball/latest
+    experimental-features = nix-command flakes
     ```
 
 2. **Add devenv and direnv specific code to `.gitignore`**
