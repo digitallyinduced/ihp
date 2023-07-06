@@ -26,7 +26,7 @@ withFileWatcher inner = withAsync callback \_ -> inner
         watchSubDirectories manager state = do
                 directories <- listWatchableDirectories
                 forM_ directories \directory -> do
-                  startWatchingSubDirectory manager state directory
+                    startWatchingSubDirectory manager state directory
 
 type WatchedDirectories = Map FilePath FS.StopListening
 
@@ -37,35 +37,35 @@ newFileWatcherState = newMVar mempty
 
 startWatchingSubDirectory :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FilePath -> IO ()
 startWatchingSubDirectory manager state path = do
-  watchedDirectories <- readMVar state
-  case Map.lookup path watchedDirectories of
-    Just _ -> pure ()
-    Nothing -> do
-        stop <- FS.watchTree manager path shouldActOnFileChange handleFileChange
-        putMVar state $ Map.insert path stop watchedDirectories
+    watchedDirectories <- readMVar state
+    case Map.lookup path watchedDirectories of
+        Just _ -> pure ()
+        Nothing -> do
+            stop <- FS.watchTree manager path shouldActOnFileChange handleFileChange
+            putMVar state $ Map.insert path stop watchedDirectories
 
 stopWatchingSubDirectory :: FileWatcherState -> FilePath -> IO ()
 stopWatchingSubDirectory state path = do
-  watchedDirectories <- readMVar state
-  case Map.lookup path watchedDirectories of
-    Just stop -> do
-      stop
-      putMVar state $ Map.delete path watchedDirectories
-    Nothing -> pure ()
+    watchedDirectories <- readMVar state
+    case Map.lookup path watchedDirectories of
+        Just stop -> do
+            stop
+            putMVar state $ Map.delete path watchedDirectories
+        Nothing -> pure ()
 
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
-  rootDirectoryContents <- listDirectory "."
-  filterM shouldWatchDirectory rootDirectoryContents
+    rootDirectoryContents <- listDirectory "."
+    filterM shouldWatchDirectory rootDirectoryContents
 
 shouldWatchDirectory :: String -> IO Bool
 shouldWatchDirectory path = do
-  isDirectory <- doesDirectoryExist path
-  pure $ isDirectory && isDirectoryWatchable path
+    isDirectory <- doesDirectoryExist path
+    pure $ isDirectory && isDirectoryWatchable path
 
 isDirectoryWatchable :: String -> Bool
 isDirectoryWatchable path = 
-  path /= ".devenv" && path /= ".direnv"
+    path /= ".devenv" && path /= ".direnv"
 
 fileWatcherDebounceTime :: NominalDiffTime
 fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
@@ -86,15 +86,15 @@ handleFileChange event = do
                   
 handleRootFileChange :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FS.Event -> IO ()                 
 handleRootFileChange manager state event =
-  case event of
-    FS.Added filePath _ true -> 
-      if isDirectoryWatchable filePath then do
-        startWatchingSubDirectory manager state filePath
-      else pure ()
-    FS.Removed filePath _ true -> 
-      stopWatchingSubDirectory state filePath
-    _ ->
-      handleFileChange event
+    case event of
+        FS.Added filePath _ true ->
+            if isDirectoryWatchable filePath then do
+                startWatchingSubDirectory manager state filePath
+            else pure ()
+        FS.Removed filePath _ true ->
+            stopWatchingSubDirectory state filePath
+        _ ->
+            handleFileChange event
 
 shouldActOnRootFileChange :: FS.ActionPredicate
 shouldActOnRootFileChange event =
