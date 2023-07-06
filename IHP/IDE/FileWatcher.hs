@@ -12,7 +12,6 @@ import IHP.IDE.Types
 import qualified Data.Time.Clock as Clock
 import qualified Data.List as List
 import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
-import qualified IHP.Log as Log
 
 withFileWatcher :: (?context :: Context) => IO () -> IO ()
 withFileWatcher inner = withAsync callback \_ -> inner
@@ -90,12 +89,10 @@ handleRootFileChange manager state event =
   case event of
     FS.Added filePath _ true -> 
       if isDirectoryWatchable filePath then do
-        Log.info $ "Watching directory " <> tshow filePath
         startWatchingSubDirectory manager state filePath
       else pure ()
     FS.Removed filePath _ true -> 
       if isDirectoryWatchable filePath then do
-        Log.info $ "Unwatching directory " <> tshow filePath
         stopWatchingSubDirectory state filePath
       else pure ()
     _ -> 
