@@ -3,28 +3,57 @@ module IHP.IDE.FileWatcher (withFileWatcher) where
 import IHP.Prelude
 import Control.Exception
 import Control.Concurrent (threadDelay, myThreadId)
-import Control.Monad (filterM)
+import Control.Concurrent.MVar
+import Control.Monad (filterM, guard)
 import System.Directory (listDirectory, doesDirectoryExist)
+import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import IHP.IDE.Types
 import qualified Data.Time.Clock as Clock
 import qualified Data.List as List
 import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
+import qualified IHP.Log as Log
 
 withFileWatcher :: (?context :: Context) => IO () -> IO ()
 withFileWatcher inner = withAsync callback \_ -> inner
     where
         callback = FS.withManagerConf fileWatcherConfig \manager -> do
-                watchRootDirectoryFiles manager
-                watchSubDirectories manager
+                state <- newFileWatcherState
+                watchRootDirectoryFiles manager state
+                watchSubDirectories manager state
                 forever (threadDelay maxBound) `finally` FS.stopManager manager
-        watchRootDirectoryFiles manager = 
-                FS.watchDir manager "." shouldActOnFileChange handleFileChange 
-        watchSubDirectories manager = do
+        watchRootDirectoryFiles manager state = 
+                FS.watchDir manager "." shouldActOnRootFileChange (handleRootFileChange manager state)
+        watchSubDirectories manager state = do
                 directories <- listWatchableDirectories
                 forM_ directories \directory -> do
-                  FS.watchTree manager directory shouldActOnFileChange handleFileChange
-           
+                  startWatchingSubDirectory manager state directory
+
+type WatchedDirectories = Map FilePath FS.StopListening
+
+type FileWatcherState = MVar WatchedDirectories
+
+newFileWatcherState :: IO FileWatcherState
+newFileWatcherState = newMVar mempty
+
+startWatchingSubDirectory :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FilePath -> IO ()
+startWatchingSubDirectory manager state path = do
+  watchedDirectories <- readMVar state
+  case Map.lookup path watchedDirectories of
+    Just _ -> pure ()
+    Nothing -> do
+        stop <- FS.watchTree manager path shouldActOnFileChange handleFileChange
+        putMVar state $ Map.insert path stop watchedDirectories
+
+stopWatchingSubDirectory :: FileWatcherState -> FilePath -> IO ()
+stopWatchingSubDirectory state path = do
+  watchedDirectories <- readMVar state
+  case Map.lookup path watchedDirectories of
+    Just stop -> do
+      stop
+      putMVar state $ Map.delete path watchedDirectories
+    Nothing -> pure ()
+
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
   rootDirectoryContents <- listDirectory "."
@@ -33,8 +62,11 @@ listWatchableDirectories = do
 shouldWatchDirectory :: String -> IO Bool
 shouldWatchDirectory path = do
   isDirectory <- doesDirectoryExist path
-  pure $ isDirectory && path /= ".devenv" && path /= ".direnv"
+  pure $ isDirectory && isDirectoryWatchable path
 
+isDirectoryWatchable :: String -> Bool
+isDirectoryWatchable path = 
+  path /= ".devenv" && path /= ".direnv"
 
 fileWatcherDebounceTime :: NominalDiffTime
 fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
@@ -52,7 +84,29 @@ handleFileChange event = do
             else if isAssetFile filePath
                 then notifyAssetChange
                 else mempty
+                  
+handleRootFileChange :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FS.Event -> IO ()                 
+handleRootFileChange manager state event =
+  case event of
+    FS.Added filePath _ true -> 
+      if isDirectoryWatchable filePath then do
+        Log.info $ "Watching directory " <> tshow filePath
+        startWatchingSubDirectory manager state filePath
+      else pure ()
+    FS.Removed filePath _ true -> 
+      if isDirectoryWatchable filePath then do
+        Log.info $ "Unwatching directory " <> tshow filePath
+        stopWatchingSubDirectory state filePath
+      else pure ()
+    _ -> 
+      handleFileChange event
 
+shouldActOnRootFileChange :: FS.ActionPredicate
+shouldActOnRootFileChange event =
+    if FS.eventIsDirectory event
+    then isDirectoryWatchable (getEventFilePath event)
+    else shouldActOnFileChange event
+    
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event =
     let path = getEventFilePath event
