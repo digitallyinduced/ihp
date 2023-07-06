@@ -4,9 +4,9 @@
 
 ```
 
-IHP is using the Nix Package Manager for managing its dependencies, such as Haskell packages, compilers, and even Postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
+IHP uses the Nix Package Manager for managing its dependencies, such as Haskell packages, compilers, and even Postgres. You can find more about [the motivation on using nix on the IHP blog](https://ihp.digitallyinduced.com/blog/2020-07-22-why-ihp-is-using-nix.html).
 
-Internally IHP is using [devenv.sh](https://devenv.sh/) together with [nix flakes](https://devenv.sh/guides/using-with-flakes/).
+Internally IHP uses [devenv.sh](https://devenv.sh/) together with [Nix flakes](https://devenv.sh/guides/using-with-flakes/).
 
 ## Using a Haskell Package
 
@@ -17,60 +17,39 @@ Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for 
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+                };
+            };
 
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-            };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+        };
 }
 ```
 
@@ -79,67 +58,46 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                    mmark
-                ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                        mmark
+                    ];
+                };
+            };
 
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-            };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+        };
 }
 ```
 
 Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
-Run `devenv up` again to start the development server, and `mmark` should now be used as expected:
+Run `devenv up` again to start the development server, and `mmark` should now be used as expected.
 
 
 ## Using a Native Dependency
@@ -152,61 +110,42 @@ All dependencies of our project are listed in `flake.nix` at the root of the pro
 
 ```nix
 {
+{
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+                };
+            };
 
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-            };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+        };
+}
 }
 ```
 
@@ -215,60 +154,40 @@ We now just have to add `imagemagick` to `packages`:
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                        imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+                };
+            };
 
-                packages = with pkgs; [
-                    imagemagick
-                ];
-            };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+        };
 }
 ```
 
@@ -287,61 +206,40 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                    google-oauth2
-                ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                        google-oauth2
+                    ];
+                };
+            };
 
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-            };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+        };
 }
 ```
 
@@ -432,62 +330,40 @@ To jailbreak the package open `flake.nix` and append `"google-oauth2"` to the `d
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
-
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-
-                doJailbreakPackages = [ "google-oauth2" ];
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+                    doJailbreakPackages = [ "google-oauth2" ];
+                };
             };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+
+        };
 }
 ```
 
@@ -547,62 +423,40 @@ Open `flake.nix` and append the package name to the `dontCheckPackages` list:
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        ihp.url = "github:digitallyinduced/ihp/1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
-    outputs = { self, nixpkgs, devenv, systems, ihp, ... } @ inputs:
-        let
-            devenvConfig = { pkgs, inputs, config, ... }: {
-                # See full reference at https://devenv.sh/reference/options/
-                # For IHP specific options, see https://ihp.digitallyinduced.com/Guide/package-management.html
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
 
-                imports = [ "${inputs.ihp}/NixSupport/devenv.nix" ];
-                
-                ihp.enable = true;
-                ihp.projectPath = ./.;
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
 
-                ihp.haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
-
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-
-                dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                    ];
+                    dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
+                };
             };
-            
-            releaseEnv = pkgs: import "${ihp}/NixSupport/default.nix" {
-                ihp = ihp;
-                haskellDeps = (devenvConfig inputs).ihp.haskellPackages;
-                otherDeps = p: (devenvConfig inputs).packages;
-                projectPath = ./.;
-                includeDevTools = false;
-                optimized = false;
-            };
-            forEachSystem = nixpkgs.lib.genAttrs (import systems);
-        in
-            {
-                devShells = forEachSystem (system: {
-                    default = let pkgs = nixpkgs.legacyPackages.${system}; in devenv.lib.mkShell {
-                        inherit inputs pkgs;
-                        modules = [devenvConfig];
-                    };
-                });
-                packages = forEachSystem (system: { default = releaseEnv nixpkgs.legacyPackages.${system}; });
-            };
+
+        };
 }
 ```
 
@@ -610,20 +464,16 @@ After that, you can do `nix flake update` without running the failing tests.
 
 ### Nixpkgs Pinning
 
-All projects using IHP are using a specific pinned version of nixpkgs. The specific version used is defined in your project's `flake.nix`.
-
-You can override the nixpkgs version by setting the `nixpkgs.url` to your custom values:
+By default, all projects use a specific version of nixpkgs pinned by IHP. You can override the nixpkgs version by replacing `nixpkgs.follows` with `nixpkgs.url` and your custom values:
 
 ```nix
 {
     inputs = {
-        ihp.url = "github:digitallyinduced/ihp?ref=abb513016b372f9f76b6c95caed66def536a885a";
-        ihp.flake = false;
-
+        ihp.url = "github:digitallyinduced/ihp/1.1";
         nixpkgs.url = "github:NixOS/nixpkgs?rev=PUT YOUR CUSTOM REVISION HERE";
-
-        systems.url = "github:nix-systems/default";
-        devenv.url = "github:cachix/devenv";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
 
     # ...
