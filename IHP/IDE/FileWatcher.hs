@@ -2,9 +2,9 @@ module IHP.IDE.FileWatcher (withFileWatcher) where
 
 import IHP.Prelude
 import Control.Exception
-import Control.Concurrent (threadDelay, myThreadId)
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
-import Control.Monad (filterM, guard)
+import Control.Monad (filterM)
 import System.Directory (listDirectory, doesDirectoryExist)
 import qualified Data.Map as Map
 import qualified System.FSNotify as FS
