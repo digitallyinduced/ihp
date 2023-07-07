@@ -1005,6 +1005,8 @@ tests = do
                     ts TSVECTOR GENERATED ALWAYS AS (setweight(to_tsvector('english', sku), ('A'::"char")) || setweight(to_tsvector('english', name), 'B') || setweight(to_tsvector('english', description), 'C')) STORED
                 );
             |] <> "\n"
+            let emptyCreateTable = CreateTable { name = "", columns = [], primaryKeyConstraint = [], constraints = [], unlogged = False }
+
             let statements = [
                         StatementCreateTable CreateTable
                             { name = "products"
@@ -1028,8 +1030,6 @@ tests = do
                                     }
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint []
-                            , constraints = []
-                            , unlogged = False
                             }
                         ]
             compileSql statements `shouldBe` sql

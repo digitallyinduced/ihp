@@ -16,6 +16,8 @@ import IHP.NameSupport
 
 tests = do
     describe "View Generator Tests:" do
+    let emptyCreateTable = CreateTable { name = "", columns = [], primaryKeyConstraint = [], constraints = [], unlogged = False }
+
         let schema = [
                     StatementCreateTable CreateTable {
                         name = "pages"
@@ -30,8 +32,6 @@ tests = do
                                 }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
                         }
                     ]
         it "should build a view with name \"EditView\"" do
