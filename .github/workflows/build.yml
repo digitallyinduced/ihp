@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - uses: cachix/install-nix-action@v21
+    - uses: cachix/install-nix-action@v22
       with:
         nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e.tar.gz
     - uses: cachix/cachix-action@v12
@@ -53,7 +53,6 @@ jobs:
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
-          nix flake update
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
 
     - name: Notify IHP Website about the new build
@@ -67,5 +66,6 @@ jobs:
     # Also build the framework's dev env
     - name: Install devenv.sh
       run: nix profile install --accept-flake-config github:cachix/devenv/latest
+      if: matrix.os != 'ARM64'
     - run: |
         devenv ci && devenv shell echo ok

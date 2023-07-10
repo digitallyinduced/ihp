@@ -228,9 +228,32 @@ Spaces and newline characters are removed where possible at HSX parse time.
 
 HTML Comments are supported and can be used like this:
 
+```haskell
+[hsx|
+<div>
+    <!-- Comment will be shown on HTML -->
+    <h1>Hello</h1>
+</div>
+|]
+
+```
+
+We also support a "no render" comments, that can be used for adding comments inside `hsx`, but without being
+rendered to HTML.
+
+```haskell
+[hsx|
+    <div>
+        {- Comment will not be shown on HTML -}
+        <h1>Hello</h1>
+    </div>
+|]
+```
+
+Will render to:
+
 ```html
 <div>
-    <!-- Begin of Main Section -->
     <h1>Hello</h1>
 </div>
 ```
@@ -378,6 +401,33 @@ The HTML will now render without escaping the attribute:
 ```
 
 Keep in mind that you're now responsible for making sure that there's no bad input inside the string passed to `preEscapedTextValue`. You might accidentally open the door for XSS.
+
+## A List of `Html` Elements
+
+It's possible that one of your functions would need to get a list of `Html` values. The following code will results with an error
+
+```haskell
+render :: [Html] -> Html
+render items = -- ...
+```
+
+```
+Illegal qualified type:
+    (?context::ControllerContext) => Blaze.Html
+• In the expansion of type synonym 'HtmlWithContext'
+  In the expansion of type synonym 'Html'
+  In the type signature:
+```
+
+To overcome it, we would write it like this. Inside the function, we can concatenate the list into a single `Html` value.
+
+```haskell
+import qualified Text.Blaze.Html as Blaze
+
+render :: [Blaze.Html] -> Html
+render items =
+    [hsx|Items are: {items |> mconcat}|]
+```
 
 ## Example: HSX and the equivalent BlazeHtml
 

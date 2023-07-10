@@ -37,14 +37,17 @@ To add a new layout, add a new function to the `Web.View.Layout`:
 
 ```haskell
 appLayout :: Layout
-appLayout inner = H.docTypeHtml ! A.lang "en" $ [hsx|
-<head>
-    <title>{pageTitleOrDefault "My App"}</title>
-</head>
-<body>
-    <h1>Welcome to my app</h1>
-    {inner}
-</body>
+appLayout inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>{pageTitleOrDefault "My App"}</title>
+    </head>
+    <body>
+        <h1>Welcome to my app</h1>
+        {inner}
+    </body>
+</html>
 |]
 ```
 

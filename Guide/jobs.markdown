@@ -52,6 +52,15 @@ newRecord @EmailCustomersJob |> create
 
 This can be done in a controller action or in a script as will be shown below.
 
+The file `Main.hs` also has to have the workers registered. Add the following:
+
+```haskell
+import Web.Worker
+
+instance Worker RootApplication where
+    workers _ = workers WebApplication
+```
+
 #### Development vs. Production
 
 In development mode, these watchers are started with the dev server. In production however, use `make build/bin/RunJobs` to build a binary that you can deploy along side your IHP app to watch for added jobs and run them.

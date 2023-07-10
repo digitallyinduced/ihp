@@ -49,6 +49,7 @@ quoteHsxExpression code = do
             pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 
 compileToHaskell :: Node -> TH.ExpQ
+compileToHaskell (Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True) = [| Html5.docType |]
 compileToHaskell (Node name attributes children isLeaf) =
     let
         renderedChildren = TH.listE $ map compileToHaskell children
@@ -79,6 +80,7 @@ compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
 compileToHaskell (CommentNode value) = [| Html5.textComment value |]
+compileToHaskell (NoRenderCommentNode) = [| mempty |]
 
 
 toStringAttribute :: Attribute -> TH.ExpQ

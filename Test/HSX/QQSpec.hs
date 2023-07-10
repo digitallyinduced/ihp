@@ -97,6 +97,9 @@ tests = do
         it "should work with html comments" do
             [hsx|<div><!--my comment--></div>|] `shouldBeHtml` "<div><!-- my comment --></div>"
 
+        it "should work with no render comments" do
+            [hsx|<div>{- my comment -}</div>|] `shouldBeHtml` "<div></div>"
+
         it "should escape variables to avoid XSS" do
             let variableContent :: Text = "<script>alert(1);</script>"
             [hsx|{variableContent}|] `shouldBeHtml` "&lt;script&gt;alert(1);&lt;/script&gt;"
@@ -180,6 +183,11 @@ tests = do
 
             let className = preEscapedTextValue "a&"
             [hsx|<div class={className}></div>|] `shouldBeHtml` "<div class=\"a&\"></div>"
+
+        it "should support support doctype" do
+            -- See https://github.com/digitallyinduced/ihp/issues/1717
+
+            [hsx|<!DOCTYPE html><html lang="en"><body>hello</body></html>|] `shouldBeHtml` "<!DOCTYPE HTML>\n<html lang=\"en\"><body>hello</body></html>"
 
 data Project = Project { name :: Text }
 

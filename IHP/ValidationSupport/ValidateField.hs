@@ -277,6 +277,18 @@ isGreaterThan min value = Failure ("has to be greater than " <> tshow min)
 {-# INLINABLE isGreaterThan #-}
 
 
+-- | Validates that value is equal to another value
+--
+-- >>> isEqual "foo" "foo"
+-- Success
+--
+-- >>> isEqual "foo" "bar"
+-- Failure "has to be equal to \"foo\""
+isEqual :: (Show value, Eq value) => value -> value -> ValidatorResult
+isEqual expected value | value == expected = Success
+isEqual expected value = Failure ("has to be equal to " <> tshow expected)
+{-# INLINABLE isEqual #-}
+
 -- | Validates that value has a max length
 --
 -- >>> hasMaxLength 10 "IHP"

@@ -25,7 +25,8 @@ data Node = Node { tagName :: !Text, attributes :: ![Attribute], children :: ![N
     | TextNode { textContent :: !Text } -- ^ Note: doesn't unescape chars like &lt;
     | PreEscapedTextNode { textContent :: !Text } -- ^ Used in @script@ or @style@ bodies
     | Children { children :: ![Node] }
-    | CommentNode { comment :: !Text }
+    | CommentNode { comment :: !Text } -- ^ A Comment that is rendered in the final HTML
+    | NoRenderCommentNode -- ^ A comment that is not rendered in the final HTML
     deriving (Eq, Show)
 
 parseHtml :: Text -> Either (ParseErrorBundle Text Void) Node
@@ -41,7 +42,7 @@ parser = do
     eof
     pure node
 
-parseElement = try parseComment <|> try parseNormalElement <|> try parseSelfClosingElement
+parseElement = try parseNoRenderComment <|> try parseComment <|> try parseNormalElement <|> try parseSelfClosingElement
 
 parseChildren = Children <$> many parseChild
 
@@ -84,9 +85,15 @@ parseComment = do
     space
     pure (CommentNode (cs body))
 
+parseNoRenderComment :: Parser Node
+parseNoRenderComment = do
+    string "{-"
+    manyTill (satisfy (const True)) (string "-}")
+    space
+    pure NoRenderCommentNode
 
 parseNodeAttributes :: Parser a -> Parser [Attribute]
-parseNodeAttributes end = manyTill parseNodeAttribute end 
+parseNodeAttributes end = manyTill parseNodeAttribute end
 
 parseNodeAttribute = do
     attributeName <- parseAttributeName

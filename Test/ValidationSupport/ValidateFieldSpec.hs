@@ -82,6 +82,14 @@ tests = do
             isGreaterThan 10 10 `shouldSatisfy` isFailure
             isGreaterThan 10 9 `shouldSatisfy` isFailure
 
+    describe "The isEqual validator" do
+        it "should handle trivial cases" do
+            isEqual 10 10 `shouldBe` Success
+            isEqual "Foo" "Foo" `shouldBe` Success
+
+            isEqual 10 11 `shouldSatisfy` isFailure
+            isEqual "Foo" "Bar" `shouldSatisfy` isFailure
+
     describe "The hasMaxLength validator" do
         it "should handle trivial cases" do
             hasMaxLength 10 "foo" `shouldBe` Success

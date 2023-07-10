@@ -49,6 +49,7 @@ diffNodes' path CommentNode { comment = oldComment } CommentNode { comment = new
         if oldComment == newComment
             then []
             else [UpdateComment { comment = newComment, path }]
+diffNodes' path NoRenderCommentNode NoRenderCommentNode = []
 diffNodes' path PreEscapedTextNode { textContent = oldTextContent } PreEscapedTextNode { textContent = newTextContent } =
         if oldTextContent == newTextContent
             then []

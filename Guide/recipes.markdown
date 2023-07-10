@@ -66,7 +66,7 @@ You can easily upload a user profile picture using [`uploadImageWithOptions`](ht
 ```haskell
 action UpdateUserAction { userId } = do
     user <- fetch userId
-    accessDeniedUnless (userId == currentUserId)
+    accessDeniedWhen (userId /= currentUserId)
 
     let profilePictureOptions = ImageUploadOptions
             { convertTo = "jpg"
@@ -133,11 +133,23 @@ instance View EditView where
 
 ## Checking that the current user has permission to access the action
 
-Use [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
+Use [accessDeniedWhen](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedWhen) like this:
 
 ```haskell
 action EditPostAction { postId } = do
     post <- fetch postId
+    -- Access denied if the current user is not the author of the post.
+    accessDeniedWhen (post.authorId /= currentUserId)
+
+    renderHtml EditView { .. }
+```
+
+Or the opposite command [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
+
+```haskell
+action EditPostAction { postId } = do
+    post <- fetch postId
+    -- Access denied if the current user is not the author of the post.
     accessDeniedUnless (post.authorId == currentUserId)
 
     renderHtml EditView { .. }
@@ -474,24 +486,27 @@ This means that the `defaultLayout` in the file `Layout.hs` will now get the `UT
 
 ```haskell
 defaultLayout :: UTCTime -> Html -> Html
-defaultLayout currentTime inner = H.docTypeHtml ! A.lang "en" $ [hsx|
-<head>
-    {metaTags}
+defaultLayout currentTime inner = [hsx|
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        {metaTags}
 
-    {stylesheets}
-    {scripts}
+        {stylesheets}
+        {scripts}
 
-    <title>{pageTitleOrDefault "App"}</title>
-</head>
-<body>
-    {header}
-    <main>
-        {renderFlashMessages}
-        {inner}
-    </main>
+        <title>{pageTitleOrDefault "App"}</title>
+    </head>
+    <body>
+        {header}
+        <main>
+            {renderFlashMessages}
+            {inner}
+        </main>
 
-    {footer currentTime}
-</body>
+        {footer currentTime}
+    </body>
+</html>
 |]
 
 footer :: UTCTime -> Html
