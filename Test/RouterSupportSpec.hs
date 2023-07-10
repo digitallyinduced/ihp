@@ -26,7 +26,7 @@ import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take,
 import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import qualified IHP.ErrorController as ErrorController
+import IHP.Controller.NotFound (handleNotFound)
 import Data.String.Conversions
 import Unsafe.Coerce
 import IHP.ApplicationContext
@@ -144,7 +144,7 @@ config = do
     option (AppPort 8000)
 
 application :: (?applicationContext :: ApplicationContext) => Application
-application = Server.application ErrorController.handleNotFound
+application = Server.application handleNotFound
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
