@@ -33,7 +33,6 @@ jobs:
           cat default.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
-          nix flake update
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - run: |
         cd ihp-boilerplate && nix develop --impure --command "true"
