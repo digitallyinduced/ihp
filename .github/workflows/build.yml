@@ -29,7 +29,6 @@ jobs:
         key: ${{ runner.os }}-ghc
     - run: |
           cd ihp-boilerplate
-          git checkout nicolas/flake # TODO: remove this once https://github.com/digitallyinduced/ihp-boilerplate/pull/25 is merged
           php ../.github/patch-flakes.php ${{ github.ref }}
           cat default.nix
           mv Makefile Makefile.old
