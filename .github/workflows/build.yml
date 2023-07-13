@@ -37,8 +37,5 @@ jobs:
     - run: |
         cd ihp-boilerplate && nix develop --impure --command "true"
     # Also build the framework's dev env
-    - name: Install devenv.sh
-      run: nix profile install --accept-flake-config github:cachix/devenv/latest
-      if: matrix.os != 'ARM64'
     - run: |
-        devenv ci && devenv shell echo ok
+        nix develop --impure --command "true"
