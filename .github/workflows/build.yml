@@ -29,6 +29,7 @@ jobs:
         key: ${{ runner.os }}-ghc
     - run: |
           cd ihp-boilerplate
+          git checkout nicolas/flake # TODO: remove this once https://github.com/digitallyinduced/ihp-boilerplate/pull/25 is merged
           php ../.github/patch-flakes.php ${{ github.ref }}
           cat default.nix
           mv Makefile Makefile.old
@@ -37,8 +38,5 @@ jobs:
     - run: |
         cd ihp-boilerplate && nix develop --impure --command "true"
     # Also build the framework's dev env
-    - name: Install devenv.sh
-      run: nix profile install --accept-flake-config github:cachix/devenv/latest
-      if: matrix.os != 'ARM64'
     - run: |
-        devenv ci && devenv shell echo ok
+        nix develop --impure --command "true"

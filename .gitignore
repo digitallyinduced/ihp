@@ -17,3 +17,6 @@ dist-newstyle
 .devenv*
 devenv.local.nix
 .direnv
+
+# nix build output links
+result*
