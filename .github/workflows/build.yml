@@ -34,12 +34,16 @@ jobs:
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
-    - run: |
+    - name: Build IHP app
+      run: |
         cd ihp-boilerplate && nix develop --impure --profile ihp-boilerplate-profile --command "true"
+    - name: Push IHP app to cachix
         # Cachix doesn't natively support nix flakes in it's cachix-action
         # See https://github.com/cachix/cachix-action/issues/47
         cachix push digitallyinduced ihp-boilerplate-profile
     # Also build the framework's dev env
-    - run: |
+    - name: Build framework devShell
+      run: |
         nix develop --impure --profile ihp-profile --command "true"
-        cachix push digitallyinduced ihp-profile
+    - name: Push framework devShell to cachix
+      run: cachix push digitallyinduced ihp-profile
