@@ -46,6 +46,7 @@ jobs:
         # Pushing runtime closure
         nix profile install nixpkgs#jq
         nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+        git add . # So the generated files are available to nix flakes
         nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced
     # Also build the framework's dev env
     - name: Build framework devShell
