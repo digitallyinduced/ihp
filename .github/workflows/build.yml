@@ -38,12 +38,12 @@ jobs:
       run: |
         cd ihp-boilerplate && nix develop --impure --profile ihp-boilerplate-profile --command "true"
     - name: Push IHP app to cachix
+      run: |
         # Cachix doesn't natively support nix flakes in it's cachix-action
         # See https://github.com/cachix/cachix-action/issues/47
         cachix push digitallyinduced ihp-boilerplate-profile
     # Also build the framework's dev env
     - name: Build framework devShell
-      run: |
-        nix develop --impure --profile ihp-profile --command "true"
+      run: nix develop --impure --profile ihp-profile --command "true"
     - name: Push framework devShell to cachix
       run: cachix push digitallyinduced ihp-profile
