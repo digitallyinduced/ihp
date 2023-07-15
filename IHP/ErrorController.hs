@@ -114,7 +114,6 @@ postgresHandler exception controller additionalInfo = do
         handlePostgresOutdatedError exception errorText = do
             let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let title = [hsx|Database looks outdated. {errorText}|]
-            -- @todo: Causes error
             let errorMessage = [hsx|
                         <h2>Possible Solutions</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
