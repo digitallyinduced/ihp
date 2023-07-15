@@ -14,11 +14,8 @@ jobs:
       with:
         name: digitallyinduced
         skipPush: true
-    - name: Install devenv.sh
-      run: nix profile install --accept-flake-config github:cachix/devenv/latest
-      if: matrix.os != 'ARM64'
     - run: |
           cd $GITHUB_WORKSPACE
           mkdir -p ~/.config/nixpkgs
           echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
-          devenv shell fastbuild
+          nix develop --impure --command fastbuild
