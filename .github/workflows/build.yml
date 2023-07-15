@@ -46,6 +46,7 @@ jobs:
           cat flake.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
+          git add .
           nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Notify IHP Website about the new build
       run: |
