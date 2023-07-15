@@ -320,6 +320,20 @@ do
     result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
 ```
 
+If you need to fetch only a single column, for example only the ID of a record, you need to help the compiler and type hint
+the result, with an `Only` prefix. Here's an example of fetching only the IDs of a `project` table, and converting them to
+`Id Project`:
+
+```haskell
+do
+    allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
+
+    let projectIds =
+            allProjectUuids
+                -- Extract the UUIDs, and convert to an ID.
+                |> map (\(Only uuid) -> Id uuid :: Id Project)
+```
+
 ### Scalar Results
 
 The [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use [`sqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQueryScalar):

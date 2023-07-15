@@ -18,8 +18,6 @@ jobs:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - name: Install devenv.sh
-      run: nix profile install --accept-flake-config github:cachix/devenv/latest
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
@@ -29,11 +27,11 @@ jobs:
     - name: Build Docs
       run: |
           cd $GITHUB_WORKSPACE
-          devenv shell build-guide
+          nix develop --impure --command build-guide
     - name: Build API Reference
       run: |
           cd $GITHUB_WORKSPACE
-          devenv shell build-api-reference
+          nix develop --impure --command build-api-reference
           tar -czvf api-reference.tar.gz haddock-build
     - name: Uploading to S3
       run: |

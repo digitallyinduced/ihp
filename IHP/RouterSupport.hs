@@ -868,7 +868,7 @@ mountFrontController :: forall frontController. (?applicationContext :: Applicat
 mountFrontController application = let ?application = application in router []
 {-# INLINABLE mountFrontController #-}
 
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Data controller) => RouteParser
+parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => RouteParser
 parseRoute = toRouteParser' $ do
     action <- parseRoute' @controller
     pure $ runAction' @application action
