@@ -1,5 +1,6 @@
 module IHP.Controller.AccessDenied
-    ( accessDeniedUnless
+    ( accessDeniedWhen
+    , accessDeniedUnless
     , handleAccessDeniedFound
     , buildAccessDeniedResponse
     )
@@ -15,9 +16,9 @@ import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Context
-import IHP.ControllerSupport
 
--- | Stops the action execution with an error message when the access condition is True.
+
+-- | Stops the action execution with an access denied message (403) when the access condition is True.
 --
 -- __Example:__ Checking a user is the author of a blog post.
 --
@@ -31,7 +32,7 @@ import IHP.ControllerSupport
 accessDeniedWhen :: (?context::ControllerContext) => Bool -> IO ()
 accessDeniedWhen condition = when condition renderAccessDenied
 
--- | Stops the action execution with an error message when the access condition is False.
+-- | Stops the action execution with an access denied message (403) when the access condition is False.
 --
 -- __Example:__ Checking a user is the author of a blog post.
 --
@@ -44,7 +45,6 @@ accessDeniedWhen condition = when condition renderAccessDenied
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 accessDeniedUnless :: (?context::ControllerContext) => Bool -> IO ()
 accessDeniedUnless condition = unless condition renderAccessDenied
-
 
 -- | Renders a 403 access denied response. If a static/403.html exists, that is rendered instead of the IHP access denied page.
 handleAccessDeniedFound :: Request -> Respond -> IO ResponseReceived
@@ -142,14 +142,14 @@ customAccessDeniedResponse = do
     pure $ responseLBS status403 [(hContentType, "text/html")] page
 
 
--- | Render's an "Access denied" page.
+-- | Renders an "Access denied" page.
 --
--- This can be useful e.g. when an entity cannot be access:
+-- This can be useful e.g. when an entity cannot be accessed:
 --
 -- > action ExampleAction = do
 -- >     renderAccessDenied
 --
--- You can override the default not found error page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+-- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
 --
 renderAccessDenied :: (?context :: ControllerContext) => IO ()
 renderAccessDenied = do

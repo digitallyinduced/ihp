@@ -338,4 +338,3 @@ getAppConfig = ?context.frameworkConfig.appConfig
         |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))
 {-# INLINE getAppConfig #-}
 
-

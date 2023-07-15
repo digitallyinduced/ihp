@@ -1,5 +1,7 @@
 module IHP.Controller.NotFound
-    ( handleNotFound
+    ( notFoundWhen
+    , notFoundUnless
+    , handleNotFound
     , buildNotFoundResponse
     )
  where
@@ -13,6 +15,36 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
+import IHP.Controller.Context
+
+
+-- | Stops the action execution with a not found message (404) when the access condition is True.
+--
+-- __Example:__ Checking a user is the author of a blog post.
+--
+-- > action EditPostAction { postId } = do
+-- >     post <- fetch postId
+-- >     notFoundWhen (post.authorId /= currentUserId)
+-- >
+-- >     renderHtml EditView { .. }
+--
+-- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
+notFoundWhen :: (?context::ControllerContext) => Bool -> IO ()
+notFoundWhen condition = when condition renderNotFound
+
+-- | Stops the action execution with a not found message (404) when the access condition is False.
+--
+-- __Example:__ Checking a user is the author of a blog post.
+--
+-- > action EditPostAction { postId } = do
+-- >     post <- fetch postId
+-- >     notFoundUnless (post.authorId == currentUserId)
+-- >
+-- >     renderHtml EditView { .. }
+--
+-- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
+notFoundUnless :: (?context::ControllerContext) => Bool -> IO ()
+notFoundUnless condition = unless condition renderNotFound
 
 
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
@@ -110,3 +142,16 @@ customNotFoundResponse = do
     page <- LBS.readFile "static/404.html"
     pure $ responseLBS status404 [(hContentType, "text/html")] page
 
+-- | Renders an "Not found" page.
+--
+-- This can be useful e.g. when an entity cannot be accessed:
+--
+-- > action ExampleAction = do
+-- >     renderNotFound
+--
+-- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+--
+renderNotFound :: (?context :: ControllerContext) => IO ()
+renderNotFound = do
+    response <- buildNotFoundResponse
+    respondAndExit response
