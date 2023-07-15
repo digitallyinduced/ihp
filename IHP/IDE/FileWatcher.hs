@@ -42,7 +42,7 @@ startWatchingSubDirectory manager state path = do
         Just _ -> pure ()
         Nothing -> do
             stop <- FS.watchTree manager path shouldActOnFileChange handleFileChange
-            putMVar state $ Map.insert path stop watchedDirectories
+            modifyMVar_ state (\map -> pure (Map.insert path stop map))
 
 stopWatchingSubDirectory :: FileWatcherState -> FilePath -> IO ()
 stopWatchingSubDirectory state path = do
@@ -50,7 +50,7 @@ stopWatchingSubDirectory state path = do
     case Map.lookup path watchedDirectories of
         Just stop -> do
             stop
-            putMVar state $ Map.delete path watchedDirectories
+            modifyMVar_ state (\map -> pure (Map.delete path map))
         Nothing -> pure ()
 
 listWatchableDirectories :: IO [String]
