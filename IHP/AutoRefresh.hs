@@ -22,6 +22,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
 import IHP.Controller.Context
+import IHP.Controller.Response 
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString

@@ -19,14 +19,11 @@ module IHP.ControllerSupport
 , runActionWithNewContext
 , newContextForAction
 , respondAndExit
-, ResponseException (..)
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
 , startWebSocketAppAndFailOnHTTP
 , setHeader
-, addResponseHeaders
-, addResponseHeadersFromContext
 , getAppConfig
 ) where
 
@@ -48,6 +45,7 @@ import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
+import IHP.Controller.Response
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -231,29 +229,6 @@ setHeader header = do
     Context.putContext (header : headers)
 {-# INLINABLE setHeader #-}
 
--- | Add headers to current response
--- | Returns a Response with headers
---
--- > addResponseHeaders [("Content-Type", "text/html")] response
---
-addResponseHeaders :: [Header] -> Response -> Response
-addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
-{-# INLINABLE addResponseHeaders #-}
-
--- | Add headers to current response, getting the headers from ControllerContext
--- | Returns a Response with headers
---
--- > addResponseHeadersFromContext response
--- You probabaly want `setHeader`
---
-addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
-addResponseHeadersFromContext response = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
-    let responseWithHeaders = addResponseHeaders headers response
-    pure responseWithHeaders
-{-# INLINABLE addResponseHeadersFromContext #-}
-
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
@@ -293,19 +268,6 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
 
     pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
 
--- Can be thrown from inside the action to abort the current action execution.
--- Does not indicates a runtime error. It's just used for control flow management.
-newtype ResponseException = ResponseException Response
-
-instance Show ResponseException where show _ = "ResponseException { .. }"
-
-instance Exception ResponseException
-
-respondAndExit :: (?context::ControllerContext) => Response -> IO ()
-respondAndExit response = do
-    responseWithHeaders <- addResponseHeadersFromContext response
-    Exception.throwIO (ResponseException responseWithHeaders)
-{-# INLINE respondAndExit #-}
 
 -- | Returns a custom config parameter
 --

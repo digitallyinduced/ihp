@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Context
+import IHP.Controller.Response (respondAndExit)
 
 
 -- | Stops the action execution with an access denied message (403) when the access condition is True.
