@@ -1,5 +1,6 @@
 module IHP.Controller.AccessDenied
-    ( handleAccessDeniedFound
+    ( accessDeniedUnless
+    , handleAccessDeniedFound
     , buildAccessDeniedResponse
     )
  where
@@ -43,7 +44,6 @@ accessDeniedWhen condition = when condition renderAccessDenied
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 accessDeniedUnless :: (?context::ControllerContext) => Bool -> IO ()
 accessDeniedUnless condition = unless condition renderAccessDenied
-
 
 
 -- | Renders a 403 access denied response. If a static/403.html exists, that is rendered instead of the IHP access denied page.
