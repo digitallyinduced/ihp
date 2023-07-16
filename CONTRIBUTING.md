@@ -153,6 +153,8 @@ IHP apps have a `flake.nix` like this:
 
 This means that whenever someone runs `nix flake update`, they'll get the latest commit from the IHP v1.1 branch.
 
+This will also lead to a change of the `flake.lock` file in the project. This file ensures that IHP is consistently reproduced across machines, so users should also make sure to check this change into git.
+
 To upgrade to a newer minor version, the URL can be changed to use IHP from the e.g. `v1.2` branch:
 
 ```nix
