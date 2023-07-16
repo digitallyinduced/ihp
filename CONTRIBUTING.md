@@ -163,6 +163,8 @@ To upgrade to a newer minor version, the URL can be changed to use IHP from the 
 }
 ```
 
+In the same way as with updating, running `nix flake update` after declaring a new version will update the `flake.lock` file to ensure consistency in all environments.
+
 ### New Releases
 
 When we're preparing a new release, e.g. the IHP v1.2.0 release, we'll create a new branch `v1.2` and merge the current master into that branch.
