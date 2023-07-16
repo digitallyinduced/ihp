@@ -95,7 +95,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
 4. **Optional: Delete `start` script**
 
-    The `start` script is not needed anymore, and can be deleted. The new start command is now `devenv up`. You can keep `start` script for b.c. purposes if you want to.
+    The `start` script is not needed anymore, and can be deleted. The new start command is now `devenv up`. You can keep the `start` script if you want to, but it's not required.
 
 5. **Remove `.envrc` from your `.gitignore`**
     ```diff
