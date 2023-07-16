@@ -32,6 +32,9 @@ import Data.Text as Text
 import Unsafe.Coerce
 import IHP.ApplicationContext
 
+import qualified Network.Wai.Session as Session
+import qualified Network.Wai.Session.Map as Session
+
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
 data TestController
@@ -92,23 +95,32 @@ config = do
     option Development
     option (AppPort 8000)
 
-application :: (?applicationContext :: ApplicationContext) => Application
-application = Server.application ErrorController.handleNotFound
+makeApplication :: (?applicationContext :: ApplicationContext) => IO Application
+makeApplication = do
+    store <- Session.mapStore_
+    let sessionMiddleware :: Middleware = Session.withSession store "SESSION" ?applicationContext.frameworkConfig.sessionCookie ?applicationContext.session
+    pure (sessionMiddleware (Server.application ErrorController.handleNotFound))
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "isActiveAction" $ do
         it "should return True on the same route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction foo: True"
         it "should return False on a different route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction bar: False"
     describe "isActivePath" $ do
         it "should return True on the same route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
         it "should return False on a different route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
     describe "isActiveController" $ do
         it "should return True on the same route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
         it "should return False on a different route" $ withContext do
+            application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
