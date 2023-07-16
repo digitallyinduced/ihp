@@ -28,6 +28,7 @@ Clone the IHP repository into the project directory. The `IHP` directory is adde
 git clone git@github.com:digitallyinduced/ihp.git IHP
 # only needs to be run once (do not run inside the IHP directory)
 make -B build/ihp-lib
+direnv allow
 ```
 
 Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;` lines in the `IHP/ihp.nix` for fast rebuilds, otherwise you could up waiting up to half an hour while IHP builds itself.
