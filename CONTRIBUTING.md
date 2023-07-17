@@ -26,7 +26,11 @@ Clone the IHP repository into the project directory. The `IHP` directory is adde
 
 ```
 git clone git@github.com:digitallyinduced/ihp.git IHP
-# only needs to be run once (do not run inside the IHP directory)
+# Enable direnv
+cd IHP
+direnv allow
+# Go back to the project root (do not run inside the IHP directory)
+cd -
 make -B build/ihp-lib
 ```
 
@@ -136,6 +140,41 @@ main
 ```
 
 After creating a new test you need to still call it from the `Main` module by adding it to `IHP/Test/Main.hs`.
+
+## Branches
+
+Since the switch to nix flakes with IHP v1.1 we're using release branches, to make it easy to upgrade IHP versions using `nix flake update`.
+
+E.g. there's a [branch named `v1.1`](https://github.com/digitallyinduced/ihp/tree/v1.1) that contains the latest IHP v1.1.x release. When a new IHP v1.1.x release is made, we'll update the `v1.1` branch to point to the new release commit.
+
+IHP apps have a `flake.nix` like this:
+
+```nix
+{
+    inputs.ihp.url = "github:digitallyinduced/ihp/v1.1";
+}
+```
+
+This means that whenever someone runs `nix flake update`, they'll get the latest commit from the IHP v1.1 branch.
+
+This will also lead to a change of the `flake.lock` file in the project. This file ensures that IHP is consistently reproduced across machines, so users should also make sure to check this change into git.
+
+To upgrade to a newer minor version, the URL can be changed to use IHP from the e.g. `v1.2` branch:
+
+```nix
+{
+    inputs.ihp.url = "github:digitallyinduced/ihp/v1.2";
+}
+```
+
+In the same way as with updating, running `nix flake update` after declaring a new version will update the `flake.lock` file to ensure consistency in all environments.
+
+### New Releases
+
+When we're preparing a new release, e.g. the IHP v1.2.0 release, we'll create a new branch `v1.2` and merge the current master into that branch.
+
+Additionally every released version of IHP is tagged. [You can see a list of all tags on GitHub.](https://github.com/digitallyinduced/ihp/tags)
+
 
 ## Troubleshooting
 

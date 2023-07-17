@@ -7,8 +7,6 @@ After updating your project, please consult the segments from your current relea
 
 This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
 
-Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
-
 1. **Activate flakes in your system's Nix config**
 
     Before you can start the upgrade process, make sure that you have activated Nix flakes in your Nix config.
@@ -27,7 +25,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     ```
 
 3. **Edit your `.envrc` and migrate env vars from `./start`**
-
+    Open your `.envrc` and replace it with this:
     ```
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
         source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
@@ -48,7 +46,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     # E.g. export AWS_ACCESS_KEY_ID="XXXXX"
     ```
 
-   Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+    Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
 
     E.g. this `start` script:
 
@@ -93,9 +91,9 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
     After that, your `start` script is not needed anymore, and you can delete it.
 
-4. **Delete `start` script**
+4. **Optional: Delete `start` script**
 
-    The `start` script is not needed anymore, and can be deleted.
+    The `start` script is not needed anymore, and can be deleted. The new start command is now `devenv up`. You can keep the `start` script if you want to, but it's not required.
 
 5. **Remove `.envrc` from your `.gitignore`**
     ```diff
@@ -113,7 +111,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         inputs = {
             # Here you can adjust the IHP version of your project
             # You can find new releases at https://github.com/digitallyinduced/ihp/releases
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.follows = "ihp/nixpkgs";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
@@ -190,7 +188,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         inputs = {
             # Here you can adjust the IHP version of your project
             # You can find new releases at https://github.com/digitallyinduced/ihp/releases
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.follows = "ihp/nixpkgs";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
@@ -291,7 +289,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     ```nix
     {
         inputs = {
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.url = "github:NixOS/nixpkgs?rev=PUT YOUR CUSTOM REVISION HERE";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
