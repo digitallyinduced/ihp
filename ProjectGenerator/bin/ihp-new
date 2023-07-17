@@ -267,14 +267,14 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 chmod go-w .ghci || true
 
-nix --extra-experimental-features "nix-command flakes" develop --impure --command bash -c "make -s all; new-application Web"
+nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c "make -s all; new-application Web"
 direnv allow
 
 if [[ "$BOILERPLATE_GIT_BRANCH" == "elm" ]]; then
-	nix --extra-experimental-features "nix-command flakes" develop --impure --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
+	nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
 	rm Layout.hs.patch Welcome.hs.patch
 elif [[ "$BOILERPLATE_GIT_BRANCH" == "purescript-halogen" ]]; then
-	nix --extra-experimental-features "nix-command flakes" develop --impure --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
+	nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
 	rm Layout.hs.patch Welcome.hs.patch
 fi
 
