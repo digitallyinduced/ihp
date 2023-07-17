@@ -90,12 +90,6 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m -N"
 .DEFAULT_GOAL := help
 RUNGHC=runghc
 
-ifneq ($(wildcard IHP/.*),)
-IHP_LIB = IHP/lib/IHP
-else
-IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
-endif
-
 all: build/Generated/Types.hs
 
 .envrc:

@@ -315,7 +315,29 @@ This means that from now on when adding new packages, you need to do it in a sin
 
     This will finally solve all the issues that typically happen around IHP's stateful `build/ihp-lib` symlink. This symlink is now replaced with an env variable called `IHP_LIB` that is automatically provided by devenv.
 
-10. **Migration finished**
+10. **Update `Makefile`**
+    
+    Open your `Makefile` and remove the following boilerplate code at the top of the file:
+
+    ```Makefile
+    ifneq ($(wildcard IHP/.*),)
+    IHP = IHP/lib/IHP
+    else
+    ifneq ($(wildcard build/ihp-lib),)
+    IHP = build/ihp-lib
+    else
+    ifneq ($(shell which RunDevServer),)
+    IHP = $(shell dirname $$(which RunDevServer))/../lib/IHP
+    else
+    IHP = $(error IHP not found! Run the following command to fix this:    nix-shell --run 'make .envrc'    )
+    endif
+    endif
+    endif
+
+    # ...
+    ```
+
+11. **Migration finished**
 
     Finally, approve the new `.envrc`:
 
@@ -327,7 +349,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     You can answer "y" to all of them. This will take some time, as all your packages are now being built.
     Once done, you can commit `flake.lock` to your git repository.
 
-11. **Start project**
+12. **Start project**
 
     Start your project with `devenv up`.
 

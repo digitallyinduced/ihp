@@ -39,8 +39,6 @@ in
         buildPhase = ''
           mkdir -p build
 
-          mkdir -p IHP
-
           # When npm install is executed by the project's makefile it will fail with:
           #
           #     EACCES: permission denied, mkdir '/homeless-shelter'
@@ -49,6 +47,9 @@ in
           #
           # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
           export HOME=/tmp
+
+          export IHP_LIB=${ihp}/lib/IHP
+          export IHP=${ihp}/lib/IHP
 
           make -j ${appBinary}
 
