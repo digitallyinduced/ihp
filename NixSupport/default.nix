@@ -38,11 +38,6 @@ in
         name = "app";
         buildPhase = ''
           mkdir -p build
-          rm -f build/ihp-lib
-
-          mkdir -p IHP
-          ln -s "${ihp}/lib/IHP" build/ihp-lib
-          ln -s "${ihp}/lib" IHP/lib # Avoid the Makefile calling 'which RunDevServer'
 
           # When npm install is executed by the project's makefile it will fail with:
           #
@@ -52,6 +47,9 @@ in
           #
           # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
           export HOME=/tmp
+
+          export IHP_LIB=${ihp}/lib/IHP
+          export IHP=${ihp}/lib/IHP
 
           make -j ${appBinary}
 
@@ -81,12 +79,12 @@ in
           mv ${appBinary} $out/bin/RunProdServerWithoutOptions
 
           INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-          makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+          makeWrapper $out/bin/RunProdServerWithoutOptions $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
           # Copy job runner binary to bin/ if we built it
           if [ -f ${jobsBinary} ]; then
             mv ${jobsBinary} $out/bin/RunJobsWithoutOptions;
-            makeWrapper $out/bin/RunJobsWithoutOptions $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+            makeWrapper $out/bin/RunJobsWithoutOptions $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
           fi;
 
           # Copy IHP Script binaries to bin/
@@ -97,8 +95,6 @@ in
               mv "build/bin/Script/$script_basename" "$out/bin/$script_basename";
             done
 
-          mkdir -p "$out/lib/build"
-          cp -R "${ihp}/lib/IHP" "$out/lib/build/ihp-lib"
           mv static "$out/lib/static"
         '';
         dontFixup = true;
