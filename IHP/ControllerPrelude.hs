@@ -1,6 +1,8 @@
 module IHP.ControllerPrelude
     ( module IHP.Prelude
     , module IHP.ControllerSupport
+    , module IHP.Controller.AccessDenied
+    , module IHP.Controller.NotFound
     , module IHP.Controller.Render
     , module IHP.Controller.Param
     , module IHP.Controller.FileUpload
@@ -41,6 +43,8 @@ import IHP.Prelude
 import IHP.Controller.Param
 import IHP.Controller.FileUpload
 import IHP.Controller.Render
+import IHP.Controller.AccessDenied
+import IHP.Controller.NotFound
 import IHP.Controller.Session
 import IHP.Controller.RequestContext
 import IHP.Controller.BasicAuth
@@ -82,3 +86,4 @@ import IHP.FileStorage.Preprocessor.ImageMagick
 import IHP.Pagination.ControllerFunctions
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
+import qualified Network.TLS as IHP.Controller
