@@ -22,20 +22,8 @@ import qualified IHP.FrameworkConfig as Config
 -- while the dev server binary is located at @bin/RunDevServer@.
 findLibDirectory :: IO Text
 findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    if frameworkMountedLocally
-        then pure "IHP/lib/IHP/"
-        else do
-            -- The IHP_LIB env var is set in flake-module.nix
-            ihpLibVar <- Config.envOrNothing "IHP_LIB"
-            case ihpLibVar of
-                Just ihpLib -> pure ihpLib
-                Nothing -> do
-                    -- This branch deals with legacy IHP versions before v1.1
-                    -- We can remove this in the future
-                    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
-                    if ihpLibSymlinkAvailable
-                        then pure "build/ihp-lib/"
-                        else do
-                            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-                            pure (Text.strip binDir <> "/../lib/IHP/")
+    -- The IHP_LIB env var is set in flake-module.nix
+    ihpLibVar <- Config.envOrNothing "IHP_LIB"
+    case ihpLibVar of
+        Just ihpLib -> pure ihpLib
+        Nothing -> error "IHP_LIB env var is not set. Please run 'nix develop --impure' before running the dev server, or make sure that your direnv integration is working correctly."
