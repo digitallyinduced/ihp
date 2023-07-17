@@ -35,7 +35,6 @@ main = withUtf8 do
     actionVar <- newEmptyMVar
     appStateRef <- emptyAppState >>= newIORef
     portConfig <- findAvailablePortConfig
-    LibDir.ensureSymlink
     ensureUserIsNotRoot
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1

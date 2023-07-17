@@ -57,6 +57,9 @@ jobs:
     - name: Build IHP app
       run: |
         cd ihp-boilerplate && nix develop --impure --profile ihp-boilerplate-profile --command "true"
+    - name: Install jq
+      run: nix profile install nixpkgs#jq
+      if: matrix.os != 'ARM64'
     - name: Push IHP app to cachix
       run: |
         cd ihp-boilerplate
@@ -64,7 +67,6 @@ jobs:
         # See https://github.com/cachix/cachix-action/issues/47
         cachix push digitallyinduced ihp-boilerplate-profile
         # Pushing runtime closure
-        nix profile install nixpkgs#jq
         nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
         git add . # So the generated files are available to nix flakes
         nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced
