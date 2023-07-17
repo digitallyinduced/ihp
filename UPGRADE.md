@@ -302,7 +302,20 @@ This means that from now on when adding new packages, you need to do it in a sin
     }
     ```
 
-9. **Migration finished**
+9. **Update `.ghci`**
+
+    Replace your current `.ghci` with the following:
+
+    ```
+    :set -XNoImplicitPrelude
+    :def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))
+    :loadFromIHP applicationGhciConfig
+    import IHP.Prelude
+    ```
+
+    This will finally solve all the issues that typically happen around IHP's stateful `build/ihp-lib` symlink. This symlink is now replaced with an env variable called `IHP_LIB` that is automatically provided by devenv.
+
+10. **Migration finished**
 
     Finally, approve the new `.envrc`:
 
@@ -314,7 +327,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     You can answer "y" to all of them. This will take some time, as all your packages are now being built.
     Once done, you can commit `flake.lock` to your git repository.
 
-10. **Start project**
+11. **Start project**
 
     Start your project with `devenv up`.
 
