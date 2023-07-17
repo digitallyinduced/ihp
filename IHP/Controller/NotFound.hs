@@ -1,9 +1,9 @@
 module IHP.Controller.NotFound
-    ( notFoundWhen
-    , notFoundUnless
-    , handleNotFound
-    , buildNotFoundResponse
-    )
+( notFoundWhen
+, notFoundUnless
+, handleNotFound
+, buildNotFoundResponse
+)
  where
 
 import IHP.Prelude hiding (displayException)

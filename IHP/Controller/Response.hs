@@ -1,9 +1,9 @@
-module IHP.Controller.Response 
-    ( respondAndExit
-    , addResponseHeaders
-    , addResponseHeadersFromContext
-    , ResponseException (..)
-    ) 
+module IHP.Controller.Response
+( respondAndExit
+, addResponseHeaders
+, addResponseHeadersFromContext
+, ResponseException (..)
+)
 where
 
 import ClassyPrelude
