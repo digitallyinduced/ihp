@@ -170,6 +170,8 @@ ihpFlake:
                     '';
                     }
                 ];
+
+                env.IHP_LIB = "${ihp}/lib/IHP";
             };
         };
 
