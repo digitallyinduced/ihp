@@ -25,5 +25,5 @@ findLibDirectory = do
     -- The IHP_LIB env var is set in flake-module.nix
     ihpLibVar <- Config.envOrNothing "IHP_LIB"
     case ihpLibVar of
-        Just ihpLib -> pure ihpLib
+        Just ihpLib -> pure (ihpLib <> "/")
         Nothing -> error "IHP_LIB env var is not set. Please run 'nix develop --impure' before running the dev server, or make sure that your direnv integration is working correctly."
