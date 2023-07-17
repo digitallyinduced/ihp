@@ -3,7 +3,7 @@ Module: IHP.LibDir
 Description: Functions to access the IHP lib/ directory at runtime
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.LibDir (findLibDirectory, ensureSymlink) where
+module IHP.LibDir (findLibDirectory) where
 
 import IHP.Prelude
 import qualified System.Directory as Directory
@@ -11,6 +11,7 @@ import qualified Data.Text as Text
 import qualified System.Process as Process
 import qualified System.Posix.Files as Files
 import qualified Control.Exception as Exception
+import qualified IHP.FrameworkConfig as Config
 
 -- | Finds the lib
 --
@@ -21,50 +22,8 @@ import qualified Control.Exception as Exception
 -- while the dev server binary is located at @bin/RunDevServer@.
 findLibDirectory :: IO Text
 findLibDirectory = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
-    if frameworkMountedLocally
-        then pure "IHP/lib/IHP/"
-        else if ihpLibSymlinkAvailable
-            then do
-                pure "build/ihp-lib/"
-            else do
-                binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-                pure (Text.strip binDir <> "/../lib/IHP/")
-
--- | Creates the build/ihp-lib symlink if missing
---
--- This is called in dev mode to make sure that build/ihp-lib points to the right IHP version.
--- Otherwise the CLI tools might not work as expected, e.g. @make db@ might fail.
---
--- If the symlink is missing, it tries to fix this by starting a new nix-shell and pinpointing the framework lib dir in there
-ensureSymlink :: IO ()
-ensureSymlink = do
-    frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
-
-    unless ihpLibSymlinkAvailable do
-        -- Make sure the build directory exists, otherwise we cannot add the symlink
-        Directory.createDirectoryIfMissing False "build"
-
-        libDir <- if frameworkMountedLocally
-            then pure "../IHP/lib/IHP/"
-            else do
-                putStrLn "Building build/ihp-lib. This might take a few seconds"
-                binDir <- cs <$> Process.readCreateProcess (Process.shell "nix-shell --run 'dirname $(which RunDevServer)'") ""
-                pure (Text.strip binDir <> "/../lib/IHP/")
-
-
-        -- Below code could fail with 'createSymbolicLink: already exists (File exists)'
-        -- This happens when the symlink points to a non existing target
-        --
-        -- Therefore we retry this operation on error and try to remove a possible
-        -- existing symlink in that case.
-        let createLink = Files.createSymbolicLink (cs libDir) "build/ihp-lib"
-
-        result <- Exception.try createLink
-        case result of
-            Left (exception :: SomeException) -> do
-                Files.removeLink "build/ihp-lib"
-                createLink
-            Right ok -> pure ok
+    -- The IHP_LIB env var is set in flake-module.nix
+    ihpLibVar <- Config.envOrNothing "IHP_LIB"
+    case ihpLibVar of
+        Just ihpLib -> pure (ihpLib <> "/")
+        Nothing -> error "IHP_LIB env var is not set. Please run 'nix develop --impure' before running the dev server, or make sure that your direnv integration is working correctly."

@@ -170,6 +170,9 @@ ihpFlake:
                     '';
                     }
                 ];
+
+                env.IHP_LIB = "${ihp}/lib/IHP";
+                env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
             };
         };
 
