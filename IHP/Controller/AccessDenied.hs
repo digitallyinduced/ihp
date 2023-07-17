@@ -1,10 +1,10 @@
 module IHP.Controller.AccessDenied
-    ( accessDeniedWhen
-    , accessDeniedUnless
-    , handleAccessDeniedFound
-    , buildAccessDeniedResponse
-    )
- where
+( accessDeniedWhen
+, accessDeniedUnless
+, handleAccessDeniedFound
+, buildAccessDeniedResponse
+)
+where
 
 import IHP.Prelude hiding (displayException)
 import IHP.Controller.RequestContext
@@ -30,7 +30,7 @@ import IHP.Controller.Response (respondAndExit)
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedWhen :: (?context::ControllerContext) => Bool -> IO ()
+accessDeniedWhen :: (?context :: ControllerContext) => Bool -> IO ()
 accessDeniedWhen condition = when condition renderAccessDenied
 
 -- | Stops the action execution with an access denied message (403) when the access condition is False.
@@ -44,7 +44,7 @@ accessDeniedWhen condition = when condition renderAccessDenied
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedUnless :: (?context::ControllerContext) => Bool -> IO ()
+accessDeniedUnless :: (?context :: ControllerContext) => Bool -> IO ()
 accessDeniedUnless condition = unless condition renderAccessDenied
 
 -- | Renders a 403 access denied response. If a static/403.html exists, that is rendered instead of the IHP access denied page.
