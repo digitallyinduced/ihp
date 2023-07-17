@@ -11,6 +11,7 @@ import qualified Data.Text as Text
 import qualified System.Process as Process
 import qualified System.Posix.Files as Files
 import qualified Control.Exception as Exception
+import qualified IHP.FrameworkConfig as Config
 
 -- | Finds the lib
 --
@@ -22,12 +23,19 @@ import qualified Control.Exception as Exception
 findLibDirectory :: IO Text
 findLibDirectory = do
     frameworkMountedLocally <- Directory.doesDirectoryExist "IHP"
-    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
     if frameworkMountedLocally
         then pure "IHP/lib/IHP/"
-        else if ihpLibSymlinkAvailable
-            then do
-                pure "build/ihp-lib/"
-            else do
-                binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
-                pure (Text.strip binDir <> "/../lib/IHP/")
+        else do
+            -- The IHP_LIB env var is set in flake-module.nix
+            ihpLibVar <- Config.envOrNothing "IHP_LIB"
+            case ihpLibVar of
+                Just ihpLib -> pure ihpLib
+                Nothing -> do
+                    -- This branch deals with legacy IHP versions before v1.1
+                    -- We can remove this in the future
+                    ihpLibSymlinkAvailable <- Directory.doesDirectoryExist "build/ihp-lib"
+                    if ihpLibSymlinkAvailable
+                        then pure "build/ihp-lib/"
+                        else do
+                            binDir <- cs <$> Process.readCreateProcess (Process.shell "dirname $(which RunDevServer)") ""
+                            pure (Text.strip binDir <> "/../lib/IHP/")
