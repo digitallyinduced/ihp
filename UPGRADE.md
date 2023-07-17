@@ -7,8 +7,6 @@ After updating your project, please consult the segments from your current relea
 
 This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
 
-Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
-
 1. **Activate flakes in your system's Nix config**
 
     Before you can start the upgrade process, make sure that you have activated Nix flakes in your Nix config.
