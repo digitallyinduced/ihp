@@ -43,10 +43,7 @@ It is important to update your custom `default.nix` file and set the `rev` to th
 
 ### Running the latest IHP `master`
 
-When contributing to IHP core you will want to have your PRs synced with `master`. There is a relationship you'd need to keep with the
-latest [IHP commit](https://github.com/digitallyinduced/ihp/commits/master) and ihp-boilerplate's [flake.lock](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/flake.lock). 
-
-Your `flake.nix` should have this line:
+When contributing to IHP core you will want to have your PRs synced with `master`. Your `flake.nix` should have this line:
 
 ```nix
 {
@@ -54,15 +51,14 @@ Your `flake.nix` should have this line:
 }
 ```
 
-Then every time you'd like to update to the latest master, you'll copy/paste the [flake.lock](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/flake.lock) to your own `flake.lock` and run:
+Then every time you'd like to update to the latest master, you'll run:
 
 ```
 nix flake update
 direnv allow
 ```
 
-Note that the `flake.lock` on ihp-boilerplate's is rebuilt by IHP's GitHub action whenever a new commit is done on `master`. So be aware that if there's a new commit on master, and its GitHub action isn't done yet, then there will be a mismatch between IHP's commit and the `flake.lock`. You will notice in this case that trying to rebuild IHP takes a really long time, as it will try to compile it, instead of getting it from cachix. In that case, you can wait for the GitHub action to complete or point to a specific IHP commit.
-
+Note that there's a time window that there could be a mismatch between IHP commit and cachix's cache. When a PR is merged into IHP core, a GitHub action runs and updates `flake.lock` on IHP-boilerplate repository. This means that while GitHub action on `master` is still running you will notice that rebuilding IHP takes a long time. Instead of building from the cache, it will try to compile it. You can wait for the GitHub action to complete or point to a specific IHP commit.
 
 ### Running the development server
 
