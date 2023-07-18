@@ -41,32 +41,34 @@ To help us with that, you can run this from the root of your project `cd IHP && 
 
 It is important to update your custom `default.nix` file and set the `rev` to the latest commit every time you perform a `git pull` from within IHP. This is because certain components continue to use the version defined in `default.nix`, even if you have a local IHP.
 
-### Alternative method
+### Running the latest IHP `master`
 
-Another workflow, instead of the simpler `devenv up`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+When contributing to IHP core you will want to have your PRs synced with `master`. There is a relationship you'd need to keep with the
+latest [IHP commit](https://github.com/digitallyinduced/ihp/commits/master) and ihp-boilerplate's [flake.lock](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/flake.lock). 
 
-```
-ghci
-$ghci> :l Main
-```
+Your `flake.nix` should have this line:
 
-This will now load your application and all the haskell files in `IHP`.
-
-As we are not using the development tooling for the framework development process we need to manually start the postgres process by running `postgres -D build/db/state -k $PWD/build/db -c "listen_addresses="` in another terminal window.
-
-After postgres is started you can now start the application with the local framework version by running:
-
-```
-main
+```nix
+{
+    ihp.url = "github:digitallyinduced/ihp";
+}
 ```
 
-After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
+Then every time you'd like to update to the latest master, you'll copy/paste the [flake.lock](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/flake.lock) to your own `flake.lock` and run:
+
+```
+nix flake update
+direnv allow
+```
+
+Note that the `flake.lock` on ihp-boilerplate's is rebuilt by IHP's GitHub action whenever a new commit is done on `master`. So be aware that if there's a new commit on master, and its GitHub action isn't done yet, then there will be a mismatch between IHP's commit and the `flake.lock`. You will notice in this case that trying to rebuild IHP takes a really long time, as it will try to compile it, instead of getting it from cachix. In that case, you can wait for the GitHub action to complete or point to a specific IHP commit.
+
 
 ### Running the development server
 
-When making changes to the development tooling, follow the setup above, except don't start postgres (the IDE starts it automatically).
 
-Instead of starting your application, start the development server:
+When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
+use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
 
 ```
 ghci
@@ -74,9 +76,11 @@ ghci
 main
 ```
 
+We don't start postgres as the IDE starts it automatically.
+
 #### Debugging the development server
 
-You can enable additonal debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
+You can enable additional debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
 
 ```
 export DEBUG=1
