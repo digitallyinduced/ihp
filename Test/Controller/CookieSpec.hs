@@ -11,7 +11,6 @@ import IHP.Controller.RequestContext
 import IHP.Controller.Response (addResponseHeadersFromContext)
 import IHP.Controller.Cookie
 import IHP.Controller.Context
-
 import qualified Network.Wai as Wai
 import Web.Cookie
 import Network.HTTP.Types.Status
