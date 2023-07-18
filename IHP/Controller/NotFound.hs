@@ -30,7 +30,7 @@ import IHP.Controller.Response (respondAndExit)
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundWhen :: (?context::ControllerContext) => Bool -> IO ()
+notFoundWhen :: (?context :: ControllerContext) => Bool -> IO ()
 notFoundWhen condition = when condition renderNotFound
 
 -- | Stops the action execution with a not found message (404) when the access condition is False.
@@ -44,7 +44,7 @@ notFoundWhen condition = when condition renderNotFound
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundUnless :: (?context::ControllerContext) => Bool -> IO ()
+notFoundUnless :: (?context :: ControllerContext) => Bool -> IO ()
 notFoundUnless condition = unless condition renderNotFound
 
 
