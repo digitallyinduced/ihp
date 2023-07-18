@@ -84,10 +84,10 @@ assertAccessDenied response = do
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
-    describe "Not found" $ do
-        it "should return show 404 page when notFoundWhen is True" $ withContext do
+    describe "Access denied" $ do
+        it "should return show 403 page when acessDeniedWhen is True" $ withContext do
             application <- makeApplication
             runSession (testGet "test/TestActionAccessDeniedWhen") application >>= assertAccessDenied
-        it "should return False on a different route" $ withContext do
+        it "should return show 403 page when acessDeniedUnless is False" $ withContext do
             application <- makeApplication
             runSession (testGet "test/TestActionAccessDeniedUnless") application >>= assertAccessDenied

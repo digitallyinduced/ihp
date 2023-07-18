@@ -88,6 +88,6 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "should return show 404 page when notFoundWhen is True" $ withContext do
             application <- makeApplication
             runSession (testGet "test/TestActionNotFoundWhen") application >>= assertNotFound
-        it "should return False on a different route" $ withContext do
+        it "should return show 404 page when notFoundUnless is False" $ withContext do
             application <- makeApplication
             runSession (testGet "test/TestActionNotFoundUnless") application >>= assertNotFound
