@@ -14,9 +14,9 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 
 **Install the following extensions:**
 
--   [`nix-env-selector`](https://marketplace.visualstudio.com/items?itemName=arrterian.nix-env-selector), this loads the project `default.nix` file, so all the right Haskell packages are available to VSCode
--   [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
--   [`Haskell HSX`](https://marketplace.visualstudio.com/items?itemName=s0kil.vscode-hsx), provides support for [HSX](https://ihp.digitallyinduced.com/Guide/hsx.html)
+- [`direnv`](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv), this loads the project `.envrc` file, so all the right Haskell packages are available to VSCode
+- [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
+- [`Haskell HSX`](https://marketplace.visualstudio.com/items?itemName=s0kil.vscode-hsx), provides support for [HSX](https://ihp.digitallyinduced.com/Guide/hsx.html)
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
@@ -185,7 +185,7 @@ When something goes wrong you can also run `haskell-language-server` inside the 
 
 ### Customizing the Web Browser used by IHP
 
-When running `devenv up` the application will automatically be opened in your default browser. You can manually specify a browser by setting the env var `IHP_BROWSER`:
+When running `devenv up` the application will automatically be opened in your default browser. You can manually specify a browser by setting the env var `IHP_BROWSER` in `.envrc`:
 
 ```bash
 export IHP_BROWSER=firefox

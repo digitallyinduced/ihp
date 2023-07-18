@@ -166,9 +166,9 @@ If you want to try it out before making your own repo, use this button below:
 
 ## 3. Setting up your editor
 
-Also check this out if you're editor is already set up. You might miss a plugin that's recommended for IHP to work well.
+Also check this out if your editor is already set up. You might miss a plugin that's recommended for IHP to work well.
 
--   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode) **Don't have nix-env-selector installed? Read this link**
+-   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode) **Don't have the direnv extension installed? Read this link**
 -   [Sublime Text](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-sublime-text)
 -   [Emacs](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-emacs)
 -   [Vim / NeoVim](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-vim-neovim)
