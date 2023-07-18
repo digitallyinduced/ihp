@@ -48,7 +48,7 @@ jobs:
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
           git add .
           nix flake update
-          nix-shell --run "new-application Web && make build/bin/RunUnoptimizedProdServer"
+          nix develop --impure --command bash -c "new-application Web && make build/bin/RunUnoptimizedProdServer"
     - name: Notify IHP Website about the new build
       run: |
           export TARBALL_URL=`aws s3 presign s3://${{ secrets.S3_BUCKET }}/releases/${{ github.sha }}.tar.gz`
@@ -67,7 +67,7 @@ jobs:
         # See https://github.com/cachix/cachix-action/issues/47
         cachix push digitallyinduced ihp-boilerplate-profile
         # Pushing runtime closure
-        nix-shell -j auto --cores 0 --quiet --run 'make -s all; new-application Web'
+        nix develop --impure --command bash -c 'make -s all; new-application Web'
         git add . # So the generated files are available to nix flakes
         nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced
     # Also build the framework's dev env
