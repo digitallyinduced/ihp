@@ -120,6 +120,15 @@ ihpFlake:
                     includeDevTools = false;
                     optimized = false;
                 };
+
+                migrate =
+                    let
+                        projectSrc = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
+                    in
+                        pkgs.writeScriptBin "migrate" ''
+                            cd ${projectSrc}
+                            ${ghcCompiler.ihp}/bin/migrate
+                        '';
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
