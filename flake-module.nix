@@ -126,7 +126,7 @@ ihpFlake:
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
-                        mkdir -p $out/lib/IHP
+                        mkdir -p $out
                         cp -r ${ihp}/lib/IHP/IHPSchema.sql $out
                     '';
                 };
