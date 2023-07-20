@@ -112,6 +112,18 @@ Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/
 
 Note that nix can gradually grow to use several GB of disk space, especially after upgrading IHP. You can always run `nix-collect-garbage` in a `nix-shell` which will delete older/unused files.
 
+### Enabling flakes
+
+IHP uses Nix flakes. While already widely used, they are still a quite new feature and not yet enabled by default by the Nix install scripts.
+
+If you use IHP normally and with direnv this won't be a problem for you because all the Nix stuff is being handled for you. However, it's a good idea to enable flakes, so you can benefit from their features if you need them or want to try them out.
+
+To enable flakes, either edit `~/.config/nix/nix.conf` (to enable just for your user) or `/etc/nix/nix.conf` (to enable flakes globally) and add the following line:
+
+```bash
+experimental-features = nix-command flakes
+```
+
 ## 2. Installing IHP
 
 You can now install IHP by running:
@@ -148,7 +160,7 @@ nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
 
 #### GitHub Codespaces / VSCode Devcontainers
 
-To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit. 
+To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit.
 
 To try it out before making your own repo, you can simply start a Codespace from the template itself.
 
