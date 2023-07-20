@@ -121,13 +121,13 @@ ihpFlake:
                     optimized = false;
                 };
 
-                ihp-schema = pkgs.mkDerivation {
+                ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
                         mkdir -p $out/lib/IHP
-                        cp -r lib/IHP/IHPSchema.sql $out/lib/IHP
+                        cp -r ${ihp}/lib/IHP/IHPSchema.sql $out/lib/IHP
                     '';
                 };
             };
