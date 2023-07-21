@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-openai";
-  version = "1.0.1";
+  version = "v1.1.0";
   src = ./../../ihp-openai;
   isLibrary = true;
   isExecutable = false;

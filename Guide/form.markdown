@@ -337,7 +337,7 @@ Customize it like this:
 {(textField #title) { additionalAttributes = [ ("onclick", "alert(1)") ] } }
 
 -- Add HTML5 'min' and 'max' attributes to a number input.
-{(numberField #someval) { additionalAttributes = [ ("min", "1"), ("max", 100) ] } }
+{(numberField #someval) { additionalAttributes = [ ("min", "1"), ("max", "100") ] } }
 ```
 
 This will render like:

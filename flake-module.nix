@@ -120,6 +120,16 @@ ihpFlake:
                     includeDevTools = false;
                     optimized = false;
                 };
+
+                ihp-schema = pkgs.stdenv.mkDerivation {
+                    name = "ihp-schema";
+                    src = ihp;
+                    phases = [ "unpackPhase" "installPhase" ];
+                    installPhase = ''
+                        mkdir $out
+                        cp ${ihp}/lib/IHP/IHPSchema.sql $out/
+                    '';
+                };
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
