@@ -122,13 +122,9 @@ ihpFlake:
                 };
 
 
-                migrate =
-                    let
-                        projectSrc = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
-                    in
-                        pkgs.writeScriptBin "migrate" ''
-                            ${ghcCompiler.ihp}/bin/migrate
-                        '';
+                migrate = pkgs.writeScriptBin "migrate" ''
+                    ${ghcCompiler.ihp}/bin/migrate
+                '';
 
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
