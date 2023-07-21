@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "ihp-postgresql-simple-extra";
-  version = "1.0.1";
+  version = "v1.1.0";
   src = ./../../ihp-postgresql-simple-extra;
   libraryHaskellDepends = [
     aeson attoparsec base basic-prelude bytestring ip postgresql-simple
