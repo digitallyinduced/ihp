@@ -58,13 +58,13 @@ nix flake update
 direnv allow
 ```
 
-Note that there's a time window that there could be a mismatch between IHP commit and cachix's cache. When a PR is merged into IHP core, a GitHub action runs and updates `flake.lock` on IHP-boilerplate repository. This means that while GitHub action on `master` is still running you will notice that rebuilding IHP takes a long time. Instead of building from the cache, it will try to compile it. You can wait for the GitHub action to complete or point to a specific IHP commit.
+Note that it takes around 30 minutes for the IHP GitHub actions to prepare a binary build of IHP. If you run latest master and the GitHub actions aren't finished yet, you will notice that your computer needs to build IHP from scratch which takes a lot of time. You can wait for the GitHub action to complete or point to a specific IHP commit to avoid long build times.
 
 ### Running the development server
 
 
 When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
-use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+use `make console` to load your application together with the framework located in `IHP`.
 
 ```
 ghci
