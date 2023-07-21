@@ -359,6 +359,18 @@ This means that from now on when adding new packages, you need to do it in a sin
 
     Start your project with `devenv up`.
 
+13. **Update ihp-new**
+
+    We've updated `ihp-new` to the new nix flakes tools. This will speed up the time to create a new project:
+
+    ```bash
+    # Run this:
+    nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+
+    # Or this if you use nix profile:
+    nix profile install -f https://downloads.digitallyinduced.com/ihp-new.tar.gz
+    ```
+
 
 # Upgrade to 1.0.1 from 1.0.0
 1. **Switch IHP version**
