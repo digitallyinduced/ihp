@@ -7,9 +7,11 @@ After updating your project, please consult the segments from your current relea
 
 This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
 
-1. **Activate flakes in your system's Nix config**
+This update process is a bit more complex than normal IHP updates, but it's worth it and shouldn't take more than 10 minutes.
 
-    Before you can start the upgrade process, make sure that you have activated Nix flakes in your Nix config.
+1. **Optional, but recommended: Activate flakes in your system's Nix config**
+
+    This new IHP release makes use of nix flakes. While it's not required to be enabled to work with IHP, we highly recommended that you enable it inside your nix configuration.
     For that, either `~/.config/nix/nix.conf` (to enable flakes just for your user) or `/etc/nix/nix.conf` (to enable flakes globally) must contain the following snippet:
 
     ```bash
@@ -147,7 +149,13 @@ This version switch the IHP development environment to use devenv.sh. devenv.sh 
     }
     ```
 
-7. **Copy packages from `default.nix` to `flake.nix`:**
+    **Using IHP Pro / Business / Enterprise?**
+
+    Replace the `ihp.url = "github:digitallyinduced/ihp/v1.1";` inside your new `flake.nix` with `ihp.url = "tarball+<YOUR BUILD URL>;`.
+
+    Open https://ihp.digitallyinduced.com/Builds to retrieve the latest v1.1 build url and replace the `<YOUR BUILD URL>` with your build URL. E.g. `ihp.url = "tarball+https://ihp.digitallyinduced.com/BuildTarball?userId=XXXX&token=YYYY&version=ZZZZ";`
+
+8. **Copy packages from `default.nix` to `flake.nix`:**
 
     Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `flake.nix` configuration. If you haven't, you can skip this part.
 
@@ -350,6 +358,18 @@ This means that from now on when adding new packages, you need to do it in a sin
 12. **Start project**
 
     Start your project with `devenv up`.
+
+13. **Update ihp-new**
+
+    We've updated `ihp-new` to the new nix flakes tools. This will speed up the time to create a new project:
+
+    ```bash
+    # Run this:
+    nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+
+    # Or this if you use nix profile:
+    nix profile install -f https://downloads.digitallyinduced.com/ihp-new.tar.gz
+    ```
 
 
 # Upgrade to 1.0.1 from 1.0.0
