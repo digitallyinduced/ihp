@@ -121,6 +121,7 @@ ihpFlake:
                     optimized = false;
                 };
 
+
                 migrate =
                     let
                         projectSrc = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
@@ -129,6 +130,16 @@ ihpFlake:
                             cd ${projectSrc}
                             ${ghcCompiler.ihp}/bin/migrate
                         '';
+
+                ihp-schema = pkgs.stdenv.mkDerivation {
+                    name = "ihp-schema";
+                    src = ihp;
+                    phases = [ "unpackPhase" "installPhase" ];
+                    installPhase = ''
+                        mkdir $out
+                        cp ${ihp}/lib/IHP/IHPSchema.sql $out/
+                    '';
+                };
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
