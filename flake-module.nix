@@ -121,6 +121,11 @@ ihpFlake:
                     optimized = false;
                 };
 
+
+                migrate = pkgs.writeScriptBin "migrate" ''
+                    ${ghcCompiler.ihp}/bin/migrate
+                '';
+
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;
