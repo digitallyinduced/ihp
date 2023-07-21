@@ -127,7 +127,6 @@ ihpFlake:
                         projectSrc = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
                     in
                         pkgs.writeScriptBin "migrate" ''
-                            cd ${projectSrc}
                             ${ghcCompiler.ihp}/bin/migrate
                         '';
 
