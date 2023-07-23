@@ -71,6 +71,9 @@ instance View ShowView where
 
         isActivePath {param}: {isActivePath $ "/test/TestWithParam?param=" <> param}
         isActivePath bar: {isActivePath ("/test/TestWithParam?param=bar" :: Text)}
+
+        isActiveController TestController: {isActiveController @TestController}
+        isActiveController AnotherTestAction: {isActiveController @AnotherTestController}
     |]
 
 defaultLayout :: Html -> Html
