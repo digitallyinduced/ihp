@@ -7,11 +7,11 @@ After updating your project, please consult the segments from your current relea
 
 This version switch the IHP development environment to use devenv.sh. devenv.sh is a nix-based development environment that is similar to IHP's one, but is more general (e.g. you can use devenv.sh for non IHP projects as well). It's also a lot faster.
 
-Note that the upgrade will drop your existing _local_ database, so make sure to create a backup before upgrading, if needed. You can dump your database state to the Fixtures.sql by running `make dumpdb` and then restoring after the update using `make db`.
+This update process is a bit more complex than normal IHP updates, but it's worth it and shouldn't take more than 10 minutes.
 
-1. **Activate flakes in your system's Nix config**
+1. **Optional, but recommended: Activate flakes in your system's Nix config**
 
-    Before you can start the upgrade process, make sure that you have activated Nix flakes in your Nix config.
+    This new IHP release makes use of nix flakes. While it's not required to be enabled to work with IHP, we highly recommended that you enable it inside your nix configuration.
     For that, either `~/.config/nix/nix.conf` (to enable flakes just for your user) or `/etc/nix/nix.conf` (to enable flakes globally) must contain the following snippet:
 
     ```bash
@@ -27,7 +27,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     ```
 
 3. **Edit your `.envrc` and migrate env vars from `./start`**
-
+    Open your `.envrc` and replace it with this:
     ```
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
         source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
@@ -48,7 +48,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     # E.g. export AWS_ACCESS_KEY_ID="XXXXX"
     ```
 
-   Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
+    Does your app have any custom env vars specified in `start`? These now belong to `.envrc`:
 
     E.g. this `start` script:
 
@@ -93,9 +93,9 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
 
     After that, your `start` script is not needed anymore, and you can delete it.
 
-4. **Delete `start` script**
+4. **Optional: Delete `start` script**
 
-    The `start` script is not needed anymore, and can be deleted.
+    The `start` script is not needed anymore, and can be deleted. The new start command is now `devenv up`. You can keep the `start` script if you want to, but it's not required.
 
 5. **Remove `.envrc` from your `.gitignore`**
     ```diff
@@ -113,7 +113,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         inputs = {
             # Here you can adjust the IHP version of your project
             # You can find new releases at https://github.com/digitallyinduced/ihp/releases
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.follows = "ihp/nixpkgs";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
@@ -149,7 +149,13 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
     }
     ```
 
-7. **Copy packages from `default.nix` to `flake.nix`:**
+    **Using IHP Pro / Business / Enterprise?**
+
+    Replace the `ihp.url = "github:digitallyinduced/ihp/v1.1";` inside your new `flake.nix` with `ihp.url = "tarball+<YOUR BUILD URL>;`.
+
+    Open https://ihp.digitallyinduced.com/Builds to retrieve the latest v1.1 build url and replace the `<YOUR BUILD URL>` with your build URL. E.g. `ihp.url = "tarball+https://ihp.digitallyinduced.com/BuildTarball?userId=XXXX&token=YYYY&version=ZZZZ";`
+
+8. **Copy packages from `default.nix` to `flake.nix`:**
 
     Did you add any Haskell dependencies or native dependencies (e.g. imagemagick) to your `default.nix`? Then you need to add them to the `flake.nix` configuration. If you haven't, you can skip this part.
 
@@ -190,7 +196,7 @@ Note that the upgrade will drop your existing _local_ database, so make sure to 
         inputs = {
             # Here you can adjust the IHP version of your project
             # You can find new releases at https://github.com/digitallyinduced/ihp/releases
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.follows = "ihp/nixpkgs";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
@@ -291,7 +297,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     ```nix
     {
         inputs = {
-            ihp.url = "github:digitallyinduced/ihp/1.1";
+            ihp.url = "github:digitallyinduced/ihp/v1.1";
             nixpkgs.url = "github:NixOS/nixpkgs?rev=PUT YOUR CUSTOM REVISION HERE";
             flake-parts.follows = "ihp/flake-parts";
             devenv.follows = "ihp/devenv";
@@ -302,7 +308,42 @@ This means that from now on when adding new packages, you need to do it in a sin
     }
     ```
 
-9. **Migration finished**
+9. **Update `.ghci`**
+
+    Replace your current `.ghci` with the following:
+
+    ```
+    :set -XNoImplicitPrelude
+    :def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))
+    :loadFromIHP applicationGhciConfig
+    import IHP.Prelude
+    ```
+
+    This will finally solve all the issues that typically happen around IHP's stateful `build/ihp-lib` symlink. This symlink is now replaced with an env variable called `IHP_LIB` that is automatically provided by devenv.
+
+10. **Update `Makefile`**
+    
+    Open your `Makefile` and remove the following boilerplate code at the top of the file:
+
+    ```Makefile
+    ifneq ($(wildcard IHP/.*),)
+    IHP = IHP/lib/IHP
+    else
+    ifneq ($(wildcard build/ihp-lib),)
+    IHP = build/ihp-lib
+    else
+    ifneq ($(shell which RunDevServer),)
+    IHP = $(shell dirname $$(which RunDevServer))/../lib/IHP
+    else
+    IHP = $(error IHP not found! Run the following command to fix this:    nix-shell --run 'make .envrc'    )
+    endif
+    endif
+    endif
+
+    # ...
+    ```
+
+11. **Migration finished**
 
     Finally, approve the new `.envrc`:
 
@@ -314,9 +355,21 @@ This means that from now on when adding new packages, you need to do it in a sin
     You can answer "y" to all of them. This will take some time, as all your packages are now being built.
     Once done, you can commit `flake.lock` to your git repository.
 
-10. **Start project**
+12. **Start project**
 
     Start your project with `devenv up`.
+
+13. **Update ihp-new**
+
+    We've updated `ihp-new` to the new nix flakes tools. This will speed up the time to create a new project:
+
+    ```bash
+    # Run this:
+    nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
+
+    # Or this if you use nix profile:
+    nix profile install -f https://downloads.digitallyinduced.com/ihp-new.tar.gz
+    ```
 
 
 # Upgrade to 1.0.1 from 1.0.0

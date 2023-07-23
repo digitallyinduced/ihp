@@ -90,13 +90,7 @@ PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m -N"
 .DEFAULT_GOAL := help
 RUNGHC=runghc
 
-ifneq ($(wildcard IHP/.*),)
-IHP_LIB = IHP/lib/IHP
-else
-IHP_LIB = $(shell dirname $$(which RunDevServer))/../lib/IHP
-endif
-
-all: build/ihp-lib build/Generated/Types.hs
+all: build/Generated/Types.hs
 
 .envrc:
 	echo "This command is deprecated. Please use 'devenv up' instead"
@@ -161,15 +155,6 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-build/ihp-lib: # Used by application .ghci
-	mkdir -p build
-	rm -f build/ihp-lib
-ifneq ($(wildcard IHP/.*),)
-	ln -s ../IHP/lib/IHP build/ihp-lib
-else
-	ln -s ${IHP_LIB} build/ihp-lib
-endif
-
 build/bin/Script/%: build/Script/Main/%.hs
 	mkdir -p build/bin/Script
 	# If RunOptimizedProdServer is compiled, likely we have object files with O2 in the build directory, so we're making an optimized script
@@ -211,7 +196,7 @@ build/RunJobs.hs: build/Generated/Types.hs
 hie.yaml: # Configuration for haskell-language-server
 	echo "cradle:" > hie.yaml
 	echo "  bios:" >> hie.yaml
-	echo "    program: build/ihp-lib/.hie-bios" >> hie.yaml
+	echo "    program: ${IHP_LIB}/.hie-bios" >> hie.yaml
 
 # https://github.com/digitallyinduced/ihp/issues/130
 ghci:
