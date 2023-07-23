@@ -74,7 +74,7 @@ in
         '';
         installPhase = ''
           mkdir -p "$out"
-          mkdir -p $out/bin
+          mkdir -p $out/bin $out/lib
 
           mv ${appBinary} $out/bin/RunProdServerWithoutOptions
 

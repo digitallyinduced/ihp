@@ -41,32 +41,30 @@ To help us with that, you can run this from the root of your project `cd IHP && 
 
 It is important to update your custom `default.nix` file and set the `rev` to the latest commit every time you perform a `git pull` from within IHP. This is because certain components continue to use the version defined in `default.nix`, even if you have a local IHP.
 
-### Alternative method
+### Running the latest IHP `master`
 
-Another workflow, instead of the simpler `devenv up`, is to use `make console` to load your application together with the framework located in `IHP`. In a `nix-shell`:
+When contributing to IHP core you will want to have your PRs synced with `master`. Your `flake.nix` should have this line:
 
-```
-ghci
-$ghci> :l Main
-```
-
-This will now load your application and all the haskell files in `IHP`.
-
-As we are not using the development tooling for the framework development process we need to manually start the postgres process by running `postgres -D build/db/state -k $PWD/build/db -c "listen_addresses="` in another terminal window.
-
-After postgres is started you can now start the application with the local framework version by running:
-
-```
-main
+```nix
+{
+    ihp.url = "github:digitallyinduced/ihp";
+}
 ```
 
-After you have made modifications to files inside `IHP`, you need to press `CTRL + C` to stop the process running in `ghci` and then type `:r` to refresh the haskell modules. Now type `main` to start the server again.
+Then every time you'd like to update to the latest master, you'll run:
+
+```
+nix flake update
+direnv allow
+```
+
+Note that it takes around 30 minutes for the IHP GitHub actions to prepare a binary build of IHP. If you run latest master and the GitHub actions aren't finished yet, you will notice that your computer needs to build IHP from scratch which takes a lot of time. You can wait for the GitHub action to complete or point to a specific IHP commit to avoid long build times.
 
 ### Running the development server
 
-When making changes to the development tooling, follow the setup above, except don't start postgres (the IDE starts it automatically).
 
-Instead of starting your application, start the development server:
+When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
+use `make console` to load your application together with the framework located in `IHP`.
 
 ```
 ghci
@@ -74,9 +72,11 @@ ghci
 main
 ```
 
+We don't start postgres as the IDE starts it automatically.
+
 #### Debugging the development server
 
-You can enable additonal debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
+You can enable additional debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
 
 ```
 export DEBUG=1
