@@ -112,7 +112,7 @@ instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
 
 instance FrontController WebApplication where
-  controllers = [ startPage TestAction, parseRoute @TestController ]
+  controllers = [ parseRoute @TestController ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]
@@ -123,9 +123,6 @@ instance InitControllerContext WebApplication where
 
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
-
-instance Worker RootApplication where
-    workers _ = []
 
 testGet :: ByteString -> Session SResponse
 testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url

@@ -41,6 +41,7 @@ import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.ViewSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.FileStorage.MimeTypesSpec
@@ -74,6 +75,7 @@ main = hspec do
     Test.SchemaCompilerSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.ViewSupportSpec.tests
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.FileStorage.MimeTypesSpec.tests
