@@ -110,6 +110,8 @@ ihpFlake:
                     includeDevTools = false;
                     # Set optimized = true to get more optimized binaries, but slower build times
                     optimized = true;
+                    ghc = ghcCompiler;
+                    pkgs = pkgs;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -119,6 +121,8 @@ ihpFlake:
                     projectPath = cfg.projectPath;
                     includeDevTools = false;
                     optimized = false;
+                    ghc = ghcCompiler;
+                    pkgs = pkgs;
                 };
 
 
