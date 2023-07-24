@@ -307,7 +307,7 @@ renderForm company = formFor company [hsx|
 |]
 ```
 
-That's handy, however frontend validation is enough, we need to do server side validation as well. We can do that by
+That's handy, however, frontend validation is not enough, we need to do server-side validation as well. We can do that by
 slightly changing the order of our commands:
 
 ```haskell
