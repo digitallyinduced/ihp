@@ -308,8 +308,8 @@ renderForm company = formFor company [hsx|
 
         <div class={removeFileWrapperClasses}>
             {- Add a checbkox to allow removing the image -}
-            <input type="checkbox" class="remove-file-checkbox" name="imageUrlRemove">
-            <label for="imageUrlRemove">Remove image</label>
+            <input type="checkbox" class="remove-file-checkbox" name="logoUrlRemove">
+            <label for="logoUrlRemove">Remove image</label>
         </div>
     </div>
 
@@ -319,7 +319,7 @@ renderForm company = formFor company [hsx|
         removeFileWrapperClasses =
             classes
                 [ "remove-file-wrapper"
-                , ("hidden", isNothing company.imageUrl)
+                , ("hidden", isNothing company.logoUrl)
                 ]
 ```
 
@@ -353,10 +353,10 @@ action UpdateCompanyAction { .. } = do
     company <- fetch companyId
 
     -- The checkbox to "Remove image".
-    let imageUrlRemove = paramOrDefault False "imageUrlRemove"
+    let imageUrlRemove = paramOrDefault False "logoUrlRemove"
     user
         |> buildCompany
-        >>= uploadOrRemoveMaybeImage #imageUrl imageUrlRemove
+        >>= uploadOrRemoveMaybeImage #logoUrl logoUrlRemove
         >>= ifValid \case
             Left company -> do
                 -- ...
