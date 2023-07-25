@@ -8,7 +8,7 @@
 , dontHaddockPackages ? []
 , nixPkgsRev ? "a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e"
 , nixPkgsSha256 ? "sha256-eKyxW4OohHQx9Urxi7TQlFBTDWII+F+x2hklDOQPB51="
-, compiler ? "ghc944"
+, compiler ? "ghc96"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:

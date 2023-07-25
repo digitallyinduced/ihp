@@ -15,7 +15,7 @@ that is defined in flake-module.nix
                 let
                     ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
                         inherit pkgs;
-                        ghcCompiler = pkgs.haskell.packages.ghc944;
+                        ghcCompiler = pkgs.haskell.packages.ghc96;
                         ihp = ./.;
                     };
                 in
