@@ -113,7 +113,7 @@ toExp (Expr.NegApp _ e _)
   = TH.AppE (TH.VarE 'negate) (toExp . unLoc $ e)
 
 -- NOTE: for lambda, there is only one match
-toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)])) _))
+toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
   = TH.LamE (fmap toPat ps) (toExp e)
 
 -- toExp (Expr.Let _ bs e)                       = TH.LetE (toDecs bs) (toExp e)
