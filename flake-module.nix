@@ -142,7 +142,7 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 ] ++ cfg.packages;
+                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ] ++ cfg.packages;
 
                 /*
                 we currently don't use devenv containers, and they break nix flake show
