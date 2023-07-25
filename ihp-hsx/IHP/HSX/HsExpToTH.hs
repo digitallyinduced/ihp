@@ -103,7 +103,7 @@ toExp (Expr.HsOverLit _ OverLit {ol_val})
 toExp (Expr.HsApp _ e1 e2)
   = TH.AppE (toExp . unLoc $ e1) (toExp . unLoc $ e2)
 
-toExp (Expr.HsAppType _ e HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
+toExp (Expr.HsAppType _ e _ HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
 toExp (Expr.ExprWithTySig _ e HsWC{hswc_body=unLoc -> HsSig{sig_body}}) = TH.SigE (toExp . unLoc $ e) (toType . unLoc $ sig_body)
 
 toExp (Expr.OpApp _ e1 o e2)
