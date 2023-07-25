@@ -29,7 +29,7 @@ parseHaskellExpression sourcePos extensions input =
                     error = renderWithContext defaultSDocContext
                         $ vcat
                         $ map (formatBulleted defaultSDocContext)
-                        $ map diagnosticMessage
+                        $ map (diagnosticMessage NoDiagnosticOpts)
                         $ map errMsgDiagnostic
                         $ sortMsgBag Nothing
                         $ getMessages parserState.errors
