@@ -294,7 +294,7 @@ On the "Edit.hs" file, it can be helpful to see the logo that has already been u
 
 #### Remove an uploaded image
 
-For optional image fields, it's a good UX to allow the user to remoe a previously uploaded image. To do this, we can add a checkbox to the form with the sole purpose of removing the image:
+It's a good UX for optional image fields to allow the user to remove a previously uploaded image. To do this, we can add a checkbox to the form with the sole purpose of removing the image:
 
 ```haskell
 renderForm :: Company -> Html
