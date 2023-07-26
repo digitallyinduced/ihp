@@ -126,8 +126,8 @@ initFilebaseStorage bucket = do
 filebaseCI :: ConnectInfo
 filebaseCI = "https://s3.filebase.com" |> setRegion "us-east-1"
 
-fromFilebaseEnv :: Provider
+fromFilebaseEnv :: CredentialLoader
 fromFilebaseEnv = runMaybeT $ do
     filebaseKey <- MaybeT $ Env.lookupEnv "FILEBASE_KEY"
     filebaseSecret <- MaybeT $ Env.lookupEnv "FILEBASE_SECRET"
-    pure $ Credentials (Text.pack filebaseKey) (Text.pack filebaseSecret)
+    pure CredentialValue { cvAccessKey = fromString filebaseKey, cvSecretKey = fromString filebaseSecret, cvSessionToken = Nothing }
