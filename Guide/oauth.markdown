@@ -18,7 +18,7 @@ At the moment IHP supports these identity providers:
 
 To use the Login with Google functionality you first need to enable the `ihp-oauth-google` package.
 
-Open your project's `default.nix` and a `ihp-oauth-google` dependency to `haskellDeps`:
+Open your project's `flake.nix` and a `ihp-oauth-google` dependency to `haskellDeps`:
 
 ```nix
 let

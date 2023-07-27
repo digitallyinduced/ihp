@@ -183,21 +183,23 @@ Use [`theRequest`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.htm
 
 ### Highlighting the current active link
 
-Use [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActivePath) to check whether the current request URL matches a given action:
+Use [`isActiveAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction) to check whether the current request URL matches a given action:
 
 ```haskell
-<a href={ShowProjectAction} class={classes ["nav-link", ("active", isActivePath ShowProjectAction)]}>
+<a href={ShowProjectAction} class={classes ["nav-link", ("active", isActiveAction ShowProjectAction)]}>
     Show Project
 </a>
 ```
 
-### Check whether this view is called from a specific controller
+If you need to work with a Text for the URL you can use the [`isActivePath`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction).
 
-Use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveController).
+```haskell
+<a href={ShowProjectAction} class={classes ["nav-link", ("active", isActivePath "/ShowProject")]}>
+    Show Project
+</a>
+```
 
-### Check whether this view is called from a specific action
-
-Use [`isActiveAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction).
+Finally, if you only need to know if the current Controller is used, regardless of which action, use [`isActiveController`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveController)
 
 #### `timeAgo`
 
