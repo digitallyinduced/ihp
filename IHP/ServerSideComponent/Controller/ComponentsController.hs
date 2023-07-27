@@ -7,7 +7,7 @@ import IHP.ServerSideComponent.ControllerFunctions as SSC
 
 import qualified Data.Aeson as Aeson
 
-instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
+instance (Component component controller, Aeson.FromJSON component, FromJSON controller, ToJSON controller) => WSApp (ComponentsController component) where
     initialState = ComponentsController
 
     run = do
@@ -30,3 +30,13 @@ instance (Component component controller, FromJSON controller) => WSApp (Compone
                     nextState <- SSC.action currentState theAction
                     SSC.setState nextState
                 Left error -> putStrLn (cs error)
+                Left error -> do
+                    let theState = Aeson.eitherDecode @component actionPayload
+
+                    case theState of
+                        Right initialState -> do
+                            SSC.setState initialState
+                        Left error -> do
+                            putStrLn "Failed Parsing Server Side Component Message As JSON"
+                            putStrLn (cs actionPayload)
+                            putStrLn (cs error)
