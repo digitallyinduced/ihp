@@ -18,10 +18,8 @@ import IHP.ApplicationContext
 
 routeComponent :: forall component controller application.
     ( Typeable component
-    , FromJSON component
     , Component component controller
     , FromJSON controller
-    , ToJSON controller
     , InitControllerContext application
     , Typeable application
     , ?application :: application
