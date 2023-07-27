@@ -45,4 +45,4 @@ setState state = do
 getState :: _ => _
 getState = (.state) <$> readIORef ?instanceRef
 
-deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}
+deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { allNullaryToStringTag = False, sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}
