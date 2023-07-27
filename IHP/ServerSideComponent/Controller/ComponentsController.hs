@@ -29,4 +29,7 @@ instance (Component component controller, FromJSON controller) => WSApp (Compone
 
                     nextState <- SSC.action currentState theAction
                     SSC.setState nextState
-                Left error -> putStrLn (cs error)
+                Left error -> do
+                    putStrLn "Failed Parsing Server Side Component Message As JSON"
+                    putStrLn (cs actionPayload)
+                    putStrLn (cs error)
