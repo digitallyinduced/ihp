@@ -292,6 +292,137 @@ renderForm company = formFor company [hsx|
 
 On the "Edit.hs" file, it can be helpful to see the logo that has already been uploaded. To do this, change "<img id="logoUrlPreview"/>" to "<img id="logoUrlPreview" src={company.logoUrl}/>." This will allow the preview to show the existing logo, and also update to display any newly uploaded logos.
 
+#### Remove an uploaded image
+
+It's a good UX for optional image fields to allow the user to remove a previously uploaded image. To do this, we can add a checkbox to the form with the sole purpose of removing the image:
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    <div class="file-upload-wrapper">
+        {(fileField #logoUrl) { additionalAttributes = [("accept", "image/*"), ("data-preview", "#logoUrlPreview")] } }
+
+        <img id="logoUrlPreview"/>
+
+        <div class={removeFileWrapperClasses}>
+            {- Add a checbkox to allow removing the image -}
+            <input type="checkbox" class="remove-file-checkbox" name="logoUrlRemove">
+            <label for="logoUrlRemove">Remove image</label>
+        </div>
+    </div>
+
+    {submitButton}
+|]
+    where
+        removeFileWrapperClasses =
+            classes
+                [ "remove-file-wrapper"
+                , ("hidden", isNothing company.logoUrl)
+                ]
+```
+
+Let's add `imageOrEmptyImage` in a centralized place, so we can use it in other views:
+
+```haskell
+-- Application/Helper/View.hs
+
+-- | We don't set the image `src` to null, so we we don't get a broken image icon.
+-- Instead we set it to an empty image, from https://stackoverflow.com/a/9967193/750039
+imageOrEmptyImage :: Maybe Text -> Text
+imageOrEmptyImage (Just url) = url
+imageOrEmptyImage Nothing = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+```
+
+Above code assumes you have `hidden` class, as you have when using TailwindCSS. If you use Bootstrap you can use `d-none`. If you don't have that class, you can use the following CSS:
+
+```css
+# app.css
+
+.hidden {
+    display: none;
+}
+```
+
+Next we'd like our controller to listen to the new "Remove image" checkbox and act accordingly.
+
+```haskell
+-- Web/Controller/Companies.hs
+action UpdateCompanyAction { .. } = do
+    company <- fetch companyId
+
+    -- The checkbox to "Remove image".
+    let imageUrlRemove = paramOrDefault False "logoUrlRemove"
+    user
+        |> buildCompany
+        >>= uploadOrRemoveMaybeImage #logoUrl logoUrlRemove
+        >>= ifValid \case
+            Left company -> do
+                -- ...
+```
+
+Let's add `uploadOrRemoveMaybeImage` to centralized place, so other controllers can use it as well:
+
+```haskell
+-- Application/Helper/Controller.hs
+
+
+-- | Uploads the image to the storage, if the image is present.
+-- If the checkbox to remove the file was checked, then we remove the file
+-- reference from the record.
+uploadOrRemoveMaybeImage ::
+    ( ?context::ControllerContext
+    , Show (PrimaryKey (GetTableName (GetModelByTableName (GetTableName record))))
+    , KnownSymbol fieldName, KnownSymbol (GetTableName record)
+    , HasField "id" record (Id' (GetTableName (GetModelByTableName (GetTableName record))))
+    , HasField "meta" record MetaBag, SetField fieldName record (Maybe Text)
+    , SetField "meta" record MetaBag
+    ) => Proxy fieldName -> Bool -> record -> IO record
+uploadOrRemoveMaybeImage imageProperty isRemove record = do
+    if isRemove
+        then pure $ record |> set imageProperty Nothing
+        else uploadToStorage imageProperty record
+```
+
+Note that the above function doesn't actually remove the file from the storage. It just removes the reference to the file from the record. To remove the file from storage you would need to call [`removeFileFromStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:removeFileFromStorage).
+
+Finally, let's add some Javacript, that would take care of removing the image from the file input, as well as hiding the "Remove image" checkbox when there's no image to remove.
+
+```javascript
+# app.js
+
+$(document).on('ready turbolinks:load', () => {
+
+    // Show the remove file checkbox if a file is uploaded.
+    $('form .file-upload-wrapper :input').on('change', function() {
+        const $this = $(this);
+
+        $(this).closest('.file-upload-wrapper')
+            .find('.remove-file-wrapper')
+            .toggleClass('hidden', !$this.val());
+    });
+
+    // Hide the file upload wrapper if the remove file checkbox is checked.
+    $('form .remove-file-checkbox:checkbox').on('change', function() {
+        const $wrapper = $(this).closest('.file-upload-wrapper');
+        $wrapper
+            .find(':file')
+            .val(null);
+
+        $wrapper
+            .find('img')
+            // We don't null the src, so we we don't get a broken image icon.
+            // from https://stackoverflow.com/a/9967193/750039
+            .attr('src', 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==');
+
+        // Hide the remove file checkbox.
+        $wrapper.find('.remove-file-wrapper')
+            .addClass('hidden');
+    });
+});
+```
+
 ### Required Uploads
 
 As notes above, the `logoUrl` must be a Maybe type, but there are cases where we want to ensure a file is uploaded as part of the record submission. We can add required to the form:
