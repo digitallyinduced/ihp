@@ -188,6 +188,7 @@ library
         , IHP.Controller.Cookie
         , IHP.Controller.AccessDenied
         , IHP.Controller.NotFound
+        , IHP.Controller.Response
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware
