@@ -135,7 +135,7 @@ config = do
         }
 ```
 
-### Local (For Debugging)
+### Local SMTP with Mailhog
 
 A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing.
 
@@ -154,7 +154,7 @@ config :: ConfigBuilder
 config = do
     -- other options here, then add:
     option $ SMTP
-        { host = "127.0.1.1"
+        { host = "127.0.1.1" -- On some computers may need `127.0.0.1` instead.
         , port = 1025
         , credentials = Nothing
         , encryption = Unencrypted
