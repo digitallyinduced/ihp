@@ -153,7 +153,7 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
 instance ControllerSupport.InitControllerContext () where
     initContext = pure ()
 
-withInitalizers :: FrameworkConfig -> ModelContext -> _ -> IO ()
+withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
         let ?context = frameworkConfig
         let ?modelContext = modelContext

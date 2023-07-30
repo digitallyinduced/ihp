@@ -7,7 +7,7 @@ import IHP.Fetch (Fetchable, fetchOneOrNothing)
 import IHP.ModelSupport (Table)
 import IHP.ValidationSupport.Types
 
-validateCanView :: forall field user model validationState fieldValue fetchedModel. (
+validateCanView :: forall field user model fieldValue fetchedModel. (
         ?model :: model
         , ?modelContext :: ModelContext
         , PG.FromRow fetchedModel

@@ -227,7 +227,6 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         isMatchingCreateColumn AddColumn { column = addColumn } = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False
                                 |> maybe False (\c -> (c :: Column) { name = addColumn.name } == addColumn)
                         isMatchingCreateColumn otherwise                          = False
                 applyRenameColumn (statement:rest) = statement:(applyRenameColumn rest)
@@ -252,7 +251,6 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False
 
                         updateConstraint = if dropColumn.isUnique
                             then DropConstraint { tableName, constraintName = tableName <> "_" <> (dropColumn.name) <> "_key" }
@@ -290,7 +288,6 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -320,7 +317,6 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         (Just dropColumn) = actualColumns
                                 |> find \case
                                     Column { name } -> name == columnName
-                                    otherwise       -> False
 
                         updateConstraint = if dropColumn.notNull
                             then DropNotNull { tableName, columnName = dropColumn.name }

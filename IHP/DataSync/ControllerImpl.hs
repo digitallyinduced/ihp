@@ -30,6 +30,11 @@ import qualified Data.Pool as Pool
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
 $(deriveToJSON defaultOptions 'DataSyncResult)
 
+type EnsureRLSEnabledFn = Text -> IO TableWithRLS
+type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
+type SendJSONFn = DataSyncResponse -> IO ()
+type HandleCustomMessageFn = (DataSyncResponse -> IO ()) -> DataSyncMessage -> IO ()
+
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?applicationContext :: ApplicationContext
@@ -40,7 +45,7 @@ runDataSyncController ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    ) => _ -> _ -> _ -> _ -> _ -> IO ()
+    ) => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> IO ()
 runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage = do
         setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty, asyncs = [] }
 
@@ -86,7 +91,7 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => _ -> _ -> _ -> _ -> (DataSyncMessage -> IO ())
+    => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (DataSyncMessage -> IO ())
 buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage = handleMessage
     where
             pgListener = ?applicationContext.pgListener
@@ -366,7 +371,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-cleanupAllSubscriptions :: _ => (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
+cleanupAllSubscriptions :: (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
 cleanupAllSubscriptions = do
     state <- getState
     let pgListener = ?applicationContext.pgListener
@@ -380,7 +385,7 @@ changesToValue changes = object (map changeToPair changes)
     where
         changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ columnNameToFieldName col) .= new
 
-runInModelContextWithTransaction :: (?state :: IORef DataSyncController, _) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
+runInModelContextWithTransaction :: (?state :: IORef DataSyncController, ?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
 runInModelContextWithTransaction function (Just transactionId) = do
     let globalModelContext = ?modelContext
 
@@ -419,12 +424,12 @@ ensureBelowSubscriptionsLimit = do
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
         error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")
 
-maxTransactionsPerConnection :: _ => Int
+maxTransactionsPerConnection :: (?context :: ControllerContext) => Int
 maxTransactionsPerConnection = 
     case getAppConfig @DataSyncMaxTransactionsPerConnection of
         DataSyncMaxTransactionsPerConnection value -> value
 
-maxSubscriptionsPerConnection :: _ => Int
+maxSubscriptionsPerConnection :: (?context :: ControllerContext) => Int
 maxSubscriptionsPerConnection = 
     case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
