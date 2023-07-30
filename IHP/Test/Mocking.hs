@@ -154,7 +154,7 @@ callJob job = do
 
 
 -- | mockAction has been renamed to callAction
-mockAction :: _ => _
+mockAction :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> IO Response
 mockAction = callAction
 
 -- | Get contents of response

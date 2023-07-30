@@ -8,6 +8,8 @@ module IHP.ServerSideComponent.HtmlDiff where
 import IHP.Prelude
 import IHP.ServerSideComponent.HtmlParser
 import qualified Data.Text as Text
+import Text.Megaparsec.Error (ParseErrorBundle)
+import Data.Void (Void)
 
 data NodeOperation
     = UpdateTextContent { textContent :: !Text, path :: ![Int] }
@@ -25,7 +27,7 @@ data AttributeOperation
     | DeleteAttribute { attributeName :: !Text }
     deriving (Eq, Show)
 
-diffHtml :: Text -> Text -> Either _ [NodeOperation]
+diffHtml :: Text -> Text -> Either (ParseErrorBundle Text Void) [NodeOperation]
 diffHtml a b = do
     nodeA <- parseHtml a
     nodeB <- parseHtml b
