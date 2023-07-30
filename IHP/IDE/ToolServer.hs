@@ -35,7 +35,7 @@ import IHP.IDE.ToolServer.Helper.Controller as Helper
 import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
-import qualified System.Environment as Env
+import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
@@ -66,9 +66,9 @@ startToolServer' port isDebugMode = do
         Config.option $ Config.AppPort port
         Config.option $ Config.AssetVersion Version.ihpVersion
 
-        ihpIdeBaseUrlEnvVar <- liftIO (Env.lookupEnv "IHP_IDE_BASEURL")
+        ihpIdeBaseUrlEnvVar <- EnvVar.envOrNothing "IHP_IDE_BASEURL"
         case ihpIdeBaseUrlEnvVar of
-            Just baseUrl -> Config.option $ Config.BaseUrl (cs baseUrl)
+            Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
             Nothing -> pure ()
 
     session <- Vault.newKey
@@ -112,7 +112,7 @@ initStaticApp = do
 
 openUrl :: Text -> IO ()
 openUrl url = do
-    selectedBrowser <- Env.lookupEnv "IHP_BROWSER"
+    selectedBrowser <- EnvVar.envOrNothing "IHP_BROWSER"
     let defaultOSBrowser = case os of
             "linux" -> "xdg-open"
             "darwin" -> "open"
@@ -142,7 +142,7 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         webControllers <- WebControllers <$> findWebControllers
 
         let defaultAppUrl = "http://localhost:" <> tshow Helper.appPort
-        appUrl :: Text <- fromMaybe defaultAppUrl <$> fmap cs <$> Env.lookupEnv "IHP_BASEURL"
+        appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
 
         putContext availableApps
         putContext webControllers

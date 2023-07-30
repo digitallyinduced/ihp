@@ -42,7 +42,7 @@ setState state = do
         Right patches -> sendTextData (Aeson.encode patches)
 
 
-getState :: _ => _
+getState :: (?instanceRef :: IORef (ComponentInstance state)) => IO state
 getState = (.state) <$> readIORef ?instanceRef
 
 deriveSSC = Aeson.deriveJSON Aeson.defaultOptions { allNullaryToStringTag = False, sumEncoding = defaultTaggedObject { tagFieldName = "action", contentsFieldName = "payload" }}

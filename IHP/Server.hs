@@ -26,13 +26,13 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Control.Exception as Exception
 
-import qualified System.Environment as Env
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
 
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
+import qualified IHP.EnvVar as EnvVar
 
 import IHP.Controller.NotFound (handleNotFound)
 
@@ -113,7 +113,7 @@ initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> Framewo
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
-    hasSessionSecretEnvVar <- isJust <$> Env.lookupEnv "IHP_SESSION_SECRET"
+    hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
     doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
     store <- clientsessionStore <$>
             if hasSessionSecretEnvVar || not doesConfigDirectoryExist
@@ -155,7 +155,7 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
 instance ControllerSupport.InitControllerContext () where
     initContext = pure ()
 
-withInitalizers :: FrameworkConfig -> ModelContext -> _ -> IO ()
+withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
         let ?context = frameworkConfig
         let ?modelContext = modelContext

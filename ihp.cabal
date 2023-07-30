@@ -146,13 +146,13 @@ common shared-properties
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
 
-            -Wredundant-constraints
             -Wunused-imports
             -Wunused-foralls
             -Wmissing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
+            -Wno-ambiguous-fields
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -161,7 +161,6 @@ common shared-properties
             -O1
             -threaded
 
-            -Wredundant-constraints
             -Wunused-imports
             -Wunused-foralls
             -Wmissing-fields
@@ -169,6 +168,7 @@ common shared-properties
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -fexpose-all-unfoldings
+            -Wno-ambiguous-fields
 
 library
     import: shared-properties
@@ -381,6 +381,7 @@ library
         , IHP.SEO.Sitemap.Types
         , IHP.SEO.Sitemap.ControllerFunctions
         , IHP.SEO.Sitemap.Routes
+        , IHP.EnvVar
 
 executable RunDevServer
     import: shared-properties
@@ -393,6 +394,7 @@ executable RunDevServer
             -O0
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
+            -Wno-ambiguous-fields
     else
         ghc-options:
             -fconstraint-solver-iterations=100
@@ -414,6 +416,7 @@ executable RunDevServer
             -with-rtsopts=-n4m
             -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
+            -Wno-ambiguous-fields
 
 executable new-application
     import: shared-properties

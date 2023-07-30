@@ -10,7 +10,7 @@ This section provides some guidelines for testing your IHP applications. It is h
 
 The following setup and tests can be viewed in the [Blog example](https://github.com/digitallyinduced/ihp-blog-example-app).
 
-1. Add `hspec` in `default.nix`
+1. Add `hspec` in `flake.nix`
 ```nix
         haskellDeps = p: with p; [
             cabal-install
@@ -160,6 +160,133 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 post.body `shouldBe` "Body of post"
 ```
 
+## Test outgoing emails with Mailhog
+
+Mailhog is a tool that allows you to test outgoing emails. It runs a fake SMTP server and a web interface to view the emails. We can use its API to to test your email sending logic, and assert the contents of the emails.
+
+Install Mailhog by adding to `flake.nix`:
+
+```nix
+# flake.nix
+# ...
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        packages = with pkgs; [
+            # Native dependencies, e.g. imagemagick
+            # Used for local development
+            mailhog
+        ];
+        haskellPackages = p: with p; [
+            # Haskell dependencies go here
+            p.ihp
+            cabal-install
+            base
+            wai
+            text
+            hlint
+            hspec
+        ];
+    };
+
+    # Start mailhog on `devenv up`.
+    devenv.shells.default = {
+        services.mailhog.enable = true;
+    };
+};
+```
+
+Notice we've also enabled the `mailhog` service in `devenv.shells.default`. This will start Mailhog when you run `devenv up`, which is useful for local development.
+
+Follow the instructions on how to add a Mail action, and how to configure the SMTP on the [Mail page](https://ihp.digitallyinduced.com/Guide/mail.html).
+
+Let's see how we can test a Mail that is sent every time a `Post` is being shown.
+
+```haskell
+-- Web/Mail/Posts/PostView.hs
+
+module Web.Mail.Posts.PostView where
+import Web.View.Prelude
+import IHP.MailPrelude
+
+data PostViewMail = PostViewMail { post :: Post }
+
+instance BuildMail PostViewMail where
+    subject = "Showing Post " <> post.title
+        where post = ?mail.post
+    to PostViewMail { .. } = Address { addressName = Just "Firstname Lastname", addressEmail = "fname.lname@example.com" }
+    from = "hi@example.com"
+    html PostViewMail { .. } = [hsx|
+        A post was just viewed
+    |]
+```
+
+And let's trigger this email on the `Post` show:
+
+```haskell
+-- Web/Controller/Posts.hs
+
+action ShowPostAction { .. } = do
+    post <- fetch postId
+
+    -- Send mail.
+    sendMail $ PostViewMail post
+
+    render ShowView { .. }
+```
+
+Now we can test is the email is being sent by using the Mailhog API:
+
+```haskell
+-- Test/PostSpec.hs
+
+module Test.PostSpec where
+
+import IHP.Prelude
+import IHP.FrameworkConfig
+import IHP.Test.Mocking
+import IHP.HaskellSupport
+import IHP.ModelSupport
+import Test.Hspec
+import Config
+
+import Generated.Types
+import Web.Routes
+import Web.Types
+import Web.FrontController
+import Network.Wai
+import IHP.ControllerPrelude
+import IHP.ViewPrelude hiding (query)
+import Data.Text as Text
+import Network.HTTP.Types.Status
+import Network.HTTP.Client
+import qualified Network.Wreq as Wreq
+import Control.Lens ((^.))
+
+
+tests :: Spec
+tests = aroundAll (withIHPApp WebApplication config) do
+    describe "Post" do
+        it "should send an email on each page view" $ withContext do
+            -- Get random title.
+            title <- generateAuthenticationToken
+
+            -- Create a Post.
+            post <- newRecord @Post
+                |> set #title title
+                |> createRecord
+
+            response <-
+                callAction $ ShowPostAction post.id
+
+            -- Assert email was sent, and caught by Mailhog.
+            documentBody <- do
+                response <- Wreq.get "http://0.0.0.0:8025/api/v1/messages"
+                pure (response ^. Wreq.responseBody)
+
+            cs documentBody `shouldContain` ("Post " <> cs post.title)
+```
 
 ## Advanced
 For more details on how to structure test suites see the [Hspec manual](http://hspec.github.io/) (a Haskell testing library). You also might want to check out the cool [Hedgehog](https://hedgehog.qa/) library for automated property tests.

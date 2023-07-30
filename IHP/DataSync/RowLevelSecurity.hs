@@ -14,10 +14,6 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.ToRow as PG
 import qualified IHP.DataSync.Role as Role
-
-import Network.HTTP.Types (status400)
-
-import Data.Set (Set)
 import qualified Data.Set as Set
 
 sqlQueryWithRLS ::
