@@ -6,12 +6,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.LibDir (findLibDirectory) where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
-import qualified Data.Text as Text
-import qualified System.Process as Process
-import qualified System.Posix.Files as Files
-import qualified Control.Exception as Exception
-import qualified IHP.FrameworkConfig as Config
 import qualified IHP.EnvVar as EnvVar
 
 -- | Finds the lib
