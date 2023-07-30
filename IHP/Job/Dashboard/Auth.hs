@@ -13,7 +13,7 @@ module IHP.Job.Dashboard.Auth (
 
 import IHP.Prelude
 import IHP.ControllerPrelude
-import System.Environment (lookupEnv)
+import qualified IHP.EnvVar as EnvVar
 
 -- | Defines one method, 'authenticate', called before every action. Use to authenticate user.
 --
@@ -42,9 +42,9 @@ instance AuthenticationMethod NoAuth where
 
 instance (KnownSymbol userEnv, KnownSymbol passEnv) => AuthenticationMethod (BasicAuth userEnv passEnv) where
     authenticate = do
-        creds <- (,) <$> lookupEnv (symbolVal $ Proxy @userEnv) <*> lookupEnv (symbolVal $ Proxy @passEnv)
+        creds <- (,) <$> EnvVar.envOrNothing (symbolToByteString @userEnv) <*> EnvVar.envOrNothing (symbolToByteString @passEnv)
         case creds of
-            (Just user, Just pass) -> basicAuth (cs user) (cs pass) "jobs"
+            (Just user, Just pass) -> basicAuth user pass "jobs"
             _ -> error "Did not find HTTP Basic Auth credentials for Jobs Dashboard."
 
 instance (KnownSymbol user, KnownSymbol pass) => AuthenticationMethod (BasicAuthStatic user pass) where

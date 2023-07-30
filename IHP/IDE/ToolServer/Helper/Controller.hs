@@ -22,7 +22,7 @@ import IHP.IDE.Types
 import qualified Network.Socket as Socket
 import qualified System.Process as Process
 import System.Info (os)
-import qualified System.Environment as Env
+import qualified IHP.EnvVar as EnvVar
 import IHP.Controller.Context
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -52,10 +52,10 @@ openEditor path line col = do
 --
 findEditor :: IO (Bool, Text)
 findEditor = do
-    ihpEditorEnv <- Env.lookupEnv "IHP_EDITOR"
-    editorEnv <- Env.lookupEnv "EDITOR"
+    ihpEditorEnv <- EnvVar.envOrNothing "IHP_EDITOR"
+    editorEnv <- EnvVar.envOrNothing "EDITOR"
     pure case catMaybes [ihpEditorEnv, editorEnv] of
-        (editor:_) -> (True, cs editor)
+        (editor:_) -> (True, editor)
         [] -> case os of
             "linux" -> (False, "xdg-open")
             "darwin" -> (False, "open")
