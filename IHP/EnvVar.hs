@@ -2,6 +2,7 @@ module IHP.EnvVar
 ( env
 , envOrDefault
 , envOrNothing
+, hasEnvVar
 , EnvVarReader (..)
 )
 where
