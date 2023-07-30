@@ -12,6 +12,7 @@ import qualified System.Process as Process
 import qualified System.Posix.Files as Files
 import qualified Control.Exception as Exception
 import qualified IHP.FrameworkConfig as Config
+import qualified IHP.EnvVar as EnvVar
 
 -- | Finds the lib
 --
@@ -23,7 +24,7 @@ import qualified IHP.FrameworkConfig as Config
 findLibDirectory :: IO Text
 findLibDirectory = do
     -- The IHP_LIB env var is set in flake-module.nix
-    ihpLibVar <- Config.envOrNothing "IHP_LIB"
+    ihpLibVar <- EnvVar.envOrNothing "IHP_LIB"
     case ihpLibVar of
         Just ihpLib -> pure (ihpLib <> "/")
         Nothing -> error "IHP_LIB env var is not set. Please run 'nix develop --impure' before running the dev server, or make sure that your direnv integration is working correctly."

@@ -15,7 +15,7 @@ import IHP.IDE.LiveReloadNotificationServer
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
 import qualified IHP.SchemaCompiler as SchemaCompiler
-import qualified System.Environment as Env
+import qualified IHP.EnvVar as EnvVar
 import Data.String.Conversions (cs)
 import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
@@ -29,6 +29,7 @@ import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import qualified System.Environment as Env
 
 main :: IO ()
 main = withUtf8 do
@@ -39,7 +40,7 @@ main = withUtf8 do
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 devenv up
-    isDebugMode <- maybe False (\value -> value == "1") <$> Env.lookupEnv "DEBUG"
+    isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
     logger <- Log.newLogger def
     (ghciInChan, ghciOutChan) <- Queue.newChan
@@ -203,10 +204,7 @@ stop AppState { .. } = do
     stopStatusServer statusServerState
 
 isUsingDevenv :: IO Bool
-isUsingDevenv = do
-    Env.lookupEnv "IHP_DEVENV" >>= \case
-        Just "1" -> pure True
-        Nothing -> pure False
+isUsingDevenv = EnvVar.envOrDefault "IHP_DEVENV" False
 
 startOrWaitPostgres :: (?context :: Context) => IO ()
 startOrWaitPostgres = do
@@ -245,7 +243,7 @@ startGHCI = do
 --
 ensureUserIsNotRoot :: IO ()
 ensureUserIsNotRoot = do
-    username <- fromMaybe "" <$> Env.lookupEnv "USERNAME"
+    username <- EnvVar.envOrDefault "USERNAME" ("" :: ByteString)
     when (username == "root") do
         ByteString.hPutStrLn stderr "Cannot be run as root: The IHP dev server cannot be run with the root user because we cannot start the postgres server with a root user.\n\nPlease run this with a normal user.\nIf you need help, join the IHP Slack: https://ihp.digitallyinduced.com/Slack"
         exitFailure

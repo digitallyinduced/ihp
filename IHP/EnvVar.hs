@@ -57,6 +57,11 @@ envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
             Right value -> value
 {-# INLINABLE envOrNothing #-}
 
+hasEnvVar :: (MonadIO monad) => ByteString -> monad Bool
+hasEnvVar name = liftIO do
+    value :: Maybe ByteString <- envOrNothing name
+    pure (isJust value)
+
 class EnvVarReader valueType where
     envStringToValue :: ByteString -> Either Text valueType
 
@@ -78,3 +83,8 @@ instance EnvVarReader String where
 
 instance EnvVarReader ByteString where
     envStringToValue string = Right string
+
+instance EnvVarReader Bool where
+    envStringToValue "1"       = Right True
+    envStringToValue "0"       = Right False
+    envStringToValue otherwise = Left "Should be set to '1' or '0'"
