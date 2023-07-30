@@ -16,7 +16,7 @@ import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
-import qualified IHP.ErrorController as ErrorController
+import IHP.ErrorController
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.LibDir

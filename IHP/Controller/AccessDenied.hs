@@ -3,6 +3,7 @@ module IHP.Controller.AccessDenied
 , accessDeniedUnless
 , handleAccessDeniedFound
 , buildAccessDeniedResponse
+, renderAccessDenied
 )
 where
 

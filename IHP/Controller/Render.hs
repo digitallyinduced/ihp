@@ -19,8 +19,6 @@ import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
-import IHP.Controller.NotFound (buildNotFoundResponse)
-import IHP.Controller.AccessDenied (buildAccessDeniedResponse)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text

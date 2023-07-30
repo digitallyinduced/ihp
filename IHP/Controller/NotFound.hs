@@ -3,6 +3,7 @@ module IHP.Controller.NotFound
 , notFoundUnless
 , handleNotFound
 , buildNotFoundResponse
+, renderNotFound
 )
  where
 
