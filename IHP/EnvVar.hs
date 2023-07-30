@@ -1,0 +1,80 @@
+module IHP.EnvVar
+( env
+, envOrDefault
+, envOrNothing
+, EnvVarReader (..)
+)
+where
+
+import IHP.Prelude
+import Data.String.Interpolate.IsString (i)
+import qualified System.Posix.Env.ByteString as Posix
+import IHP.Environment
+
+
+-- | Returns a env variable. The raw string
+-- value is parsed before returning it. So the return value type depends on what
+-- you expect (e.g. can be Text, Int some custom type).
+--
+-- When the parameter is missing or cannot be parsed, an error is raised and
+-- the app startup is aborted. Use 'envOrDefault' when you want to get a
+-- default value instead of an error, or 'paramOrNothing' to get @Nothing@
+-- when the env variable is missing.
+--
+-- You can define a custom env variable parser by defining a 'EnvVarReader' instance.
+--
+-- __Example:__ Accessing a env var PORT.
+--
+-- Let's say an env var PORT is set to 1337
+--
+-- > export PORT=1337
+--
+-- We can read @PORT@ like this:
+--
+-- > port <- env @Int "PORT"
+--
+-- __Example:__ Missing env vars
+--
+-- Let's say the @PORT@ env var is not defined. In that case we'll get an
+-- error when trying to access it:
+--
+-- >>> port <- env @Int "PORT"
+-- "Env var 'PORT' not set, but it's required for the app to run"
+--
+env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
+env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
+{-# INLINABLE env #-}
+
+envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
+envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
+{-# INLINABLE envOrDefault #-}
+
+envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
+envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
+    where
+        parseString string = case envStringToValue string of
+            Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
+            Right value -> value
+{-# INLINABLE envOrNothing #-}
+
+class EnvVarReader valueType where
+    envStringToValue :: ByteString -> Either Text valueType
+
+instance EnvVarReader Environment where
+    envStringToValue "Production"  = Right Production
+    envStringToValue "Development" = Right Development
+    envStringToValue otherwise     = Left "Should be set to 'Development' or 'Production'"
+
+instance EnvVarReader Int where
+    envStringToValue string = case textToInt (cs string) of
+        Just integer -> Right integer
+        Nothing -> Left [i|Expected integer, got #{string}|]
+
+instance EnvVarReader Text where
+    envStringToValue string = Right (cs string)
+
+instance EnvVarReader String where
+    envStringToValue string = Right (cs string)
+
+instance EnvVarReader ByteString where
+    envStringToValue string = Right string
