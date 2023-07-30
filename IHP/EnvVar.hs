@@ -12,7 +12,6 @@ import Data.String.Interpolate.IsString (i)
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.Environment
 
-
 -- | Returns a env variable. The raw string
 -- value is parsed before returning it. So the return value type depends on what
 -- you expect (e.g. can be Text, Int some custom type).
@@ -44,11 +43,11 @@ import IHP.Environment
 --
 env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
 env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
-{-# INLINABLE env #-}
+{-# INLINE env #-}
 
 envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
 envOrDefault name defaultValue = fromMaybe defaultValue <$> envOrNothing name
-{-# INLINABLE envOrDefault #-}
+{-# INLINE envOrDefault #-}
 
 envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (Maybe result)
 envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
@@ -56,12 +55,13 @@ envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
         parseString string = case envStringToValue string of
             Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
             Right value -> value
-{-# INLINABLE envOrNothing #-}
+{-# INLINE envOrNothing #-}
 
 hasEnvVar :: (MonadIO monad) => ByteString -> monad Bool
 hasEnvVar name = liftIO do
     value :: Maybe ByteString <- envOrNothing name
     pure (isJust value)
+{-# INLINE hasEnvVar #-}
 
 class EnvVarReader valueType where
     envStringToValue :: ByteString -> Either Text valueType
