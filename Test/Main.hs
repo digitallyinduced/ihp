@@ -36,6 +36,8 @@ import qualified Test.View.FormSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
+import qualified Test.Controller.AccessDeniedSpec
+import qualified Test.Controller.NotFoundSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
@@ -70,6 +72,8 @@ main = hspec do
     Test.View.FormSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.AccessDeniedSpec.tests
+    Test.Controller.NotFoundSpec.tests
     Test.SchemaMigrationSpec.tests
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests

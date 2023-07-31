@@ -175,7 +175,6 @@ library
     hs-source-dirs: .
     exposed-modules:
         IHP.AuthSupport.Authentication
-        , IHP.AuthSupport.Authorization
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
         , IHP.Controller.FileUpload
@@ -187,12 +186,14 @@ library
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
         , IHP.Controller.Cookie
+        , IHP.Controller.AccessDenied
+        , IHP.Controller.NotFound
+        , IHP.Controller.Response
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware
         , IHP.LoginSupport.Types
         , IHP.ValidationSupport.Types
-        , IHP.ValidationSupport.ValidateCanView
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form

@@ -8,10 +8,9 @@ import IHP.Prelude
 import Test.Hspec
 
 import IHP.Controller.RequestContext
-import qualified IHP.ControllerSupport as ControllerSupport
+import IHP.Controller.Response (addResponseHeadersFromContext)
 import IHP.Controller.Cookie
 import IHP.Controller.Context
-
 import qualified Network.Wai as Wai
 import Web.Cookie
 import Network.HTTP.Types.Status
@@ -29,7 +28,7 @@ tests = do
                         }
 
                 let response = Wai.responseLBS status200 [] "Hello World"
-                responseWithHeaders <- ControllerSupport.addResponseHeadersFromContext response
+                responseWithHeaders <- addResponseHeadersFromContext response
 
                 Wai.responseHeaders responseWithHeaders `shouldBe` [("Set-Cookie", "exampleCookie=exampleValue")]
 

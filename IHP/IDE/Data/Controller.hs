@@ -1,6 +1,7 @@
 module IHP.IDE.Data.Controller where
 
 import IHP.ControllerPrelude
+import IHP.Controller.NotFound
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.ShowDatabase
 import IHP.IDE.Data.View.ShowTableRows
@@ -172,9 +173,9 @@ instance Controller DataController where
             case foreignKeyInfo of
                 Just (foreignTable, foreignColumn) -> Just <$> fetchRowsPage connection foreignTable 1 50
                 Nothing -> pure Nothing
-        
+
         PG.close connection
-        
+
         case rows of
             Just rows -> renderJson rows
             Nothing -> renderNotFound
@@ -280,9 +281,9 @@ fetchForeignKeyInfo connection tableName columnName = do
     let sql = [plain|
         SELECT
             ccu.table_name AS foreign_table_name,
-            ccu.column_name AS foreign_column_name 
-        FROM 
-            information_schema.table_constraints AS tc 
+            ccu.column_name AS foreign_column_name
+        FROM
+            information_schema.table_constraints AS tc
             JOIN information_schema.key_column_usage AS kcu
               ON tc.constraint_name = kcu.constraint_name
               AND tc.table_schema = kcu.table_schema
@@ -295,7 +296,7 @@ fetchForeignKeyInfo connection tableName columnName = do
             AND kcu.column_name = ?
     |]
     let args = (tableName, columnName)
-    result <- PG.query connection (PG.Query $ cs sql) args 
+    result <- PG.query connection (PG.Query $ cs sql) args
     case result of
         [(foreignTableName, foreignColumnName)] -> pure $ Just (foreignTableName, foreignColumnName)
         otherwise -> pure $ Nothing

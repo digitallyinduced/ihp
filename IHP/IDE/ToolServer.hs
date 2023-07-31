@@ -47,6 +47,7 @@ import qualified IHP.PGListener as PGListener
 
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
+import IHP.Controller.NotFound (handleNotFound)
 
 withToolServer :: (?context :: Context) => IO () -> IO ()
 withToolServer inner = withAsyncBound async (\_ -> inner)
@@ -104,7 +105,7 @@ initStaticApp :: IO Wai.Application
 initStaticApp = do
     libDirectory <- cs <$> LibDir.findLibDirectory
     let staticSettings = (Static.defaultWebAppSettings (libDirectory <> "static/"))
-            { Static.ss404Handler = Just ErrorController.handleNotFound
+            { Static.ss404Handler = Just handleNotFound
             , Static.ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days
             }
     pure (Static.staticApp staticSettings)

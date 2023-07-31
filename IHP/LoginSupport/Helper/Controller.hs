@@ -15,7 +15,6 @@ module IHP.LoginSupport.Helper.Controller
 , logout
 , CurrentUserRecord
 , CurrentAdminRecord
-, module IHP.AuthSupport.Authorization
 , module IHP.AuthSupport.Authentication
 , enableRowLevelSecurityIfLoggedIn
 , currentRoleOrNothing
@@ -33,7 +32,6 @@ import IHP.FlashMessages.ControllerFunctions
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
 import System.IO.Unsafe (unsafePerformIO)
-import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
