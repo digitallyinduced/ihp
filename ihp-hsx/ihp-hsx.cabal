@@ -77,7 +77,6 @@ library
         -fspecialise-aggressively
         -funfolding-use-threshold=120
         -fdicts-strict
-        -fexpose-all-unfoldings
         -optc-O3
     hs-source-dirs: .
     exposed-modules:

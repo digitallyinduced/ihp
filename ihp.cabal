@@ -168,7 +168,15 @@ common shared-properties
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
-            -fexpose-all-unfoldings
+
+            -- We cannot use expose-all-unfoldings as this increases the symbol count of the binaries
+            -- This causes very slow load times on macOS.
+            -- See https://gitlab.haskell.org/ghc/ghc/-/issues/23415
+            --
+            -- -fexpose-all-unfoldings
+            --
+
+            -Wno-ambiguous-fields
 
 library
     import: shared-properties
@@ -396,7 +404,6 @@ executable RunDevServer
     else
         ghc-options:
             -fconstraint-solver-iterations=100
-            -fexpose-all-unfoldings
             -flate-dmd-anal
             -flate-specialise
             -fmax-worker-args=15

@@ -46,7 +46,6 @@ library
         -Wmissing-fields
         -Winaccessible-code
         -Wmissed-specialisations
-        -fexpose-all-unfoldings
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI

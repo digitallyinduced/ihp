@@ -77,7 +77,6 @@ PROD_GHC_OPTIONS+= -funfolding-use-threshold=120
 PROD_GHC_OPTIONS+= -optc-O3
 PROD_GHC_OPTIONS+= -funbox-strict-fields
 PROD_GHC_OPTIONS+= -fconstraint-solver-iterations=100
-PROD_GHC_OPTIONS+= -fexpose-all-unfoldings
 PROD_GHC_OPTIONS+= -flate-dmd-anal
 PROD_GHC_OPTIONS+= -fspec-constr-keen
 PROD_GHC_OPTIONS+= -fspecialise-aggressively
