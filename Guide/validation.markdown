@@ -250,6 +250,116 @@ user
 
 In this example, when the [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique) function adds an error to the user, the message `Email Has Already Been Used` will be used instead of the default `This is already in use`.
 
+## Security Concerns and Conditional `fill`
+
+It's important to remember that any kind of validations you might have on the form level are not enough to ensure the security of your application. You should always have validations on the backend as well. This is because the user might manipulate the form data and send invalid data to your application.
+
+So if a field is disabled, or if you have an integer field with a min/max value, you should always have a validation on the backend as well.
+
+Another point to think about is that you don't have to always `fill` all fields in one go. Sometimes you'd like to conditionally `fill` based on the current user or based on the current logic.
+
+Let's see those examples in action. Let's say we have a `Comment` record that has a `postId` that references a `Post`, a `body` field, and a modeartion field allowing admin users to indicate if they are approved or rejected.
+
+Here's an excerpt from the `Schema.sql`:
+
+```sql
+-- Schema.sql
+
+-- Add a moderation status column to the comments table
+CREATE TYPE comment_moderation AS ENUM ('comment_moderation_pending', 'comment_moderation_approved', 'comment_moderation_rejected');
+
+CREATE TABLE comments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    post_id UUID NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    comment_moderation comment_moderation NOT NULL
+);
+```
+
+Once we generate a controller for the `Comment` record, we'll the `buildComment` function that is called from both the `CreateCommentAction` and the `UpdateCommentAction`:
+
+```haskell
+-- Controller/Comments.hs
+
+buildComment comment = comment
+    |> fill @'["postId", "body", "commentModeration"]
+```
+
+We'll start with the `postId`. Once a comment is refernecing a post it will never have the reference change. So it means we should fill it only upon creation.
+
+```haskell
+buildComment comment = comment
+    |> fill @'["body", "commentModeration"]
+    |> fillIsNew
+    where
+        fillIsNew record
+            -- Record is new, so fill the `postId`.
+            | isNew record = fill @'["postId"] record
+            -- Otherwise, leave the record as is.
+            | otherwise = record
+```
+
+We are using Haskell guards instead of the regular `IF` statement to make the code more consice.
+
+Next let's imagine we have a `currentUserIsAdmin` indicating if the current user is an admin. We'd like to only allow admins to set the moderation status of a comment. So we'll allowing `fill` on the `commentModeration` field only in that case:
+
+```haskell
+-- A fake implementation of `currentUserIsAdmin`.
+-- Will return true if the user's email is `admin@example.com`.
+currentUserIsAdmin :: (?context :: ControllerContext) => Bool
+currentUserIsAdmin =
+    case currentUserOrNothing of
+        Just user -> user.email == "admin@example.com"
+        Nothing -> False
+
+buildComment comment = comment
+    |> fill @'["body"]
+    |> fillIsNew
+    |> fillCurrentUserIsAdmin
+    where
+        fillIsNew record
+            -- Record is new, so fill the `postId`.
+            | isNew record = fill @'["postId"] record
+            -- Otherwise, leave the record as is.
+            | otherwise = record
+
+        fillCurrentUserIsAdmin record
+            -- User is admin.
+            | currentUserIsAdmin = fill @'["commentModeration"] record
+            | otherwise = record
+```
+
+Let's finish with a final example. What if there was also a `score` integer field between 1 - 5, that only the admin could set. As mentioned, we'd need to have a validation on the backend to ensure that the user didn't manipulate the form data. And use `fill` to ensure that a non admin user can't set the score in the first place. Here's the final code, where we conditionally `fill` the `score` field only if the user is an admin, and perform a validation on it:
+
+```haskell
+buildComment comment = comment
+    |> fill @'["body"]
+    |> fillIsNew
+    |> fillCurrentUserIsAdmin
+    where
+        fillIsNew record
+            -- Record is new, so fill the `postId`.
+            | isNew record = fill @'["postId"] record
+            -- Otherwise, leave the record as is.
+            | otherwise = record
+
+        fillCurrentUserIsAdmin record
+            | currentUserIsAdmin =
+                fill @'["commentModeration", "score"] record
+                    -- Make sure that star can be only between 1 and 5.
+                    |> validateField #score (isInRange (1, 5))
+            | otherwise = record
+
+
+currentUserIsAdmin :: (?context :: ControllerContext) => Bool
+currentUserIsAdmin =
+    case currentUserOrNothing of
+        Just user -> user.email == "admin@example.com"
+        Nothing -> False
+```
+
+
 ## Internals
 
 IHP's validation is built with a few small operations.
