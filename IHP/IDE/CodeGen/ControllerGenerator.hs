@@ -164,7 +164,7 @@ generateController schema config =
             <> "build" <> singularName <> " " <> modelVariableSingular <> " = " <> modelVariableSingular <> "\n"
             <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
 
-        toTypeLevelList values = "@" <> (if length values < 2 then "'" else "") <> (values |> tshow |> Text.replace "," ", ")
+        toTypeLevelList values = "@'" <> (values |> tshow |> Text.replace "," ", ")
     in
         ""
         <> "module " <> moduleName <> " where" <> "\n"
