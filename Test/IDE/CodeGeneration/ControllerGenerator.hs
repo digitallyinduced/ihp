@@ -67,6 +67,7 @@ tests = do
                         , unlogged = False
                     }
                 ]
+
         it "should build a controller with name \"pages\"" do
             let rawControllerName = "pages"
             let controllerName = tableNameToControllerName rawControllerName
@@ -95,9 +96,6 @@ tests = do
                 , AddImport {filePath = "Web/Controller/Pages.hs", fileContent = "import Web.View.Pages.Edit"}
                 ]
 
-
-
-
         it "should build a controller with name \"page\"" do
             let rawControllerName = "page"
             let controllerName = tableNameToControllerName rawControllerName
@@ -125,7 +123,6 @@ tests = do
                 , CreateFile {filePath = "Web/View/Page/Edit.hs", fileContent = "module Web.View.Page.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { page :: Page }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumb}\n        <h1>Edit Page</h1>\n        {renderForm page}\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"Pages\" PagesAction\n                , breadcrumbText \"Edit Page\"\n                ]\n\nrenderForm :: Page -> Html\nrenderForm page = formFor page [hsx|\n    \n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/Page.hs", fileContent = "import Web.View.Page.Edit"}
                 ]
-
 
         it "should build a controller with name \"page_comment\"" do
             let rawControllerName = "page_comment"
@@ -185,9 +182,6 @@ tests = do
                 , AddImport {filePath = "Web/Controller/PageComment.hs", fileContent = "import Web.View.PageComment.Edit"}
                 ]
 
-
-
-
         it "should build a controller with name \"people\"" do
             let rawControllerName = "people"
             let controllerName = tableNameToControllerName rawControllerName
@@ -197,7 +191,7 @@ tests = do
             let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
 
             builtPlan `shouldBe`
-                [ CreateFile {filePath = "Web/Controller/People.hs", fileContent = "module Web.Controller.People where\n\nimport Web.Controller.Prelude\nimport Web.View.People.Index\nimport Web.View.People.New\nimport Web.View.People.Edit\nimport Web.View.People.Show\n\ninstance Controller PeopleController where\n    action PeopleAction = do\n        people <- query @Person |> fetch\n        render IndexView { .. }\n\n    action NewPersonAction = do\n        let person = newRecord\n        render NewView { .. }\n\n    action ShowPersonAction { personId } = do\n        person <- fetch personId\n        render ShowView { .. }\n\n    action EditPersonAction { personId } = do\n        person <- fetch personId\n        render EditView { .. }\n\n    action UpdatePersonAction { personId } = do\n        person <- fetch personId\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render EditView { .. }\n                Right person -> do\n                    person <- person |> updateRecord\n                    setSuccessMessage \"Person updated\"\n                    redirectTo EditPersonAction { .. }\n\n    action CreatePersonAction = do\n        let person = newRecord @Person\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render NewView { .. } \n                Right person -> do\n                    person <- person |> createRecord\n                    setSuccessMessage \"Person created\"\n                    redirectTo PeopleAction\n\n    action DeletePersonAction { personId } = do\n        person <- fetch personId\n        deleteRecord person\n        setSuccessMessage \"Person deleted\"\n        redirectTo PeopleAction\n\nbuildPerson person = person\n    |> fill @[\"name\", \"email\"]\n"}
+                [ CreateFile {filePath = "Web/Controller/People.hs", fileContent = "module Web.Controller.People where\n\nimport Web.Controller.Prelude\nimport Web.View.People.Index\nimport Web.View.People.New\nimport Web.View.People.Edit\nimport Web.View.People.Show\n\ninstance Controller PeopleController where\n    action PeopleAction = do\n        people <- query @Person |> fetch\n        render IndexView { .. }\n\n    action NewPersonAction = do\n        let person = newRecord\n        render NewView { .. }\n\n    action ShowPersonAction { personId } = do\n        person <- fetch personId\n        render ShowView { .. }\n\n    action EditPersonAction { personId } = do\n        person <- fetch personId\n        render EditView { .. }\n\n    action UpdatePersonAction { personId } = do\n        person <- fetch personId\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render EditView { .. }\n                Right person -> do\n                    person <- person |> updateRecord\n                    setSuccessMessage \"Person updated\"\n                    redirectTo EditPersonAction { .. }\n\n    action CreatePersonAction = do\n        let person = newRecord @Person\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render NewView { .. } \n                Right person -> do\n                    person <- person |> createRecord\n                    setSuccessMessage \"Person created\"\n                    redirectTo PeopleAction\n\n    action DeletePersonAction { personId } = do\n        person <- fetch personId\n        deleteRecord person\n        setSuccessMessage \"Person deleted\"\n        redirectTo PeopleAction\n\nbuildPerson person = person\n    |> fill @'[\"name\", \"email\"]\n"}
                 , AppendToFile {filePath = "Web/Routes.hs", fileContent = "\ninstance AutoRoute PeopleController\n\n"}
                 , AppendToFile {filePath = "Web/Types.hs", fileContent = "\ndata PeopleController\n    = PeopleAction\n    | NewPersonAction\n    | ShowPersonAction { personId :: !(Id Person) }\n    | CreatePersonAction\n    | EditPersonAction { personId :: !(Id Person) }\n    | UpdatePersonAction { personId :: !(Id Person) }\n    | DeletePersonAction { personId :: !(Id Person) }\n    deriving (Eq, Show, Data)\n"}
                 , AppendToMarker {marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = "import Web.Controller.People"}
@@ -215,6 +209,3 @@ tests = do
                 , CreateFile {filePath = "Web/View/People/Edit.hs", fileContent = "module Web.View.People.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { person :: Person }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumb}\n        <h1>Edit Person</h1>\n        {renderForm person}\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"People\" PeopleAction\n                , breadcrumbText \"Edit Person\"\n                ]\n\nrenderForm :: Person -> Html\nrenderForm person = formFor person [hsx|\n    {(textField #name)}\n    {(textField #email)}\n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Edit"}
                 ]
-
-
-
