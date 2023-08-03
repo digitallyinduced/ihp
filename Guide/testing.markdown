@@ -269,6 +269,9 @@ tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
     describe "Post" do
         it "should send an email on each page view" $ withContext do
+            -- Optional: delete any previous emails in Mailhog.
+            Wreq.delete "http://0.0.0.0:8025/api/v1/messages"
+
             -- Get random title.
             title <- generateAuthenticationToken
 
