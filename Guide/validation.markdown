@@ -252,13 +252,13 @@ In this example, when the [`validateIsUnique`](https://ihp.digitallyinduced.com/
 
 ## Security Concerns and Conditional `fill`
 
-It's important to remember that any kind of validations you might have on the form level are not enough to ensure the security of your application. You should always have validations on the backend as well. This is because the user might manipulate the form data and send invalid data to your application.
+It's important to remember that any kind of validations you might have on the form level are not enough to ensure the security of your application. You should always have validations on the backend as well. The user might manipulate the form data and send invalid data to your application.
 
-So if a field is disabled, or if you have an integer field with a min/max value, you should always have a validation on the backend as well.
+So if a field is disabled or has an integer field with a min/max value, you should always have a validation on the backend.
 
-Another point to think about is that you don't have to always `fill` all fields in one go. Sometimes you'd like to conditionally `fill` based on the current user or based on the current logic.
+Another point is that you don't have to always `fill` all fields in one go. Sometimes you'd like to conditionally `fill` based on the current user or based on the current logic.
 
-Let's see those examples in action. Let's say we have a `Comment` record that has a `postId` that references a `Post`, a `body` field, and a modeartion field allowing admin users to indicate if they are approved or rejected.
+Let's see those examples in action. Let's say we have a `Comment` record that has a `postId` that references a `Post`, a `body` field, and a moderation field allowing admin users to indicate if they are approved or rejected.
 
 Here's an excerpt from the `Schema.sql`:
 
@@ -302,7 +302,7 @@ buildComment comment = comment
 
 We are using Haskell guards instead of the regular `IF` statement to make the code more consice.
 
-Next let's imagine we have a `currentUserIsAdmin` indicating if the current user is an admin. We'd like to only allow admins to set the moderation status of a comment. So we'll allowing `fill` on the `commentModeration` field only in that case:
+Next, imagine we have a `currentUserIsAdmin` indicating if the current user is an admin. We'd like to allow only admins to set the moderation status of a comment. So we'll allow `fill` on the `commentModeration` field only in that case:
 
 ```haskell
 -- A fake implementation of `currentUserIsAdmin`.
@@ -330,7 +330,7 @@ buildComment comment = comment
             | otherwise = record
 ```
 
-Let's finish with a final example. What if there was also a `score` integer field between 1 - 5, that only the admin could set. As mentioned, we'd need to have a validation on the backend to ensure that the user didn't manipulate the form data. And use `fill` to ensure that a non admin user can't set the score in the first place. Here's the final code, where we conditionally `fill` the `score` field only if the user is an admin, and perform a validation on it:
+Let's finish with a final example. Let's assume there was also a `score` integer field between 1 - 5 that only the admin could set. As mentioned, we'd need to have a validation on the backend to ensure that the user didn't manipulate the form data. And use `fill` to ensure that a non-admin user can't set the score in the first place. Here's the final code, where we conditionally `fill` the `score` field only if the user is an admin, and perform validation on it:
 
 ```haskell
 buildComment comment = comment
