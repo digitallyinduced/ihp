@@ -1,5 +1,5 @@
 # Running an IHP web server + Worker
-{ config, pkgs, modulesPath, lib, ihp, ihpApp, ... }:
+{ config, pkgs, modulesPath, lib, ihp, ... }:
 let cfg = config.services.ihp;
 in
 {

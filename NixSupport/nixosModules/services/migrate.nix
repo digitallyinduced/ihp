@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, ihp, ... }:
 let cfg = config.services.ihp;
 in
 {
@@ -12,16 +12,16 @@ in
                 '';
             };
         in {
-        serviceConfig = {
-            Type = "oneshot";
-        };
-        script = ''
-            cd ${migrateApp}
-            ${self.packages.x86_64-linux.migrate}/bin/migrate
-        '';
-        environment = {
-            DATABASE_URL = cfg.databaseUrl;
-            MINIMUM_REVISION = "${cfg.minimumRevision}";
-        };
+            serviceConfig = {
+                Type = "oneshot";
+            };
+            script = ''
+                cd ${migrateApp}
+                ${ihp.apps.x86_64-linux.migrate.program}
+            '';
+            environment = {
+                DATABASE_URL = cfg.databaseUrl;
+                MINIMUM_REVISION = "${toString cfg.minimumRevision}";
+            };
     };
 }

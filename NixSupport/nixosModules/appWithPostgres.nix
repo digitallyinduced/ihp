@@ -1,5 +1,5 @@
 # Running IHP app + a local Postgres connected to it
-{ config, pkgs, modulesPath, lib, ihp, ihpApp, ... }:
+{ config, pkgs, modulesPath, lib, ihp, ... }:
 let cfg = config.services.ihp;
 in
 {
@@ -80,5 +80,7 @@ in
             \i ${cfg.fixtures}
         '';
     };
+
+    services.ihp.databaseUrl = ""; # TODO: Set this to some real value
 }
 

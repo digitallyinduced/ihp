@@ -95,6 +95,7 @@ ihpFlake:
                 inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
                 ihp = ihp;
                 haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
+                filter = ihpFlake.inputs.nix-filter.lib;
             };
         in lib.mkIf cfg.enable {
             # release build package
@@ -124,11 +125,6 @@ ihpFlake:
                     ghc = ghcCompiler;
                     pkgs = pkgs;
                 };
-
-
-                migrate = pkgs.writeScriptBin "migrate" ''
-                    ${ghcCompiler.ihp}/bin/migrate
-                '';
 
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";

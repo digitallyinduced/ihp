@@ -17,7 +17,9 @@
 
         # TODO use a corresponding release branch
         # import ihp-boilerplate for the templates
-        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate/nicolas/flake";
+        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
+
+        nix-filter.url = "github:numtide/nix-filter";
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
@@ -25,7 +27,7 @@
             systems = import inputs.systems;
             imports = [
                 inputs.devenv.flakeModule
-                ./devenv-module.nix
+                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs; })
             ];
 
             flake = {

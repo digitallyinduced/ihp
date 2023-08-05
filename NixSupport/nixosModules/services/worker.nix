@@ -1,5 +1,6 @@
-{ config, pkgs, modulesPath, lib, ihpApp, migrate, migrations, ... }:
-let cfg = config.services.ihp;
+{ config, pkgs, ihpApp, lib, ... }:
+let
+    cfg = config.services.ihp;
 in
 {
     systemd.services.worker = {
@@ -15,7 +16,7 @@ in
         environment =
             let
                 defaultEnv = {
-                    PORT = cfg.port;
+                    PORT = "${toString cfg.appPort}";
                     IHP_ENV = cfg.ihpEnv;
                     IHP_BASEURL = cfg.baseUrl;
                     IHP_REQUEST_LOGGER_IP_ADDR_SOURCE = cfg.requestLoggerIPAddrSource;

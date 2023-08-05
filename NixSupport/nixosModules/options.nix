@@ -1,11 +1,17 @@
 # Running IHP app + a local Postgres connected to it
-{ config, pkgs, modulesPath, lib, ihpApp, ... }:
+{ config, pkgs, modulesPath, lib, ... }:
+with lib;
 {
     options.services.ihp = {
         enable = mkEnableOption "IHP";
         domain = mkOption {
             type = types.str;
             default = "localhost";
+        };
+
+        baseUrl = mkOption {
+            type = types.str;
+            default = "https://${config.services.ihp.domain}";
         };
         
         migrations = mkOption {
@@ -21,7 +27,7 @@
         };
         
         httpsEnabled = mkOption {
-            type = types.boolean;
+            type = types.bool;
             default = true;
         };
         
@@ -33,6 +39,10 @@
         databaseUser = mkOption {
             type = types.str;
             default = "ihp";
+        };
+        
+        databaseUrl = mkOption {
+            type = types.str;
         };
         
         # https://ihp.digitallyinduced.com/Guide/database-migrations.html#skipping-old-migrations
@@ -60,7 +70,7 @@
             type = types.str;
         };
         
-        addionalEnvVars = mkOption {
+        additionalEnvVars = mkOption {
             type = types.attrs;
             default = {};
         };
