@@ -192,6 +192,13 @@ ihpFlake:
 
                 env.IHP_LIB = "${ihp}/lib/IHP";
                 env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
+
+                scripts.deploy-to-nixos.exec = ''
+                    echo "usage: deploy-to-nixos <flake> <target-host>"
+                    echo "example: deploy-to-nixos stagging.example.com"
+                    nix shell nixpkgs#nixos-rebuild --command bash -c "nixos-rebuild switch -j auto --use-substitutes --fast --flake .#$1 --target-host $1 --build-host $1 --option substituters https://digitallyinduced.cachix.org --option trusted-public-keys digitallyinduced.cachix.org:digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
+                    # ssh ihp-deploy-test systemctl start migrate
+                '';
             };
         };
 

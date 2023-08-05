@@ -37,6 +37,15 @@
                         TODO this is shown when running nix init, could contain instruction to get started
                     '';
                 };
+                nixosModules = {
+                    app = ./NixSupport/nixosModules/app.nix;
+                    appWithPostgres = ./NixSupport/nixosModules/appWithPostgres.nix;
+                    
+                    services_app = ./NixSupport/nixosModules/services/app.nix;
+                    services_worker = ./NixSupport/nixosModules/services/worker.nix;
+                    services_migrate = ./NixSupport/nixosModules/services/migrate.nix;
+                    options = ./NixSupport/nixosModules/options.nix;
+                };
             };
         }
     );
