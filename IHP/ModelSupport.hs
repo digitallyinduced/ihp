@@ -1010,3 +1010,16 @@ onlyWhereReferences field referenced records = filter (\record -> get field reco
 -- See 'onlyWhere' for more details.
 onlyWhereReferencesMaybe :: forall record fieldName value referencedRecord. (KnownSymbol fieldName, HasField fieldName record (Maybe value), Eq value, HasField "id" referencedRecord value) => Proxy fieldName -> referencedRecord -> [record] -> [record]
 onlyWhereReferencesMaybe field referenced records = filter (\record -> get field record == Just referenced.id) records
+
+-- | Returns True when a record has no validation errors attached from a previous validation call
+--
+-- Example:
+--
+-- > isValidProject :: Project -> Bool
+-- > isValidProject project =
+-- >     project
+-- >     |> validateField #name isNonEmpty
+-- >     |> isValid
+--
+isValid :: forall record. (HasField "meta" record MetaBag) => record -> Bool
+isValid record = isEmpty record.meta.annotations
