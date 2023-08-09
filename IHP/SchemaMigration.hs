@@ -41,7 +41,7 @@ runMigration migration@Migration { revision, migrationFile } = do
 
     let fullSql = [trimming|
         BEGIN;
-            ${migrationSql}
+            ${migrationSql};
             INSERT INTO schema_migrations (revision) VALUES (?);
         COMMIT;
     |]
