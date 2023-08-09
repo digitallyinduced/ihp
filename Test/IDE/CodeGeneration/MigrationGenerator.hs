@@ -1362,6 +1362,21 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should deal with truncated identifiers" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage the prepare_context_jobs if they can see the C" ON public.prepare_context_jobs USING ((EXISTS ( SELECT 1
+                       FROM public.contexts
+                      WHERE (contexts.id = prepare_context_jobs.context_id)))) WITH CHECK ((EXISTS ( SELECT 1
+                       FROM public.contexts
+                      WHERE (contexts.id = prepare_context_jobs.context_id))));
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage the prepare_context_jobs if they can see the Context" ON prepare_context_jobs USING (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id));
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)

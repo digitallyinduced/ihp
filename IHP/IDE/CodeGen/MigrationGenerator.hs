@@ -377,8 +377,8 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint tableName constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
-normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
-normalizeStatement CreateIndex { columns, indexType, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, .. } ]
+normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
+normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement otherwise = [otherwise]
 
@@ -744,3 +744,12 @@ removeIndentation text =
                 |> filter (\line -> line /= "" && line /= "BEGIN")
                 |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
         spacesToDrop = spaces |> minimum
+
+-- | Postgres truncates identifiers longer than 63 characters.
+--
+-- This function truncates a Text to 63 chars max. This way we avoid unnecssary changes in the generated migrations.
+truncateIdentifier :: Text -> Text
+truncateIdentifier identifier =
+    if Text.length identifier > 63
+        then Text.take 63 identifier
+        else identifier
