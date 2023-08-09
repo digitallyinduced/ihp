@@ -15,7 +15,6 @@ module IHP.LoginSupport.Helper.Controller
 , logout
 , CurrentUserRecord
 , CurrentAdminRecord
-, module IHP.AuthSupport.Authorization
 , module IHP.AuthSupport.Authentication
 , enableRowLevelSecurityIfLoggedIn
 , currentRoleOrNothing
@@ -33,7 +32,6 @@ import IHP.FlashMessages.ControllerFunctions
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
 import System.IO.Unsafe (unsafePerformIO)
-import IHP.AuthSupport.Authorization
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -74,7 +72,7 @@ currentUserId :: forall user userId. (?context :: ControllerContext, HasNewSessi
 currentUserId = currentRoleId @user
 {-# INLINABLE currentUserId #-}
 
-ensureIsUser :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = ensureIsRole @user
 {-# INLINABLE ensureIsUser #-}
 
@@ -90,7 +88,7 @@ currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSe
 currentAdminId = currentRoleId @admin
 {-# INLINABLE currentAdminId #-}
 
-ensureIsAdmin :: forall (admin :: Type) adminId. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin = ensureIsRole @admin
 {-# INLINABLE ensureIsAdmin #-}
 

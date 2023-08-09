@@ -16,12 +16,8 @@ our second role for the duration of the transaction.
 module IHP.DataSync.Role where
 
 import IHP.Prelude
-import Data.Aeson
-import IHP.QueryBuilder
-import IHP.DataSync.DynamicQuery
 import IHP.FrameworkConfig
 import IHP.ModelSupport
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 
 doesRoleExists :: (?modelContext :: ModelContext) => Text -> IO Bool

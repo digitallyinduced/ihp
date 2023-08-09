@@ -36,11 +36,14 @@ import qualified Test.View.FormSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
+import qualified Test.Controller.AccessDeniedSpec
+import qualified Test.Controller.NotFoundSpec
 import qualified Test.SchemaMigrationSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.SchemaCompilerSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.ViewSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.FileStorage.MimeTypesSpec
@@ -69,11 +72,14 @@ main = hspec do
     Test.View.FormSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.AccessDeniedSpec.tests
+    Test.Controller.NotFoundSpec.tests
     Test.SchemaMigrationSpec.tests
     Test.ModelSupportSpec.tests
     Test.SchemaCompilerSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.ViewSupportSpec.tests
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.FileStorage.MimeTypesSpec.tests

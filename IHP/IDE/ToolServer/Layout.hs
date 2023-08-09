@@ -4,8 +4,6 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import qualified IHP.Version as Version
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
 import IHP.IDE.ToolServer.Helper.View
 
 toolServerLayout :: Html -> Html

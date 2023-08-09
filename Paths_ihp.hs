@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations  #-}
 module Paths_ihp where
 
 import Data.Version

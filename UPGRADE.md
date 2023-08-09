@@ -32,17 +32,16 @@ This update process is a bit more complex than normal IHP updates, but it's wort
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
         source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
     fi
-
-    use flake . --impure
-
-    # Include .env file if it exists locally
+    
+    use flake . --impure --accept-flake-config
+    
+    # Include .env file if it exists locally. Use the .env file to load env vars that you don't want to commit to git
     if [ -f .env ]
     then
         set -o allexport
         source .env
         set +o allexport
     fi
-
     # Add your env vars here
     #
     # E.g. export AWS_ACCESS_KEY_ID="XXXXX"

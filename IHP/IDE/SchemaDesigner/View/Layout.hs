@@ -46,16 +46,12 @@ unmigratedChanges = [hsx|
 </div>
 |]
 
-
 migrationStatus :: Html
-migrationStatus = fromMaybe mempty migrationStatusOrNothing
-
-migrationStatusOrNothing :: _ => Maybe _
-migrationStatusOrNothing = if hasPendingMigrations
-        then Just pendingMigrations
+migrationStatus = if hasPendingMigrations
+        then pendingMigrations
         else if databaseNeedsMigration
-            then Just unmigratedChanges
-            else Nothing
+            then unmigratedChanges
+            else mempty
     where
         (DatabaseNeedsMigration databaseNeedsMigration) = fromFrozenContext @DatabaseNeedsMigration
 

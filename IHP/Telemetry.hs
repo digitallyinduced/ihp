@@ -10,7 +10,6 @@ import IHP.Prelude
 import qualified IHP.Version as Version
 import qualified System.Info as System
 import qualified Network.Wreq as Wreq
-import qualified System.Environment as Env
 import qualified Control.Exception as Exception
 import qualified Crypto.Hash.SHA512 as SHA512
 import qualified System.Directory as Directory
@@ -20,6 +19,7 @@ import qualified Data.Text.IO as TIO
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
+import qualified IHP.EnvVar as EnvVar
 
 data TelemetryInfo = TelemetryInfo
     { ihpVersion :: !Text
@@ -33,7 +33,7 @@ data TelemetryInfo = TelemetryInfo
 -- This can be disabled by setting the env var IHP_TELEMETRY_DISABLED=1
 reportTelemetry :: (?context :: context, Log.LoggingProvider context) => IO ()
 reportTelemetry = do
-    isDisabled <- maybe False (\value -> value == "1") <$> Env.lookupEnv "IHP_TELEMETRY_DISABLED"
+    isDisabled <- EnvVar.envOrDefault "IHP_TELEMETRY_DISABLED" False
     unless isDisabled do
         payload <- toPayload <$> getTelemetryInfo
         Log.info (tshow payload)

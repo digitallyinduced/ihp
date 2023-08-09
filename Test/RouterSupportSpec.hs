@@ -26,7 +26,7 @@ import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take,
 import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import qualified IHP.ErrorController as ErrorController
+import IHP.Controller.NotFound (handleNotFound)
 import Data.String.Conversions
 import Unsafe.Coerce
 import IHP.ApplicationContext
@@ -112,7 +112,7 @@ instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
 
 instance FrontController WebApplication where
-  controllers = [ startPage TestAction, parseRoute @TestController ]
+  controllers = [ parseRoute @TestController ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]
@@ -123,9 +123,6 @@ instance InitControllerContext WebApplication where
 
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
-
-instance Worker RootApplication where
-    workers _ = []
 
 testGet :: ByteString -> Session SResponse
 testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
@@ -144,7 +141,7 @@ config = do
     option (AppPort 8000)
 
 application :: (?applicationContext :: ApplicationContext) => Application
-application = Server.application ErrorController.handleNotFound
+application = Server.application handleNotFound
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

@@ -205,7 +205,7 @@ modify _ updateFunction model = let value = Record.getField @name model in setFi
 -- >         |> modifyJust #startedAt (addUTCTime pauseDuration)
 -- >         |> updateRecord
 --
-modifyJust :: forall model name value updateFunction. (KnownSymbol name, Record.HasField name model (Maybe value), SetField name model (Maybe value)) => Proxy name -> (value -> value) -> model -> model
+modifyJust :: forall model name value. (KnownSymbol name, Record.HasField name model (Maybe value), SetField name model (Maybe value)) => Proxy name -> (value -> value) -> model -> model
 modifyJust _ updateFunction model = case Record.getField @name model of
         Just value -> setField @name (Just (updateFunction value)) model
         Nothing -> model

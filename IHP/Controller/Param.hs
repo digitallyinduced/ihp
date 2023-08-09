@@ -631,7 +631,7 @@ instance (FillParams rest record
     {-# INLINE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
-ifValid branch model = branch $! if isEmpty model.meta.annotations
+ifValid branch model = branch $! if ModelSupport.isValid model
     then Right model
     else Left model
 {-# INLINE ifValid #-}

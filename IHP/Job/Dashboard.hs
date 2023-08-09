@@ -328,6 +328,19 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
             then deleteJob @(job:rest) table (param "id")
             else deleteJob' @rest False
 
+    retryJob table uuid = do
+        let id    :: UUID = param "id"
+            table :: Text = param "tableName"
+            retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
+        retryJobById table id
+        setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
+        redirectTo ListJobsAction
+    retryJob' = do
+        let table = param "tableName"
+
+        if tableName @job == table
+            then retryJob @(job:rest) table (param "id")
+            else retryJob' @rest
 
 extractText = \(Only t) -> t
 getNotIncludedTableNames includedNames = map extractText <$> sqlQuery
