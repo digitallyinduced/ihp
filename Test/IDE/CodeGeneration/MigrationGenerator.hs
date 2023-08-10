@@ -1405,9 +1405,6 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
                 let migration = []
 
-                putStrLn $ tshow (normalizeSchema targetSchema)
-                putStrLn $ tshow (normalizeSchema actualSchema)
-
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
 sql :: Text -> [Statement]
