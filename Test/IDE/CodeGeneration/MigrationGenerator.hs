@@ -1377,6 +1377,19 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should deal with nested SELECT expressions inside a policy" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Allow users to see their own company" ON public.companies USING ((id = ( SELECT users.company_id
+                       FROM public.users
+                      WHERE (users.id = public.ihp_user_id())))) WITH CHECK (false);
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Allow users to see their own company" ON companies USING (id = (SELECT company_id FROM users WHERE users.id = ihp_user_id())) WITH CHECK (false);
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
