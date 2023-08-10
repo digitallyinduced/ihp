@@ -1389,6 +1389,23 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 let migration = []
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should deal with complex nested SELECT expressions inside a policy" do
+                -- Tricky part is the `projects.id = ads.project_id` here
+                -- It needs to be unwrapped to `id = project_id` correctly
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage ads if they can access the project" ON public.ads USING ((EXISTS ( SELECT projects.id
+                       FROM public.projects
+                      WHERE (projects.id = ads.project_id)))) WITH CHECK ((EXISTS ( SELECT projects.id
+                       FROM public.projects
+                      WHERE (projects.id = ads.project_id))));
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage ads if they can access the project" ON ads USING (EXISTS (SELECT id FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT id FROM projects WHERE id = project_id));
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

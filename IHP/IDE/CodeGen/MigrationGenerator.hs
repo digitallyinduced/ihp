@@ -544,8 +544,8 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify (TypeCastExpression a b) = TypeCastExpression (doUnqualify a) b
         doUnqualify e@(SelectExpression Select { columns, from, whereClause, alias }) =
             let recurse = case from of
-                    VarExpression fromName -> unqualifyExpression fromName
-                    DotExpression (VarExpression "public") fromName -> unqualifyExpression fromName
+                    VarExpression fromName -> doUnqualify . unqualifyExpression fromName
+                    DotExpression (VarExpression "public") fromName -> doUnqualify . unqualifyExpression fromName
                     _ -> doUnqualify
             in
                 SelectExpression Select { columns = (recurse <$> columns), from = from, whereClause = recurse whereClause, alias }
