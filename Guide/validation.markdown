@@ -293,14 +293,13 @@ buildComment comment = comment
     |> fill @'["body", "commentModeration"]
     |> fillIsNew
     where
-        fillIsNew record
+        fillIsNew record =
+            if isNew record
             -- Record is new, so fill the `postId`.
-            | isNew record = fill @'["postId"] record
+            then fill @'["postId"] record
             -- Otherwise, leave the record as is.
-            | otherwise = record
+            else record
 ```
-
-We are using Haskell guards instead of the regular `IF` statement to make the code more consice.
 
 Next, imagine we have a `currentUserIsAdmin` indicating if the current user is an admin. We'd like to allow only admins to set the moderation status of a comment. So we'll allow `fill` on the `commentModeration` field only in that case:
 
@@ -318,16 +317,17 @@ buildComment comment = comment
     |> fillIsNew
     |> fillCurrentUserIsAdmin
     where
-        fillIsNew record
+        fillIsNew record =
+            if isNew record
             -- Record is new, so fill the `postId`.
-            | isNew record = fill @'["postId"] record
+            then fill @'["postId"] record
             -- Otherwise, leave the record as is.
-            | otherwise = record
+            else record
 
-        fillCurrentUserIsAdmin record
-            -- User is admin.
-            | currentUserIsAdmin = fill @'["commentModeration"] record
-            | otherwise = record
+        fillCurrentUserIsAdmin record =
+            if currentUserIsAdmin
+            then fill @'["commentModeration"] record
+            else record
 ```
 
 Let's finish with a final example. Let's assume there was also a `score` integer field between 1 - 5 that only the admin could set. As mentioned, we'd need to have a validation on the backend to ensure that the user didn't manipulate the form data. And use `fill` to ensure that a non-admin user can't set the score in the first place. Here's the final code, where we conditionally `fill` the `score` field only if the user is an admin, and perform validation on it:
@@ -338,18 +338,19 @@ buildComment comment = comment
     |> fillIsNew
     |> fillCurrentUserIsAdmin
     where
-        fillIsNew record
+        fillIsNew record =
+            if isNew record
             -- Record is new, so fill the `postId`.
-            | isNew record = fill @'["postId"] record
+            then fill @'["postId"] record
             -- Otherwise, leave the record as is.
-            | otherwise = record
+            else record
 
-        fillCurrentUserIsAdmin record
-            | currentUserIsAdmin =
-                fill @'["commentModeration", "score"] record
+        fillCurrentUserIsAdmin record =
+            if currentUserIsAdmin
+            then fill @'["commentModeration", "score"] record
                     -- Make sure that star can be only between 1 and 5.
                     |> validateField #score (isInRange (1, 5))
-            | otherwise = record
+            else record
 
 
 currentUserIsAdmin :: (?context :: ControllerContext) => Bool
