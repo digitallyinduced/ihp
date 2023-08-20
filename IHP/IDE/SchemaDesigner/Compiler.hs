@@ -206,9 +206,10 @@ compilePostgresType (PCustomType theType) = theType
 compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
     where
-        identifierNeedsQuoting = isKeyword || containsChar ' ' || containsChar '-'
+        identifierNeedsQuoting = isKeyword || containsChar ' ' || containsChar '-' || isUsingUppercase
         isKeyword = IHP.Prelude.toUpper identifier `elem` keywords
         containsChar char = Text.any (char ==) identifier
+        isUsingUppercase = Text.toLower identifier /= identifier
 
         keywords = [ "ABORT"
             , "ABSOLUTE"
