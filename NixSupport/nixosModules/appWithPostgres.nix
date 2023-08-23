@@ -82,5 +82,19 @@ in
     };
 
     services.ihp.databaseUrl = ""; # TODO: Set this to some real value
+
+    # Enable automatic GC to avoid the disk from filling up
+    #
+    # https://github.com/digitallyinduced/ihp/pull/1792#pullrequestreview-1570755863
+    #
+    # " It's was a recurring problem on Shipnix that people ran out of disk space and the database service crashed without this"
+    nix.gc = {
+        automatic = true;
+        dates = "weekly";
+        options = "--delete-older-than 30d";
+    };
+
+    # Saves disk space by detecting and handling identical contents in the Nix Store
+    nix.settings.auto-optimise-store = true;
 }
 
