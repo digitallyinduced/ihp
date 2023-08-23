@@ -52,6 +52,10 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
                 fixtures = ./Application/Fixtures.sql;
                 sessionSecret = "xxx";
             };
+
+            # Add swap to avoid running out of memory during builds
+            # Useful if your server have less than 4GB memory
+            swapDevices = [ { device = "/swapfile"; size = 8192; } ];
         })
     ];
 };
