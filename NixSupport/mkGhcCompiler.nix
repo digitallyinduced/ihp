@@ -6,6 +6,7 @@
 , dontHaddockPackages ? []
 , manualOverrides ? _: _: { }
 , haskellPackagesDir ? ./haskell-packages
+, filter
 , ... }:
 
 let
@@ -20,7 +21,7 @@ let
       };
       makePackageSet = dir: pkgs.lib.mapAttrs' (toPackage dir) (builtins.readDir dir);
     in {
-      "ihp" = ((haskellPackagesNew.callPackage "${toString ihp}/ihp.nix") { });
+      "ihp" = ((haskellPackagesNew.callPackage "${toString ihp}/ihp.nix") { inherit filter; });
     } // (makePackageSet haskellPackagesDir) // (makePackageSet "${ihp}/NixSupport/haskell-packages/.");
 
   makeOverrides =
