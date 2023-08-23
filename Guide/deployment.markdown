@@ -56,6 +56,11 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
             # Add swap to avoid running out of memory during builds
             # Useful if your server have less than 4GB memory
             swapDevices = [ { device = "/swapfile"; size = 8192; } ];
+
+            # This should reflect the nixos version from the NixOS AMI initally installed
+            # After the initial install, it should not be changed. Otherwise e.g. the postgres
+            # server might need a manual data migration if NixOS changes the default postgres version
+            system.stateVersion = "23.05";
         })
     ];
 };

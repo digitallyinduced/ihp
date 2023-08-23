@@ -16,7 +16,5 @@ in
 
     # Pin the nixpkgs to the IHP nixpkgs
     nix.registry.nixpkgs.flake = nixpkgs;
-
-    system.stateVersion = "23.05";
 }
 
