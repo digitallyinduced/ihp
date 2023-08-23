@@ -17,7 +17,9 @@
 
         # TODO use a corresponding release branch
         # import ihp-boilerplate for the templates
-        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate/nicolas/flake";
+        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
+
+        nix-filter.url = "github:numtide/nix-filter";
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
@@ -25,17 +27,26 @@
             systems = import inputs.systems;
             imports = [
                 inputs.devenv.flakeModule
-                ./devenv-module.nix
+                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs; })
             ];
 
             flake = {
                 flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
-                path = inputs.ihp-boilerplate;
-                description = "Template for an IHP project";
-                welcomeText = ''
-                    TODO this is shown when running nix init, could contain instruction to get started
-                '';
+                    path = inputs.ihp-boilerplate;
+                    description = "Template for an IHP project";
+                    welcomeText = ''
+                        TODO this is shown when running nix init, could contain instruction to get started
+                    '';
+                };
+                nixosModules = {
+                    app = ./NixSupport/nixosModules/app.nix;
+                    appWithPostgres = ./NixSupport/nixosModules/appWithPostgres.nix;
+                    
+                    services_app = ./NixSupport/nixosModules/services/app.nix;
+                    services_worker = ./NixSupport/nixosModules/services/worker.nix;
+                    services_migrate = ./NixSupport/nixosModules/services/migrate.nix;
+                    options = ./NixSupport/nixosModules/options.nix;
                 };
             };
         }

@@ -65,11 +65,12 @@
 , ihp-hsx
 , ihp-postgresql-simple-extra
 , nix-gitignore
+, filter
 }:
 mkDerivation {
   pname = "ihp";
   version = "v1.1.0";
-  src = nix-gitignore.gitignoreSource [ ] ./.;
+  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "exe" "LICENSE" "lib"]; };
   isLibrary = true;
   isExecutable = true;
   allowInconsistentDependencies = true;
