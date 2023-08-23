@@ -126,6 +126,21 @@ ihpFlake:
                     pkgs = pkgs;
                 };
 
+                unoptimized-docker-image = pkgs.dockerTools.buildImage {
+                    name = "ihp-app";
+                    config = { Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunProdServer" ]; };
+                };
+                
+                optimized-docker-image = pkgs.dockerTools.buildImage {
+                    name = "ihp-app";
+                    config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunProdServer" ]; };
+                };
+
+
+                migrate = pkgs.writeScriptBin "migrate" ''
+                    ${ghcCompiler.ihp}/bin/migrate
+                '';
+
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;
