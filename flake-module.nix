@@ -26,21 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghc962.override {
-                        ghc = pkgs.haskell.compiler.ghc962.overrideAttrs (
-                            prev: {
-                                src = (prev.patches or []) ++ [
-                                    (pkgs.fetchFromGitLab {
-                                        domain = "gitlab.haskell.org";
-                                        owner = "lexi.lambda";
-                                        repo = "ghc";
-                                        rev = "rts-linker-direct-symbol-lookup";
-                                        sha256 = "sha256-HXyz5PA76kJq7Nj9O21q+Ic0U0eL7+rqS9RGO5WKngU";
-                                    })
-                                ];
-                            }
-                        );
-                    };
+                    default = pkgs.haskell.packages.ghcHEAD;
                 };
 
                 packages = lib.mkOption {

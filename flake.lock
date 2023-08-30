@@ -488,18 +488,14 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1693256759,
-        "narHash": "sha256-eSFgtHfD22yGZzTjBqBST4f7TGc9LRrqo6qiHOvZEWk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "3af356188530e70c5d4126e5695a42ed9b4ea35d",
-        "type": "github"
+        "lastModified": 1693354634,
+        "narHash": "sha256-Obz+BghPbeUQ6Ze1hTKl+w8ns89oufC+bS+lqd1DYIU=",
+        "path": "/Users/marc/digitallyinduced/nixpkgs",
+        "type": "path"
       },
       "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "3af356188530e70c5d4126e5695a42ed9b4ea35d",
-        "type": "github"
+        "path": "/Users/marc/digitallyinduced/nixpkgs",
+        "type": "path"
       }
     },
     "pre-commit-hooks": {
