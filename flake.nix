@@ -3,7 +3,7 @@
 
     inputs = {
         # TODO use nixpkgs-unstable and just .lock a version?
-        nixpkgs.url = "path:///Users/marc/digitallyinduced/nixpkgs";
+        nixpkgs.url = "github:mpscholten/nixpkgs/ghc-patch";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
