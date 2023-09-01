@@ -54,11 +54,6 @@ respondDbEvent eventName  = do
                             sqlExec createTriggerSql ()
                             pure ()
 
-                        -- pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                        --     let pid = notification.notificationPid |> show |> cs
-                        --     sendChunk (ByteString.stringUtf8 $ "id:" <> pid <> "\nevent:" <> cs eventName <> "\ndata: " <> cs table <> " change event triggered\n\n") >> flush
-                        --     )
-
                         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                             let pid = notification.notificationPid |> show |> cs
                             (sendChunk (ByteString.stringUtf8 $ "id:" <> pid <> "\nevent:" <> cs eventName <> "\ndata: " <> cs table <> " change event triggered\n\n") >> flush) `Exception.catch ` (\e -> putStrLn $ "Error sending chunk: " ++ show (e :: Exception.SomeException)))
