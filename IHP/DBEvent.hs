@@ -34,37 +34,36 @@ initDbEvents = do
 respondDbEvent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?touchedTables::IORef (Set ByteString)) => ByteString -> IO ()
 respondDbEvent eventName  = do
     touchedTables <- Set.toList <$> readIORef ?touchedTables
-    putStrLn $ "Registering notification trigger for tables: " <> show touchedTables
+    pgListener <- fromContext @PGListener.PGListener
 
     let streamBody sendChunk flush = do
             sendChunk (ByteString.stringUtf8 "data: Connection established!\n\n") >> flush
 
-            pgListener <- fromContext @PGListener.PGListener
-            touchedTables |> mapM (\table -> do
-                let createTriggerSql = notificationTrigger table
+            touchedTables 
+                |> mapM (\table -> do
+                    let createTriggerSql = notificationTrigger table
 
-                withRowLevelSecurityDisabled do
-                    sqlExec createTriggerSql ()
-                    pure ()
+                    withRowLevelSecurityDisabled do
+                        sqlExec createTriggerSql ()
+                        pure ()
 
-                
-                pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                    let pid = notification.notificationPid |> show |> cs
-                    sendChunk (ByteString.stringUtf8 $
-                            -- Follows the SSE message spec defined on MDN
-                            -- https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-                            "id:" <> pid <> "\n" <>
-                            "event:" <> cs eventName <> "\n" <>
-                            "data: " <> cs table <> " change event triggered\n\n")
-                            >> flush
-                            `Exception.catch` (\e -> putStrLn $ "Error sending chunk: " ++ show (e :: Exception.SomeException)
+                    
+                    pgListener |> PGListener.subscribe (channelName table) \notification -> do
+                        let pid = notification.notificationPid |> show |> cs
+                        sendChunk (ByteString.stringUtf8 $
+                                -- Follows the SSE message spec defined on MDN
+                                -- https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
+                                "id:" <> pid <> "\n" <>
+                                "event:" <> cs eventName <> "\n" <>
+                                "data: " <> cs table <> " change event triggered\n\n")
+                                >> flush
+                                `Exception.catch` (\e -> putStrLn $ "Error sending chunk: " ++ show (e :: Exception.SomeException)
+                            )
                         )
-                )
 
             forever do
                 threadDelay (30 * 1000000)
                 sendChunk (ByteString.stringUtf8 $ ": heartbeat\n\n") >> flush `Exception.catch` (\e -> putStrLn $ "Error sending heartbeat: " ++ show (e :: Exception.SomeException))
-
 
     respondAndExit $
         responseStream
