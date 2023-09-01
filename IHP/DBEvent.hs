@@ -23,7 +23,7 @@ import Control.Concurrent (threadDelay, forkIO)
 import Database.PostgreSQL.Simple.Notification (notificationPid)
 
 
--- | Initialize database events functionality by placing the PostgreSQL listener in the application context.
+-- | Initialize database events functionality by making the PostgreSQL listener from the application context available in the Controller context.
 initDbEvents :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initDbEvents = do
     putContext ?applicationContext.pgListener
