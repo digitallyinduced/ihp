@@ -36,12 +36,6 @@ respondDbEvent eventName  = do
     touchedTables <- Set.toList <$> readIORef ?touchedTables
     putStrLn $ "Registering notification trigger for tables: " <> show touchedTables
 
-    let headers = 
-                 [ ("Cache-Control", "no-store")
-                 , ("Connection", "keep-alive")
-                 , (hContentType, "text/event-stream")
-                 ]
-
     let streamBody sendChunk flush = do
                     sendChunk (ByteString.stringUtf8 "data: Connection established!\n\n") >> flush
 
