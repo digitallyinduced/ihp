@@ -47,9 +47,12 @@ respondDbEvent eventName  = do
                     sqlExec createTriggerSql ()
                     pure ()
 
+                
                 pgListener |> PGListener.subscribe (channelName table) \notification -> do
                     let pid = notification.notificationPid |> show |> cs
                     sendChunk (ByteString.stringUtf8 $
+                            -- Follows the SSE message spec defined on MDN
+                            -- https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
                             "id:" <> pid <> "\n" <>
                             "event:" <> cs eventName <> "\n" <>
                             "data: " <> cs table <> " change event triggered\n\n")
