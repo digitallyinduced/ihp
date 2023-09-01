@@ -63,8 +63,7 @@ respondDbEvent eventName  = do
 
             forever do
                 threadDelay (30 * 1000000)
-                sendChunk (ByteString.stringUtf8 ": heartbeat\n\n") >> flush
-            pure ()
+                sendChunk (ByteString.stringUtf8 $ ": heartbeat\n\n") >> flush `Exception.catch` (\e -> putStrLn $ "Error sending heartbeat: " ++ show (e :: Exception.SomeException))
 
 
     respondAndExit $
