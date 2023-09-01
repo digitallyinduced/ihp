@@ -1,4 +1,4 @@
-module IHP.DBvent (respondDbEvent, initDbEvents) where
+module IHP.DBEvent (respondDbEvent, initDbEvents) where
 
 
 import IHP.Prelude
