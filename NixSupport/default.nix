@@ -18,7 +18,7 @@ let
       then ghc.ghcWithHoogle
       else ghc.ghcWithPackages)
         (p: builtins.concatLists [
-          (if includeDevTools then [p.haskell-language-server] else [])
+          # (if includeDevTools then [p.haskell-language-server] else [])
           (haskellDeps p)
         ]
       );
