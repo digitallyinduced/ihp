@@ -157,23 +157,27 @@ channelName :: ByteString -> ByteString
 channelName tableName = "dbe_did_change_" <> tableName
 
 
--- | Construct the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
+-- | Constructs the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
 notificationTrigger :: ByteString -> PG.Query
 notificationTrigger tableName = PG.Query $ BS.concat $ BL.toChunks $ B.toLazyByteString queryBuilder
   where
+    -- These definitions provide naming conventions based on the table name.
     functionName       = "dbe_notify_did_change_" <> tableName
     insertTriggerName  = "dbe_did_insert_" <> tableName
     updateTriggerName  = "dbe_did_update_" <> tableName
     deleteTriggerName  = "dbe_did_delete_" <> tableName
 
+    -- List of trigger actions and their corresponding names for easy iteration.
     triggerActions     = ["INSERT", "UPDATE", "DELETE"]
     triggerNames       = [insertTriggerName, updateTriggerName, deleteTriggerName]
 
+    -- Generates the SQL for each trigger action.
     createTriggerSQL action triggerName = [i|
         DROP TRIGGER IF EXISTS #{triggerName} ON #{tableName};
         CREATE TRIGGER #{triggerName} AFTER #{action} ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
     |]
 
+    -- Construct the entire query.
     queryBuilder = mconcat
         [ B.stringUtf8 [i|BEGIN;
             CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
@@ -186,3 +190,4 @@ notificationTrigger tableName = PG.Query $ BS.concat $ BL.toChunks $ B.toLazyByt
         , mconcat $ zipWith createTriggerSQL triggerActions triggerNames
         , B.stringUtf8 "COMMIT;"
         ]
+
