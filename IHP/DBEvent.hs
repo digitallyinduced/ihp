@@ -87,7 +87,7 @@ runCleanupActions cleanupActions = do
                 a <- readTVar cleanupActions
                 writeTVar cleanupActions []
                 return a
-            sequence_ actions
+            forM_ actions id
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
@@ -159,6 +159,11 @@ channelName tableName = "dbe_did_change_" <> tableName
 
 
 -- | Constructs the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
+-- The approach in this function prioritizes efficiency. Instead of using multiple string concatenations which can 
+-- be costly in terms of performance, we utilize a combination of ByteString's 'mconcat' function and the Builder 
+-- pattern. This allows for more efficient memory use and faster string construction, especially given that this 
+-- function could be invoked frequently. By buffering and grouping multiple string chunks into larger chunks, 
+-- the Builder pattern minimizes the need for reallocations, providing both speed and reduced memory overhead.
 notificationTrigger :: ByteString -> PG.Query
 notificationTrigger tableName = PG.Query $ BS.concat $ BL.toChunks $ B.toLazyByteString queryBuilder
   where
