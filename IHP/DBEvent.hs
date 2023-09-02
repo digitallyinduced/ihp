@@ -35,13 +35,7 @@ sseHeaders =
         , (hContentType, "text/event-stream")
         ]
 
-runCleanupActions :: TVar [IO a] -> IO ()
-runCleanupActions cleanupActions = do
-            actions <- atomically $ do
-                a <- readTVar cleanupActions
-                writeTVar cleanupActions []
-                return a
-            sequence_ actions
+
             
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
@@ -73,6 +67,19 @@ respondDbEvent eventName  = do
 
     -- Send the stream to the client
     respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
+
+-- | Executes all cleanup actions stored in the provided 'TVar'.
+-- 
+-- After executing the cleanup actions, the 'TVar' is emptied.
+-- 
+-- @param cleanupActions A 'TVar' containing a list of IO actions representing cleanup operations.
+runCleanupActions :: TVar [IO a] -> IO ()
+runCleanupActions cleanupActions = do
+            actions <- atomically $ do
+                a <- readTVar cleanupActions
+                writeTVar cleanupActions []
+                return a
+            sequence_ actions
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
