@@ -1,5 +1,5 @@
 -- | The IHP.DBEvent module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
-module IHP.DBEvent (respondDbEvent, initDbEvents) where
+module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
 import IHP.ApplicationContext ( ApplicationContext(pgListener) )
@@ -26,8 +26,8 @@ import qualified Data.Set as Set
 
 -- | Initialize database events functionality. This makes the PostgreSQL listener 
 -- from the application context available in the Controller context.
-initDbEvents :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
-initDbEvents = do
+initPgEventSource :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
+initPgEventSource = do
     putContext ?applicationContext.pgListener
 
 
@@ -46,8 +46,8 @@ respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 ss
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
 -- application change.
-respondDbEvent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?touchedTables::IORef (Set ByteString)) => ByteString -> IO ()
-respondDbEvent eventName  = do
+streamPgEvent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?touchedTables::IORef (Set ByteString)) => ByteString -> IO ()
+streamPgEvent eventName  = do
     touchedTables <- Set.toList <$> readIORef ?touchedTables
     pgListener <- fromContext @PGListener.PGListener
     -- Initialize the isActive TVar to True
