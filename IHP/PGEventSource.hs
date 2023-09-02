@@ -75,19 +75,6 @@ sseHeaders =
 respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
 respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
--- | Executes all cleanup actions stored in the provided 'TVar'.
--- 
--- After executing the cleanup actions, the 'TVar' is emptied.
--- 
--- @param cleanupActions A 'TVar' containing a list of IO actions representing cleanup operations.
-runCleanupActions :: TVar [IO a] -> IO ()
-runCleanupActions cleanupActions = do
-            actions <- atomically $ do
-                a <- readTVar cleanupActions
-                writeTVar cleanupActions []
-                return a
-            forM_ actions id
-
 
 -- | Initializes the SSE stream with a connection established message.
 initializeStream :: (B.Builder -> IO ()) -> IO ()
@@ -108,11 +95,6 @@ sendHeartbeats sendChunk flush isActive = do
     heartbeatLoop
 
 
--- | Subscribes to changes in a table using the given callback for notification triggers.
-subscribeToTableChanges :: PGListener.PGListener -> ByteString -> (Notification -> IO ()) -> IO PGListener.Subscription
-subscribeToTableChanges pgListener table callback = PGListener.subscribe (channelName table) callback pgListener
-
-
 -- A utility function to gracefully handle the client disconnect exception
 handleDisconnect ::  (?context :: ControllerContext) =>  TVar Bool -> IO () -> IO ()
 handleDisconnect isActive action = action `Exception.catch` \e ->
@@ -123,6 +105,25 @@ handleDisconnect isActive action = action `Exception.catch` \e ->
         else Log.error $ "SSE Error: " ++ show (e :: Exception.SomeException)
     where
         isDisconnectException e = "Client closed connection prematurely" `isInfixOf` show (e :: Exception.SomeException)
+
+
+-- | Executes all cleanup actions stored in the provided 'TVar'.
+-- 
+-- After executing the cleanup actions, the 'TVar' is emptied.
+-- 
+-- @param cleanupActions A 'TVar' containing a list of IO actions representing cleanup operations.
+runCleanupActions :: TVar [IO a] -> IO ()
+runCleanupActions cleanupActions = do
+            actions <- atomically $ do
+                a <- readTVar cleanupActions
+                writeTVar cleanupActions []
+                return a
+            forM_ actions id
+
+
+-- | Subscribes to changes in a table using the given callback for notification triggers.
+subscribeToTableChanges :: PGListener.PGListener -> ByteString -> (Notification -> IO ()) -> IO PGListener.Subscription
+subscribeToTableChanges pgListener table callback = PGListener.subscribe (channelName table) callback pgListener
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
