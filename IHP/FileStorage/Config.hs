@@ -129,4 +129,4 @@ fromFilebaseEnv :: CredentialLoader
 fromFilebaseEnv = runMaybeT $ do
     filebaseKey <- MaybeT $ EnvVar.envOrNothing "FILEBASE_KEY"
     filebaseSecret <- MaybeT $ EnvVar.envOrNothing "FILEBASE_SECRET"
-    pure CredentialValue { cvAccessKey = filebaseKey, cvSecretKey = filebaseSecret, cvSessionToken = Nothing }
+    pure CredentialValue { cvAccessKey = fromString filebaseKey, cvSecretKey = fromString filebaseSecret, cvSessionToken = Nothing }
