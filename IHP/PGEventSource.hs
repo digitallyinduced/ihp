@@ -157,7 +157,7 @@ createTriggerForTable table = do
 
 -- | Generate the channel name for PostgreSQL notifications based on the table name.
 channelName :: ByteString -> ByteString
-channelName tableName = "dbe_did_change_" <> tableName
+channelName tableName = "pge_did_change_" <> tableName
 
 
 -- | Constructs the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
@@ -182,7 +182,7 @@ notificationTrigger tableName = PG.Query [i|
         COMMIT;
     |]
     where
-        functionName = "ar_notify_did_change_" <> tableName
-        insertTriggerName = "ar_did_insert_" <> tableName
-        updateTriggerName = "ar_did_update_" <> tableName
-        deleteTriggerName = "ar_did_delete_" <> tableName
+        functionName = "pge_notify_did_change_" <> tableName
+        insertTriggerName = "pge_did_insert_" <> tableName
+        updateTriggerName = "pge_did_update_" <> tableName
+        deleteTriggerName = "pge_did_delete_" <> tableName
