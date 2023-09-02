@@ -1,4 +1,4 @@
--- | The IHP.PGEventStore module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
+-- | The IHP.PGEventStore module is responsible for dispatching Server-Sent Events (SSE) from PostgreSQL notification triggers.
 module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
@@ -30,18 +30,6 @@ initPgEventSource :: (?context :: ControllerContext, ?applicationContext :: Appl
 initPgEventSource = do
     putContext ?applicationContext.pgListener
 
-
--- | Required headers for SSE responses.
-sseHeaders :: [(HeaderName, ByteString)]
-sseHeaders = 
-        [ (hCacheControl, "no-store")
-        , (hConnection, "keep-alive")
-        , (hContentType, "text/event-stream")
-        ]
-
-
-respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
-respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
@@ -75,6 +63,18 @@ streamPgEvent eventName  = do
     respondEventSource streamBody
 
 
+
+-- | Required headers for SSE responses.
+sseHeaders :: [(HeaderName, ByteString)]
+sseHeaders = 
+        [ (hCacheControl, "no-store")
+        , (hConnection, "keep-alive")
+        , (hContentType, "text/event-stream")
+        ]
+
+respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
+respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
+
 -- | Executes all cleanup actions stored in the provided 'TVar'.
 -- 
 -- After executing the cleanup actions, the 'TVar' is emptied.
@@ -87,24 +87,6 @@ runCleanupActions cleanupActions = do
                 writeTVar cleanupActions []
                 return a
             forM_ actions id
-
-
--- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
-handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
-handleNotificationTrigger sendChunk flush eventName table notification = do
-        -- This could have been more readable, but should be more performant this way
-        let message :: B.Builder = mconcat 
-                [ B.stringUtf8 "id:"
-                , B.intDec (fromIntegral $ notificationPid notification)
-                , B.stringUtf8 "\nevent:"
-                , B.byteString eventName
-                , B.stringUtf8 "\ndata: "
-                , B.byteString table
-                , B.stringUtf8 " change event triggered\n\n"
-                ]
-        sendChunk message >> flush
-                        `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
-        pure ()
 
 
 -- | Initializes the SSE stream with a connection established message.
@@ -126,15 +108,6 @@ sendHeartbeats sendChunk flush isActive = do
     heartbeatLoop
 
 
--- | Creates a database trigger that notifies on table changes (insert, update, delete).
-createTriggerForTable :: (?modelContext::ModelContext) => ByteString -> IO ()
-createTriggerForTable table = do
-    let createTriggerSql = notificationTrigger table
-    withRowLevelSecurityDisabled do
-        sqlExec createTriggerSql ()
-        pure ()
-
-
 -- | Subscribes to changes in a table using the given callback for notification triggers.
 subscribeToTableChanges :: PGListener.PGListener -> ByteString -> (Notification -> IO ()) -> IO PGListener.Subscription
 subscribeToTableChanges pgListener table callback = PGListener.subscribe (channelName table) callback pgListener
@@ -151,6 +124,32 @@ handleDisconnect isActive action = action `Exception.catch` \e ->
     where
         isDisconnectException e = "Client closed connection prematurely" `isInfixOf` show (e :: Exception.SomeException)
 
+
+-- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
+handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
+handleNotificationTrigger sendChunk flush eventName table notification = do
+        -- This could have been more readable, but should be more performant this way
+        let message :: B.Builder = mconcat 
+                [ B.stringUtf8 "id:"
+                , B.intDec (fromIntegral $ notificationPid notification)
+                , B.stringUtf8 "\nevent:"
+                , B.byteString eventName
+                , B.stringUtf8 "\ndata: "
+                , B.byteString table
+                , B.stringUtf8 " change event triggered\n\n"
+                ]
+        sendChunk message >> flush
+                        `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
+        pure ()
+
+
+-- | Creates a database trigger that notifies on table changes (insert, update, delete).
+createTriggerForTable :: (?modelContext::ModelContext) => ByteString -> IO ()
+createTriggerForTable table = do
+    let createTriggerSql = notificationTrigger table
+    withRowLevelSecurityDisabled do
+        sqlExec createTriggerSql ()
+        pure ()
 
 -- | Generate the channel name for PostgreSQL notifications based on the table name.
 channelName :: ByteString -> ByteString
