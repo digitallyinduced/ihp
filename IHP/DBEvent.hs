@@ -27,6 +27,7 @@ initDbEvents :: (?context :: ControllerContext, ?applicationContext :: Applicati
 initDbEvents = do
     putContext ?applicationContext.pgListener
 
+
 -- | Required headers for SSE responses.
 sseHeaders :: [(HeaderName, ByteString)]
 sseHeaders = 
@@ -36,7 +37,6 @@ sseHeaders =
         ]
 
 
-            
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
 -- application change.
@@ -68,6 +68,7 @@ respondDbEvent eventName  = do
     -- Send the stream to the client
     respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
+
 -- | Executes all cleanup actions stored in the provided 'TVar'.
 -- 
 -- After executing the cleanup actions, the 'TVar' is emptied.
@@ -80,6 +81,7 @@ runCleanupActions cleanupActions = do
                 writeTVar cleanupActions []
                 return a
             sequence_ actions
+
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
@@ -95,9 +97,11 @@ handleNotificationTrigger sendChunk flush eventName table notification = do
                         `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
         pure ()
 
+
 -- | Initializes the SSE stream with a connection established message.
 initializeStream :: (ByteString.Builder -> IO ()) -> IO ()
 initializeStream sendChunk = sendChunk (ByteString.stringUtf8 "data: Connection established!\n\n")
+
 
 -- | Send periodic heartbeats to the client to keep the connection alive.
 sendHeartbeats :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> TVar Bool -> IO ()
@@ -112,6 +116,7 @@ sendHeartbeats sendChunk flush isActive = do
 
     heartbeatLoop
 
+
 -- | Creates a database trigger that notifies on table changes (insert, update, delete).
 createTriggerForTable :: (?modelContext::ModelContext) => ByteString -> IO ()
 createTriggerForTable table = do
@@ -119,6 +124,7 @@ createTriggerForTable table = do
     withRowLevelSecurityDisabled do
         sqlExec createTriggerSql ()
         pure ()
+
 
 -- | Subscribes to changes in a table using the given callback for notification triggers.
 subscribeToTableChanges :: PGListener.PGListener -> ByteString -> (Notification -> IO ()) -> IO PGListener.Subscription
