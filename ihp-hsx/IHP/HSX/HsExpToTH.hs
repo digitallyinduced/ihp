@@ -28,6 +28,7 @@ import qualified GHC.Unit.Module as Module
 import GHC.Stack
 import qualified Data.List.NonEmpty as NonEmpty
 import Language.Haskell.Syntax.Type
+import Language.Haskell.Syntax.Basic
 
 
 fl_value = rationalFromFractionalLit
@@ -89,7 +90,7 @@ toExp (Expr.HsVar _ n) =
         then TH.ConE (toName n')
         else TH.VarE (toName n')
 
-toExp (Expr.HsUnboundVar _ n)              = TH.UnboundVarE (TH.mkName . occNameString $ n)
+toExp (Expr.HsUnboundVar _ n)              = TH.UnboundVarE (TH.mkName . occNameString $ occName n)
 
 toExp Expr.HsIPVar {}
   = noTH "toExp" "HsIPVar"
@@ -103,7 +104,7 @@ toExp (Expr.HsOverLit _ OverLit {ol_val})
 toExp (Expr.HsApp _ e1 e2)
   = TH.AppE (toExp . unLoc $ e1) (toExp . unLoc $ e2)
 
-toExp (Expr.HsAppType _ e HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
+toExp (Expr.HsAppType _ e _ HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
 toExp (Expr.ExprWithTySig _ e HsWC{hswc_body=unLoc -> HsSig{sig_body}}) = TH.SigE (toExp . unLoc $ e) (toType . unLoc $ sig_body)
 
 toExp (Expr.OpApp _ e1 o e2)
@@ -113,7 +114,7 @@ toExp (Expr.NegApp _ e _)
   = TH.AppE (TH.VarE 'negate) (toExp . unLoc $ e)
 
 -- NOTE: for lambda, there is only one match
-toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)])) _))
+toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
   = TH.LamE (fmap toPat ps) (toExp e)
 
 -- toExp (Expr.Let _ bs e)                       = TH.LetE (toDecs bs) (toExp e)
@@ -184,17 +185,17 @@ toExp (Expr.HsProjection _ locatedFields) =
     extractFieldLabel (DotFieldOcc _ locatedStr) = locatedStr
     extractFieldLabel _ = error "Don't know how to handle XDotFieldOcc constructor..."
   in
-    TH.ProjectionE (NonEmpty.map (unpackFS . unLoc . extractFieldLabel . unLoc) locatedFields)
+    TH.ProjectionE (NonEmpty.map (unpackFS . (.field_label) . unLoc . extractFieldLabel . unLoc) locatedFields)
 
 toExp (Expr.HsGetField _ expr locatedField) =
   let
     extractFieldLabel (DotFieldOcc _ locatedStr) = locatedStr
     extractFieldLabel _ = error "Don't know how to handle XDotFieldOcc constructor..."
   in
-    TH.GetFieldE (toExp (unLoc expr)) (unpackFS . unLoc . extractFieldLabel . unLoc $ locatedField)
+    TH.GetFieldE (toExp (unLoc expr)) (unpackFS . (.field_label) . unLoc . extractFieldLabel . unLoc $ locatedField)
 
 
-toExp (Expr.HsOverLabel _ fastString) = TH.LabelE (unpackFS fastString)
+toExp (Expr.HsOverLabel _ _ fastString) = TH.LabelE (unpackFS fastString)
 
 toExp e = todo "toExp" e
 

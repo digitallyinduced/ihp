@@ -3,8 +3,8 @@
 }:
 mkDerivation {
   pname = "ghc-syntax-highlighter";
-  version = "0.0.9.0";
-  sha256 = "0dan000fg9ipfh8knhrdscnr8lvcf6p2djl9b4bgqd4nc65pcf8a";
+  version = "0.0.10.0";
+  sha256 = "145xjyraqd62k5amyqi9028rr9v2lgz3irmgz5v2hppza1i5qy72";
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [ base ghc-lib-parser text ];
   testHaskellDepends = [ base hspec text ];
