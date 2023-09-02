@@ -7,12 +7,12 @@ import qualified Data.Set as Set
 import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead )
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
-import Data.String.Interpolate.IsString
+import Data.String.Interpolate.IsString ( i )
 import Network.Wai ( responseStream )
 import qualified Control.Exception as Exception
 import qualified Data.ByteString.Builder as ByteString
-import IHP.ApplicationContext
-import IHP.Controller.Context
+import IHP.ApplicationContext ( ApplicationContext(pgListener) )
+import IHP.Controller.Context ( fromContext, putContext )
 import Network.HTTP.Types (status200)
 import Network.HTTP.Types.Header ( hContentType )
 import Control.Concurrent (threadDelay)
