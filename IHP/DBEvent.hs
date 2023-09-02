@@ -1,27 +1,28 @@
 -- | The IHP.DBEvent module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
 module IHP.DBEvent (respondDbEvent, initDbEvents) where
 
-import IHP.Prelude
-import IHP.ControllerSupport
-import qualified Data.Set as Set
-import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead )
-import qualified IHP.PGListener as PGListener
-import qualified Database.PostgreSQL.Simple.Types as PG
-import Data.String.Interpolate.IsString ( i )
-import qualified Network.Wai as Wai
-import qualified Control.Exception as Exception
-import qualified Data.ByteString.Builder as B
 import IHP.ApplicationContext ( ApplicationContext(pgListener) )
 import IHP.Controller.Context ( fromContext, putContext )
-import Network.HTTP.Types (status200, hConnection)
-import Network.HTTP.Types.Header ( HeaderName, hContentType, hCacheControl  )
-import Control.Concurrent (threadDelay)
-import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
-import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar,modifyTVar')
+import IHP.ControllerSupport
+import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead )
 import qualified IHP.Log as Log
-import qualified Data.ByteString.Lazy as BL
-import Data.Text.Encoding (decodeUtf8)
+import qualified IHP.PGListener as PGListener
+import IHP.Prelude
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar, modifyTVar')
+import qualified Control.Exception as Exception
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as BL
+import Data.String.Interpolate.IsString ( i )
+import Data.Text.Encoding (decodeUtf8)
+import qualified Database.PostgreSQL.Simple.Types as PG
+import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
+import qualified Network.Wai as Wai
+import Network.HTTP.Types (status200, hConnection)
+import Network.HTTP.Types.Header ( HeaderName, hContentType, hCacheControl )
+import qualified Data.Set as Set
+
 
 
 -- | Initialize database events functionality. This makes the PostgreSQL listener 
