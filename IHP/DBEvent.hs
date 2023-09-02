@@ -24,7 +24,6 @@ import Network.HTTP.Types.Header ( HeaderName, hContentType, hCacheControl )
 import qualified Data.Set as Set
 
 
-
 -- | Initialize database events functionality. This makes the PostgreSQL listener 
 -- from the application context available in the Controller context.
 initDbEvents :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
