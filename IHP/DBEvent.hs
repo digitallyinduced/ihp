@@ -1,13 +1,13 @@
 -- | The IHP.DBEvent module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
 module IHP.DBEvent (respondDbEvent, initDbEvents) where
 
+import IHP.Prelude
 import IHP.ApplicationContext ( ApplicationContext(pgListener) )
 import IHP.Controller.Context ( fromContext, putContext )
 import IHP.ControllerSupport
 import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead )
 import qualified IHP.Log as Log
 import qualified IHP.PGListener as PGListener
-import IHP.Prelude
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar, modifyTVar')
 import qualified Control.Exception as Exception
