@@ -72,6 +72,9 @@ sseHeaders =
         , (hContentType, "text/event-stream")
         ]
 
+-- | Responds with a streaming body as an SSE (Server-Sent Event) to the client.
+-- This function takes a 'Wai.StreamingBody' (essentially a stream of data chunks)
+-- and sends it to the client with the appropriate headers for SSE
 respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
 respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
