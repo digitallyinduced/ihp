@@ -10,7 +10,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString ( i )
 import qualified Network.Wai as Wai
 import qualified Control.Exception as Exception
-import qualified Data.ByteString.Builder as ByteString
+import qualified Data.ByteString.Builder as B
 import IHP.ApplicationContext ( ApplicationContext(pgListener) )
 import IHP.Controller.Context ( fromContext, putContext )
 import Network.HTTP.Types (status200, hConnection)
@@ -19,6 +19,9 @@ import Control.Concurrent (threadDelay)
 import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
 import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar,modifyTVar')
 import qualified IHP.Log as Log
+import qualified Data.ByteString.Lazy as BL
+import Data.Text.Encoding (decodeUtf8)
+import qualified Data.ByteString as BS
 
 
 -- | Initialize database events functionality. This makes the PostgreSQL listener 
@@ -36,6 +39,9 @@ sseHeaders =
         , (hContentType, "text/event-stream")
         ]
 
+
+respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
+respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
@@ -66,7 +72,7 @@ respondDbEvent eventName  = do
                 `Exception.finally` runCleanupActions cleanupActions
 
     -- Send the stream to the client
-    respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
+    respondEventSource streamBody
 
 
 -- | Executes all cleanup actions stored in the provided 'TVar'.
@@ -84,34 +90,37 @@ runCleanupActions cleanupActions = do
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
-handleNotificationTrigger :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
+handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
-        let pid = notification.notificationPid |> show |> cs
-        sendChunk (ByteString.stringUtf8 $
-                -- Follows the SSE message spec defined on MDN
-                -- https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-                        "id:" <> pid <> "\n" <>
-                        "event:" <> cs eventName <> "\n" <>
-                        "data: " <> cs table <> " change event triggered\n\n")
-                        >> flush
+        -- This could have been more readable, but should be more performant this way
+        let message :: B.Builder = mconcat 
+                [ B.stringUtf8 "id:"
+                , B.intDec (fromIntegral $ notificationPid notification)
+                , B.stringUtf8 "\nevent:"
+                , B.byteString eventName
+                , B.stringUtf8 "\ndata: "
+                , B.byteString table
+                , B.stringUtf8 " change event triggered\n\n"
+                ]
+        sendChunk message >> flush
                         `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
         pure ()
 
 
 -- | Initializes the SSE stream with a connection established message.
-initializeStream :: (ByteString.Builder -> IO ()) -> IO ()
-initializeStream sendChunk = sendChunk (ByteString.stringUtf8 "data: Connection established!\n\n")
+initializeStream :: (B.Builder -> IO ()) -> IO ()
+initializeStream sendChunk = sendChunk (B.stringUtf8 "data: Connection established!\n\n")
 
 
 -- | Send periodic heartbeats to the client to keep the connection alive.
-sendHeartbeats :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> TVar Bool -> IO ()
+sendHeartbeats :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> TVar Bool -> IO ()
 sendHeartbeats sendChunk flush isActive = do
     let heartbeatLoop = do
             active <- atomically $ readTVar isActive
             when active $ do
                 threadDelay (30 * 1000000)
                 handleDisconnect isActive $ do
-                    sendChunk (ByteString.stringUtf8 ": heartbeat\n\n") >> flush
+                    sendChunk (B.stringUtf8 ": heartbeat\n\n") >> flush
                 heartbeatLoop
 
     heartbeatLoop
@@ -150,27 +159,30 @@ channelName tableName = "dbe_did_change_" <> tableName
 
 -- | Construct the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
 notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query [i|
-        BEGIN;
+notificationTrigger tableName = PG.Query $ BS.concat $ BL.toChunks $ B.toLazyByteString queryBuilder
+  where
+    functionName       = "dbe_notify_did_change_" <> tableName
+    insertTriggerName  = "dbe_did_insert_" <> tableName
+    updateTriggerName  = "dbe_did_update_" <> tableName
+    deleteTriggerName  = "dbe_did_delete_" <> tableName
+
+    triggerActions     = ["INSERT", "UPDATE", "DELETE"]
+    triggerNames       = [insertTriggerName, updateTriggerName, deleteTriggerName]
+
+    createTriggerSQL action triggerName = [i|
+        DROP TRIGGER IF EXISTS #{triggerName} ON #{tableName};
+        CREATE TRIGGER #{triggerName} AFTER #{action} ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+    |]
+
+    queryBuilder = mconcat
+        [ B.stringUtf8 [i|BEGIN;
             CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
                 BEGIN
                     PERFORM pg_notify('#{channelName tableName}', '');
                     RETURN new;
                 END;
             $$ language plpgsql;
-            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
-            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-            
-            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
-            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
-            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-        
-        COMMIT;
-    |]
-    where
-        functionName = "dbe_notify_did_change_" <> tableName
-        insertTriggerName = "dbe_did_insert_" <> tableName
-        updateTriggerName = "dbe_did_update_" <> tableName
-        deleteTriggerName = "dbe_did_delete_" <> tableName
+        |]
+        , mconcat $ zipWith createTriggerSQL triggerActions triggerNames
+        , B.stringUtf8 "COMMIT;"
+        ]
