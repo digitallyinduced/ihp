@@ -1,4 +1,4 @@
--- | The IHP.DBEvent module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
+-- | The IHP.PGEventStore module is responsible for dispatching Server-Sent Events (SSE) with PostgreSQL notifications.
 module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
