@@ -98,7 +98,7 @@ sendHeartbeats sendChunk flush isActive = do
     heartbeatLoop
 
 
--- A utility function to gracefully handle the client disconnect exception
+-- Gracefully handle the client disconnect exception
 handleDisconnect ::  (?context :: ControllerContext) =>  TVar Bool -> IO () -> IO ()
 handleDisconnect isActive action = action `Exception.catch` \e ->
     if isDisconnectException e
