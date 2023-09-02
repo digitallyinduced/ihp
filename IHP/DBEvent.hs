@@ -8,13 +8,13 @@ import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sq
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString ( i )
-import Network.Wai ( responseStream )
+import qualified Network.Wai as Wai
 import qualified Control.Exception as Exception
 import qualified Data.ByteString.Builder as ByteString
 import IHP.ApplicationContext ( ApplicationContext(pgListener) )
 import IHP.Controller.Context ( fromContext, putContext )
-import Network.HTTP.Types (status200)
-import Network.HTTP.Types.Header ( hContentType )
+import Network.HTTP.Types (status200, hConnection)
+import Network.HTTP.Types.Header ( HeaderName, hContentType, hCacheControl  )
 import Control.Concurrent (threadDelay)
 import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
 import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar,modifyTVar')
@@ -27,7 +27,22 @@ initDbEvents :: (?context :: ControllerContext, ?applicationContext :: Applicati
 initDbEvents = do
     putContext ?applicationContext.pgListener
 
+-- | Required headers for SSE responses.
+sseHeaders :: [(HeaderName, ByteString)]
+sseHeaders = 
+        [ (hCacheControl, "no-store")
+        , (hConnection, "keep-alive")
+        , (hContentType, "text/event-stream")
+        ]
 
+runCleanupActions :: TVar [IO a] -> IO ()
+runCleanupActions cleanupActions = do
+            actions <- atomically $ do
+                a <- readTVar cleanupActions
+                writeTVar cleanupActions []
+                return a
+            sequence_ actions
+            
 -- | Stream database change events to clients as Server-Sent Events.
 -- This function sends updates to the client when the database tables tracked by the 
 -- application change.
@@ -41,13 +56,6 @@ respondDbEvent eventName  = do
 
     let addCleanupAction action = atomically $ modifyTVar' cleanupActions (action:)
 
-    let runCleanupActions = do
-            actions <- atomically $ do
-                a <- readTVar cleanupActions
-                writeTVar cleanupActions []
-                return a
-            sequence_ actions
-
     let streamBody sendChunk flush = do
              -- Notify the client that the connection is established
             initializeStream sendChunk >> flush
@@ -60,17 +68,11 @@ respondDbEvent eventName  = do
                     addCleanupAction $ PGListener.unsubscribe subscription pgListener           
                     
             -- Send a heartbeat to the client every 30 seconds to keep the connection alive
-            sendHeartbeats sendChunk flush isActive `Exception.finally` runCleanupActions
+            sendHeartbeats sendChunk flush isActive 
+                `Exception.finally` runCleanupActions cleanupActions
 
     -- Send the stream to the client
-    respondAndExit $
-        responseStream
-            status200
-            [ ("Cache-Control", "no-store")
-            , ("Connection", "keep-alive")
-            , (hContentType, "text/event-stream")
-            ]
-            streamBody
+    respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (ByteString.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
