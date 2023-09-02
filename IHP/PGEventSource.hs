@@ -161,41 +161,28 @@ channelName tableName = "dbe_did_change_" <> tableName
 
 
 -- | Constructs the SQL for creating triggers on table changes and sending notifications to the corresponding channel.
--- The approach in this function prioritizes efficiency. Instead of using multiple string concatenations which can 
--- be costly in terms of performance, we utilize a combination of ByteString's 'mconcat' function and the Builder 
--- pattern. This allows for more efficient memory use and faster string construction, especially given that this 
--- function could be invoked frequently. By buffering and grouping multiple string chunks into larger chunks, 
--- the Builder pattern minimizes the need for reallocations, providing both speed and reduced memory overhead.
 notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query $ BS.concat $ BL.toChunks $ B.toLazyByteString queryBuilder
-  where
-    -- These definitions provide naming conventions based on the table name.
-    functionName       = "dbe_notify_did_change_" <> tableName
-    insertTriggerName  = "dbe_did_insert_" <> tableName
-    updateTriggerName  = "dbe_did_update_" <> tableName
-    deleteTriggerName  = "dbe_did_delete_" <> tableName
-
-    -- List of trigger actions and their corresponding names for easy iteration.
-    triggerActions     = ["INSERT", "UPDATE", "DELETE"]
-    triggerNames       = [insertTriggerName, updateTriggerName, deleteTriggerName]
-
-    -- Generates the SQL for each trigger action.
-    createTriggerSQL action triggerName = [i|
-        DROP TRIGGER IF EXISTS #{triggerName} ON #{tableName};
-        CREATE TRIGGER #{triggerName} AFTER #{action} ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-    |]
-
-    -- Construct the entire query.
-    queryBuilder = mconcat
-        [ B.stringUtf8 [i|BEGIN;
+notificationTrigger tableName = PG.Query [i|
+        BEGIN;
             CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
                 BEGIN
                     PERFORM pg_notify('#{channelName tableName}', '');
                     RETURN new;
                 END;
             $$ language plpgsql;
-        |]
-        , mconcat $ zipWith createTriggerSQL triggerActions triggerNames
-        , B.stringUtf8 "COMMIT;"
-        ]
+            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
+            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+            
+            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
+            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
 
+            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
+            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
+        
+        COMMIT;
+    |]
+    where
+        functionName = "ar_notify_did_change_" <> tableName
+        insertTriggerName = "ar_did_insert_" <> tableName
+        updateTriggerName = "ar_did_update_" <> tableName
+        deleteTriggerName = "ar_did_delete_" <> tableName
