@@ -4,6 +4,81 @@
 
 ```
 
+## Deploying with `deploy-to-nixos`
+
+IHP comes with a standard command called `deploy-to-nixos`. This tool is a little wrapper around `nixos-rebuild` and allows you to deploy IHP apps to a NixOS server. With `deploy-to-nixos` you can manage your servers in a fully declarative way and keep the full configuration in your git repository.
+
+AWS EC2 is a good choice for deploying IHP in a professional setup.
+
+### Creating a new EC2 Instance
+
+Start a new EC2 instance and use the official NixOS AMI `NixOS-23.05.426.afc48694f2a-x86_64-linux`. You can find the latest NixOS AMI at https://nixos.org/download#nixos-amazon
+
+Make sure to attach SSH keys to the instance at creation time.
+
+### Connecting to the EC2 Instance
+
+After you've created the instance, configure your local SSH settings to point to the instance.
+
+In your `~/.ssh/config` you typically add something like this:
+
+```
+Host ihp-app
+    HostName ec2-.....compute.amazonaws.com
+    User root
+        IdentityFile /Users/marc/.ssh/ihp-app.pem
+```
+
+Now you can connect to the instance using `ssh ihp-app`.
+
+### Configuring the Instance
+
+In your `flake.nix` add the following configuration:
+
+```nix
+flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+    specialArgs = inputs;
+    modules = [
+        "${nixpkgs}/nixos/modules/virtualisation/amazon-image.nix"
+        ihp.nixosModules.appWithPostgres
+        ({ ... }: {
+            security.acme.defaults.email = "me@example.com";
+
+            services.ihp = {
+                domain = "myihpapp.com";
+                migrations = ./Application/Migration;
+                schema = ./Application/Schema.sql;
+                fixtures = ./Application/Fixtures.sql;
+                sessionSecret = "xxx";
+            };
+
+            # Add swap to avoid running out of memory during builds
+            # Useful if your server have less than 4GB memory
+            swapDevices = [ { device = "/swapfile"; size = 8192; } ];
+
+            # This should reflect the nixos version from the NixOS AMI initally installed
+            # After the initial install, it should not be changed. Otherwise e.g. the postgres
+            # server might need a manual data migration if NixOS changes the default postgres version
+            system.stateVersion = "23.05";
+        })
+    ];
+};
+```
+
+In the first line the `"ihp-app"` needs to be the same as your SSH name from the previous section.
+
+
+### Deploying the App
+
+Now you can deploy the app using `deploy-to-nixos` (which is just a small wrapper around nixos-rebuild):
+
+```bash
+deploy-to-nixos ihp-app
+```
+
+This will connect to the server via SSH and apply the NixOS configuration to the server.
+
 ## Deploying with Shipnix
 
 Shipnix is a service for deploying NixOS web servers on DigitalOcean with first-class support for IHP.

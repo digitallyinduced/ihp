@@ -6,6 +6,7 @@ import IHP.ModelSupport
 import IHP.FrameworkConfig
 import IHP.Log.Types
 import Main.Utf8 (withUtf8)
+import qualified IHP.EnvVar as EnvVar
 
 main :: IO ()
 main = withUtf8 do
@@ -25,7 +26,7 @@ main = withUtf8 do
 
     let ?modelContext = modelContext
 
-    minimumRevision <- envOrNothing "MINIMUM_REVISION"
+    minimumRevision <- EnvVar.envOrNothing "MINIMUM_REVISION"
     migrate MigrateOptions { minimumRevision }
 
     logger |> cleanup

@@ -3,22 +3,28 @@ flake-parts module for setting the local IHP devenv shell
 this is different from the devenv environment used by IHP apps!
 that is defined in flake-module.nix
 */
-
+{ inputs }:
 {
-    perSystem = { pkgs, lib, ... }: {
+    perSystem = { nix-filter, pkgs, lib, ... }: let
+        ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
+            inherit pkgs;
+            ghcCompiler = pkgs.haskell.packages.ghc96;
+            ihp = ./.;
+            filter = inputs.nix-filter.lib;
+        };
+    in {
+
+        apps.migrate = {
+            type = "app";
+            program = "${ghcCompiler.ihp}/bin/migrate";
+        };
+
         devenv.shells.default = {
             packages = with pkgs; [ entr nodejs-18_x ];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
 
             languages.haskell.enable = true;
             languages.haskell.package =
-                let
-                    ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
-                        inherit pkgs;
-                        ghcCompiler = pkgs.haskell.packages.ghc96;
-                        ihp = ./.;
-                    };
-                in
                     ghcCompiler.ghc.withPackages (p: with p; [
                         # Copied from ihp.nix
                         base

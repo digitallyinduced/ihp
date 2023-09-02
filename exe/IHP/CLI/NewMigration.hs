@@ -1,7 +1,6 @@
 module Main where
 
 import IHP.Prelude
-import IHP.SchemaMigration
 import qualified System.Posix.Env.ByteString as Posix
 import qualified System.Directory as Directory
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)

@@ -133,7 +133,7 @@ instance View EditView where
 
 ## Checking that the current user has permission to access the action
 
-Use [accessDeniedWhen](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedWhen) like this:
+Use [accessDeniedWhen](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedWhen) like this:
 
 ```haskell
 action EditPostAction { postId } = do
@@ -144,7 +144,7 @@ action EditPostAction { postId } = do
     renderHtml EditView { .. }
 ```
 
-Or the opposite command [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:accessDeniedUnless) like this:
+Or the opposite command [accessDeniedUnless](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedUnless) like this:
 
 ```haskell
 action EditPostAction { postId } = do
@@ -154,6 +154,10 @@ action EditPostAction { postId } = do
 
     renderHtml EditView { .. }
 ```
+
+Sometimes you'd want to hide the fact a resource exists at all. For example, if a user is not allowed to see a other users, you might want to show a page not found instead of an access denied page. You can do this with [notFoundWhen](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-NotFound.html#v:notFoundWhen) and [notFoundUnless](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-NotFound.html#v:notFoundUnless).
+
+```haskell
 
 ## Creating a custom validator
 

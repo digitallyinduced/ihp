@@ -18,9 +18,8 @@ import Network.Minio
 
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
-import qualified System.Environment as Env
-import qualified Data.Text as Text
 import Control.Monad.Trans.Maybe
+import qualified IHP.EnvVar as EnvVar
 
 -- | The AWS access key and secret key have to be provided using the @AWS_ACCESS_KEY_ID@ and @AWS_SECRET_ACCESS_KEY@ env vars.
 --
@@ -128,6 +127,6 @@ filebaseCI = "https://s3.filebase.com" |> setRegion "us-east-1"
 
 fromFilebaseEnv :: CredentialLoader
 fromFilebaseEnv = runMaybeT $ do
-    filebaseKey <- MaybeT $ Env.lookupEnv "FILEBASE_KEY"
-    filebaseSecret <- MaybeT $ Env.lookupEnv "FILEBASE_SECRET"
-    pure CredentialValue { cvAccessKey = fromString filebaseKey, cvSecretKey = fromString filebaseSecret, cvSessionToken = Nothing }
+    filebaseKey <- MaybeT $ EnvVar.envOrNothing "FILEBASE_KEY"
+    filebaseSecret <- MaybeT $ EnvVar.envOrNothing "FILEBASE_SECRET"
+    pure CredentialValue { cvAccessKey = filebaseKey, cvSecretKey = filebaseSecret, cvSessionToken = Nothing }

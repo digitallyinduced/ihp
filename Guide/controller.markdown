@@ -177,7 +177,7 @@ action MyAction = do
 
 Rarely you might want to work with a custom scalar value which is not yet supported with [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param). Define a custom [`ParamReader`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader) instance to be able to use the [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) functions with your custom value type. [For that, take a look at the existing instances of `ParamReader`.](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#t:ParamReader)
 
-### Records
+### Populating Records from From Data with `fill`
 
 When working with records, use [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) instead of [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param). [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill) automatically deals with validation failure when e.g. a field value needs to be an integer, but the submitted value is not numeric.
 
@@ -195,6 +195,8 @@ action CreatePostAction = do
                 setSuccessMessage "Post created"
                 redirectTo PostsAction
 ```
+
+In the above example we are creating a new post record and then we are filling it with the values from the request. If the request contains invalid data, we are rendering the `NewView` again, so the user can fix the errors. If the request contains valid data, we are creating the post record and redirecting to the `PostsAction`.
 
 ## Lifecycle
 

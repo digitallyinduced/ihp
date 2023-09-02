@@ -118,8 +118,7 @@ toRouteParseResult ioResponseReceived = pure (\t -> t, \_ -> ioResponseReceived)
 
 class FrontController application where
     controllers
-        :: forall controller
-         . (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
+        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
         => [RouteParser]
 
     router
@@ -326,7 +325,7 @@ applyConstr parseIdType constructor query = let
     attemptToParseArg queryParam@(queryName, queryValue) [] = State.lift (Left NoConstructorMatched
                 { field = queryName
                 , value = queryValue
-                , expectedType = (dataTypeOf (undefined :: d)) |> dataTypeName |> cs
+                , expectedType = (dataTypeOf (Prelude.undefined :: d)) |> dataTypeName |> cs
                 })
     attemptToParseArg queryParam@(k, v) (parseFunc:restFuncs) = case parseFunc v of
             Right result -> pure result
@@ -750,7 +749,7 @@ onlyAllowMethods methods = do
 --
 -- The request @\/AutoRefreshWSApp@ will call the AutoRefreshWSApp
 --
-webSocketApp :: forall webSocketApp application controller.
+webSocketApp :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
@@ -796,7 +795,7 @@ webSocketAppWithHTTPFallback = webSocketAppWithCustomPathAndHTTPFallback @webSoc
 --
 -- The request @\/my-ws-app@ will call the AutoRefreshWSApp
 --
-webSocketAppWithCustomPath :: forall webSocketApp application controller.
+webSocketAppWithCustomPath :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
@@ -829,7 +828,7 @@ webSocketAppWithCustomPathAndHTTPFallback path = toRouteParser do
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: forall action application controller. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> RouteParser
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> RouteParser
 startPage action = get (ByteString.pack (actionPrefix @action)) action
 {-# INLINABLE startPage #-}
 

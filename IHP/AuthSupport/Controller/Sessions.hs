@@ -128,7 +128,7 @@ currentUserOrNothing =
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
-buildNewSessionAction :: forall controller action. (?theAction :: controller, Data controller) => controller
+buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller
 buildNewSessionAction = fromConstr createConstructor
     where
         createConstructor :: Constr

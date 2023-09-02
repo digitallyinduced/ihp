@@ -16,7 +16,7 @@ import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
-import qualified IHP.ErrorController as ErrorController
+import IHP.ErrorController
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.LibDir
@@ -26,13 +26,15 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Control.Exception as Exception
 
-import qualified System.Environment as Env
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
 
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
+import qualified IHP.EnvVar as EnvVar
+
+import IHP.Controller.NotFound (handleNotFound)
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -59,13 +61,13 @@ run configBuilder = do
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
                 let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
-                withBackgroundWorkers pgListener frameworkConfig 
+                withBackgroundWorkers pgListener frameworkConfig
                     . runServer frameworkConfig
                     . customMiddleware
                     . corsMiddleware
                     . sessionMiddleware
                     . requestLoggerMiddleware
-                    . methodOverridePost 
+                    . methodOverridePost
                     $ application staticApp
 
 {-# INLINABLE run #-}
@@ -94,10 +96,10 @@ initStaticApp frameworkConfig = do
             Env.Development -> Static.MaxAgeSeconds 0
             Env.Production -> Static.MaxAgeForever
 
-        
+
         frameworkStaticDir = libDir <> "/static/"
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
-                { Static.ss404Handler = Just ErrorController.handleNotFound
+                { Static.ss404Handler = Just handleNotFound
                 , Static.ssMaxAge = maxAge
                 }
         appSettings = (Static.defaultWebAppSettings "static/")
@@ -111,7 +113,7 @@ initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> Framewo
 initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
-    hasSessionSecretEnvVar <- isJust <$> Env.lookupEnv "IHP_SESSION_SECRET"
+    hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
     doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
     store <- clientsessionStore <$>
             if hasSessionSecretEnvVar || not doesConfigDirectoryExist
@@ -153,7 +155,7 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
 instance ControllerSupport.InitControllerContext () where
     initContext = pure ()
 
-withInitalizers :: FrameworkConfig -> ModelContext -> _ -> IO ()
+withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
         let ?context = frameworkConfig
         let ?modelContext = modelContext

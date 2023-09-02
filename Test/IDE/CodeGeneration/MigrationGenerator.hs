@@ -1362,6 +1362,51 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should deal with truncated identifiers" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage the prepare_context_jobs if they can see the C" ON public.prepare_context_jobs USING ((EXISTS ( SELECT 1
+                       FROM public.contexts
+                      WHERE (contexts.id = prepare_context_jobs.context_id)))) WITH CHECK ((EXISTS ( SELECT 1
+                       FROM public.contexts
+                      WHERE (contexts.id = prepare_context_jobs.context_id))));
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage the prepare_context_jobs if they can see the Context" ON prepare_context_jobs USING (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id));
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should deal with nested SELECT expressions inside a policy" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Allow users to see their own company" ON public.companies USING ((id = ( SELECT users.company_id
+                       FROM public.users
+                      WHERE (users.id = public.ihp_user_id())))) WITH CHECK (false);
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Allow users to see their own company" ON companies USING (id = (SELECT company_id FROM users WHERE users.id = ihp_user_id())) WITH CHECK (false);
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
+            it "should deal with complex nested SELECT expressions inside a policy" do
+                -- Tricky part is the `projects.id = ads.project_id` here
+                -- It needs to be unwrapped to `id = project_id` correctly
+                let actualSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage ads if they can access the project" ON public.ads USING ((EXISTS ( SELECT projects.id
+                       FROM public.projects
+                      WHERE (projects.id = ads.project_id)))) WITH CHECK ((EXISTS ( SELECT projects.id
+                       FROM public.projects
+                      WHERE (projects.id = ads.project_id))));
+                |]
+                let targetSchema = sql $ cs [plain|
+                    CREATE POLICY "Users can manage ads if they can access the project" ON ads USING (EXISTS (SELECT id FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT id FROM projects WHERE id = project_id));
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
