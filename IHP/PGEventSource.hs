@@ -48,9 +48,12 @@ streamPgEvent eventName  = do
             -- For each touched table, create a trigger in the database and subscribe to notifications
             touchedTables 
                 |> mapM \table -> do
-                    let notificationCallback = handleNotificationTrigger sendChunk flush eventName table
                     createTriggerForTable table
-                    subscription <- subscribeToTableChanges pgListener table notificationCallback
+
+                    let notificationCallback = handleNotificationTrigger sendChunk flush eventName table
+                    subscription <- PGListener.subscribe (channelName table) notificationCallback pgListener
+
+                    -- Add a cleanup action to unsubscribe from the channel when the client disconnects
                     addCleanupAction $ PGListener.unsubscribe subscription pgListener           
                     
             -- Send a heartbeat to the client every 30 seconds to keep the connection alive
@@ -114,11 +117,6 @@ runCleanupActions cleanupActions = do
                 writeTVar cleanupActions []
                 return a
             forM_ actions id
-
-
--- | Subscribes to changes in a table using the given callback for notification triggers.
-subscribeToTableChanges :: PGListener.PGListener -> ByteString -> (Notification -> IO ()) -> IO PGListener.Subscription
-subscribeToTableChanges pgListener table callback = PGListener.subscribe (channelName table) callback pgListener
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
