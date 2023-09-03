@@ -122,8 +122,8 @@ handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO
 handleNotificationTrigger sendChunk flush eventName table notification = do
         let eventPayload =  B.byteString $ cs $ unindent
                                 ([i|
-                                id:#{fromIntegral $ notificationPid notification}
-                                event:#{eventName}
+                                id: #{fromIntegral $ notificationPid notification}
+                                event: #{eventName}
                                 data: #{table} change event triggered
                                 |] <> "\n\n" -- Appending these newlines are required to separate the event payload from the next event.
                                 ) 
