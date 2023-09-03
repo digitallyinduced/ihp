@@ -1,4 +1,4 @@
--- | The IHP.PGEventSource module is responsible for dispatching Server-Sent Events (SSE) from PostgreSQL notification triggers.
+-- | The IHP.PGEventSource module is responsible for dispatching Server-sent Events (SSE) from PostgreSQL notification triggers.
 module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
@@ -32,12 +32,13 @@ initPgEventSource = do
     putContext ?applicationContext.pgListener
 
 
--- | Stream database change events to clients as Server-Sent Events (SSE).
+-- | Stream database change events to clients as Server-sent Events (SSE).
 -- This function dispatches events to the client (most commonly the web browser) when the PGListener subscription triggers a notification.
 streamPgEvent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?touchedTables::IORef (Set ByteString)) => ByteString -> IO ()
 streamPgEvent eventName  = do
     touchedTables <- Set.toList <$> readIORef ?touchedTables
     pgListener <- fromContext @PGListener.PGListener
+
     -- Keep track of whether the client is still connected
     isActive <- newTVarIO True
     -- Cleanup actions to be executed when the client disconnects
