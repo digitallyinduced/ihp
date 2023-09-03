@@ -26,21 +26,21 @@ import Data.String.Interpolate.Util (unindent)
 
 
 -- | Initialize database events functionality. This makes the PGListener 
--- from the application context available in the Controller context.
+-- from the `ApplicationContext` available in the `ControllerContext`.
 initPgEventSource :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initPgEventSource = do
     putContext ?applicationContext.pgListener
 
 
--- | Stream database change events to clients as Server-Sent Events.
--- This function sends updates to the client when the database tables tracked by the 
--- application change.
+-- | Stream database change events to clients as Server-Sent Events (SSE).
+-- This function dispatches events to the client (most commonly the web browser) when the PGListener subscription triggers a notification.
 streamPgEvent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?touchedTables::IORef (Set ByteString)) => ByteString -> IO ()
 streamPgEvent eventName  = do
     touchedTables <- Set.toList <$> readIORef ?touchedTables
     pgListener <- fromContext @PGListener.PGListener
-    -- Initialize the isActive TVar to True
+    -- Keep track of whether the client is still connected
     isActive <- newTVarIO True
+    -- Cleanup actions to be executed when the client disconnects
     cleanupActions <- newTVarIO [] :: IO (TVar [IO ()])
 
     let addCleanupAction action = atomically $ modifyTVar' cleanupActions (action:)
@@ -73,9 +73,9 @@ sseHeaders =
     , (hContentType, "text/event-stream")
     ]
 
--- | Responds with a streaming body as an SSE (Server-Sent Event) to the client.
+-- | Responds with a streaming body as an SSE to the client.
 -- This function takes a 'Wai.StreamingBody' (essentially a stream of data chunks)
--- and sends it to the client with the appropriate headers for SSE
+-- and sends it to the client with the appropriate headers
 respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
 respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
 
@@ -92,13 +92,13 @@ sendHeartbeats sendChunk flush isActive = do
 
 
 -- Gracefully handle the client disconnect exception
-handleDisconnect ::  (?context :: ControllerContext) =>  TVar Bool -> IO () -> IO ()
+handleDisconnect :: (?context :: ControllerContext) =>  TVar Bool -> IO () -> IO ()
 handleDisconnect isActive action = action `Exception.catch` \e ->
     if isDisconnectException e
         then do
-            Log.info ("SSE client disconnected gracefully" :: Text)
+            Log.info ("PGEventSource disconnected gracefully" :: Text)
             atomically $ writeTVar isActive False
-        else Log.error $ "SSE Error: " ++ show (e :: Exception.SomeException)
+        else Log.error $ "PGEventSource Error: " ++ show (e :: Exception.SomeException)
     where
         isDisconnectException e = "Client closed connection prematurely" `isInfixOf` show (e :: Exception.SomeException)
 
@@ -108,13 +108,14 @@ handleDisconnect isActive action = action `Exception.catch` \e ->
 -- After executing the cleanup actions, the 'TVar' is emptied.
 -- 
 -- @param cleanupActions A 'TVar' containing a list of IO actions representing cleanup operations.
-runCleanupActions :: TVar [IO a] -> IO ()
+runCleanupActions :: (?context :: ControllerContext) => TVar [IO a] -> IO ()
 runCleanupActions cleanupActions = do
     actions <- atomically $ do
         a <- readTVar cleanupActions
         writeTVar cleanupActions []
         return a
     forM_ actions id
+    Log.debug ("PGEventSource cleanup actions executed" :: Text)
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
@@ -131,7 +132,7 @@ handleNotificationTrigger sendChunk flush eventName table notification = do
             ) 
 
     sendChunk eventPayload >> flush
-        `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
+        `Exception.catch` (\e -> Log.error $ "PGEventSource error: Error sending chunk: " ++ show (e :: Exception.SomeException))
     pure ()
 
 
