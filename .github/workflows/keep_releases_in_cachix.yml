@@ -24,7 +24,7 @@ jobs:
     - run: git clone https://github.com/digitallyinduced/ihp-boilerplate.git
     - run: |
           cd ihp-boilerplate
-          php ../.github/patch-flakes.php ${{ matrix.os }} ${{ github.event.repository.full_name }}
+          php ../.github/patch-flakes.php ${{ matrix.version }} ${{ github.event.repository.full_name }}
           cat flake.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
