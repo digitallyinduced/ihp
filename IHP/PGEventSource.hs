@@ -15,13 +15,14 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
 import Data.String.Interpolate.IsString (i)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
 import qualified Network.Wai as Wai
 import Network.HTTP.Types (status200, hConnection)
 import Network.HTTP.Types.Header (HeaderName, hContentType, hCacheControl)
 import qualified Data.Set as Set
+import Data.String.Interpolate.Util (unindent)
 
 
 -- | Initialize database events functionality. This makes the PostgreSQL listener 
@@ -119,19 +120,17 @@ runCleanupActions cleanupActions = do
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
-        -- This could have been more readable, but should be more performant this way
-        let message :: B.Builder = mconcat
-                [ B.stringUtf8 "id:"
-                , B.intDec (fromIntegral $ notificationPid notification)
-                , B.stringUtf8 "\nevent:"
-                , B.byteString eventName
-                , B.stringUtf8 "\ndata: "
-                , B.byteString table
-                , B.stringUtf8 " change event triggered\n\n"
-                ]
-        sendChunk message >> flush
+        let eventPayload :: B.Builder =  B.byteString $ cs $ unindent
+                [i|
+                id:#{fromIntegral $ notificationPid notification}
+                event:#{eventName}
+                data: #{table} change event triggered
+                |] 
+     
+        sendChunk eventPayload >> flush
             `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
         pure ()
+
 
 
 -- | Creates a database trigger that notifies on table changes (insert, update, delete).
