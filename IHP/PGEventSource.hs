@@ -120,16 +120,13 @@ runCleanupActions cleanupActions = do
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
-        let eventPayload :: B.Builder =  B.byteString $ cs $ unindent
-                ([i|
-                id:#{fromIntegral $ notificationPid notification}
-                event:#{eventName}
-                data: #{table} change event triggered
-                |] 
-                <>
-                -- These newlines are required to separate the event payload from the next event 
-                "\n\n"
-                ) 
+        let eventPayload =  B.byteString $ cs $ unindent
+                                ([i|
+                                id:#{fromIntegral $ notificationPid notification}
+                                event:#{eventName}
+                                data: #{table} change event triggered
+                                |] <> "\n\n" -- Appending these newlines are required to separate the event payload from the next event.
+                                ) 
      
         sendChunk eventPayload >> flush
             `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
