@@ -121,11 +121,11 @@ runCleanupActions cleanupActions = do
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
         let eventPayload :: B.Builder =  B.byteString $ cs $ unindent
-                [i|
+                ([i|
                 id:#{fromIntegral $ notificationPid notification}
                 event:#{eventName}
                 data: #{table} change event triggered
-                |] 
+                |] <> "\n\n") 
      
         sendChunk eventPayload >> flush
             `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
