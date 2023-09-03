@@ -1,0 +1,46 @@
+name: Keep Releases in Cachix
+on:
+  push:
+    branches: master
+  schedule:
+    - cron: '17 * * *'
+jobs:
+  build:
+    strategy:
+      matrix:
+        version: ["v1.1.0", "v1.0.1", "v1.0.0"]
+        os: [ubuntu-latest, macos-latest, ARM64]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: cachix/install-nix-action@v22
+      with:
+        nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e.tar.gz
+    - uses: cachix/cachix-action@v12
+      with:
+        name: digitallyinduced
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: git clone https://github.com/digitallyinduced/ihp-boilerplate.git
+    - run: |
+          cd ihp-boilerplate
+          php ../.github/patch-flakes.php ${{ matrix.os }} ${{ github.event.repository.full_name }}
+          cat flake.nix
+          mv Makefile Makefile.old
+          echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
+          nix develop --impure --command bash -c "new-application Web && make build/bin/RunUnoptimizedProdServer"
+    - name: Build IHP app
+      run: |
+        cd ihp-boilerplate && nix develop --impure --profile ihp-boilerplate-profile --command "true"
+    - name: Install jq
+      run: nix profile install nixpkgs#jq
+      if: matrix.os != 'ARM64'
+    - name: Push IHP app to cachix
+      run: |
+        cd ihp-boilerplate
+        # Cachix doesn't natively support nix flakes in it's cachix-action
+        # See https://github.com/cachix/cachix-action/issues/47
+        cachix push digitallyinduced ihp-boilerplate-profile
+        # Pushing runtime closure
+        nix develop --impure --command bash -c 'make -s all; new-application Web'
+        git add . # So the generated files are available to nix flakes
+        nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced
