@@ -128,7 +128,7 @@ handleNotificationTrigger sendChunk flush eventName table notification = do
                 id: #{fromIntegral $ notificationPid notification}
                 event: #{eventName}
                 data: #{table} change event triggered
-                |] <> "\n\n" -- Appending these newlines are required to separate the event payload from the next event. 
+                |] <> "\n\n" -- Ending with at least two newlines is required to separate the event payload from the next one in the stream.
             ) 
 
     sendChunk eventPayload >> flush
