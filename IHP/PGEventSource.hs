@@ -45,8 +45,6 @@ streamPgEvent eventName  = do
     let addCleanupAction action = atomically $ modifyTVar' cleanupActions (action:)
 
     let streamBody sendChunk flush = do
-             -- Notify the client that the connection is established
-            initializeStream sendChunk >> flush
             -- For each touched table, create a trigger in the database and subscribe to notifications
             touchedTables 
                 |> mapM \table -> do
@@ -63,7 +61,6 @@ streamPgEvent eventName  = do
     respondEventSource streamBody
 
 
-
 -- | Required headers for SSE responses.
 sseHeaders :: [(HeaderName, ByteString)]
 sseHeaders = 
@@ -77,11 +74,6 @@ sseHeaders =
 -- and sends it to the client with the appropriate headers for SSE
 respondEventSource :: (?context::ControllerContext) => Wai.StreamingBody -> IO ()
 respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 sseHeaders streamBody
-
-
--- | Initializes the SSE stream with a connection established message.
-initializeStream :: (B.Builder -> IO ()) -> IO ()
-initializeStream sendChunk = sendChunk (B.stringUtf8 "data: Connection established!\n\n")
 
 
 -- | Send periodic heartbeats to the client to keep the connection alive.
@@ -143,7 +135,7 @@ handleNotificationTrigger sendChunk flush eventName table notification = do
                 , B.stringUtf8 " change event triggered\n\n"
                 ]
         sendChunk message >> flush
-                        `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
+            `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
         pure ()
 
 
