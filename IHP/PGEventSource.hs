@@ -9,7 +9,7 @@ import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sq
 import qualified IHP.Log as Log
 import qualified IHP.PGListener as PGListener
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar, modifyTVar')
+import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar, modifyTVar', readTVarIO)
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
@@ -46,7 +46,7 @@ streamPgEvent eventName  = do
 
     let streamBody sendChunk flush = do
             -- For each touched table, create a trigger in the database and subscribe to notifications
-            touchedTables 
+            touchedTables
                 |> mapM \table -> do
                     createTriggerForTable table
 
@@ -54,10 +54,10 @@ streamPgEvent eventName  = do
                     subscription <- PGListener.subscribe (channelName table) notificationCallback pgListener
 
                     -- Add a cleanup action to unsubscribe from the channel when the client disconnects
-                    addCleanupAction $ PGListener.unsubscribe subscription pgListener           
-                    
+                    addCleanupAction $ PGListener.unsubscribe subscription pgListener
+
             -- Send a heartbeat to the client every 30 seconds to keep the connection alive
-            sendHeartbeats sendChunk flush isActive 
+            sendHeartbeats sendChunk flush isActive
                 `Exception.finally` runCleanupActions cleanupActions
 
     -- Send the stream to the client
@@ -66,7 +66,7 @@ streamPgEvent eventName  = do
 
 -- | Required headers for SSE responses.
 sseHeaders :: [(HeaderName, ByteString)]
-sseHeaders = 
+sseHeaders =
         [ (hCacheControl, "no-store")
         , (hConnection, "keep-alive")
         , (hContentType, "text/event-stream")
@@ -82,15 +82,12 @@ respondEventSource streamBody = respondAndExit $ Wai.responseStream status200 ss
 -- | Send periodic heartbeats to the client to keep the connection alive.
 sendHeartbeats :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> TVar Bool -> IO ()
 sendHeartbeats sendChunk flush isActive = do
-    let heartbeatLoop = do
-            active <- atomically $ readTVar isActive
-            when active $ do
-                threadDelay (30 * 1000000)
-                handleDisconnect isActive $ do
-                    sendChunk (B.stringUtf8 ": heartbeat\n\n") >> flush
-                heartbeatLoop
-
-    heartbeatLoop
+    active <- readTVarIO isActive
+    when active $ do
+        threadDelay (30 * 1000000)
+        handleDisconnect isActive $ do
+            sendChunk (B.stringUtf8 ": heartbeat\n\n") >> flush
+        sendHeartbeats sendChunk flush isActive
 
 
 -- Gracefully handle the client disconnect exception
@@ -123,7 +120,7 @@ runCleanupActions cleanupActions = do
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
         -- This could have been more readable, but should be more performant this way
-        let message :: B.Builder = mconcat 
+        let message :: B.Builder = mconcat
                 [ B.stringUtf8 "id:"
                 , B.intDec (fromIntegral $ notificationPid notification)
                 , B.stringUtf8 "\nevent:"
