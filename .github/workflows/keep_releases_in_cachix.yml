@@ -47,5 +47,7 @@ jobs:
 
         if test -f flake.nix; then \
           cachix push digitallyinduced ihp-boilerplate-profile; \
+          nix develop --impure --command bash -c 'make -s all; new-application Web'; \
+          git add .; \
           nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced; \
         fi;
