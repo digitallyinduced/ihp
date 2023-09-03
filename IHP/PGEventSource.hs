@@ -1,4 +1,4 @@
--- | The IHP.PGEventStore module is responsible for dispatching Server-Sent Events (SSE) from PostgreSQL notification triggers.
+-- | The IHP.PGEventSource module is responsible for dispatching Server-Sent Events (SSE) from PostgreSQL notification triggers.
 module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
@@ -25,7 +25,7 @@ import qualified Data.Set as Set
 import Data.String.Interpolate.Util (unindent)
 
 
--- | Initialize database events functionality. This makes the PostgreSQL listener 
+-- | Initialize database events functionality. This makes the PGListener 
 -- from the application context available in the Controller context.
 initPgEventSource :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initPgEventSource = do
@@ -68,10 +68,10 @@ streamPgEvent eventName  = do
 -- | Required headers for SSE responses.
 sseHeaders :: [(HeaderName, ByteString)]
 sseHeaders =
-        [ (hCacheControl, "no-store")
-        , (hConnection, "keep-alive")
-        , (hContentType, "text/event-stream")
-        ]
+    [ (hCacheControl, "no-store")
+    , (hConnection, "keep-alive")
+    , (hContentType, "text/event-stream")
+    ]
 
 -- | Responds with a streaming body as an SSE (Server-Sent Event) to the client.
 -- This function takes a 'Wai.StreamingBody' (essentially a stream of data chunks)
@@ -110,28 +110,29 @@ handleDisconnect isActive action = action `Exception.catch` \e ->
 -- @param cleanupActions A 'TVar' containing a list of IO actions representing cleanup operations.
 runCleanupActions :: TVar [IO a] -> IO ()
 runCleanupActions cleanupActions = do
-            actions <- atomically $ do
-                a <- readTVar cleanupActions
-                writeTVar cleanupActions []
-                return a
-            forM_ actions id
+    actions <- atomically $ do
+        a <- readTVar cleanupActions
+        writeTVar cleanupActions []
+        return a
+    forM_ actions id
 
 
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
-        -- See https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-        let eventPayload =  B.byteString $ cs $ unindent
-                                ([i|
-                                id: #{fromIntegral $ notificationPid notification}
-                                event: #{eventName}
-                                data: #{table} change event triggered
-                                |] <> "\n\n" -- Appending these newlines are required to separate the event payload from the next event.
-                                ) 
-     
-        sendChunk eventPayload >> flush
-            `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
-        pure ()
+    -- See https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
+    let eventPayload =  
+            B.byteString $ cs $ unindent (
+                [i|
+                id: #{fromIntegral $ notificationPid notification}
+                event: #{eventName}
+                data: #{table} change event triggered
+                |] <> "\n\n" -- Appending these newlines are required to separate the event payload from the next event. 
+            ) 
+
+    sendChunk eventPayload >> flush
+        `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
+    pure ()
 
 
 
@@ -160,7 +161,7 @@ notificationTrigger tableName = PG.Query [i|
             $$ language plpgsql;
             DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
             CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-            
+
             DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
             CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
 
