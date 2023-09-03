@@ -26,7 +26,15 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghcHEAD;
+                    default = import "${ihpFlake.inputs.self}/NixSupport/mkGhcCompiler.nix" {
+                        inherit pkgs;
+                        ghcCompiler = pkgs.haskell.packages.ghcHEAD;
+                        dontCheckPackages = [];
+                        doJailbreakPackages = [];
+                        dontHaddockPackages = [];
+                        ihp = ihpFlake.inputs.self;
+                        filter = ihpFlake.inputs.nix-filter.lib;
+                    };
                 };
 
                 packages = lib.mkOption {
@@ -164,6 +172,9 @@ ihpFlake:
 
                 languages.haskell.enable = true;
                 languages.haskell.package = ghcCompiler.ghc.withPackages cfg.haskellPackages;
+
+                languages.haskell.languageServer = null;
+                languages.haskell.stack = null;
 
                 scripts.start.exec = ''
                     ${ghcCompiler.ihp}/bin/RunDevServer
