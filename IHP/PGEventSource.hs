@@ -2,10 +2,10 @@
 module IHP.PGEventSource (streamPgEvent, initPgEventSource) where
 
 import IHP.Prelude
-import IHP.ApplicationContext ( ApplicationContext(pgListener) )
-import IHP.Controller.Context ( fromContext, putContext )
+import IHP.ApplicationContext (ApplicationContext(pgListener))
+import IHP.Controller.Context (fromContext, putContext)
 import IHP.ControllerSupport
-import IHP.ModelSupport ( withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead )
+import IHP.ModelSupport (withTableReadTracker, withRowLevelSecurityDisabled, sqlExec, trackTableRead)
 import qualified IHP.Log as Log
 import qualified IHP.PGListener as PGListener
 import Control.Concurrent (threadDelay)
@@ -14,13 +14,13 @@ import qualified Control.Exception as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as BL
-import Data.String.Interpolate.IsString ( i )
+import Data.String.Interpolate.IsString (i)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Database.PostgreSQL.Simple.Notification (notificationPid, Notification)
 import qualified Network.Wai as Wai
 import Network.HTTP.Types (status200, hConnection)
-import Network.HTTP.Types.Header ( HeaderName, hContentType, hCacheControl )
+import Network.HTTP.Types.Header (HeaderName, hContentType, hCacheControl)
 import qualified Data.Set as Set
 
 
