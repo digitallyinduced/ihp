@@ -120,6 +120,7 @@ runCleanupActions cleanupActions = do
 -- | Handle notifications triggered by table changes. Sends the notification data as an SSE.
 handleNotificationTrigger :: (?context :: ControllerContext) => (B.Builder -> IO a) -> IO () -> ByteString -> ByteString -> Notification -> IO ()
 handleNotificationTrigger sendChunk flush eventName table notification = do
+        -- See https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
         let eventPayload =  B.byteString $ cs $ unindent
                                 ([i|
                                 id: #{fromIntegral $ notificationPid notification}
