@@ -116,6 +116,8 @@ that is defined in flake-module.nix
                 chmod +x build-haddock
                 ./build-haddock
             '';
+
+            languages.haskell.stack = null; # Stack is not used in IHP
         };
     };
 }

@@ -165,6 +165,9 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = ghcCompiler.ghc.withPackages cfg.haskellPackages;
 
+                languages.haskell.languageServer = ghcCompiler.haskell-language-server;
+                languages.haskell.stack = null; # Stack is not used in IHP
+
                 scripts.start.exec = ''
                     ${ghcCompiler.ihp}/bin/RunDevServer
                 '';

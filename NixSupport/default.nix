@@ -9,19 +9,14 @@
 , withHoogle ? false
 , postgresExtensions ? (p: [])
 , optimized ? false
-, includeDevTools ? !optimized # Include Haskell Language Server and Postgres?
+, includeDevTools ? !optimized # Include Postgres?
 }:
 
 let
     allHaskellPackages =
       (if withHoogle
       then ghc.ghcWithHoogle
-      else ghc.ghcWithPackages)
-        (p: builtins.concatLists [
-          (if includeDevTools then [p.haskell-language-server] else [])
-          (haskellDeps p)
-        ]
-      );
+      else ghc.ghcWithPackages) haskellDeps;
     allNativePackages = builtins.concatLists [
       (otherDeps pkgs)
     ];
