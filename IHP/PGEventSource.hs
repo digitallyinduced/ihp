@@ -125,7 +125,11 @@ handleNotificationTrigger sendChunk flush eventName table notification = do
                 id:#{fromIntegral $ notificationPid notification}
                 event:#{eventName}
                 data: #{table} change event triggered
-                |] <> "\n\n") 
+                |] 
+                <>
+                -- These newlines are required to separate the event payload from the next event 
+                "\n\n"
+                ) 
      
         sendChunk eventPayload >> flush
             `Exception.catch` (\e -> Log.error $ "Error sending chunk: " ++ show (e :: Exception.SomeException))
