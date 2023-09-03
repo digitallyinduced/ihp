@@ -3,7 +3,7 @@ on:
   push:
     branches: master
   schedule:
-    - cron: '17 * * *'
+    - cron: '0 17 * * *'
 jobs:
   build:
     strategy:
