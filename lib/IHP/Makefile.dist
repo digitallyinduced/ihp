@@ -61,11 +61,6 @@ GHC_EXTENSIONS+= -XOverloadedRecordDot
 
 GHC_RTS_FLAGS := -A256m -n2m -N
 
-# Linux only RTS flags
-ifneq ($(shell uname),Darwin)
-	GHC_RTS_FLAGS += --numa
-endif
-
 GHC_OPTIONS=-threaded -i. -ibuild -iConfig -iIHP -iIHP/IDE
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j
@@ -78,6 +73,12 @@ endif
 GHC_OPTIONS+= -package ihp
 GHC_OPTIONS+= -rtsopts=all
 
+APP_RTS_FLAGS := -A512m -n4m -N
+# Linux only RTS flags
+ifneq ($(shell uname),Darwin)
+	APP_RTS_FLAGS += --numa
+endif
+
 PROD_GHC_OPTIONS+= -funfolding-use-threshold=120
 PROD_GHC_OPTIONS+= -optc-O3
 PROD_GHC_OPTIONS+= -funbox-strict-fields
@@ -89,7 +90,7 @@ PROD_GHC_OPTIONS+= -fspecialise-aggressively
 PROD_GHC_OPTIONS+= -fstatic-argument-transformation
 PROD_GHC_OPTIONS+= -fmax-worker-args=15
 PROD_GHC_OPTIONS+= -fdicts-strict
-PROD_GHC_OPTIONS+= -with-rtsopts="-A512m -n4m -N"
+PROD_GHC_OPTIONS+= -with-rtsopts="$APP_RTS_FLAGS"
 
 
 .DEFAULT_GOAL := help
