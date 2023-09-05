@@ -73,7 +73,7 @@ endif
 GHC_OPTIONS+= -package ihp
 GHC_OPTIONS+= -rtsopts=all
 
-APP_RTS_FLAGS := -A512m -n4m -N
+APP_RTS_FLAGS := -A96m -n4m -N
 # Linux only RTS flags
 ifneq ($(shell uname),Darwin)
 	APP_RTS_FLAGS += --numa
