@@ -61,6 +61,11 @@ GHC_EXTENSIONS+= -XOverloadedRecordDot
 
 GHC_RTS_FLAGS := -A256m -n2m -N
 
+# Linux only RTS flags
+ifneq ($(shell uname),Darwin)
+	GHC_RTS_FLAGS += --numa
+endif
+
 GHC_OPTIONS=-threaded -i. -ibuild -iConfig -iIHP -iIHP/IDE
 GHC_OPTIONS+= ${GHC_EXTENSIONS}
 GHC_OPTIONS+= -j
