@@ -571,7 +571,7 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a composite primary key" do
-            let sql = cs [plain|CREATE TABLE orderTrucks (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
+            let sql = cs [plain|CREATE TABLE "orderTrucks" (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
             let statement = StatementCreateTable CreateTable
                     { name = "orderTrucks"
                     , columns =
@@ -1050,6 +1050,21 @@ tests = do
                             , constraints = []
                             , unlogged = True
                             , primaryKeyConstraint = PrimaryKeyConstraint []
+                            }
+                        ]
+            compileSql statements `shouldBe` sql
+
+        it "should escape policy names with different casing" do
+            let sql = [trimming|
+                CREATE POLICY "Public" ON plans USING (true) WITH CHECK (false);
+            |] <> "\n"
+            let statements = [
+                        CreatePolicy
+                            { name = "Public"
+                            , action = Nothing
+                            , tableName = "plans"
+                            , using = Just (VarExpression "true")
+                            , check = Just (VarExpression "false")
                             }
                         ]
             compileSql statements `shouldBe` sql

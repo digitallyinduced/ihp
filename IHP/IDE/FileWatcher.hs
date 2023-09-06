@@ -67,15 +67,12 @@ isDirectoryWatchable :: String -> Bool
 isDirectoryWatchable path = 
     path /= ".devenv" && path /= ".direnv"
 
-fileWatcherDebounceTime :: NominalDiffTime
-fileWatcherDebounceTime = Clock.secondsToNominalDiffTime 0.1 -- 100ms
-
 fileWatcherConfig :: FS.WatchConfig
-fileWatcherConfig = FS.defaultConfig { FS.confDebounce = FS.Debounce fileWatcherDebounceTime }
+fileWatcherConfig = FS.defaultConfig
 
 handleFileChange :: (?context :: Context) => FS.Event -> IO ()
 handleFileChange event = do
-    let filePath = getEventFilePath event
+    let filePath = event.eventPath
     if isHaskellFile filePath
         then dispatch HaskellFileChanged
         else if isSchemaSQL filePath
@@ -98,13 +95,13 @@ handleRootFileChange manager state event =
 
 shouldActOnRootFileChange :: FS.ActionPredicate
 shouldActOnRootFileChange event =
-    if FS.eventIsDirectory event
-    then isDirectoryWatchable (getEventFilePath event)
+    if FS.eventIsDirectory event == FS.IsDirectory
+    then isDirectoryWatchable event.eventPath
     else shouldActOnFileChange event
     
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event =
-    let path = getEventFilePath event
+    let path = event.eventPath
     in isHaskellFile path || isAssetFile path || isSQLFile path
 
 isHaskellFile :: String -> Bool
@@ -118,10 +115,3 @@ isSQLFile = List.isSuffixOf ".sql"
 
 isSchemaSQL :: String -> Bool
 isSchemaSQL = List.isSuffixOf "Application/Schema.sql"
-
-getEventFilePath :: FS.Event -> FilePath
-getEventFilePath event = case event of
-        FS.Added filePath _ _ -> filePath
-        FS.Modified filePath _ _ -> filePath
-        FS.Removed filePath _ _ -> filePath
-        FS.Unknown filePath _ _ -> filePath

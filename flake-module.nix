@@ -26,7 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghc944;
+                    default = pkgs.haskell.packages.ghc96;
                 };
 
                 packages = lib.mkOption {
@@ -95,6 +95,7 @@ ihpFlake:
                 inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
                 ihp = ihp;
                 haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
+                filter = ihpFlake.inputs.nix-filter.lib;
             };
         in lib.mkIf cfg.enable {
             # release build package
@@ -125,6 +126,16 @@ ihpFlake:
                     pkgs = pkgs;
                 };
 
+                unoptimized-docker-image = pkgs.dockerTools.buildImage {
+                    name = "ihp-app";
+                    config = { Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunProdServer" ]; };
+                };
+                
+                optimized-docker-image = pkgs.dockerTools.buildImage {
+                    name = "ihp-app";
+                    config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunProdServer" ]; };
+                };
+
 
                 migrate = pkgs.writeScriptBin "migrate" ''
                     ${ghcCompiler.ihp}/bin/migrate
@@ -153,6 +164,9 @@ ihpFlake:
 
                 languages.haskell.enable = true;
                 languages.haskell.package = ghcCompiler.ghc.withPackages cfg.haskellPackages;
+
+                languages.haskell.languageServer = ghcCompiler.haskell-language-server;
+                languages.haskell.stack = null; # Stack is not used in IHP
 
                 scripts.start.exec = ''
                     ${ghcCompiler.ihp}/bin/RunDevServer
@@ -192,6 +206,17 @@ ihpFlake:
 
                 env.IHP_LIB = "${ihp}/lib/IHP";
                 env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
+
+                scripts.deploy-to-nixos.exec = ''
+                    if [[ $# -eq 0 || $1 == "--help" ]]; then
+                        echo "usage: deploy-to-nixos <target-host>"
+                        echo "example: deploy-to-nixos staging.example.com"
+                        exit 0
+                    fi
+
+                    ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch -j auto --use-substitutes --fast --flake .#$1 --target-host $1 --build-host $1 --option substituters https://digitallyinduced.cachix.org --option trusted-public-keys digitallyinduced.cachix.org:digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=
+                    ssh $1 systemctl start migrate
+                '';
             };
         };
 

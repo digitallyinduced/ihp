@@ -33,7 +33,8 @@
 :set -XMultiWayIf
 :set -XFunctionalDependencies
 :set -XTemplateHaskell
-:set -fbyte-code
+:set -fprefer-byte-code
+:set -fbyte-code-and-object-code
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
 :set -XStandaloneDeriving

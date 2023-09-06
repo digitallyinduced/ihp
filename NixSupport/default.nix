@@ -1,4 +1,4 @@
-{ compiler ? "ghc944"
+{ compiler ? "ghc96"
 , additionalNixpkgsOptions ? {}
 , pkgs ? import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; }
 , ghc ? pkgs.haskell.packages.${compiler}
@@ -9,19 +9,14 @@
 , withHoogle ? false
 , postgresExtensions ? (p: [])
 , optimized ? false
-, includeDevTools ? !optimized # Include Haskell Language Server and Postgres?
+, includeDevTools ? !optimized # Include Postgres?
 }:
 
 let
     allHaskellPackages =
       (if withHoogle
       then ghc.ghcWithHoogle
-      else ghc.ghcWithPackages)
-        (p: builtins.concatLists [
-          (if includeDevTools then [p.haskell-language-server] else [])
-          (haskellDeps p)
-        ]
-      );
+      else ghc.ghcWithPackages) haskellDeps;
     allNativePackages = builtins.concatLists [
       (otherDeps pkgs)
     ];

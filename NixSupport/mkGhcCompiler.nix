@@ -6,6 +6,7 @@
 , dontHaddockPackages ? []
 , manualOverrides ? _: _: { }
 , haskellPackagesDir ? ./haskell-packages
+, filter
 , ... }:
 
 let
@@ -20,7 +21,7 @@ let
       };
       makePackageSet = dir: pkgs.lib.mapAttrs' (toPackage dir) (builtins.readDir dir);
     in {
-      "ihp" = ((haskellPackagesNew.callPackage "${toString ihp}/ihp.nix") { });
+      "ihp" = ((haskellPackagesNew.callPackage "${toString ihp}/ihp.nix") { inherit filter; });
     } // (makePackageSet haskellPackagesDir) // (makePackageSet "${ihp}/NixSupport/haskell-packages/.");
 
   makeOverrides =
@@ -34,8 +35,8 @@ let
     in
     builtins.listToAttrs (map toPackage names);
 
-  ihpDontCheckPackages = [ "mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin" ];
-  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8" "chell" ];
+  ihpDontCheckPackages = [ "mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin" "relude" "inflections" ];
+  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8" "chell" "zigzag" "typerep-map" "relude" "bytebuild" ];
   ihpDontHaddockPackages = [ ];
 in ghcCompiler.override {
   overrides = composeExtensionsList [

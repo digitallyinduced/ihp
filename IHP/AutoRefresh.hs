@@ -223,7 +223,7 @@ isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPi
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: ByteString -> ByteString
-channelName tableName = "did_change_" <> tableName
+channelName tableName = "ar_did_change_" <> tableName
 
 -- | Returns the sql code to set up a database trigger
 notificationTrigger :: ByteString -> PG.Query
@@ -247,7 +247,7 @@ notificationTrigger tableName = PG.Query [i|
         COMMIT;
     |]
     where
-        functionName = "notify_did_change_" <> tableName
-        insertTriggerName = "did_insert_" <> tableName
-        updateTriggerName = "did_update_" <> tableName
-        deleteTriggerName = "did_delete_" <> tableName
+        functionName = "ar_notify_did_change_" <> tableName
+        insertTriggerName = "ar_did_insert_" <> tableName
+        updateTriggerName = "ar_did_update_" <> tableName
+        deleteTriggerName = "ar_did_delete_" <> tableName

@@ -400,7 +400,10 @@ $(document).on('ready turbolinks:load', () => {
 
         $(this).closest('.file-upload-wrapper')
             .find('.remove-file-wrapper')
-            .toggleClass('hidden', !$this.val());
+            .toggleClass('hidden', !$this.val())
+            // Uncheck the "Remove file" checkbox, in case it was previously checked.
+            .find(':checkbox')
+            .prop('checked', false);
     });
 
     // Hide the file upload wrapper if the remove file checkbox is checked.
