@@ -251,7 +251,7 @@ To use the older version of the package we need to override the package definiti
 nix-shell -p cabal2nix -p cabal-install
 ```
 
-Now inside this shell, we can use `cabal2nix` it to get a nix package definition for the older version of google-oauth2:
+Now inside this shell, we can use `cabal2nix` to get a nix package definition for the older version of google-oauth2:
 
 ```bash
 cabal2nix cabal://google-oauth2-0.2.2
