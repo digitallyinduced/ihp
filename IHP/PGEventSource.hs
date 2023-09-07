@@ -11,9 +11,7 @@ import qualified IHP.PGListener as PGListener
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (atomically, TVar, newTVarIO, readTVar, writeTVar, modifyTVar', readTVarIO)
 import qualified Control.Exception as Exception
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as BL
 import Data.String.Interpolate.IsString (i)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Database.PostgreSQL.Simple.Types as PG
