@@ -245,13 +245,13 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
 
 This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
 
-To use the older version of the package we need to override the package definition. To do this you need to install `cabal2nix` first:
+To use the older version of the package we need to override the package definition. To do this, enter an ad-hoc Nix shell with `cabal2nix` and `cabal-install`:
 
 ```bash
-nix-env -i cabal2nix
+nix-shell -p cabal2nix -p cabal-install
 ```
 
-After cabal2nix is installed we can use it to get a nix package definition for the older version of google-oauth2:
+Now inside this shell, we can use `cabal2nix` it to get a nix package definition for the older version of google-oauth2:
 
 ```bash
 cabal2nix cabal://google-oauth2-0.2.2
