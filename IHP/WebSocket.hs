@@ -42,6 +42,9 @@ class WSApp state where
     onClose :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
     onClose = pure ()
 
+    connectionOptions :: WebSocket.ConnectionOptions
+    connectionOptions = WebSocket.defaultConnectionOptions
+
 startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => Websocket.Connection -> IO ()
 startWSApp connection' = do
     state <- newIORef (initialState @state)
