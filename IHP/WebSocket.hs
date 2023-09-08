@@ -42,6 +42,23 @@ class WSApp state where
     onClose :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
     onClose = pure ()
 
+    -- | Provide WebSocket Connection Options
+    --
+    -- See All Config Options Here
+    -- https://hackage.haskell.org/package/websockets/docs/Network-WebSockets-Connection.html#t:ConnectionOptions
+    --
+    -- __Example:__
+    -- Enable default permessage-deflate compression
+    --
+    -- > connectionOptions =
+    -- >     WebSocket.defaultConnectionOptions {
+    -- >         WebSocket.connectionCompressionOptions =
+    -- >             WebSocket.PermessageDeflateCompression WebSocket.defaultPermessageDeflate
+    -- >     }
+    --
+    connectionOptions :: WebSocket.ConnectionOptions
+    connectionOptions = WebSocket.defaultConnectionOptions
+
 startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => Websocket.Connection -> IO ()
 startWSApp connection' = do
     state <- newIORef (initialState @state)
