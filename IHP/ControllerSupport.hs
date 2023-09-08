@@ -169,8 +169,10 @@ startWebSocketApp onHTTP = do
                 Right context -> do
                     WebSockets.startWSApp @webSocketApp connection
 
+    let connectionOptions = WebSockets.connectionOptions @webSocketApp
+
     request
-        |> WebSockets.websocketsApp WebSockets.defaultConnectionOptions handleConnection
+        |> WebSockets.websocketsApp connectionOptions handleConnection
         |> \case
             Just response -> respond response
             Nothing -> onHTTP
@@ -299,4 +301,3 @@ getAppConfig = ?context.frameworkConfig.appConfig
         |> TypeMap.lookup @configParameter
         |> fromMaybe (error ("Could not find " <> (show (Typeable.typeRep (Typeable.Proxy @configParameter))) <>" in config"))
 {-# INLINE getAppConfig #-}
-
