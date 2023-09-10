@@ -48,7 +48,8 @@ Here is a short overview of the whole structure:
 | .ghci                         | Default config file for the Haskell interpreter                                     |
 | .gitignore                    | List of files to be ignored by git                                                  |
 | App.cabal, Setup.hs           | Config for the cabal package manager                                                |
-| default.nix                   | Declares your app dependencies (like package.json for NPM or composer.json for PHP) |
+| flake.nix                     | Declares your app dependencies (like package.json for NPM or composer.json for PHP) |
+| default.nix                   | Backward compatibility for developers who don't use Nix Flakes                      |
 | Makefile                      | Default config file for the make build system                                       |
 
 ## 2. Hello, World!
@@ -587,32 +588,46 @@ Right now our posts can only be plain text. Let's make it more powerful by addin
 
 To deal with Markdown, instead of implementing a custom Markdown parser, let's just use an existing package. There's the excellent [`mmark`](https://hackage.haskell.org/package/mmark) package we can use.
 
-To install this package, open the `default.nix` file and append `mmark` to the `haskellDeps` list. The file will now look like this:
+To install this package, open the `flake.nix` file and append `mmark` to the `haskellPackages` list. The file will now look like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        ref = "refs/tags/v0.10.0";
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/v1.1";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        ihp = ihp;
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-            mmark # <--------- OUR NEW PACKAGE ADDED HERE
-        ];
-        otherDeps = p: with p; [
-            # Native dependencies, e.g. imagemagick
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
+
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
+
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
+
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                        hlint
+                        mmark # <--------- OUR NEW PACKAGE ADDED HERE
+                    ];
+                };
+            };
+
+        };
+}
 ```
 
 Stop the development server by pressing CTRL+C. Then update the local development environment by running `devenv up`. This will download and install the `mmark` package.
