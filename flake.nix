@@ -3,7 +3,7 @@
 
     inputs = {
         # TODO use nixpkgs-unstable and just .lock a version?
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=df41622d86ff444250f6baacadc50b00413b568e";
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=ff303118b2ec262eb342eab88ae79318fac66d52";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
