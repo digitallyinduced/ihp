@@ -153,7 +153,10 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ] ++ cfg.packages;
+                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ]
+                    ++ cfg.packages
+                    ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ;
 
                 /*
                 we currently don't use devenv containers, and they break nix flake show
