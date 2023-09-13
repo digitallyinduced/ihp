@@ -133,9 +133,8 @@ streamCompletionWithoutRetry secretKey completionRequest onStart callback = do
                             let status = getStatusCode p
                             if status == 200
                                 then do
-                                    i2 <- Streams.mapM handleResponse i
-                                    x <- Streams.fold mappend mempty i2
-                                    return (Right x)
+                                    x <- Streams.foldM (parseResponseChunk callback) ("", "") i
+                                    return (Right (snd x))
                                 else do
                                     x <- Streams.fold mappend mempty i
                                     return (Left $ "an error happend: " <> Text.pack (show x))
@@ -143,20 +142,15 @@ streamCompletionWithoutRetry secretKey completionRequest onStart callback = do
                     onStart
                     receiveResponse connection handler
     where
-        handleResponse :: ByteString -> IO Text
-        handleResponse response = do
-            texts :: [Text] <- mapM handleLine (ByteString.lines response)
-            pure (Text.concat texts)
-        handleLine :: ByteString -> IO Text
-        handleLine line = do
-            case ByteString.stripPrefix "data: " line of
+        parseResponseChunk :: (Text -> IO ()) -> (ByteString, Text) -> ByteString -> IO (ByteString, Text)
+        parseResponseChunk callback (curBuffer, chunk) input = do
+            case ByteString.stripPrefix "data: " (ByteString.strip (curBuffer <> input)) of
                 Just json -> do
                     case decodeStrict json of
                         Just CompletionResult { choices } -> do
-                            let tokens = mconcat $ map (.text) choices
+                            let tokens :: Text = mconcat $ map (.text) choices
                             callback tokens
-                            pure tokens
+                            pure ("", chunk <> tokens)
                         otherwise -> do
-                            pure ""
-                Nothing -> pure ""
-
+                            pure (curBuffer <> json, chunk)
+                Nothing -> pure (curBuffer <> input, chunk)
