@@ -738,7 +738,15 @@ selectField field items = FormField
                  SelectInput (map itemToTuple items)
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
+        -- The select field is always displaying the value it gets from the nodel passed to the formFor.
+        -- The issue is introduced basically by the `newRecord @Record`. The `newRecord` call in the controller creates an empty record setting all fields to a default empty value.
+        --  The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
+        -- enums is the first enum value.
+        -- Now, if we have a required field, we want to make sure the user selects a value, in the same
+        -- way they have to select for a reference field.
+        , fieldValue = if isNew model
+            then ""
+            else inputValue (getField @fieldName model :: SelectValue item)
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationViolation field model
         , fieldClass = ""
