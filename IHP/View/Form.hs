@@ -767,6 +767,7 @@ selectField field items = FormField
         -- way they have to select for a reference field.
         -- So we check if the model is new and the field was not submitted yet, then we set the
         -- field value to an empty string. Otherwise, we use the value from the model.
+        -- If the select field is empty, then the param would be empty as well.
         fieldValue = if isNew model && null (paramList @Text (cs fieldName))
                     then ""
                     else inputValue (getField @fieldName model :: SelectValue item)
