@@ -25,7 +25,7 @@ import IHP.View.Types
 import IHP.View.Classes ()
 import Network.Wai (pathInfo)
 import IHP.Controller.Context
-import Application.Script.Prelude (paramList)
+import IHP.Controller.Param (paramList)
 
 -- | Forms usually begin with a 'formFor' expression.
 --
