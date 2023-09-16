@@ -761,10 +761,12 @@ selectField field items = FormField
         FormContext { model } = ?formContext
         -- The select field is always displaying the value it gets from the nodel passed to the formFor.
         -- The issue is introduced basically by the `newRecord @Record`. The `newRecord` call in the controller creates an empty record setting all fields to a default empty value.
-        --  The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
+        -- The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
         -- enums is the first enum value.
         -- Now, if we have a required field, we want to make sure the user selects a value, in the same
         -- way they have to select for a reference field.
+        -- So we check if the model is new and the field was not submitted yet, then we set the
+        -- field value to an empty string. Otherwise, we use the value from the model.
         fieldValue = if isNew model && null (paramList @Text (cs fieldName))
                     then ""
                     else inputValue (getField @fieldName model :: SelectValue item)
