@@ -25,6 +25,7 @@ import IHP.View.Types
 import IHP.View.Classes ()
 import Network.Wai (pathInfo)
 import IHP.Controller.Context
+import Application.Script.Prelude (paramList)
 
 -- | Forms usually begin with a 'formFor' expression.
 --
@@ -722,14 +723,13 @@ checkboxField field = FormField
 -- >     render NewView { .. }
 selectField :: forall fieldName model item.
     ( ?formContext :: FormContext model
+    , ?context::ControllerContext
     , HasField fieldName model (SelectValue item)
     , HasField "meta" model MetaBag
-    , Typeable model
     , KnownSymbol fieldName
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
-    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 selectField field items = FormField
         { fieldType =
@@ -765,7 +765,7 @@ selectField field items = FormField
         -- enums is the first enum value.
         -- Now, if we have a required field, we want to make sure the user selects a value, in the same
         -- way they have to select for a reference field.
-        fieldValue = if isNew model && not (didChange field model)
+        fieldValue = if isNew model && null (paramList @Text (cs fieldName))
                     then ""
                     else inputValue (getField @fieldName model :: SelectValue item)
 {-# INLINE selectField #-}
