@@ -816,6 +816,7 @@ selectField field items = FormField
 -- >     render NewView { .. }
 radioField :: forall fieldName model item.
     ( ?formContext :: FormContext model
+    , ?context::ControllerContext
     , HasField fieldName model (SelectValue item)
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
@@ -823,34 +824,15 @@ radioField :: forall fieldName model item.
     , CanSelect item
     , InputValue (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
-radioField field items = FormField
+radioField field items = (selectField field items)
         { fieldType =
             let
                 itemToTuple :: item -> (Text, Text)
                 itemToTuple item = (selectLabel item, inputValue (selectValue item))
             in
                  RadioInput (map itemToTuple items)
-        , fieldName = cs fieldName
-        , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
-        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationViolation field model
-        , fieldClass = ""
-        , labelClass = ""
-        , disabled = False
-        , disableLabel = False
-        , disableGroup = False
-        , disableValidationResult = False
-        , additionalAttributes = []
-        , cssFramework = ?formContext.cssFramework
-        , helpText = ""
         , placeholder = ""
-        , required = False
-        , autofocus = False
     }
-    where
-        fieldName = symbolVal field
-        FormContext { model } = ?formContext
 {-# INLINE radioField #-}
 
 class CanSelect model where
