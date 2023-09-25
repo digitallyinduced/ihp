@@ -223,6 +223,9 @@ jobs:
         direnvVersion: 2.32.3
 
     - run: |
+          # Build generated files.
+          nix-shell --run "make build/Generated/Types.hs"
+
           # Start the project in the background.
           nix-shell --run "devenv up &"
 
