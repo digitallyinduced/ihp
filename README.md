@@ -10,12 +10,12 @@
   <a href="https://twitter.com/digitallyinduce" target="_blank">
     <img src="https://img.shields.io/twitter/follow/digitallyinduce"/>
   </a>
-  
-  
+
+
   <a href="https://console.algora.io/org/digitallyinduced/bounties?status=open" target="_blank">
     <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.algora.io%2Fapi%2Fshields%2Fdigitallyinduced%2Fbounties%3Fstatus%3Dopen"/>
   </a>
-  
+
   <img src="https://api.scarf.sh/v2/packages/digitallyinduced/4b7241ee-9679-43fa-9b27-b5595b775c30/downloads-badge"/>
 </p>
 
@@ -157,7 +157,7 @@ There's more on the IHP website.
 
 Questions, or need help with haskell type errors? [Join our Slack Community](https://ihp.digitallyinduced.com/Slack)
 
-[Also check out the IHP Forum!](https://forum.ihpapp.com/)
+[Also check out the IHP Forum!](https://discuss.ihp.digitallyinduced.com/)
 
 ## Contributing
 
