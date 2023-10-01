@@ -214,34 +214,38 @@ To quickly look up function type signatures you can use the built-in hoogle serv
 
 To install it:
 
-1. Open `default.nix`
-2. Add `withHoogle = true;` to the `haskellEnv` block, like this:
+1. Open `flake.nix`
+2. Add `withHoogle = true;` to the `ihp` project block, inside `perSystem` function invocation like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        ref = "refs/tags/v0.14.0";
-    };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        ihp = ihp;
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-        ];
-        otherDeps = p: with p; [
-            # Native dependencies, e.g. imagemagick
-        ];
-        projectPath = ./.;
+...
+outputs = inputs@{ ihp, flake-parts, systems, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
 
-        withHoogle = true; # <-------
+        systems = import systems;
+        imports = [ ihp.flakeModules.default ];
+
+        perSystem = { pkgs, ... }: {
+            ihp = {
+                enable = true;
+                projectPath = ./.;
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                ];
+                haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    p.ihp
+                    cabal-install
+                    base
+                    wai
+                    text
+                    hlint
+                ];
+                withHoogle = true; # <-------
+            };
+        };
+
     };
-in
-    haskellEnv
 ```
 
 Run `devenv up` to remake your dev environment.
@@ -249,5 +253,5 @@ Run `devenv up` to remake your dev environment.
 After that you can use the following command to start hoogle at `localhost:8080`:
 
 ```bash
-nix-shell --run 'hoogle server --local -p 8080'
+hoogle server --local -p 8080
 ```
