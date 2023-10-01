@@ -488,17 +488,17 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1696032704,
-        "narHash": "sha256-N5fmjai5kpMXvm12cdDYG0lPVbt9ul33TfGIxOD3j0E=",
-        "owner": "NixOS",
+        "lastModified": 1696109588,
+        "narHash": "sha256-T0Zr/xWF1ctBEcA+yCCrHsDFh+PtqpmSRUEDZ5nWdbI=",
+        "owner": "mpscholten",
         "repo": "nixpkgs",
-        "rev": "c0831fce32bc37751102e5d9a1db078121fdb31f",
+        "rev": "2c4deccba73efc1749721eccf30887dbe79949b6",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
+        "owner": "mpscholten",
+        "ref": "fix-ghc-9.6.x",
         "repo": "nixpkgs",
-        "rev": "c0831fce32bc37751102e5d9a1db078121fdb31f",
         "type": "github"
       }
     },
