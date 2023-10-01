@@ -488,16 +488,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1696109588,
-        "narHash": "sha256-T0Zr/xWF1ctBEcA+yCCrHsDFh+PtqpmSRUEDZ5nWdbI=",
+        "lastModified": 1696173322,
+        "narHash": "sha256-BDzrGKOnyA9KQI/5pHzk8uMIN2XdLwzCG5CiM4bGuLE=",
         "owner": "mpscholten",
         "repo": "nixpkgs",
-        "rev": "2c4deccba73efc1749721eccf30887dbe79949b6",
+        "rev": "d292a1277af4ad77db649d091f189c6d63d24032",
         "type": "github"
       },
       "original": {
         "owner": "mpscholten",
-        "ref": "fix-ghc-9.6.x",
+        "ref": "fix-ghc-m1-issue",
         "repo": "nixpkgs",
         "type": "github"
       }
