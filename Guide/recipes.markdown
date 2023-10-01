@@ -430,7 +430,7 @@ case post of
 
 ## Highlight the targeted element
 
-Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`, that you've built like that (assuming you have a `comment.id`)
+Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`. You can build it like this (assuming you have a `comment.id`):
 
 ```haskell
 [hsx|
