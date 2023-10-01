@@ -740,7 +740,7 @@ selectField field items = FormField
                  SelectInput (map itemToTuple items)
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = fieldValue
+        , fieldValue = inputValue (getField @fieldName model :: SelectValue item)
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationViolation field model
         , fieldClass = ""
@@ -759,19 +759,37 @@ selectField field items = FormField
     where
         fieldName = symbolVal field
         FormContext { model } = ?formContext
-        -- The select field is always displaying the value it gets from the nodel passed to the formFor.
-        -- The issue is introduced basically by the `newRecord @Record`. The `newRecord` call in the controller creates an empty record setting all fields to a default empty value.
-        -- The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
-        -- enums is the first enum value.
-        -- Now, if we have a required field, we want to make sure the user selects a value, in the same
-        -- way they have to select for a reference field.
-        -- So we check if the model is new and the field was not submitted yet, then we set the
-        -- field value to an empty string. Otherwise, we use the value from the model.
-        -- If the select field is empty, then the param would be empty as well.
-        fieldValue = if isNew model && isEmpty (paramList @Text (cs fieldName))
-                    then ""
-                    else inputValue (getField @fieldName model :: SelectValue item)
 {-# INLINE selectField #-}
+
+{- Select field where @fieldValue@ is empty text when the model is new.
+
+The select field is always displaying the value it gets from the nodel passed to the formFor.
+The issue is introduced basically by the `newRecord @Record`.
+The `newRecord` call in the controller creates an empty record setting all fields to a default empty value.
+The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
+enums is the first enum value.
+Now, if we have a required field, we want to make sure the user selects a value, in the same
+way they have to select for a reference field.
+So we check if the model is new and the field was not submitted yet, then we set the
+field value to an empty string. Otherwise, we use the value from the model.
+If the select field is empty, then the param would be empty as well.
+-}
+selectFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
+    ( ?formContext :: FormContext model
+    , ?context::ControllerContext
+    , HasField fieldName model (SelectValue item)
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName model)
+    , CanSelect item
+    , InputValue (SelectValue item)
+    ) => Proxy fieldName -> [item] -> FormField
+selectFieldEemptyFieldValueWhenIsNew field items = (selectField field items)
+    { fieldValue = if isNew model && isEmpty (paramList @Text (cs fieldName))
+        then ""
+        else inputValue (getField @fieldName model :: SelectValue item)
+    }
+{-# INLINE selectFieldEemptyFieldValueWhenIsNew #-}
 
 -- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for 'selectField'.
 --
@@ -825,15 +843,37 @@ radioField :: forall fieldName model item.
     , InputValue (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 radioField field items = (selectField field items)
-        { fieldType =
-            let
-                itemToTuple :: item -> (Text, Text)
-                itemToTuple item = (selectLabel item, inputValue (selectValue item))
-            in
-                 RadioInput (map itemToTuple items)
-        , placeholder = ""
+    { fieldType =
+        let
+            itemToTuple :: item -> (Text, Text)
+            itemToTuple item = (selectLabel item, inputValue (selectValue item))
+        in
+                RadioInput (map itemToTuple items)
+    , placeholder = ""
     }
 {-# INLINE radioField #-}
+
+{- Radio field where @fieldValue@ is empty text when the model is new.
+
+See `selectFieldEemptyFieldValueWhenIsNew` for more details.
+-}
+radioFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
+    ( ?formContext :: FormContext model
+    , ?context::ControllerContext
+    , HasField fieldName model (SelectValue item)
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName model)
+    , CanSelect item
+    , InputValue (SelectValue item)
+    ) => Proxy fieldName -> [item] -> FormField
+radioFieldEemptyFieldValueWhenIsNew field items = (radioField field items)
+    { fieldValue = selectField.fieldValue
+    }
+    where
+        selectField = selectFieldEemptyFieldValueWhenIsNew field items
+
+{-# INLINE radioFieldEemptyFieldValueWhenIsNew #-}
 
 class CanSelect model where
     -- | Here we specify the type of the @<option>@ value, usually an @Id model@
