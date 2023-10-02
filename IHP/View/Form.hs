@@ -763,18 +763,18 @@ selectField field items = FormField
 
 {- Select field where @fieldValue@ is empty text when the model is new.
 
-The select field is always displaying the value it gets from the nodel passed to the formFor.
-The issue is introduced basically by the `newRecord @Record`.
-The `newRecord` call in the controller creates an empty record setting all fields to a default empty value.
-The default empty value for UUIDs is the 00000000-0000-0000-0000-000000000000 and the default empty value for
-enums is the first enum value.
-Now, if we have a required field, we want to make sure the user selects a value, in the same
-way they have to select for a reference field.
-So we check if the model is new and the field was not submitted yet, then we set the
-field value to an empty string. Otherwise, we use the value from the model.
-If the select field is empty, then the param would be empty as well.
+You will notice that if we use `selectField` on enums, the first enum value is always selected.
+The reason is that the select field is always displaying the value it gets from the
+model passed to @formFor@.
+
+For a new record, that value will always be the first enum. And the reason lies in the newRecord @Record call in the controller.
+The @newRecord@ creates an empty record setting all fields to a default empty value.
+The default empty value for UUIDs is 00000000-0000-0000-0000-000000000000 and the default empty value for enums is the first enum value.
+
+Now, if we have a required field, and we want to make sure the user selects a value, in the same way they have to select for a reference field.
+So we check if the model is new and the field was not submitted yet, then we set the field value to an empty string. Otherwise, we use the value from the model.
 -}
-selectFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
+selectFieldEmptyFieldValueWhenIsNew :: forall fieldName model item.
     ( ?formContext :: FormContext model
     , ?context :: ControllerContext
     , HasField fieldName model (SelectValue item)
@@ -784,7 +784,7 @@ selectFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
     , CanSelect item
     , InputValue (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
-selectFieldEemptyFieldValueWhenIsNew field items = (selectField field items)
+selectFieldEmptyFieldValueWhenIsNew field items = (selectField field items)
     { fieldValue = if isNew model && isEmpty (paramList @Text (cs fieldName))
         then ""
         else inputValue (getField @fieldName model :: SelectValue item)
@@ -792,7 +792,7 @@ selectFieldEemptyFieldValueWhenIsNew field items = (selectField field items)
     where
         fieldName = symbolVal field
         FormContext { model } = ?formContext
-{-# INLINE selectFieldEemptyFieldValueWhenIsNew #-}
+{-# INLINE selectFieldEmptyFieldValueWhenIsNew #-}
 
 -- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for 'selectField'.
 --
@@ -860,7 +860,7 @@ radioField field items = (selectField field items)
 
 See `selectFieldEemptyFieldValueWhenIsNew` for more details.
 -}
-radioFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
+radioFieldEmptyFieldValueWhenIsNew :: forall fieldName model item.
     ( ?formContext :: FormContext model
     , ?context::ControllerContext
     , HasField fieldName model (SelectValue item)
@@ -870,13 +870,13 @@ radioFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
     , CanSelect item
     , InputValue (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
-radioFieldEemptyFieldValueWhenIsNew field items = (radioField field items)
+radioFieldEmptyFieldValueWhenIsNew field items = (radioField field items)
     { fieldValue = selectField.fieldValue
     }
     where
-        selectField = selectFieldEemptyFieldValueWhenIsNew field items
+        selectField = selectFieldEmptyFieldValueWhenIsNew field items
 
-{-# INLINE radioFieldEemptyFieldValueWhenIsNew #-}
+{-# INLINE radioFieldEmptyFieldValueWhenIsNew #-}
 
 class CanSelect model where
     -- | Here we specify the type of the @<option>@ value, usually an @Id model@
