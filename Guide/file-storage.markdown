@@ -923,10 +923,10 @@ openssl rsa -in ./Config/jwtRS256.key -pubout -outform PEM -out ./Config/jwtRS25
 
 ```haskell
 -- Config/Config.hs
-import "cryptonite" Crypto.PubKey.RSA as RSA
 import Control.Exception (catch)
 import qualified Data.ByteString as BS
 import Web.JWT
+import "cryptonite" Crypto.PubKey.RSA as RSA
 
 data RsaKeys = RsaKeys { publicKey :: RSA.PublicKey, privateKey :: RSA.PrivateKey }
 
