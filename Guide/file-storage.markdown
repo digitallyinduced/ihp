@@ -923,7 +923,7 @@ openssl rsa -in ./Config/jwtRS256.key -pubout -outform PEM -out ./Config/jwtRS25
 
 ```haskell
 -- Config/Config.hs
-import Crypto.PubKey.RSA as RSA
+import "cryptonite" Crypto.PubKey.RSA as RSA
 import Control.Exception (catch)
 import qualified Data.ByteString as BS
 import Web.JWT
@@ -961,10 +961,10 @@ module Application.Helper.Controller where
 
 -- ...
 import Config
-import Crypto.PubKey.RSA as RSA
 import Data.ByteString.Base64 as Base64
-import Crypto.PubKey.RSA.PKCS15 as RSA.PKCS15
-import Crypto.Hash.Algorithms as Hash.Algorithms
+import "cryptonite" Crypto.PubKey.RSA as RSA
+import "cryptonite" Crypto.PubKey.RSA.PKCS15 as RSA.PKCS15
+import "cryptonite" Crypto.Hash.Algorithms as Hash.Algorithms
 
 
 -- | The RSA public key, can be used to verify image style URLs that were signed.
@@ -988,10 +988,10 @@ And one for the View helper.
 module Application.Helper.View where
 
 import IHP.ViewPrelude
-import Crypto.PubKey.RSA.PKCS15 as RSA
-import Crypto.Hash.Algorithms as Hash.Algorithms
-import Data.ByteString.Base64 as Base64
 import Application.Helper.Controller
+import Data.ByteString.Base64 as Base64
+import "cryptonite" Crypto.PubKey.RSA.PKCS15 as RSA
+import "cryptonite" Crypto.Hash.Algorithms as Hash.Algorithms
 
 -- Here you can add functions which are available in all your views
 
@@ -1016,10 +1016,10 @@ import System.Directory (doesFileExist)
 import qualified Data.Text as Text
 
 -- Imports for the signed token.
-import Crypto.PubKey.RSA.PKCS15 as RSA
-import Crypto.Hash.Algorithms as Hash.Algorithms
 import Config
 import Data.ByteString.Base64 as Base64
+import "cryptonite" Crypto.PubKey.RSA.PKCS15 as RSA
+import "cryptonite" Crypto.Hash.Algorithms as Hash.Algorithms
 
 instance Controller ImageStyleController where
     action RenderImageStyleAction { width, height, originalImagePath, signed } = do
