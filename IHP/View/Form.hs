@@ -19,7 +19,7 @@ import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
 import GHC.Types
-import IHP.ModelSupport (didChange, getModelName, inputValue, isNew, Id', InputValue)
+import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue)
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes ()
@@ -776,7 +776,6 @@ If the select field is empty, then the param would be empty as well.
 -}
 selectFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
     ( ?formContext :: FormContext model
-    , ?context::ControllerContext
     , HasField fieldName model (SelectValue item)
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
