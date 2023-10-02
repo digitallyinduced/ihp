@@ -723,7 +723,7 @@ checkboxField field = FormField
 -- >     render NewView { .. }
 selectField :: forall fieldName model item.
     ( ?formContext :: FormContext model
-    , ?context::ControllerContext
+    , ?context :: ControllerContext
     , HasField fieldName model (SelectValue item)
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
@@ -776,6 +776,7 @@ If the select field is empty, then the param would be empty as well.
 -}
 selectFieldEemptyFieldValueWhenIsNew :: forall fieldName model item.
     ( ?formContext :: FormContext model
+    , ?context :: ControllerContext
     , HasField fieldName model (SelectValue item)
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
@@ -788,6 +789,9 @@ selectFieldEemptyFieldValueWhenIsNew field items = (selectField field items)
         then ""
         else inputValue (getField @fieldName model :: SelectValue item)
     }
+    where
+        fieldName = symbolVal field
+        FormContext { model } = ?formContext
 {-# INLINE selectFieldEemptyFieldValueWhenIsNew #-}
 
 -- | Radio require you to pass a list of possible values to select. We use the same mechanism as for for 'selectField'.
