@@ -433,11 +433,8 @@ case post of
 Let's say you have a page with comments, and you link to them with `<a href="#comment-<comment ID>">`. You can build it like this (assuming you have a `comment.id`):
 
 ```haskell
-[hsx|
-<a { ...[ ("href", "#comment-" ++ show comment.id)
-        , ("id", "comment-" ++ show comment.id)
-        ]}
-|]
+[hsx|<a href={"#comment-" ++ show comment.id} id={"comment-" ++ show comment.id}>|]
+```
 
 The browser will scroll to the relevant comment when you follow the link, but let's say you also want to highlight the linked comment — like GitHub does. You could use the `:target` selector, but it doesn't play well with Turbolinks.
 
