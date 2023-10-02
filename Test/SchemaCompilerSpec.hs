@@ -19,7 +19,7 @@ tests = do
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum)
+                    data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum, Bounded)
                     instance FromField Mood where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "happy") = pure Happy
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "very happy") = pure VeryHappy
@@ -56,7 +56,7 @@ tests = do
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum)
+                    data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum, Bounded)
                     instance FromField Province where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "BritishColumbia") = pure Britishcolumbia
@@ -102,7 +102,7 @@ tests = do
                 let output = compileStatementPreview [enum1, enum2] enum1 |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum)
+                    data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum, Bounded)
                     instance FromField PropertyType where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "HOUSE") = pure House
@@ -178,7 +178,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -247,7 +247,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -316,7 +316,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -388,38 +388,38 @@ tests = do
 
                 compileOutput `shouldBe` [trimming|
                     data LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages = LandingPage {id :: (Id' "landing_pages"), paragraphCtasLandingPages :: paragraphCtasLandingPages, paragraphCtasToLandingPages :: paragraphCtasToLandingPages, meta :: MetaBag} deriving (Eq, Show)
-   
+
                     type instance PrimaryKey "landing_pages" = UUID
                     type instance Include "paragraphCtasLandingPages" (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) = LandingPage' [ParagraphCta] paragraphCtasToLandingPages
                     type instance Include "paragraphCtasToLandingPages" (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) = LandingPage' paragraphCtasLandingPages [ParagraphCta]
-   
+
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
-   
+
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
                     type instance GetModelByTableName "landing_pages" = LandingPage
-   
+
                     instance Default (Id' "landing_pages") where def = Id def
-   
+
                     instance () => Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
                         primaryKeyCondition LandingPage { id } = [("id", toField id)]
                         {-# INLINABLE primaryKeyCondition #-}
-   
-   
+
+
                     instance InputValue LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
-   
-   
+
+
                     instance FromRow LandingPage where
                         fromRow = do
                             id <- field
                             let theRecord = LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
-   
-   
+
+
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
-   
+
                     instance CanCreate LandingPage where
                         create :: (?modelContext :: ModelContext) => LandingPage -> IO LandingPage
                         create model = do
@@ -427,16 +427,16 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
-   
+
                     instance CanUpdate LandingPage where
                         updateRecord model = do
                             List.head <$> sqlQuery "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
-   
+
                     instance Record LandingPage where
                         {-# INLINE newRecord #-}
                         newRecord = LandingPage def def def def
-   
-   
+
+
                     instance QueryBuilder.FilterPrimaryKey "landing_pages" where
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
