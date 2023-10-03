@@ -17,7 +17,9 @@ jobs:
         skipPush: true
       if: matrix.os != 'ARM64'
     - run: |
-          cd $GITHUB_WORKSPACE
           mkdir -p ~/.config/nixpkgs
           echo "{ allowBroken = true; }" >> ~/.config/nixpkgs/config.nix
+      if: matrix.os != 'ARM64'
+    - run: |
+          cd $GITHUB_WORKSPACE
           nix develop --impure --command fastbuild
