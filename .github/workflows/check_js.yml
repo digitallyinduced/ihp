@@ -1,7 +1,5 @@
 name: Check JavaScript
 on:
-  push:
-    branches: '*'
   pull_request:
     branches: [master]
 jobs:
