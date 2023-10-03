@@ -25,6 +25,12 @@ let
             inherit pkgs ihp dontCheckPackages doJailbreakPackages dontHaddockPackages manualOverrides haskellPackagesDir;
 
             ghcCompiler = pkgs.haskell.packages."${compiler}";
+            filter = (import ((import <nixpkgs> {}).fetchFromGitHub {
+              owner = "numtide";
+              repo = "nix-filter";
+              rev = "d6381c442f79f2f1fdfde00521c3d15d6c21218e";
+              sha256 = "sha256-ciSZqliNLDattmjR/1yQ0mJHZSkXWZlnIR6TcdDGFMa";
+            }));
           };
         };
       };
