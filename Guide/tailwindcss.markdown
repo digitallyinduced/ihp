@@ -12,6 +12,7 @@ Yes, while bootstrap is the default CSS framework in IHP, you can also use IHP t
 
 ### Adding package to flake.nix
 
+While it's possible to have `nodejs` installed via nix, and then have npm install TailwindCSS, we can skip that part and have nix install the tailwindcss CLI itself.
 In the `flake.nix`, add the `tailwindcss` package bundled with the most common official plugins.
 
 ```nix
