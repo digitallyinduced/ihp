@@ -6,32 +6,34 @@
 
 ## Introduction
 
-Yes, while bootstrap is the default CSS framework in IHP, you can use IHP together with TailwindCSS. This guide will help you set up the latest Tailwind version in your IHP project.
-
+Yes, while bootstrap is the default CSS framework in IHP, you can also use IHP together with Tailwind CSS.
 
 ## Installing
 
-### Installing Tailwind
+### Adding package to flake.nix
 
-In the `flake.nix`, add the `tailwindcss` package with recommended plugins.
+In the `flake.nix`, add the `tailwindcss` package with useful plugins.
 
 ```nix
+...
 packages = with pkgs; [
     # Native dependencies, e.g. imagemagick
     (nodePackages.tailwindcss.overrideAttrs
         (oa: {
             plugins = [
-            nodePackages."@tailwindcss/aspect-ratio"
-            nodePackages."@tailwindcss/forms"
-            nodePackages."@tailwindcss/language-server"
-            nodePackages."@tailwindcss/line-clamp"
-            nodePackages."@tailwindcss/typography"
+                nodePackages."@tailwindcss/aspect-ratio"
+                nodePackages."@tailwindcss/forms"
+                nodePackages."@tailwindcss/language-server"
+                nodePackages."@tailwindcss/line-clamp"
+                nodePackages."@tailwindcss/typography"
             ];
-        }))
+        })
+    )
 ];
+...
 ```
 
-Now you need to rebuild your local development environment:
+Rebuild your development environment to fetch the added package:
 
 ```bash
 nix flake update
@@ -40,7 +42,7 @@ nix flake update
 After that, you should be able to verify that `tailwindcss` CLI is available in your project directory.
 
 ```
-$ tailwind
+$ tailwindcss
 tailwindcss v3.2.7
 
 Usage:
@@ -114,7 +116,7 @@ We need to add a new build command for starting a tailwind build process to our 
 
 ```makefile
 tailwind-dev:
-	tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
+	tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -125,7 +127,7 @@ For production builds, we also need a new make target:
 
 ```makefile
 static/app.css:
-	tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
+	tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
