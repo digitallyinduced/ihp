@@ -217,9 +217,10 @@ import Web.View.CustomCSSFramework -- ADD THIS IMPORT
 
 config :: ConfigBuilder
 config = do
-    option Development
-    option (AppHostname "localhost")
+    -- See https://ihp.digitallyinduced.com/Guide/config.html
+    -- for what you can do here
     option customTailwind -- ADD THIS OPTION
+    pure ()
 ```
 
 
