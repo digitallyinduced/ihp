@@ -40,7 +40,7 @@ Rebuild your development environment to fetch the added package:
 nix flake update
 ```
 
-After that, you should be able to verify that `tailwindcss` CLI is available in your project directory.
+After that, you should be able to verify that `tailwindcss` CLI is available in your project directory. Note that the version you will see is the latest release.
 
 ```
 $ tailwindcss
