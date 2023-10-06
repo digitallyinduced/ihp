@@ -6,52 +6,62 @@
 
 ## Introduction
 
-Yes, while bootstrap is the default CSS framework in IHP, you can use IHP together with TailwindCSS (TW in short). This guide will help you set up the latest Tailwind version in your IHP project. We will be leveraging the TW's [JIT](https://tailwindcss.com/docs/just-in-time-mode) mode.
+Yes, while bootstrap is the default CSS framework in IHP, you can use IHP together with TailwindCSS. This guide will help you set up the latest Tailwind version in your IHP project.
 
-We will also have PostCSS added as part of the installation. PostCSS is used for nesting CSS, minifying, striping out comments, etc.
 
 ## Installing
 
-### Standalone CLI
+### Installing Tailwind
 
-Tailwind offers a Standalone CLI for frameworks like IHP, Rails and Phoenix as an alternative to installing npm just for the sake of Tailwind.
-
-You can follow the [official article](https://tailwindcss.com/blog/standalone-cli) for checking a standalone Tailwind binary into your project.
-
-If you require cross-platform support, [ihp-tailwind-bootstrapper](https://github.com/ship-nix/ihp-tailwind-bootstrapper) uses Tailwind's official binaries and let's you automatically use the correct one for your system. Only the binary used for deployment is checked into version control.
-
-
-### NodeJS
-
-First, we need to add NodeJS to our project. **You should also follow this step if you have NodeJS already installed on your system.** Installing the NodeJS version via nix allows all people working on your project to get the same NodeJS version as you're using.
-
-For that open your projects `default.nix` and add `nodejs` to `otherDeps`:
+In the `flake.nix`, add the `tailwindcss` package with recommended plugins.
 
 ```nix
-otherDeps = p: with p; [
+packages = with pkgs; [
     # Native dependencies, e.g. imagemagick
-    nodejs
+    (nodePackages.tailwindcss.overrideAttrs
+        (oa: {
+            plugins = [
+            nodePackages."@tailwindcss/aspect-ratio"
+            nodePackages."@tailwindcss/forms"
+            nodePackages."@tailwindcss/language-server"
+            nodePackages."@tailwindcss/line-clamp"
+            nodePackages."@tailwindcss/typography"
+            ];
+        }))
 ];
 ```
 
 Now you need to rebuild your local development environment:
 
 ```bash
-devenv up
+nix flake update
 ```
 
-After that, you have `node` and `npm` available in your project.
+After that, you should be able to verify that `tailwindcss` CLI is available in your project directory.
 
-### Installing Tailwind
-
-Install Tailwind along with PostCSS and some handy libraries via NPM:
-
-```bash
-npm init
-npm add tailwindcss@latest postcss@latest autoprefixer@latest @tailwindcss/forms
 ```
+$ tailwind
+tailwindcss v3.2.7
 
-This will create `package.json` and `package-lock.json`. Make sure to commit both files to your git repository.
+Usage:
+   tailwindcss [--input input.css] [--output output.css] [--watch] [options...]
+   tailwindcss init [--full] [--postcss] [options...]
+
+Commands:
+   init [options]
+
+Options:
+   -i, --input              Input file
+   -o, --output             Output file
+   -w, --watch              Watch for changes and rebuild as needed
+   -p, --poll               Use polling instead of filesystem events when watching
+       --content            Content paths to use for removing unused classes
+       --postcss            Load custom PostCSS configuration
+   -m, --minify             Minify the output
+   -c, --config             Path to a custom config file
+       --no-autoprefixer    Disable autoprefixer
+   -h, --help               Display usage information
+```
 
 ### Configuring Tailwind
 
@@ -67,7 +77,6 @@ Create the tailwind configuration file at `tailwind/tailwind.config.js` with the
 const plugin = require('tailwindcss/plugin');
 
 module.exports = {
-    mode: 'jit',
     theme: {
         extend: {
         },
@@ -105,7 +114,7 @@ We need to add a new build command for starting a tailwind build process to our 
 
 ```makefile
 tailwind-dev:
-	node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
+	tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -115,11 +124,8 @@ This defines a new command `make tailwind-dev` that runs `npx tailwindcss build`
 For production builds, we also need a new make target:
 
 ```makefile
-node_modules:
-    NODE_ENV=production npm ci
-
 static/app.css:
-	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
+	tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
