@@ -1,9 +1,10 @@
 name: Binary Build
 on:
   push:
-    branches: '*'
-  pull_request:
-    branches: [master] # This allows us to test PRs without always needing to build locally. It's secure as all first time contributors first need to be approved for running GitHub actions
+    branches:
+      - master
+      - 'v.+'
+    tags: ['**']
 jobs:
   build:
     strategy:
@@ -15,17 +16,20 @@ jobs:
     - uses: cachix/install-nix-action@v22
       with:
         nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/a95ed9fe764c3ba2bf2d2fa223012c379cd6b32e.tar.gz
+      if: matrix.os != 'ARM64'
     - uses: cachix/cachix-action@v12
       with:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      if: matrix.os != 'ARM64'
     - run: git clone https://github.com/digitallyinduced/ihp-boilerplate.git
     - name: Cache build directory
       uses: actions/cache@v3
       with:
         path: ihp-boilerplate/build
         key: ${{ runner.os }}-ghc
+      if: matrix.os != 'ARM64'
     - run: |
           git archive master --format=tar --prefix=ihp-pro/ | gzip >${{ github.sha }}.tar.gz
     - name: Configure AWS credentials

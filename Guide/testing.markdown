@@ -24,6 +24,7 @@ The following setup and tests can be viewed in the [Blog example](https://github
 
 ```haskell
 # Test/Main.hs
+
 module Main where
 
 import Test.Hspec
@@ -126,6 +127,12 @@ In this case, follow the suggested fix, exist ghci (`:q`) and execute `chmod go-
 GHCi, version 8.10.3: https://www.haskell.org/ghc/  :? for help
 package flags have changed, resetting and loading new packages...
 Loaded GHCi configuration from /home/amitaibu/Sites/Haskell/ihp/blog/.ghci
+```
+
+Another way of executing the tests, that we'll use on CI, is to use the `runghc` command, while running `devenv up` on another tab:
+
+```
+nix-shell --run "runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs"
 ```
 
 ## Setting the Current User During Testing
@@ -293,3 +300,65 @@ tests = aroundAll (withIHPApp WebApplication config) do
 
 ## Advanced
 For more details on how to structure test suites see the [Hspec manual](http://hspec.github.io/) (a Haskell testing library). You also might want to check out the cool [Hedgehog](https://hedgehog.qa/) library for automated property tests.
+
+## GitHub Actions
+
+The following GitHub Action workflow can be used to run the tests on CI:
+
+```yaml
+# .github/workflows/test.yml
+
+name: Test
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v20
+      with:
+        nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/51bcdc4cdaac48535dabf0ad4642a66774c609ed.tar.gz
+
+    # Use the cachix cache for faster builds.
+    - name: Cachix Init
+      uses: cachix/cachix-action@v12
+      with:
+        name: digitallyinduced
+        skipPush: true
+
+    # Install devenv.
+    - uses: cachix/cachix-action@v12
+      with:
+        name: devenv
+    - name: Install devenv.sh
+      run: nix profile install github:cachix/devenv/latest
+      shell: sh
+
+    # Install direnv, which also `direnv allow`s the project.
+    - uses: HatsuneMiku3939/direnv-action@v1
+      with:
+        direnvVersion: 2.32.3
+
+    - run: |
+          # Build generated files.
+          nix-shell --run "make build/Generated/Types.hs"
+
+          # Start the project in the background.
+          nix-shell --run "devenv up &"
+
+          # Execute the tests.
+          nix-shell --run "runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs"
+```

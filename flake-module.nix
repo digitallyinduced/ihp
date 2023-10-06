@@ -26,7 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghc96;
+                    default = pkgs.haskell.packages.ghc94;
                 };
 
                 packages = lib.mkOption {
@@ -57,6 +57,14 @@ ihpFlake:
                         Path to the IHP project. You likely want to set this to `./.`.
                     '';
                     type = lib.types.path;
+                };
+
+                withHoogle = lib.mkOption {
+                    description = ''
+                        Enable Hoogle support. Adds `hoogle` command to PATH.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
                 };
 
                 dontCheckPackages = lib.mkOption {
@@ -153,7 +161,10 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ] ++ cfg.packages;
+                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ]
+                    ++ cfg.packages
+                    ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ;
 
                 /*
                 we currently don't use devenv containers, and they break nix flake show
@@ -163,7 +174,9 @@ ihpFlake:
                 containers = lib.mkForce {};
 
                 languages.haskell.enable = true;
-                languages.haskell.package = ghcCompiler.ghc.withPackages cfg.haskellPackages;
+                languages.haskell.package = (if cfg.withHoogle
+                                             then ghcCompiler.ghc.withHoogle
+                                             else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
 
                 languages.haskell.languageServer = ghcCompiler.haskell-language-server;
                 languages.haskell.stack = null; # Stack is not used in IHP

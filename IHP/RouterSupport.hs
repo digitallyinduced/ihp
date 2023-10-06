@@ -644,7 +644,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?context :: RequestContext) => Parser StdMethod
 getMethod =
-    case parseMethod ?context.request.requestMethod of 
+    case parseMethod ?context.request.requestMethod of
         Left error -> fail (ByteString.unpack error)
         Right method -> pure method
 {-# INLINABLE getMethod #-}
@@ -968,6 +968,5 @@ routeParam paramName =
 --
 -- > <a href={ShowProjectAction projectId}>Show project</a>
 --
--- See https://forum.ihpapp.com/ShowThread?threadId=ad73d6a5-2481-4e2f-af46-9bf8849f998b
 -- See https://github.com/digitallyinduced/ihp/issues/840
 instance ((T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType argument) :<>: T.Text " to this " :<>: (T.ShowType controller))), Data argument, Data controller, Data (argument -> controller)) => AutoRoute (argument -> controller) where

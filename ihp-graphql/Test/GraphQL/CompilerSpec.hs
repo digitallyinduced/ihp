@@ -77,7 +77,7 @@ tests = do
                         |] }
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
-                 INSERT INTO projects (user_id, title) VALUES ('dc984c2f-d91c-4143-9091-400ad2333f83', 'Hello World') RETURNING json_build_object('id', projects.id, 'title', projects.title)
+                 INSERT INTO projects (title, user_id) VALUES ('Hello World', 'dc984c2f-d91c-4143-9091-400ad2333f83') RETURNING json_build_object('id', projects.id, 'title', projects.title)
             |]
         it "should compile a delete mutation" do
             let mutation = [trimming|
@@ -118,7 +118,7 @@ tests = do
                         , argumentValue = parseValue [trimming|"df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1"|] }
                     ]
             compileGQL mutation arguments `shouldBe` [trimming|
-                 UPDATE projects SET user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83', title = 'Hello World' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('id', projects.id, 'title', projects.title)
+                 UPDATE projects SET title = 'Hello World', user_id = 'dc984c2f-d91c-4143-9091-400ad2333f83' WHERE id = 'df1f54d5-ced6-4f65-8aea-fcd5ea6b9df1' RETURNING json_build_object('id', projects.id, 'title', projects.title)
             |]
 
 compileGQL gql arguments = gql
