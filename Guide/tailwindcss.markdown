@@ -12,7 +12,8 @@ Yes, while bootstrap is the default CSS framework in IHP, you can also use IHP t
 
 ### Adding package to flake.nix
 
-While it's possible to have `nodejs` installed via nix, and then have npm install TailwindCSS, we can skip that part and have nix install the tailwindcss CLI itself.
+While it's possible to have `nodejs` installed via nix, and then have npm install Tailwind CSS, we can skip that part and have nix install the CLI directly.
+
 In the `flake.nix`, add the `tailwindcss` package bundled with the most common official plugins.
 
 ```nix
@@ -37,33 +38,13 @@ packages = with pkgs; [
 Rebuild your development environment to fetch the added package:
 
 ```bash
-nix flake update
+direnv allow
 ```
 
-After that, you should be able to verify that `tailwindcss` CLI is available in your project directory. Note that the version you will see is the latest release.
+After that, you should be able to verify that `tailwindcss` CLI is available in your project directory by executing it from your shell.
 
 ```
-$ tailwindcss
-tailwindcss v3.2.7
-
-Usage:
-   tailwindcss [--input input.css] [--output output.css] [--watch] [options...]
-   tailwindcss init [--full] [--postcss] [options...]
-
-Commands:
-   init [options]
-
-Options:
-   -i, --input              Input file
-   -o, --output             Output file
-   -w, --watch              Watch for changes and rebuild as needed
-   -p, --poll               Use polling instead of filesystem events when watching
-       --content            Content paths to use for removing unused classes
-       --postcss            Load custom PostCSS configuration
-   -m, --minify             Minify the output
-   -c, --config             Path to a custom config file
-       --no-autoprefixer    Disable autoprefixer
-   -h, --help               Display usage information
+tailwindcss
 ```
 
 ### Configuring Tailwind
