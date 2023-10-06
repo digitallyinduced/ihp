@@ -38,7 +38,7 @@ packages = with pkgs; [
 Rebuild your development environment to fetch the added package:
 
 ```bash
-direnv allow
+direnv reload
 ```
 
 After that, you should be able to verify that `tailwindcss` CLI is available in your project directory by executing it from your shell.
