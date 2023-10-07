@@ -21,7 +21,7 @@ In the `flake.nix`, add the `tailwindcss` package bundled with the most common o
 packages = with pkgs; [
     # Native dependencies, e.g. imagemagick
     (nodePackages.tailwindcss.overrideAttrs
-        (oa: {
+        (_: {
             plugins = [
                 nodePackages."@tailwindcss/aspect-ratio"
                 nodePackages."@tailwindcss/forms"
