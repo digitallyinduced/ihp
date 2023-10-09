@@ -25,7 +25,7 @@ data TestDatabase = TestDatabase
 --
 createTestDatabase :: ByteString -> IO TestDatabase
 createTestDatabase databaseUrl = do
-    currentDir <- Directory.getCurrentDirectory
+--    currentDir <- Directory.getCurrentDirectory
     databaseId <- UUID.nextRandom
     let databaseName = "test-" <> UUID.toText databaseId
 
@@ -39,7 +39,7 @@ createTestDatabase databaseUrl = do
 
     libDir <- LibDir.findLibDirectory
 
-    let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d " <> (cs databaseName) <> " < " <> file)
+    let importSql file = Process.callCommand ("psql " <> (cs newUrl) <> " < " <> file)
 
     importSql (cs libDir <> "/IHPSchema.sql")
     importSql "Application/Schema.sql"
