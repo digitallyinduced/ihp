@@ -39,6 +39,8 @@ createTestDatabase databaseUrl = do
 
     libDir <- LibDir.findLibDirectory
 
+    -- We use the system psql to handle the initial Schema Import as it can handle
+    -- complex Schema including variations in formatting, custom types, functions, and table definitions.
     let importSql file = Process.callCommand ("psql " <> (cs newUrl) <> " < " <> file)
 
     importSql (cs libDir <> "/IHPSchema.sql")
