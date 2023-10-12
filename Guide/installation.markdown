@@ -17,8 +17,10 @@ That's why we first need to make sure that you have nix installed.
 Run this command in your terminal to install nix on your machine:
 
 ```bash
-sh <(curl -L https://nixos.org/nix/install)
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 ```
+
+We use the Determinate Nix Installer instead of the normal Nix installer here as it works better on macOS, e.g. the normal Nix installer always breaks across macOS updates.
 
 After this restart your terminal.
 
