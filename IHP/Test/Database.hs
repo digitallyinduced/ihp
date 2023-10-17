@@ -10,6 +10,9 @@ import qualified Data.ByteString as ByteString
 import qualified IHP.LibDir as LibDir
 import qualified Control.Exception as Exception
 
+import qualified System.Process as Process
+import qualified System.Directory as Directory
+
 data TestDatabase = TestDatabase
     { name :: Text
     , url :: ByteString
@@ -22,6 +25,7 @@ data TestDatabase = TestDatabase
 --
 createTestDatabase :: ByteString -> IO TestDatabase
 createTestDatabase databaseUrl = do
+--    currentDir <- Directory.getCurrentDirectory
     databaseId <- UUID.nextRandom
     let databaseName = "test-" <> UUID.toText databaseId
 
@@ -34,8 +38,13 @@ createTestDatabase databaseUrl = do
             |> cs
 
     libDir <- LibDir.findLibDirectory
-    importSql newUrl (cs libDir <> "/IHPSchema.sql")
-    importSql newUrl "Application/Schema.sql"
+
+    -- We use the system psql to handle the initial Schema Import as it can handle
+    -- complex Schema including variations in formatting, custom types, functions, and table definitions.
+    let importSql file = Process.callCommand ("psql " <> (cs newUrl) <> " < " <> file)
+
+    importSql (cs libDir <> "/IHPSchema.sql")
+    importSql "Application/Schema.sql"
 
     pure TestDatabase { name = databaseName, url = newUrl }
 
@@ -54,10 +63,5 @@ deleteDatabase masterDatabaseUrl testDatabase = do
         PG.execute connection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier (testDatabase.name)]
     pure ()
 
-importSql url file = do
-    schemaSql <- ByteString.readFile file
-
-    withConnection url \connection -> do
-        PG.execute connection (PG.Query schemaSql) ()
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
