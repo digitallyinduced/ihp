@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module IHP.HSX.HaskellParser (parseHaskellExpression) where
 
 import Prelude
@@ -29,7 +30,11 @@ parseHaskellExpression sourcePos extensions input =
                     error = renderWithContext defaultSDocContext
                         $ vcat
                         $ map (formatBulleted defaultSDocContext)
+#if __GLASGOW_HASKELL__ >= 960
                         $ map (diagnosticMessage NoDiagnosticOpts)
+#else
+                        $ map diagnosticMessage
+#endif
                         $ map errMsgDiagnostic
                         $ sortMsgBag Nothing
                         $ getMessages parserState.errors
