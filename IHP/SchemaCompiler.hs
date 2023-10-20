@@ -450,7 +450,7 @@ findForeignKeyConstraint CreateTable { name } column =
 compileEnumDataDefinitions :: (?schema :: Schema) => Statement -> Text
 compileEnumDataDefinitions CreateEnumType { values = [] } = "" -- Ignore enums without any values
 compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
-        "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum, Bounded)\n"
+        "data " <> modelName <> " = " <> (intercalate " | " valueConstructors) <> " deriving (Eq, Show, Read, Enum, Bounded, Ord)\n"
         <> "instance FromField " <> modelName <> " where\n"
         <> indent (unlines (map compileFromFieldInstanceForValue values))
         <> "    fromField field (Just value) = returnError ConversionFailed field (\"Unexpected value for enum value. Got: \" <> Data.String.Conversions.cs value)\n"
