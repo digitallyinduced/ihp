@@ -16,7 +16,7 @@ The recommended way is to declare a custom `newtype` in `Config/Config.hs` like 
 ```haskell
 -- Config.hs
 
-Import IHP.EnvVar
+import IHP.EnvVar
 
 newtype StripePublicKey = StripePublicKey Text
 ```
@@ -26,7 +26,7 @@ We want our new config parameter to be filled from a `STRIPE_PUBLIC_KEY` env var
 ```haskell
 module Config where
 
-Import IHP.EnvVar
+import IHP.EnvVar
 
 newtype StripePublicKey = StripePublicKey Text
 
