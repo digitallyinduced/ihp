@@ -826,8 +826,6 @@ incomplete data is left in the database when there's an error.
 
 The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
-### Common Pitfalls
-
 Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
 
 ```haskell
