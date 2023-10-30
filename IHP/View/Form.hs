@@ -19,7 +19,7 @@ import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
 import GHC.Types
-import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue)
+import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue, didTouchField)
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes ()
@@ -730,6 +730,8 @@ selectField :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 selectField field items = FormField
         { fieldType =
@@ -740,7 +742,9 @@ selectField field items = FormField
                  SelectInput (map itemToTuple items)
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = inputValue (getField @fieldName model :: SelectValue item)
+        , fieldValue = if IHP.ModelSupport.didTouchField field model
+                    then inputValue (getField @fieldName model :: SelectValue item)
+                    else ""
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationViolation field model
         , fieldClass = ""
@@ -783,6 +787,8 @@ selectFieldEmptyFieldValueWhenIsNew :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 selectFieldEmptyFieldValueWhenIsNew field items = (selectField field items)
     { fieldValue = if isNew model && isEmpty (paramList @Text (cs fieldName))
@@ -844,6 +850,8 @@ radioField :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 radioField field items = (selectField field items)
     { fieldType =
@@ -869,6 +877,8 @@ radioFieldEmptyFieldValueWhenIsNew :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 radioFieldEmptyFieldValueWhenIsNew field items = (radioField field items)
     { fieldValue = selectField.fieldValue

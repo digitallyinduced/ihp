@@ -781,13 +781,8 @@ didChangeRecord record = isEmpty record.meta.touchedFields
 --
 -- > when (user |> didChange #profilePictureUrl) (setSuccessMessage "Your Profile Picture has been updated. It might take a few minutes until it shows up everywhere")
 didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
-didChange field record = didTouchField && didChangeField
+didChange field record = didTouchField field record && didChangeField
     where
-        didTouchField :: Bool
-        didTouchField =
-            record.meta.touchedFields
-            |> includes (cs $! symbolVal field)
-
         didChangeField :: Bool
         didChangeField = originalFieldValue /= fieldValue
 
@@ -801,6 +796,27 @@ didChange field record = didTouchField && didChangeField
             |> fromDynamic @record
             |> fromMaybe (error "didChange failed to retrieve originalDatabaseRecord")
             |> getField @fieldName
+
+-- | Returns 'True' if 'set' was called on that field
+--
+-- __Example:__ Returns 'False' for freshly fetched records
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> didTouchField #name project
+-- False
+--
+-- __Example:__ Returns 'True' after setting a field
+--
+-- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
+-- >>> project <- fetch projectId
+-- >>> project |> set #name project.name |> didChange #name
+-- True
+--
+didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didTouchField field record =
+    record.meta.touchedFields
+    |> includes (cs $! symbolVal field)
 
 -- | Represents fields that have a default value in an SQL schema
 --
