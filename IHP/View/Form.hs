@@ -740,6 +740,9 @@ selectField field items = FormField
                  SelectInput (map itemToTuple items)
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
+        -- If the field is not touched, we don't want to render the value from the model
+        -- so we force the user to select. If a value was explicitely set in the model, we
+        -- render that value.
         , fieldValue = if IHP.ModelSupport.didTouchField field model
                     then inputValue (getField @fieldName model :: SelectValue item)
                     else ""
