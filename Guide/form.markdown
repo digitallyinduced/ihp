@@ -666,25 +666,18 @@ formFor subscription [hsx|
         allContentTypes = allEnumValues @ContentType
 ```
 
-### Force Seelction of Custom Enums
+### Set Default Value for Custom Enums
 
-You will notice that if we use `selectField` on enums, the first enum value is always selected. The reason is that the select field is always displaying the value it gets from the model passed to `formFor`.
+When creating a new record, by default the field value will be empty. If you'd like to set a default enum, you can set it from the controller.
 
-For a new record, that value will always be the first enum. And the reason lies in the `newRecord @Record` call in the controller. The `newRecord` creates an empty record setting all fields to a default empty value.
-The default empty value for UUIDs is `00000000-0000-0000-0000-000000000000` and the default empty value for enums is the first enum value.
-
-Now, if we have a required field, and we want to make sure the user selects a value, in the same way they have to select for a reference field.
-So we check if the model is new and the field was not submitted yet, then we set the field value to an empty string. Otherwise, we use the value from the model.
+Note that by default the `newRecord` populates the first enum on the record. However, when showing the form, IHP will check if the field was not explicetly set, and if so, will not render the default value.
 
 ```haskell
-  formFor subscription [hsx|
-    {selectFieldEmptyFieldValueWhenIsNew #contentType allContentTypes}
-|]
-    where
-      allContentTypes = allEnumValues @ContentType
+action NewPostAction = do
+    let post = newRecord
+    let postWithDefault = newRecord |> set #postType Article
+    render NewView { .. }
 ```
-
-You can use radio buttons using the `radioFieldEmptyFieldValueWhenIsNew`
 
 ### Select Inputs with Integers
 
