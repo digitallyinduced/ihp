@@ -670,7 +670,7 @@ formFor subscription [hsx|
 
 When creating a new record, by default the field value will be empty. If you'd like to set a default enum, you can set it from the controller.
 
-Note that by default the `newRecord` populates the first enum on the record. However, when showing the form, IHP will check if the field was not explicetly set, and if so, will not render the default value.
+Note that by default the `newRecord` populates the first enum on the record. However, when showing the form, IHP will check if the field was not explicitly set, and if so, will not render the default value.
 
 ```haskell
 action NewPostAction = do
