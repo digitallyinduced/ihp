@@ -816,7 +816,7 @@ didChange field record = didTouchField field record && didChangeField
 didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
 didTouchField field record =
     record.meta.touchedFields
-    |> includes (cs $! symbolVal field)
+    |> includes (symbolToText @fieldName)
 
 -- | Represents fields that have a default value in an SQL schema
 --
