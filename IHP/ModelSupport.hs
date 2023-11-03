@@ -810,7 +810,7 @@ didChange field record = didTouchField field record && didChangeField
 --
 -- >>> let projectId = "227fbba3-0578-4eb8-807d-b9b692c3644f" :: Id Project
 -- >>> project <- fetch projectId
--- >>> project |> set #name project.name |> didChange #name
+-- >>> project |> set #name project.name |> didTouchField #name
 -- True
 --
 didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
