@@ -743,7 +743,7 @@ selectField field items = FormField
         -- If the field is not touched, we don't want to render the value from the model
         -- so we force the user to select. If a value was explicitely set in the model, we
         -- render that value.
-        , fieldValue = if IHP.ModelSupport.didTouchField field model
+        , fieldValue = if IHP.ModelSupport.didTouchField field model || (not $ isNew model)
                     then inputValue (getField @fieldName model :: SelectValue item)
                     else ""
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
