@@ -134,6 +134,6 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 id :: Id' "users"
                 id = Id ("70a10b53-a776-470a-91a8-900cdda06aa2" :: UUID)
             
-            (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\"/>"
+            (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\">"
 
 type instance PrimaryKey "users" = UUID
