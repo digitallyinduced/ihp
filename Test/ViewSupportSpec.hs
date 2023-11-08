@@ -127,3 +127,13 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "should return False on a different route" $ withContext do
             application <- makeApplication
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
+
+    describe "HSX" $ do
+        it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContext do
+            let
+                id :: Id' "users"
+                id = Id ("70a10b53-a776-470a-91a8-900cdda06aa2" :: UUID)
+            
+            (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\"/>"
+
+type instance PrimaryKey "users" = UUID
