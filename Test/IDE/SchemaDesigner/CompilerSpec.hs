@@ -749,6 +749,7 @@ tests = do
                     , orReplace = True
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -762,6 +763,7 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -775,6 +777,21 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE FUNCTION with SECURITY DEFINER" do
+            let sql = cs [plain|CREATE FUNCTION create_membership_for_new_organisation() RETURNS TRIGGER SECURITY DEFINER AS $$ BEGIN INSERT INTO organisation_memberships (user_id, organisation_id) VALUES (ihp_user_id(), NEW.id); RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "create_membership_for_new_organisation"
+                    , functionArguments = []
+                    , functionBody = " BEGIN INSERT INTO organisation_memberships (user_id, organisation_id) VALUES (ihp_user_id(), NEW.id); RETURN NEW; END; "
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
                     }
 
             compileSql [statement] `shouldBe` sql
