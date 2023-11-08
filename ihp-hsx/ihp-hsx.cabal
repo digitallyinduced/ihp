@@ -87,3 +87,4 @@ library
         , IHP.HSX.ConvertibleStrings
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
+        , IHP.HSX.Attribute
