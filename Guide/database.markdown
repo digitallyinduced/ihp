@@ -334,6 +334,72 @@ do
                 |> map (\(Only uuid) -> Id uuid :: Id Project)
 ```
 
+### `IN` Clause Queries with Multiple Parameters
+
+At times, you may need to utilize the IN clause in SQL queries with multiple parameters. This approach differs from searching for records that match a single parameter, such as an ID. Instead, you might search for records that meet a combination of two parameters, like project_id and user_id.
+
+Consider a Project record, which includes a project type enum and the number of participants:
+
+```
+# Schema.sql
+CREATE TYPE project_type AS ENUM ('project_type_ongoing', 'project_type_not_started', 'project_type_finished');
+
+CREATE TABLE projects (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    project_type project_type NOT NULL,
+    participants TEXT NOT NULL
+);
+```
+
+In our Fixtures.sql, we can insert some sample data:
+
+```sql
+ALTER TABLE public.projects DISABLE TRIGGER ALL;
+
+INSERT INTO public.projects (id, project_type, participants) VALUES ('e767f087-d1b9-42ea-898e-c2a2bf39999e', 'project_type_ongoing', '2');
+INSERT INTO public.projects (id, project_type, participants) VALUES ('429177d7-f425-4c5e-b379-5e1a0f72bfb5', 'project_type_ongoing', '2');
+INSERT INTO public.projects (id, project_type, participants) VALUES ('84825fa3-2cce-4b4a-872b-81fe554e2076', 'project_type_not_started', '3');
+INSERT INTO public.projects (id, project_type, participants) VALUES ('687e32f5-8e8b-4a6d-b4a7-ead9d8a39f91', 'project_type_finished', '2');
+
+
+ALTER TABLE public.projects ENABLE TRIGGER ALL;
+```
+
+Now, let's say we want to retrieve all projects that are of type project_type_ongoing and have 2 participants. The filterWhere function is not suitable here since we need to query by two parameters.
+
+First, we must implement ToField to allow using a tuple of `(ProjectType, Int)` as a parameter:
+
+```haskell
+-- Web/Types.hs
+import Database.PostgreSQL.Simple.ToField
+import Data.ByteString.Builder (byteString, char8)
+
+
+instance ToField (ProjectType, Int) where
+    toField = serializeProjectTypeAndInt
+
+serializeProjectTypeAndInt :: (ProjectType, Int) -> Action
+serializeProjectTypeAndInt (projectType, participants) = Many
+    [ Plain (byteString "(")
+    , toField projectType
+    , Plain (char8 ',')
+    , toField $ show participants
+    , Plain (char8 ')')
+    ]
+```
+
+Then, in our controller, we can execute the query:
+
+```haskell
+-- Web/Controller/Projects.hs
+action ProjectsAction = do
+    -- let pairs = projects |> fmap (\project -> (project.projectType, project.participants))
+    let pairs = [(ProjectTypeOngoing, 1 :: Int), (ProjectTypeFinished, 2)]
+    projects :: [Project] <- sqlQuery "SELECT * FROM projects WHERE (project_type, participants) IN ?" (Only $ In pairs)
+
+    render IndexView { .. }
+```
+
 ### Scalar Results
 
 The [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use [`sqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQueryScalar):
