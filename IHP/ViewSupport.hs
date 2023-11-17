@@ -55,7 +55,7 @@ import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
-
+import qualified IHP.HSX.Attribute as HSX
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -262,3 +262,6 @@ liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
 liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
+
+instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
+    applyAttribute attr attr' value h = HSX.applyAttribute attr attr' (inputValue value) h
