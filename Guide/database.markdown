@@ -393,7 +393,6 @@ Then, in our controller, we can execute the query:
 ```haskell
 -- Web/Controller/Projects.hs
 action ProjectsAction = do
-    -- let pairs = projects |> fmap (\project -> (project.projectType, project.participants))
     let pairs = [(ProjectTypeOngoing, 1 :: Int), (ProjectTypeFinished, 2)]
     projects :: [Project] <- sqlQuery "SELECT * FROM projects WHERE (project_type, participants) IN ?" (Only $ In pairs)
 
