@@ -365,7 +365,7 @@ INSERT INTO public.projects (id, project_type, participants) VALUES ('687e32f5-8
 ALTER TABLE public.projects ENABLE TRIGGER ALL;
 ```
 
-Now, let's say we want to retrieve all projects that are of type project_type_ongoing and have 2 participants. The filterWhere function is not suitable here since we need to query by two parameters.
+Now, let's say we want to retrieve all projects that are of type Ongoing and have 1 participant, and the Finished ones with 2 participants. The filterWhere function is not suitable here since we need to query by two parameters.
 
 First, we must implement ToField to allow using a tuple of `(ProjectType, Int)` as a parameter:
 
