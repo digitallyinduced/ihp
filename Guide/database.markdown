@@ -336,7 +336,7 @@ do
 
 ### `IN` Clause Queries with Multiple Parameters
 
-At times, you may need to utilize the IN clause in SQL queries with multiple parameters. This approach differs from searching for records that match a single parameter, such as an ID. Instead, you might search for records that meet a combination of two parameters, like project_id and user_id.
+At times, you may need to utilize the IN clause in SQL queries with multiple parameters. This approach differs from searching for records that match a single parameter, such as an ID. Instead, you might search for records that meet a combination of two parameters, like `project_id` and `user_id`.
 
 Consider a Project record, which includes a project type enum and the number of participants:
 
@@ -380,7 +380,7 @@ instance ToField (ProjectType, Int) where
 
 serializeProjectTypeAndInt :: (ProjectType, Int) -> Action
 serializeProjectTypeAndInt (projectType, participants) = Many
-    [ Plain (byteString "(")
+    [ Plain (char8 '(')
     , toField projectType
     , Plain (char8 ',')
     , toField $ show participants
