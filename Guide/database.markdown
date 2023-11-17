@@ -372,7 +372,7 @@ First, we must implement ToField to allow using a tuple of `(ProjectType, Int)` 
 ```haskell
 -- Web/Types.hs
 import Database.PostgreSQL.Simple.ToField
-import Data.ByteString.Builder (byteString, char8)
+import Data.ByteString.Builder (char8)
 
 
 instance ToField (ProjectType, Int) where
