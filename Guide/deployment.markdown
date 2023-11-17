@@ -67,6 +67,7 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
 ```
 
 In the first line the `"ihp-app"` needs to be the same as your SSH name from the previous section.
+Make sure you put this into the `flake-parts.lib.mkFlake` block.
 
 
 ### Deploying the App
