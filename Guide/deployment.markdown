@@ -67,7 +67,75 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
 ```
 
 In the first line the `"ihp-app"` needs to be the same as your SSH name from the previous section.
-Make sure you put this into the `flake-parts.lib.mkFlake` block.
+
+Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flake.nix` should look like this:
+
+```diff
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/v1.2";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
+    };
+
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
+
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
+
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                    ];
+                };
+            };
+
++            flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
++                system = "x86_64-linux";
++                specialArgs = inputs;
++                modules = [
++                    "${nixpkgs}/nixos/modules/virtualisation/amazon-image.nix"
++                    ihp.nixosModules.appWithPostgres
++                    ({ ... }: {
++                        security.acme.defaults.email = "me@example.com";
++
++                        services.ihp = {
++                            domain = "myihpapp.com";
++                            migrations = ./Application/Migration;
++                            schema = ./Application/Schema.sql;
++                            fixtures = ./Application/Fixtures.sql;
++                            sessionSecret = "xxx";
++                        };
++
++                        # Add swap to avoid running out of memory during builds
++                        # Useful if your server have less than 4GB memory
++                        swapDevices = [ { device = "/swapfile"; size = 8192; } ];
++
++                        # This should reflect the nixos version from the NixOS AMI initally installed
++                        # After the initial install, it should not be changed. Otherwise e.g. the postgres
++                        # server might need a manual data migration if NixOS changes the default postgres version
++                        system.stateVersion = "23.05";
++                    })
++                ];
++            };
+
+        };
+}
+```
 
 
 ### Deploying the App
