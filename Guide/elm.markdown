@@ -10,7 +10,7 @@ While we recommend using IHP without any frontend frameworks, it may sometimes b
 
 We think that Elm can be a great fit for this, and have therefore made getting started with Elm in a new ihp app as simple as possible.
 
-Credits to Lars Lillo Ulvestad, who wrote [a series of excellent articles](https://driftercode.com/blog/ihp-with-elm/) about the setup, which our implementation is based off of.
+Credits to Lars Lillo Ulvestad, who wrote [a series of excellent articles](https://www.haskellpreneur.com/series/ihp-with-elm/) about the setup, which our implementation is based off of.
 
 ## Getting Started with IHP and Elm
 
@@ -32,7 +32,7 @@ You can find all Elm related code in `./elm`. Use `index.js` to instantiate your
 
 ## Where to go from here
 
-We recommend reading Lars' [series of blog articles](https://driftercode.com/blog/ihp-with-elm/) to see how to take this setup further and when to use it. The setup you currently get is mostly equivalent to part 1 of his series.
+We recommend reading Lars' [series of blog articles](https://www.haskellpreneur.com/series/ihp-with-elm/) to see how to take this setup further and when to use it. The setup you currently get is mostly equivalent to part 1 of his series.
 
 ## Elm Code Is Not Compiling (Reloading)
 
