@@ -334,11 +334,15 @@ do
                 |> map (\(Only uuid) -> Id uuid :: Id Project)
 ```
 
-### `IN` Clause Queries with Multiple Parameters
+### Implementing `ToField` For Custom Types.
 
-At times, you may need to utilize the IN clause in SQL queries with multiple parameters. This approach differs from searching for records that match a single parameter, such as an ID. Instead, you might search for records that meet a combination of two parameters, like `project_id` and `user_id`.
+This is a more advanced topic, and before trying to implement it, we encourage you to
+try and use the [Query Builder](https://ihp.digitallyinduced.com/Guide/querybuilder.html), as it provides a better type safety. Even the below example can be accomplished with the Query Builder.
 
-Consider a Project record, which includes a project type enum and the number of participants:
+When you want to use a custom type as a parameter for a SQL query, you need to implement the `ToField` class. This is needed for example when you want to use a tuple as a parameter for a SQL query.
+For example, you may need to utilize the IN clause in SQL queries with multiple parameters. This approach differs from searching for records that match a single parameter, such as an ID. Instead, you might search for records that meet a combination of two parameters, like `project_id` and `user_id`.
+
+Consider a `Project` record, which includes a project type enum and the number of participants:
 
 ```
 # Schema.sql
