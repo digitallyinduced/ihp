@@ -148,10 +148,6 @@ deploy-to-nixos ihp-app
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
 
-### Creating a new project
-
-Provisioning a new IHP project is straightforward with the IHP starter. Read [the IHP starter guide](https://docs.shipnix.io/starters/ihp/) to find out how to set domains, enable https with LetsEncrypt and other common usecases.
-
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.
