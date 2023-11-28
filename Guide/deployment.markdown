@@ -148,16 +148,6 @@ deploy-to-nixos ihp-app
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
 
-## Deploying with Shipnix
-
-Shipnix is a service for deploying NixOS web servers on DigitalOcean with first-class support for IHP.
-
-Generating a base NixOS configuration for your specific project, Shipnix provides full freedom to configure with ease of use.
-
-### Account Setup
-
-Register a new account on [shipnix.io](https://shipnix.io) and follow the instructions to connect to your DigitalOcean account and upload a NixOS image to it. This one-time process takes about 10 minutes.
-
 ### Creating a new project
 
 Provisioning a new IHP project is straightforward with the IHP starter. Read [the IHP starter guide](https://docs.shipnix.io/starters/ihp/) to find out how to set domains, enable https with LetsEncrypt and other common usecases.
