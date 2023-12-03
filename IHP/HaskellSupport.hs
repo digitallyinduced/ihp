@@ -50,6 +50,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs, ConvertibleStrings (..))
 import qualified Debug.Trace
 import qualified Data.Text as Text
+import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Aeson.Key as Aeson
 
@@ -84,6 +85,10 @@ instance IsEmpty [a] where
 
 instance IsEmpty UUID.UUID where
     isEmpty uuid = UUID.nil == uuid
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty (Map a b) where
+    isEmpty = Map.null    
     {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a

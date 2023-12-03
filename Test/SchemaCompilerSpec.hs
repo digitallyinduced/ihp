@@ -19,7 +19,7 @@ tests = do
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum, Bounded)
+                    data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField Mood where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "happy") = pure Happy
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "very happy") = pure VeryHappy
@@ -56,7 +56,7 @@ tests = do
                 let output = compileStatementPreview [statement] statement |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum, Bounded)
+                    data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField Province where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "BritishColumbia") = pure Britishcolumbia
@@ -102,7 +102,7 @@ tests = do
                 let output = compileStatementPreview [enum1, enum2] enum1 |> Text.strip
 
                 output `shouldBe` [trimming|
-                    data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum, Bounded)
+                    data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField PropertyType where
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
                         fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "HOUSE") = pure House

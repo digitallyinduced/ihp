@@ -19,7 +19,7 @@ import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
 import GHC.Types
-import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue)
+import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue, didTouchField)
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes ()
@@ -728,6 +728,8 @@ selectField :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
 selectField field items = FormField
         { fieldType =
@@ -738,7 +740,12 @@ selectField field items = FormField
                  SelectInput (map itemToTuple items)
         , fieldName = cs fieldName
         , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
+        -- If the field is not touched, we don't want to render the value from the model
+        -- so we force the user to select. If a value was explicitely set in the model, we
+        -- render that value.
+        , fieldValue = if IHP.ModelSupport.didTouchField field model || (not $ isNew model)
+                    then inputValue (getField @fieldName model :: SelectValue item)
+                    else ""
         , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
         , validatorResult = getValidationViolation field model
         , fieldClass = ""
@@ -808,35 +815,18 @@ radioField :: forall fieldName model item.
     , KnownSymbol (GetModelName model)
     , CanSelect item
     , InputValue (SelectValue item)
+    , Typeable model
+    , Eq (SelectValue item)
     ) => Proxy fieldName -> [item] -> FormField
-radioField field items = FormField
-        { fieldType =
-            let
-                itemToTuple :: item -> (Text, Text)
-                itemToTuple item = (selectLabel item, inputValue (selectValue item))
-            in
-                 RadioInput (map itemToTuple items)
-        , fieldName = cs fieldName
-        , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel (cs fieldName)
-        , fieldValue = inputValue ((getField @fieldName model :: SelectValue item))
-        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationViolation field model
-        , fieldClass = ""
-        , labelClass = ""
-        , disabled = False
-        , disableLabel = False
-        , disableGroup = False
-        , disableValidationResult = False
-        , additionalAttributes = []
-        , cssFramework = ?formContext.cssFramework
-        , helpText = ""
-        , placeholder = ""
-        , required = False
-        , autofocus = False
+radioField field items = (selectField field items)
+    { fieldType =
+        let
+            itemToTuple :: item -> (Text, Text)
+            itemToTuple item = (selectLabel item, inputValue (selectValue item))
+        in
+                RadioInput (map itemToTuple items)
+    , placeholder = ""
     }
-    where
-        fieldName = symbolVal field
-        FormContext { model } = ?formContext
 {-# INLINE radioField #-}
 
 class CanSelect model where

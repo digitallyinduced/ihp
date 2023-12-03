@@ -68,6 +68,75 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
 
 In the first line the `"ihp-app"` needs to be the same as your SSH name from the previous section.
 
+Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flake.nix` should look like this:
+
+```diff
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/v1.2";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
+    };
+
+    outputs = inputs@{ ihp, flake-parts, systems, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
+
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
+
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                    ];
+                    haskellPackages = p: with p; [
+                        # Haskell dependencies go here
+                        p.ihp
+                        cabal-install
+                        base
+                        wai
+                        text
+                    ];
+                };
+            };
+
++            flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
++                system = "x86_64-linux";
++                specialArgs = inputs;
++                modules = [
++                    "${nixpkgs}/nixos/modules/virtualisation/amazon-image.nix"
++                    ihp.nixosModules.appWithPostgres
++                    ({ ... }: {
++                        security.acme.defaults.email = "me@example.com";
++
++                        services.ihp = {
++                            domain = "myihpapp.com";
++                            migrations = ./Application/Migration;
++                            schema = ./Application/Schema.sql;
++                            fixtures = ./Application/Fixtures.sql;
++                            sessionSecret = "xxx";
++                        };
++
++                        # Add swap to avoid running out of memory during builds
++                        # Useful if your server have less than 4GB memory
++                        swapDevices = [ { device = "/swapfile"; size = 8192; } ];
++
++                        # This should reflect the nixos version from the NixOS AMI initally installed
++                        # After the initial install, it should not be changed. Otherwise e.g. the postgres
++                        # server might need a manual data migration if NixOS changes the default postgres version
++                        system.stateVersion = "23.05";
++                    })
++                ];
++            };
+
+        };
+}
+```
+
 
 ### Deploying the App
 
@@ -78,20 +147,6 @@ deploy-to-nixos ihp-app
 ```
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
-
-## Deploying with Shipnix
-
-Shipnix is a service for deploying NixOS web servers on DigitalOcean with first-class support for IHP.
-
-Generating a base NixOS configuration for your specific project, Shipnix provides full freedom to configure with ease of use.
-
-### Account Setup
-
-Register a new account on [shipnix.io](https://shipnix.io) and follow the instructions to connect to your DigitalOcean account and upload a NixOS image to it. This one-time process takes about 10 minutes.
-
-### Creating a new project
-
-Provisioning a new IHP project is straightforward with the IHP starter. Read [the IHP starter guide](https://docs.shipnix.io/starters/ihp/) to find out how to set domains, enable https with LetsEncrypt and other common usecases.
 
 ## Deploying with Docker
 

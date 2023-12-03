@@ -666,6 +666,19 @@ formFor subscription [hsx|
         allContentTypes = allEnumValues @ContentType
 ```
 
+### Set Default Value for Custom Enums
+
+When creating a new record, by default the field value will be empty. If you'd like to set a default enum, you can set it from the controller.
+
+Note that by default the `newRecord` populates the first enum on the record. However, when showing the form, IHP will check if the field was not explicitly set, and if so, will not render the default value.
+
+```haskell
+action NewPostAction = do
+    let post = newRecord
+    let postWithDefault = newRecord |> set #postType Article
+    render NewView { .. }
+```
+
 ### Select Inputs with Integers
 
 It's a common use case to have a select field consisting of ints, e.g. inside a shopping cart to select the quantity of an item.
