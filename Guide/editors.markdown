@@ -149,7 +149,7 @@ and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in
 export IHP_EDITOR="$HOME/bin/emacs-line"
 ```
 
-Another useful package set that integrates with lsp/lsp-ui and loads the default nix environment from direnv as well as removing common flycheck issue. 
+Another useful package set that integrates with lsp/lsp-ui and loads the default nix environment from direnv as well as removing [common flycheck issue](https://github.com/joncol/dotfiles/blob/master/homedir/.emacs.d/init.el). 
 This config also adds a jump to definition for functions bound to "C-c p":
 
 ```emacs
@@ -160,24 +160,9 @@ This config also adds a jump to definition for functions bound to "C-c p":
   :config
   (direnv-mode))
 (use-package lsp-mode
-  :hook
-  ((c-mode . lsp-deferred)
-   (c++-mode . lsp-deferred)
-
-   (clojure-mode . lsp-deferred)
-
-   (js-mode . lsp-deferred))
-
   :custom
   (lsp-lens-enable nil)
   (lsp-enable-symbol-highlighting nil)
-
-  :init
-  (with-eval-after-load 'lsp-mode
-    ;; To avoid watching all Scrive API docs.
-    (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]api_docs\\'" t)
-    (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]_build-adminonly\\'" t)
-    (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]_local\\'" t))
 
   :hook
   (lsp-mode . lsp-enable-which-key-integration)
