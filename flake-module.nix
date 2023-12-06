@@ -31,7 +31,7 @@ ihpFlake:
 
                 packages = lib.mkOption {
                     description = ''
-                        List of packages than should be included in the IHP environment.
+                        List of packages that should be included in the IHP environment.
                     '';
                     type = lib.types.listOf (lib.types.package);
                     default = [];
