@@ -302,6 +302,7 @@ submitButton =
     { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
     , cssFramework = ?formContext.cssFramework
+    , disabled = False
     }
 {-# INLINE submitButton #-}
 

@@ -67,6 +67,7 @@ data SubmitButton = SubmitButton
     { label :: Blaze.Html
     , buttonClass :: Text
     , cssFramework :: CSSFramework
+    , disabled :: Bool
     }
 
 data FormContext model = FormContext
