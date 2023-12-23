@@ -50,7 +50,7 @@ tests = do
 
                 let form = formForWithOptions project options [hsx|
                     {textField #title}
-                    {submitButton {disabled = True}}
+                    {submitButton {buttonDisabled = True}}
                 |]
                 form `shouldRenderTo` "<form method=\"GET\" action=\"/CreateProject\" id=\"\" class=\"new-form\" data-disable-javascript-submission=\"false\"><div class=\"mb-3\" id=\"form-group-project_title\"><label class=\"form-label\" for=\"project_title\">Title</label><input type=\"text\" name=\"title\" placeholder=\"\" id=\"project_title\" class=\"form-control\"> </div> <button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Create Project</button></form>"
 
