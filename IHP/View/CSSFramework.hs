@@ -272,9 +272,9 @@ instance Default CSSFramework where
 
             styledValidationResultClass = ""
 
-            styledSubmitButton cssFramework SubmitButton { label, buttonClass } =
+            styledSubmitButton cssFramework SubmitButton { label, buttonClass, buttonDisabled } =
                 let className :: Text = cssFramework.styledSubmitButtonClass
-                in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} type="submit">{label}</button>|]
+                in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} disabled={buttonDisabled} type="submit">{label}</button>|]
 
             styledInputClass _ _ = ""
             styledInputInvalidClass _ _ = "invalid"
@@ -628,9 +628,9 @@ bootstrap4 = def
                 [hsx|<div class={className}>{message}</div>|]
         styledValidationResult _ _ = mempty
 
-        styledSubmitButton cssFramework SubmitButton { label, buttonClass } =
+        styledSubmitButton cssFramework SubmitButton { label, buttonClass, buttonDisabled } =
             let className :: Text = cssFramework.styledSubmitButtonClass
-            in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} type="submit">{label}</button>|]
+            in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} disabled={buttonDisabled} type="submit">{label}</button>|]
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
         styledPagination _ paginationView =

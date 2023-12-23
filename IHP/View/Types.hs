@@ -66,6 +66,7 @@ data FormField = FormField
 data SubmitButton = SubmitButton
     { label :: Blaze.Html
     , buttonClass :: Text
+    , buttonDisabled :: Bool
     , cssFramework :: CSSFramework
     }
 
