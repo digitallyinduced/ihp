@@ -292,6 +292,19 @@ nestedFormFor field nestedRenderForm = forEach children renderChild
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button">Create Post</button>
 -- > </form>
+--
+-- __Disabled button__
+--
+-- > renderForm :: Post -> Html
+-- > renderForm post = formFor post [hsx|
+-- >     {submitButton { buttonDisabled = True } }
+-- > |]
+--
+-- This will generate code like this:
+--
+-- > <form method="POST" action="/CreatePost" id="" class="new-form">
+-- >     <button class="btn btn-primary create-button" disabled="disabled">Create Post</button>
+-- > </form>
 submitButton :: forall model. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton =
     let
