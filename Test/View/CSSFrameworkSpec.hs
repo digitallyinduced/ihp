@@ -48,7 +48,7 @@ tests = do
                     styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\" type=\"submit\">Save Project</button>"
 
                 it "should render with disabled button" do
-                    styledSubmitButton cssFramework cssFramework (submitButton { buttonDisabled = True }) `shouldRenderTo`  "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
+                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "", buttonDisabled = True }) `shouldRenderTo`  "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
 
             describe "text field" do
                 let baseTextField = FormField
@@ -406,7 +406,7 @@ tests = do
                     styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\" type=\"submit\">Save Project</button>"
 
                 it "should render with disabled button" do
-                    styledSubmitButton cssFramework cssFramework (submitButton { buttonDisabled = True }) `shouldRenderTo` "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
+                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "", buttonDisabled = True }) `shouldRenderTo` "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
 
 
             describe "text field" do
