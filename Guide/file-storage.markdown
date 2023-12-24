@@ -504,6 +504,9 @@ Our Companies controller will now change to:
 
 ```haskell
 -- Web/Controller/Companies.hs
+-- ...
+import qualified Network.Wai.Parse as Wai
+
     action CreateCompanyAction = do
         -- Upload file. If no file provided, we error and short-circuit.
         let file = fileOrNothing "uploadedFile" |> fromMaybe (error "no file given")
