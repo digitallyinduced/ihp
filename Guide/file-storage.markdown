@@ -561,6 +561,7 @@ and ensure we have an up-to-date signed URL.
 
 ```haskell
 -- Web/Controller/Companies.hs
+import IHP.FileStorage.ControllerFunctions
     action ShowCompanyAction { companyId } = do
         company <- fetch companyId
 
@@ -578,6 +579,11 @@ The company show would now receive the following records:
 ```haskell
 -- Web/View/Companies/Show.hs
 data ShowView = ShowView { company :: Company, uploadedFile :: UploadedFile }
+
+instance View ShowView where
+    html ShowView { .. } = [hsx|
+        <a href={uploadedFile.signedUrl}>{uploadedFile.fileName}</a>
+    |]
 ```
 
 ### Image Preprocessing
