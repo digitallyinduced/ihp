@@ -18,6 +18,7 @@ import IHP.ModelSupport
 import IHP.HaskellSupport
 import Text.Regex.TDFA
 import Data.List ((!!))
+import Network.URI (parseURI)
 
 -- | A function taking some value and returning a 'ValidatorResult'
 --
@@ -413,8 +414,10 @@ isColor = validateAny [isRgbHexColor, isRgbaHexColor, isRgbColor, isRgbaColor]
 -- >>> isUrl "digitallyinduced.com"
 -- Failure "is not a valid url. It needs to start with http:// or https://"
 isUrl :: Text -> ValidatorResult
-isUrl text | "http://" `isPrefixOf` text || "https://" `isPrefixOf` text = Success
-isUrl text = Failure "is not a valid url. It needs to start with http:// or https://"
+isUrl url =
+    case parseURI (unpack url) of
+        Nothing -> Failure "Invalid URL"
+        Just _  -> Success
 {-# INLINABLE isUrl #-}
 
 
