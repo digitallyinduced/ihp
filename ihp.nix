@@ -114,6 +114,7 @@ mkDerivation {
     process
     unix
     fsnotify
+    steeloverseer
     countable-inflections
     typerep-map
     basic-prelude
