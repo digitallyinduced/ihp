@@ -57,7 +57,7 @@ fileOrNothing !name =
             FormBody { files } ->
                 -- Search for the file, and confirm it's not an empty one.
                 case lookup name files of
-                    Just file | fileContent file /= "" -> Just file
+                    Just fileInfo | not (LBS.null (fileInfo.fileContent)) -> Just fileInfo
                     _ -> Nothing
             _ -> Nothing
 
@@ -159,10 +159,10 @@ uploadImageWithOptions options _ user =
         imagePath :: Text = baseImagePath <> "jpg"
         uploadFilePath = baseImagePath <> "upload"
     in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
+        Just file -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> uploadFilePath) <> "`")
             let fullImagePath = uploadDir <> imagePath
-            (fileContent file) |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
+            fileContent file |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
             Process.runCommand (cs ("convert " <> cs uploadDir <> uploadFilePath <> " " <> (getField @"imageMagickOptions" options) <> " " <> cs fullImagePath))
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
@@ -207,9 +207,9 @@ uploadImageFile ext _ user =
         uploadDir :: Text = "static"
         imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture." <> ext
     in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
+        Just file -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
-            (fileContent file) |> LBS.writeFile (cs $ uploadDir <> imagePath)
+            fileContent file |> LBS.writeFile (cs $ uploadDir <> imagePath)
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> pure
