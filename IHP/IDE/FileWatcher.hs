@@ -8,6 +8,7 @@ import Control.Monad (filterM)
 import System.Directory (listDirectory, doesDirectoryExist)
 import qualified Data.Map as Map
 import qualified System.FSNotify as FS
+import System.FSNotify.Streaming (Debounce(..))
 import IHP.IDE.Types
 import qualified Data.Time.Clock as Clock
 import qualified Data.List as List
@@ -21,7 +22,7 @@ withFileWatcher inner = withAsync callback \_ -> inner
                 watchRootDirectoryFiles manager state
                 watchSubDirectories manager state
                 forever (threadDelay maxBound) `finally` FS.stopManager manager
-        watchRootDirectoryFiles manager state = 
+        watchRootDirectoryFiles manager state =
                 FS.watchDir manager "." shouldActOnRootFileChange (handleRootFileChange manager state)
         watchSubDirectories manager state = do
                 directories <- listWatchableDirectories
@@ -64,11 +65,11 @@ shouldWatchDirectory path = do
     pure $ isDirectory && isDirectoryWatchable path
 
 isDirectoryWatchable :: String -> Bool
-isDirectoryWatchable path = 
+isDirectoryWatchable path =
     path /= ".devenv" && path /= ".direnv"
 
 fileWatcherConfig :: FS.WatchConfig
-fileWatcherConfig = FS.defaultConfig
+fileWatcherConfig = FS.defaultConfig { FS.debounce = Debounce 0.1 }
 
 handleFileChange :: (?context :: Context) => FS.Event -> IO ()
 handleFileChange event = do
@@ -80,8 +81,8 @@ handleFileChange event = do
             else if isAssetFile filePath
                 then notifyAssetChange
                 else mempty
-                  
-handleRootFileChange :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FS.Event -> IO ()                 
+
+handleRootFileChange :: (?context :: Context) => FS.WatchManager -> FileWatcherState -> FS.Event -> IO ()
 handleRootFileChange manager state event =
     case event of
         FS.Added filePath _ true ->
@@ -98,7 +99,7 @@ shouldActOnRootFileChange event =
     if FS.eventIsDirectory event == FS.IsDirectory
     then isDirectoryWatchable event.eventPath
     else shouldActOnFileChange event
-    
+
 shouldActOnFileChange :: FS.ActionPredicate
 shouldActOnFileChange event =
     let path = event.eventPath

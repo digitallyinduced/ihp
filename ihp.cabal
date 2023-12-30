@@ -69,6 +69,7 @@ common shared-properties
             , unliftio
             , unix
             , fsnotify
+            , steeloverseer
             , websockets
             , wai-websockets
             , regex-tdfa
