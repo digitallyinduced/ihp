@@ -94,6 +94,18 @@ Works with ints:
 
 You can find [the full list of built-in validators in the API Documentation](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html).
 
+### Validate `Maybe` Fields.
+
+You can use all the existing validators with `Maybe` fields. The validator will only be applied when the field is not `Nothing`.
+
+```haskell
+buildPost :: Post -> Post
+buildPost post = post
+    |> validateField #title nonEmpty
+    -- Assuming sourceUrl is optional.
+    |> validateField #sourceUrl (validateMaybe nonEmpty)
+```
+
 ### Fill Validation
 
 When using [`fill`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:fill), like `|> fill @'["title", "body"]`, any error parsing the input is also added as a validation error.

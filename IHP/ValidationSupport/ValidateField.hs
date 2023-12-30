@@ -99,6 +99,30 @@ validateFieldIO fieldProxy customValidation model = do
     pure (attachValidatorResult fieldProxy result model)
 {-# INLINE validateFieldIO #-}
 
+-- | Validate a Maybe field.
+--
+-- Validate a Maybe field using a given validator function.
+-- >>> validateMaybe nonEmpty (Just "foo")
+-- Success
+--
+-- >>> validateMaybe nonEmpty (Just "")
+-- Failure "This field cannot be empty"
+--
+-- If the value is 'Nothing', the validation will succeed.
+-- >>> validateMaybe nonEmpty Nothing
+-- Success
+--
+-- This function is useful when you want to validate a field that is optional.
+-- >>> buildPost :: Post -> Post
+-- >>> buildPost post = post
+-- >>>     |> validateField #title nonEmpty
+-- >>>     -- Assuming sourceUrl is optional.
+-- >>>     |> validateField #sourceUrl (validateMaybe nonEmpty)
+validateMaybe :: (val -> ValidatorResult) -> Maybe val -> ValidatorResult
+validateMaybe _ Nothing = Success
+validateMaybe validator (Just value) = validator value
+{-# INLINE validateMaybe #-}
+
 -- | Overrides the error message of a given validator function.
 --
 -- >>> (nonEmpty |> withCustomErrorMessage "Custom error message") ""
