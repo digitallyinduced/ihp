@@ -504,6 +504,9 @@ Our Companies controller will now change to:
 
 ```haskell
 -- Web/Controller/Companies.hs
+-- ...
+import qualified Network.Wai.Parse as Wai
+
     action CreateCompanyAction = do
         -- Upload file. If no file provided, we error and short-circuit.
         let file = fileOrNothing "uploadedFile" |> fromMaybe (error "no file given")
@@ -539,11 +542,26 @@ Our Companies controller will now change to:
                     redirectTo ShowCompanyAction { companyId = company.id }
 ```
 
+Your HTML form should now have a file field as part of the HTML.
+
+```haskell
+renderForm :: Company -> Html
+renderForm company = formFor company [hsx|
+    {(textField #name)}
+
+    <h2>File upload</h2>
+    <input type="file" name="uploadedFile" />
+
+    {submitButton}
+|]
+```
+
 Our Show action can now change to the following code, that will get the `UploadedFile` out of the company,
 and ensure we have an up-to-date signed URL.
 
 ```haskell
 -- Web/Controller/Companies.hs
+import IHP.FileStorage.ControllerFunctions
     action ShowCompanyAction { companyId } = do
         company <- fetch companyId
 
@@ -561,6 +579,11 @@ The company show would now receive the following records:
 ```haskell
 -- Web/View/Companies/Show.hs
 data ShowView = ShowView { company :: Company, uploadedFile :: UploadedFile }
+
+instance View ShowView where
+    html ShowView { .. } = [hsx|
+        <a href={uploadedFile.signedUrl}>{uploadedFile.fileName}</a>
+    |]
 ```
 
 ### Image Preprocessing
