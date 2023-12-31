@@ -65,6 +65,7 @@ that is defined in flake-module.nix
                         process
                         unix
                         fsnotify
+                        steeloverseer
                         countable-inflections
                         typerep-map
                         basic-prelude
