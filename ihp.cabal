@@ -105,6 +105,7 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-postgresql-simple-extra
+            , auto-update
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
