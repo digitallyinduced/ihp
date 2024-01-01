@@ -330,7 +330,7 @@ uploadToStorageWithOptions options field record = do
     let directory = tableName <> "/" <> cs fieldName
 
     case fileOrNothing fieldName of
-        Just fileInfo | not (LBS.null (fileInfo.fileContent)) -> do
+        Just fileInfo -> do
             storeFileWithOptions fileInfo options { directory }
             |> Exception.try
             >>= \case

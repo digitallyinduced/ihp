@@ -49,12 +49,16 @@ import qualified System.Process as Process
 --
 -- See 'filesByName' if multiple files can be uploaded by the user in a single form submission.
 --
--- See 'IHP.FileStorage.ControllerFunctions.storeFile' to upload the file to S3 or similiar cloud storages.
+-- See 'IHP.FileStorage.ControllerFunctions.storeFile' to upload the file to S3 or similar cloud storages.
 --
 fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name =
         case ?context.requestContext.requestBody of
-            FormBody { files } -> lookup name files
+            FormBody { files } ->
+                -- Search for the file, and confirm it's not an empty one.
+                case lookup name files of
+                    Just fileInfo | not (LBS.null (fileInfo.fileContent)) -> Just fileInfo
+                    _ -> Nothing
             _ -> Nothing
 
 -- | Like 'fileOrNothing' but allows uploading multiple files in the same request
@@ -88,7 +92,7 @@ fileOrNothing !name =
 -- >
 -- >     forEach markdownFiles \file -> do
 -- >         storeFile file "notes"
--- >         
+-- >
 -- >         pure ()
 -- >
 --
@@ -103,7 +107,7 @@ filesByName !name =
 -- | Options to be used together with 'uploadImageWithOptions'
 --
 -- __Example:__
--- 
+--
 -- > ImageUploadOptions { convertTo = "jpg", imageMagickOptions = "-resize '1024x1024^' -gravity north -extent 1024x1024 -quality 85% -strip" }
 data ImageUploadOptions = ImageUploadOptions {
     -- | The file extension to be used when saving the file, e.g. @"jpg"@ or @"png"@.
@@ -155,10 +159,10 @@ uploadImageWithOptions options _ user =
         imagePath :: Text = baseImagePath <> "jpg"
         uploadFilePath = baseImagePath <> "upload"
     in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
+        Just file -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> uploadFilePath) <> "`")
             let fullImagePath = uploadDir <> imagePath
-            (fileContent file) |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
+            fileContent file |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
             Process.runCommand (cs ("convert " <> cs uploadDir <> uploadFilePath <> " " <> (getField @"imageMagickOptions" options) <> " " <> cs fullImagePath))
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
@@ -203,9 +207,9 @@ uploadImageFile ext _ user =
         uploadDir :: Text = "static"
         imagePath :: Text = "/uploads/" <> tableName <> "/" <> tshow user.id <> "/picture." <> ext
     in case fileOrNothing fieldName of
-        Just file | fileContent file /= "" -> liftIO do
+        Just file -> liftIO do
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
-            (fileContent file) |> LBS.writeFile (cs $ uploadDir <> imagePath)
+            fileContent file |> LBS.writeFile (cs $ uploadDir <> imagePath)
             user
                 |> setField @fieldName (Just (cs imagePath :: Text))
                 |> pure
