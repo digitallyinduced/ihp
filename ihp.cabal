@@ -105,7 +105,6 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-postgresql-simple-extra
-            -- Used for 'Control.Debounce' in 'IHP.IDE.FileWatcher'
             , auto-update 
     default-extensions:
         OverloadedStrings
