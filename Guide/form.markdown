@@ -59,6 +59,7 @@ IHP has the most commonly-used form controls built in. In general the form contr
 - [`{passwordField #password}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:passwordField)
 - [`{dateTimeField #createdAt}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateTimeField)
 - [`{numberField #quantity}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:numberField)
+- [`{urlField #url}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:urlField)
 - [`{hiddenField #projectId}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:hiddenField)
 - [`{checkboxField #termsAccepted}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:checkboxField)
 - [`{selectField #projectId allProjects}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:selectField)

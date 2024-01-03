@@ -93,6 +93,7 @@ instance SetField "customFormAttributes" (FormContext record) [(Text, Text)] whe
 data InputType
     = TextInput
     | NumberInput
+    | UrlInput
     | CheckboxInput
     | ColorInput
     | EmailInput

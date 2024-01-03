@@ -504,6 +504,26 @@ numberField :: forall fieldName model value.
 numberField field = (textField field) { fieldType = NumberInput }
 {-# INLINE numberField #-}
 
+-- | Renders a URL input field
+--
+-- >>> {urlField #url}
+-- <div class="form-group" id="form-group-company_url">
+--     <label for="company_url">Url</label>
+--     <input type="url" name="url" id="company_url" class="form-control" />
+-- </div>
+--
+-- See 'textField' for examples of possible form control options.
+urlField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+urlField field = (textField field) { fieldType = UrlInput }
+{-# INLINE urlField #-}
+
 -- | Renders a textarea
 --
 -- >>> {textareaField #body}
