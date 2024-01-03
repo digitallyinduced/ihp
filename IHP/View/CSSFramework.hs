@@ -74,6 +74,7 @@ instance Default CSSFramework where
                         SelectInput {} -> styledSelectFormField cssFramework formField validationResult
                         RadioInput {} -> styledRadioFormField cssFramework formField validationResult
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult
+                        UrlInput -> styledTextFormField cssFramework "url" formField validationResult
 
                     validationResult :: Blaze.Html
                     validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)

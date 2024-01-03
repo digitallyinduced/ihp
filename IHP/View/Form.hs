@@ -843,6 +843,26 @@ radioField field items = (selectField field items)
     }
 {-# INLINE radioField #-}
 
+-- | Renders a URL input field
+--
+-- >>> {urlField #url}
+-- <div class="form-group" id="form-group-company_url">
+--     <label for="company_url">URL</label>
+--     <input type="url" name="url" id="company_url" class="form-control" />
+-- </div>
+--
+-- See 'textField' for examples of possible form control options.
+urlField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+urlField field = (textField field) { fieldType = UrlInput }
+{-# INLINE urlField #-}
+
 class CanSelect model where
     -- | Here we specify the type of the @<option>@ value, usually an @Id model@
     type SelectValue model :: GHC.Types.Type

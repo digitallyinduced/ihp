@@ -104,6 +104,7 @@ data InputType
     | SelectInput { options :: ![(Text, Text)] }
     | RadioInput { options :: ![(Text, Text)] }
     | FileInput
+    | UrlInput
 
 
 data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Blaze.Html }
