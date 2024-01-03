@@ -508,7 +508,7 @@ numberField field = (textField field) { fieldType = NumberInput }
 --
 -- >>> {urlField #url}
 -- <div class="form-group" id="form-group-company_url">
---     <label for="company_url">URL</label>
+--     <label for="company_url">Url</label>
 --     <input type="url" name="url" id="company_url" class="form-control" />
 -- </div>
 --
