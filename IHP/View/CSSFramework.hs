@@ -63,6 +63,7 @@ instance Default CSSFramework where
                     renderInner = case formField.fieldType of
                         TextInput -> styledTextFormField cssFramework "text" formField validationResult
                         NumberInput -> styledTextFormField cssFramework "number" formField validationResult
+                        UrlInput -> styledTextFormField cssFramework "url" formField validationResult
                         PasswordInput -> styledTextFormField cssFramework "password" formField validationResult
                         ColorInput -> styledTextFormField cssFramework "color" formField validationResult
                         EmailInput -> styledTextFormField cssFramework "email" formField validationResult
@@ -74,7 +75,6 @@ instance Default CSSFramework where
                         SelectInput {} -> styledSelectFormField cssFramework formField validationResult
                         RadioInput {} -> styledRadioFormField cssFramework formField validationResult
                         FileInput -> styledTextFormField cssFramework "file" formField validationResult
-                        UrlInput -> styledTextFormField cssFramework "url" formField validationResult
 
                     validationResult :: Blaze.Html
                     validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)

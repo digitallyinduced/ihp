@@ -93,6 +93,7 @@ instance SetField "customFormAttributes" (FormContext record) [(Text, Text)] whe
 data InputType
     = TextInput
     | NumberInput
+    | UrlInput
     | CheckboxInput
     | ColorInput
     | EmailInput
@@ -104,7 +105,6 @@ data InputType
     | SelectInput { options :: ![(Text, Text)] }
     | RadioInput { options :: ![(Text, Text)] }
     | FileInput
-    | UrlInput
 
 
 data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Blaze.Html }
