@@ -199,11 +199,6 @@ build/RunJobs.hs: build/Generated/Types.hs
 	echo "main :: IO ()" >> $@
 	echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> $@
 
-hie.yaml: # Configuration for haskell-language-server
-	echo "cradle:" > hie.yaml
-	echo "  bios:" >> hie.yaml
-	echo "    program: ${IHP_LIB}/.hie-bios" >> hie.yaml
-
 # https://github.com/digitallyinduced/ihp/issues/130
 ghci:
 	ghci -package-env -
