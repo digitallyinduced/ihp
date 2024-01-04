@@ -84,7 +84,7 @@ if ! [ -x "$(command -v direnv)" ]; then
 	echo ""
 	case "$choice" in
     y | Y)
-        nix profile install nixpkgs#nix-direnv
+        nix --extra-experimental-features "nix-command flakes" profile install nixpkgs#nix-direnv
         ;;
 	*)
 		echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"
