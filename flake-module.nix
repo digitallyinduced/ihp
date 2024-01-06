@@ -234,6 +234,7 @@ ihpFlake:
                         --flake .#$1 \
                         --target-host $1 \
                         --build-host $1 \
+                        --option sandbox false \
                         --option extra-substituters "https://digitallyinduced.cachix.org" \
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
                     ssh $1 systemctl start migrate
