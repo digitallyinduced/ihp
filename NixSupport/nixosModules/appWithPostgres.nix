@@ -74,6 +74,7 @@ in
             }
         ];
         initialScript = pkgs.writeText "ihp-initScript" ''
+            \connect ${cfg.databaseName}
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/lib/IHP/IHPSchema.sql
             \i ${cfg.schema}
@@ -81,7 +82,8 @@ in
         '';
     };
 
-    services.ihp.databaseUrl = ""; # TODO: Set this to some real value
+    services.ihp.databaseUser = "root";
+    services.ihp.databaseUrl = "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
 
     # Enable automatic GC to avoid the disk from filling up
     #
@@ -96,5 +98,10 @@ in
 
     # Saves disk space by detecting and handling identical contents in the Nix Store
     nix.settings.auto-optimise-store = true;
+
+    environment.variables = {
+        PGUSER = cfg.databaseUser;
+        PGDATABASE = cfg.databaseName;
+    };
 }
 
