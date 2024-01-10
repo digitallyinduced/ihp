@@ -97,8 +97,13 @@ We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
 
 ```makefile
-tailwind-dev:
-	tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
+# Install npm packages.
+node_modules:
+	NODE_ENV=production npm ci
+
+# We rely on the `node_modules`. So if `node_modules` directory doesn't exist, calling `make tailwind-dev` will trigger `make node_modules`.
+tailwind-dev: node_modules
+	node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
@@ -108,8 +113,8 @@ This defines a new command `make tailwind-dev` that runs `npx tailwindcss build`
 For production builds, we also need a new make target:
 
 ```makefile
-static/app.css:
-	tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
+static/app.css: node_modules
+	NODE_ENV=production node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --minify
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
