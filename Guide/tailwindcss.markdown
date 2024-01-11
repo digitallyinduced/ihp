@@ -97,7 +97,7 @@ We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
 
 ```makefile
-# Install npm packages.
+# Install npm packages. We have `NODE_ENV=production` so it won't install `devDependencies`
 node_modules:
 	NODE_ENV=production npm ci
 
