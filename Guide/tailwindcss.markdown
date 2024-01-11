@@ -103,7 +103,7 @@ node_modules:
 
 # We rely on the `node_modules`. So if `node_modules` directory doesn't exist, calling `make tailwind-dev` will trigger `make node_modules`.
 tailwind-dev: node_modules
-	node_modules/.bin/tailwind -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
+	node_modules/.bin/tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
 ```
 
 **Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
