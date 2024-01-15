@@ -107,6 +107,7 @@ Then we can use it in the `Mail`.
 
         <p>
             <a href={redirectExample}>Click here to view all Posts</a>
+         </p>
     |]
 ```
 
