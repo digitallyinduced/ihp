@@ -93,7 +93,7 @@ The reason we don't have `ControllerContext`, is because a `Mail` can be sent vi
 # Application/Helper/Controller.hs
 
 redirectExample :: forall context. (?context :: context, ConfigProvider context) => Text
-redirectExample = urlTo LmNamesAction
+redirectExample = urlTo PostsAction
 ```
 
 Then we can use it in the `Mail`.
