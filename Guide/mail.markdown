@@ -76,12 +76,38 @@ replyTo ConfirmationMail { .. } = Just Address { addessName = Just "Support", ad
 
 ### Email Content
 
-Last we need to change the email text a little bit. The mail supports HSX so this is similar to writing an IHP view:
+Lastly, we need to change the email text a little bit. The mail supports HSX, so this is similar to writing an IHP view:
 
 ```haskell
     html ConfirmationMail { .. } = [hsx|
         Hey {user.name}, <br/>
         Thanks for signing up! Please confirm your account by following this link: ... <br /><br />
+    |]
+```
+
+We can also include links. It's likely that you'd have a function to return the correct link; for example, after posting a comment, you will send notifications.
+Inside `Mail` we don't use `ControllerContext`, so if we have such a function we would need a different type signature. So it could work both from inside `Mail` and a `Controller`.
+The reason we don't have `ControllerContext`, is because a `Mail` can be sent via IHP scripts.
+
+```hasekll
+# Application/Helper/Controller.hs
+
+redirectExample :: forall context. (?context :: context, ConfigProvider context) => Text
+redirectExample = urlTo LmNamesAction
+```
+
+Then we can use it in the `Mail`.
+
+```haskell
+    html ConfirmationMail { .. } = [hsx|
+        Hey {user.name}, <br/>
+        <p>
+            Thanks for signing up! Please confirm your account by following this link: ...
+        </p>
+
+        <p>
+            <a href={redirectExample}>Click here to view all Posts</a>
+         </p>
     |]
 ```
 
