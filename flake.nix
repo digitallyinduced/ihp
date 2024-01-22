@@ -15,9 +15,8 @@
         devenv.url = "github:cachix/devenv";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
-        # TODO use a corresponding release branch
         # import ihp-boilerplate for the templates
-        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate/nicolas/flake";
+        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
