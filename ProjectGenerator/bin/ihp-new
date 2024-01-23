@@ -235,6 +235,15 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 chmod go-w .ghci || true
 
+# Init git repo
+# When the IHP project is created inside a larger git repo, nix will not pick up file changes until they've been `git add`ed. We create our own git repo here to avoid any issues related to that.
+# See https://github.com/digitallyinduced/ihp/issues/1787
+git init
+git add .
+
+# Disable nix warning like `warning: Git tree '...' is dirty`
+export NIX_CONFIG="warn-dirty = false"
+
 # Generating Web/ directory
 nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c "make -s all; new-application Web"
 
@@ -249,6 +258,9 @@ elif [[ "$BOILERPLATE_GIT_BRANCH" == "purescript-halogen" ]]; then
 	nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
 	rm Layout.hs.patch Welcome.hs.patch
 fi
+
+# Add remaining changes
+git add .
 
 echo ""
 echo "🚀 Project created, happy coding :)"
