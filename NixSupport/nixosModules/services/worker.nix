@@ -1,7 +1,6 @@
 { config, pkgs, self, lib, ... }:
 let
     cfg = config.services.ihp;
-    ihpApp = self.packages.x86_64-linux.default;
 in
 {
     systemd.services.worker = {
@@ -11,8 +10,8 @@ in
         serviceConfig = {
             Type = "simple";
             Restart = "always";
-            WorkingDirectory = "${ihpApp}/lib";
-            ExecStart = "${ihpApp}/bin/RunJobs";
+            WorkingDirectory = "${cfg.package}/lib";
+            ExecStart = "${cfg.package}/bin/RunJobs";
         };
         environment =
             let
