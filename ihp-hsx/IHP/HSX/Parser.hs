@@ -397,6 +397,7 @@ attributes = Set.fromList
         , "frameborder", "allow", "allowfullscreen", "nonce", "referrerpolicy", "slot"
         , "kind"
         , "html"
+        , "sse-connect", "sse-swap"
         ]
 
 parents :: Set Text

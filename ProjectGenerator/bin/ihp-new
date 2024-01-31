@@ -83,7 +83,9 @@ if ! [ -x "$(command -v direnv)" ]; then
 	read -r -n1 choice
 	echo ""
 	case "$choice" in
-	y | Y) nix-env -iA ${NIXPKGS_ATTR}.direnv ;;
+    y | Y)
+        nix --extra-experimental-features "nix-command flakes" profile install nixpkgs#nix-direnv
+        ;;
 	*)
 		echo -e "\e[31mPlease install direnv manually and then re-run this program.\e[0m"
 		exit 1
@@ -216,40 +218,6 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
-if ! [ -x "$(command -v cachix)" ]; then
-	echo -e "\e[1m\e[35mCACHIX MISSING\e[0m"
-	echo -e "IHP uses cachix as a binary cache."
-	echo -e "Learn more about cachix here: \e[4mhttps://cachix.org/\e[0m"
-	echo ""
-	echo ""
-	echo -e "\e[1mWe will install cachix for you now. Continue? (Type y to proceed) \e[0m"
-	read -r -n1 choice
-	echo ""
-	case "$choice" in
-	y | Y) nix-env -iA ${NIXPKGS_ATTR}.cachix ;;
-	*)
-		echo -e "\e[31mPlease install cachix manually and then re-run this program.\e[0m"
-		exit 1
-		;;
-	esac
-fi
-
-if ! grep -s -q "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ~/.config/nix/nix.conf; then
-	echo -e "\e[1mCachix doesn't seem to be configured\e[0m"
-	echo -e "IHP provides a cachix cache with binaries for all IHP packages and commonly used dependencies."
-	echo -e "While not required, this greatly speeds up the installation & build process."
-	echo -e "This could be a false negative if you use a more complex nix configuration."
-	echo ""
-	echo ""
-	echo -e "\e[1mWe will configure the cache for you now using 'cachix use digitallyinduced'. Continue? (Type y to proceed) \e[0m"
-	read -r -n1 choice
-	echo ""
-	case "$choice" in
-	y | Y) cachix use digitallyinduced ;;
-	*) echo -e "Skipping cachix configuration" ;;
-	esac
-fi
-
 BOILERPLATE_GIT_BRANCH="master"
 
 if [[ "$1" == "--elm" ]]; then
@@ -267,6 +235,15 @@ cd "$PROJECT_NAME"
 rm -rf ".git"
 chmod go-w .ghci || true
 
+# Init git repo
+# When the IHP project is created inside a larger git repo, nix will not pick up file changes until they've been `git add`ed. We create our own git repo here to avoid any issues related to that.
+# See https://github.com/digitallyinduced/ihp/issues/1787
+git init
+git add .
+
+# Disable nix warning like `warning: Git tree '...' is dirty`
+export NIX_CONFIG="warn-dirty = false"
+
 # Generating Web/ directory
 nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c "make -s all; new-application Web"
 
@@ -281,6 +258,9 @@ elif [[ "$BOILERPLATE_GIT_BRANCH" == "purescript-halogen" ]]; then
 	nix --extra-experimental-features "nix-command flakes" develop --impure --accept-flake-config --command bash -c 'patch Web/View/Layout.hs -i Layout.hs.patch; patch Web/View/Static/Welcome.hs -i Welcome.hs.patch; npm install'
 	rm Layout.hs.patch Welcome.hs.patch
 fi
+
+# Add remaining changes
+git add .
 
 echo ""
 echo "🚀 Project created, happy coding :)"

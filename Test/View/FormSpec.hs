@@ -29,7 +29,7 @@ tests = do
                     {submitButton}
                 |]
                 form `shouldRenderTo` "<form method=\"POST\" action=\"/CreateProject\" id=\"\" class=\"new-form\" data-disable-javascript-submission=\"false\"><div class=\"mb-3\" id=\"form-group-project_title\"><label class=\"form-label\" for=\"project_title\">Title</label><input type=\"text\" name=\"title\" placeholder=\"\" id=\"project_title\" class=\"form-control\"> </div> <button class=\"btn btn-primary\" type=\"submit\">Create Project</button></form>"
-            
+
             it "should render a form with a GET method" do
                 context <- createControllerContext
                 let ?context = context
@@ -54,7 +54,7 @@ createControllerContext = do
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)
 instance InputValue Project where inputValue = IHP.ModelSupport.recordToInputValue
-type Project = Project' 
+type Project = Project'
 
 type instance GetTableName (Project' ) = "projects"
 type instance GetModelByTableName "projects" = Project

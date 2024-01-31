@@ -8,7 +8,7 @@ in
                 src = cfg.migrations;
                 buildPhase = ''
                     mkdir -p $out/Application/Migration
-                    cp $src/* $out/Application/Migration
+                    find "$src" -mindepth 1 -type f -exec cp {} $out/Application/Migration \;
                 '';
             };
         in {

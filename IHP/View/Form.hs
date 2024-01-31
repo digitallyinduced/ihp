@@ -292,6 +292,19 @@ nestedFormFor field nestedRenderForm = forEach children renderChild
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button">Create Post</button>
 -- > </form>
+--
+-- __Disabled button__
+--
+-- > renderForm :: Post -> Html
+-- > renderForm post = formFor post [hsx|
+-- >     {submitButton { buttonDisabled = True } }
+-- > |]
+--
+-- This will generate code like this:
+--
+-- > <form method="POST" action="/CreatePost" id="" class="new-form">
+-- >     <button class="btn btn-primary create-button" disabled="disabled">Create Post</button>
+-- > </form>
 submitButton :: forall model. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
 submitButton =
     let
@@ -301,6 +314,7 @@ submitButton =
     in SubmitButton
     { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
+    , buttonDisabled = False
     , cssFramework = ?formContext.cssFramework
     }
 {-# INLINE submitButton #-}
@@ -489,6 +503,26 @@ numberField :: forall fieldName model value.
     ) => Proxy fieldName -> FormField
 numberField field = (textField field) { fieldType = NumberInput }
 {-# INLINE numberField #-}
+
+-- | Renders a URL input field
+--
+-- >>> {urlField #url}
+-- <div class="form-group" id="form-group-company_url">
+--     <label for="company_url">Url</label>
+--     <input type="url" name="url" id="company_url" class="form-control" />
+-- </div>
+--
+-- See 'textField' for examples of possible form control options.
+urlField :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , InputValue value
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+urlField field = (textField field) { fieldType = UrlInput }
+{-# INLINE urlField #-}
 
 -- | Renders a textarea
 --

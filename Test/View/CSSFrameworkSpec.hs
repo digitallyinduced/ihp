@@ -40,13 +40,15 @@ tests = do
                 styledFlashMessage cssFramework cssFramework flashMessage `shouldRenderTo` "<div class=\"alert alert-danger\">You have successfully registered for an account</div>"
 
             describe "submit button" do
-                let submitButton = SubmitButton { label = "Save Project" , buttonClass = "my-custom-button" , cssFramework }
+                let submitButton = SubmitButton { label = "Save Project" , buttonClass = "my-custom-button" , cssFramework, buttonDisabled = False }
                 it "should render" do
                     styledSubmitButton cssFramework cssFramework submitButton `shouldRenderTo` "<button class=\"btn btn-primary my-custom-button\" type=\"submit\">Save Project</button>"
 
                 it "should render with empty class" do
                     styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\" type=\"submit\">Save Project</button>"
 
+                it "should render with disabled button" do
+                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "", buttonDisabled = True }) `shouldRenderTo`  "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
 
             describe "text field" do
                 let baseTextField = FormField
@@ -396,12 +398,15 @@ tests = do
                 styledFlashMessage cssFramework cssFramework flashMessage `shouldRenderTo` "<div class=\"alert alert-danger\">You have successfully registered for an account</div>"
 
             describe "submit button" do
-                let submitButton = SubmitButton { label = "Save Project" , buttonClass = "my-custom-button" , cssFramework }
+                let submitButton = SubmitButton { label = "Save Project" , buttonClass = "my-custom-button" , cssFramework, buttonDisabled = False }
                 it "should render" do
                     styledSubmitButton cssFramework cssFramework submitButton `shouldRenderTo` "<button class=\"btn btn-primary my-custom-button\" type=\"submit\">Save Project</button>"
 
                 it "should render with empty class" do
                     styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "" }) `shouldRenderTo` "<button class=\"btn btn-primary\" type=\"submit\">Save Project</button>"
+
+                it "should render with disabled button" do
+                    styledSubmitButton cssFramework cssFramework (submitButton { buttonClass = "", buttonDisabled = True }) `shouldRenderTo` "<button class=\"btn btn-primary\" disabled=\"disabled\" type=\"submit\">Save Project</button>"
 
 
             describe "text field" do

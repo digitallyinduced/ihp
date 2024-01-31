@@ -1,5 +1,5 @@
 # Running IHP app + a local Postgres connected to it
-{ config, pkgs, modulesPath, lib, ... }:
+{ self, config, pkgs, modulesPath, lib, ... }:
 with lib;
 {
     options.services.ihp = {
@@ -73,6 +73,16 @@ with lib;
         additionalEnvVars = mkOption {
             type = types.attrs;
             default = {};
+        };
+
+        package = mkOption {
+            type = types.package;
+            default = if config.services.ihp.optimized then self.packages.x86_64-linux.optimized-prod-server else self.packages.x86_64-linux.default;
+        };
+        
+        optimized = mkOption {
+            type = types.bool;
+            default = false;
         };
     };
 }

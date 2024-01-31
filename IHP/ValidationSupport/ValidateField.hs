@@ -18,6 +18,7 @@ import IHP.ModelSupport
 import IHP.HaskellSupport
 import Text.Regex.TDFA
 import Data.List ((!!))
+import Network.URI (parseURI, uriScheme)
 
 -- | A function taking some value and returning a 'ValidatorResult'
 --
@@ -97,6 +98,30 @@ validateFieldIO fieldProxy customValidation model = do
     result <- customValidation value
     pure (attachValidatorResult fieldProxy result model)
 {-# INLINE validateFieldIO #-}
+
+-- | Validate a Maybe field.
+--
+-- Validate a Maybe field using a given validator function.
+-- >>> validateMaybe nonEmpty (Just "foo")
+-- Success
+--
+-- >>> validateMaybe nonEmpty (Just "")
+-- Failure "This field cannot be empty"
+--
+-- If the value is 'Nothing', the validation will succeed.
+-- >>> validateMaybe nonEmpty Nothing
+-- Success
+--
+-- This function is useful when you want to validate a field that is optional.
+-- >>> buildPost :: Post -> Post
+-- >>> buildPost post = post
+-- >>>     |> validateField #title nonEmpty
+-- >>>     -- Assuming sourceUrl is optional.
+-- >>>     |> validateField #sourceUrl (validateMaybe nonEmpty)
+validateMaybe :: (val -> ValidatorResult) -> Maybe val -> ValidatorResult
+validateMaybe _ Nothing = Success
+validateMaybe validator (Just value) = validator value
+{-# INLINE validateMaybe #-}
 
 -- | Overrides the error message of a given validator function.
 --
@@ -411,10 +436,15 @@ isColor = validateAny [isRgbHexColor, isRgbaHexColor, isRgbColor, isRgbaColor]
 -- Success
 --
 -- >>> isUrl "digitallyinduced.com"
--- Failure "is not a valid url. It needs to start with http:// or https://"
+-- Failure "URL must start with http:// or https://"
 isUrl :: Text -> ValidatorResult
-isUrl text | "http://" `isPrefixOf` text || "https://" `isPrefixOf` text = Success
-isUrl text = Failure "is not a valid url. It needs to start with http:// or https://"
+isUrl url =
+    case parseURI (unpack url) of
+        Just uri ->
+            if uriScheme uri `elem` ["http:", "https:"]
+                then Success
+                else Failure "URL must start with http:// or https://"
+        Nothing  -> Failure "Invalid URL"
 {-# INLINABLE isUrl #-}
 
 

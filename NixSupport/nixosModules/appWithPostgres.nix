@@ -1,18 +1,18 @@
 # Running IHP app + a local Postgres connected to it
-{ config, pkgs, modulesPath, lib, ihp, ... }:
+{ config, nixpkgs, pkgs, modulesPath, lib, ihp, ... }:
 let cfg = config.services.ihp;
 in
 {
     imports = [
         ihp.nixosModules.options
+        ihp.nixosModules.binaryCache
         ihp.nixosModules.services_app
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
     ];
 
-    # Speed up builds with the IHP binary cache
-    nix.settings.substituters = [ "https://digitallyinduced.cachix.org" ];
-    nix.settings.trusted-public-keys = [ "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" ];
+    # Pin the nixpkgs to the IHP nixpkgs
+    nix.registry.nixpkgs.flake = nixpkgs;
     
     # Add swap to avoid running out of memory during builds
     swapDevices = [ { device = "/swapfile"; size = 8192; } ];
@@ -74,6 +74,7 @@ in
             }
         ];
         initialScript = pkgs.writeText "ihp-initScript" ''
+            \connect ${cfg.databaseName}
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/lib/IHP/IHPSchema.sql
             \i ${cfg.schema}
@@ -81,7 +82,8 @@ in
         '';
     };
 
-    services.ihp.databaseUrl = ""; # TODO: Set this to some real value
+    services.ihp.databaseUser = "root";
+    services.ihp.databaseUrl = "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
 
     # Enable automatic GC to avoid the disk from filling up
     #
@@ -96,5 +98,10 @@ in
 
     # Saves disk space by detecting and handling identical contents in the Nix Store
     nix.settings.auto-optimise-store = true;
+
+    environment.variables = {
+        PGUSER = cfg.databaseUser;
+        PGDATABASE = cfg.databaseName;
+    };
 }
 

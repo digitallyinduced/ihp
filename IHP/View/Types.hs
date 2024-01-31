@@ -66,6 +66,7 @@ data FormField = FormField
 data SubmitButton = SubmitButton
     { label :: Blaze.Html
     , buttonClass :: Text
+    , buttonDisabled :: Bool
     , cssFramework :: CSSFramework
     }
 
@@ -92,6 +93,7 @@ instance SetField "customFormAttributes" (FormContext record) [(Text, Text)] whe
 data InputType
     = TextInput
     | NumberInput
+    | UrlInput
     | CheckboxInput
     | ColorInput
     | EmailInput

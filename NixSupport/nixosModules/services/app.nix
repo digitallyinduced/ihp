@@ -12,8 +12,8 @@ in
         serviceConfig = {
             Type = "simple";
             Restart = "always";
-            WorkingDirectory = "${ihpApp}/lib";
-            ExecStart = "${ihpApp}/bin/RunProdServer";
+            WorkingDirectory = "${cfg.package}/lib";
+            ExecStart = "${cfg.package}/bin/RunProdServer";
         };
         environment =
             let
