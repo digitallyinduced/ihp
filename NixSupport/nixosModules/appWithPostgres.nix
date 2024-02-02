@@ -64,16 +64,10 @@ in
     # Postgres
     services.postgresql = {
         enable = true;
-        ensureDatabases = [ cfg.databaseName ];
-        ensureUsers = [
-            {
-                name = cfg.databaseUser;
-                ensurePermissions = {
-                    "DATABASE ${cfg.databaseName}" = "ALL PRIVILEGES";
-                };
-            }
-        ];
         initialScript = pkgs.writeText "ihp-initScript" ''
+            CREATE USER ${cfg.databaseUser};
+            GRANT ALL PRIVILEGES ON DATABASE ${cfg.databaseName} TO "${pkgs.databaseUser}";
+            CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
             \connect ${cfg.databaseName}
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/lib/IHP/IHPSchema.sql
