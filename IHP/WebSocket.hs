@@ -18,6 +18,7 @@ where
 
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
+import Network.WebSockets.Connection.PingPong (withPingPong, defaultPingPongOptions)
 import IHP.ApplicationContext
 import IHP.Controller.RequestContext
 import qualified Data.UUID as UUID
@@ -60,20 +61,11 @@ class WSApp state where
     connectionOptions = WebSocket.defaultConnectionOptions
 
 startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => Websocket.Connection -> IO ()
-startWSApp connection' = do
+startWSApp connection = do
     state <- newIORef (initialState @state)
-    lastPongAt <- getCurrentTime >>= newIORef
-
-
-    let connection = installPongHandler lastPongAt connection'
     let ?state = state
-    let ?connection = connection
-    let pingHandler = do
-            seconds <- secondsSinceLastPong lastPongAt
-            when (seconds > pingWaitTime * 2) (throwIO PongTimeout)
-            onPing @state
 
-    result <- Exception.try ((WebSocket.withPingThread connection pingWaitTime pingHandler (run @state)) `Exception.finally` onClose @state)
+    result <- Exception.try ((withPingPong defaultPingPongOptions connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of
         Left (e@Exception.SomeException{}) ->
             case Exception.fromException e of
@@ -117,26 +109,3 @@ instance Websocket.WebSocketsData UUID where
     fromLazyByteString byteString = UUID.fromLazyASCIIBytes byteString |> Maybe.fromJust
     toLazyByteString = UUID.toLazyASCIIBytes
 
-data PongTimeout
-    = PongTimeout
-    deriving (Show)
-
-instance Exception PongTimeout
-
-pingWaitTime :: Int
-pingWaitTime = 30
-
-installPongHandler :: IORef UTCTime -> WebSocket.Connection -> WebSocket.Connection
-installPongHandler lastPongAt connection =
-    connection { WebSocket.connectionOptions = connection.connectionOptions { WebSocket.connectionOnPong = connectionOnPong lastPongAt }  }
-
-connectionOnPong :: IORef UTCTime -> IO ()
-connectionOnPong lastPongAt = do
-    now <- getCurrentTime
-    writeIORef lastPongAt now
-
-secondsSinceLastPong :: IORef UTCTime -> IO Int
-secondsSinceLastPong lastPongAt = do
-    now <- getCurrentTime
-    last <- readIORef lastPongAt
-    pure $ ceiling $ nominalDiffTimeToSeconds $ diffUTCTime now last
