@@ -12,7 +12,7 @@ The following setup and tests can be viewed in the [Blog example](https://github
 
 1. Add `hspec` in `flake.nix`
 ```nix
-        haskellDeps = p: with p; [
+        haskellPackages = p: with p; [
             cabal-install
             # ...
             p.ihp
