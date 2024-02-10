@@ -69,7 +69,7 @@ in
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
             GRANT ALL PRIVILEGES ON DATABASE ${cfg.databaseName} TO "${cfg.databaseUser}";
             \connect ${cfg.databaseName}
-            SET USER ${cfg.databaseUser};
+            SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/lib/IHP/IHPSchema.sql
             \i ${cfg.schema}
