@@ -114,7 +114,6 @@ ihp = {
                 ];
             })
         )
-        just
     ];
     haskellPackages = p: with p; [
         # Haskell dependencies go here
