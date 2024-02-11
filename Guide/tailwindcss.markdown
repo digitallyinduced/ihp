@@ -92,6 +92,55 @@ We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.
 }
 ```
 
+### Integrating with `devenv`
+
+To start the TailwindCSS build process with the IHP dev server, add the following to your flake.nix:
+
+```
+...
+outputs = inputs@{ ihp, flake-parts, systems, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+
+        systems = import systems;
+        imports = [ ihp.flakeModules.default ];
+
+        perSystem = { pkgs, ... }: {
+            ihp = {
+                enable = true;
+                projectPath = ./.;
+                packages = with pkgs; [
+                    # Native dependencies, e.g. imagemagick
+                    (nodePackages.tailwindcss.overrideAttrs
+                        (_: {
+                            plugins = [
+                                nodePackages."@tailwindcss/aspect-ratio"
+                                nodePackages."@tailwindcss/forms"
+                                nodePackages."@tailwindcss/language-server"
+                                nodePackages."@tailwindcss/line-clamp"
+                                nodePackages."@tailwindcss/typography"
+                            ];
+                        })
+                    )
+                    just
+                ];
+                haskellPackages = p: with p; [
+                    # Haskell dependencies go here
+                    ...
+                 ];
+            };
+
+            # Add TailwindCSS build command here
+            devenv.shells.default = {
+                processes = {
+                    tailwind.exec = "tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch=always";
+                };
+            };
+        };
+    };
+```
+
+Now when you use `devenv up` to start the IHP dev server, the TailwindCSS build process will be started as well.
+
 ### Adding the build step
 
 We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
