@@ -96,63 +96,44 @@ We also need a CSS entry point for Tailwind. Create a new file at `tailwind/app.
 
 To start the TailwindCSS build process with the IHP dev server, add the following to your flake.nix:
 
-```
+```nix
 ...
-outputs = inputs@{ ihp, flake-parts, systems, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-
-        systems = import systems;
-        imports = [ ihp.flakeModules.default ];
-
-        perSystem = { pkgs, ... }: {
-            ihp = {
-                enable = true;
-                projectPath = ./.;
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                    (nodePackages.tailwindcss.overrideAttrs
-                        (_: {
-                            plugins = [
-                                nodePackages."@tailwindcss/aspect-ratio"
-                                nodePackages."@tailwindcss/forms"
-                                nodePackages."@tailwindcss/language-server"
-                                nodePackages."@tailwindcss/line-clamp"
-                                nodePackages."@tailwindcss/typography"
-                            ];
-                        })
-                    )
-                    just
+ihp = {
+    enable = true;
+    projectPath = ./.;
+    packages = with pkgs; [
+        # Native dependencies, e.g. imagemagick
+        (nodePackages.tailwindcss.overrideAttrs
+            (_: {
+                plugins = [
+                    nodePackages."@tailwindcss/aspect-ratio"
+                    nodePackages."@tailwindcss/forms"
+                    nodePackages."@tailwindcss/language-server"
+                    nodePackages."@tailwindcss/line-clamp"
+                    nodePackages."@tailwindcss/typography"
                 ];
-                haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    ...
-                 ];
-            };
+            })
+        )
+        just
+    ];
+    haskellPackages = p: with p; [
+        # Haskell dependencies go here
+        ...
+     ];
+};
 
-            # Add TailwindCSS build command here
-            devenv.shells.default = {
-                processes = {
-                    tailwind.exec = "tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch=always";
-                };
-            };
-        };
+# Add TailwindCSS build command here
+devenv.shells.default = {
+    processes = {
+        tailwind.exec = "tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch=always";
     };
+};
+...
 ```
 
-Now when you use `devenv up` to start the IHP dev server, the TailwindCSS build process will be started as well.
+Now when you use `devenv up` to start the IHP dev server, the TailwindCSS build process will be started as well. The `--watch=always` flag forces `tailwindcss` to always stay running and watch for any CSS changes in your project and rebuild the `static/app.css` file as needed.
 
-### Adding the build step
-
-We need to add a new build command for starting a tailwind build process to our `Makefile`. For that append this to the `Makefile` in your project:
-
-```makefile
-tailwind-dev:
-	tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch
-```
-
-**Make requires tab characters instead of 4 spaces in the second line. Make sure you're using a tab character when pasting this into the file**
-
-This defines a new command `make tailwind-dev` that runs `npx tailwindcss build` whenever a CSS file inside the `tailwind/` directory changes. The CSS output will be placed at `static/app.css` (the standard main CSS file of IHP apps). It will use the tailwind configuration at `tailwind/tailwind.config.js`.
+### Adding additional build step for production
 
 For production builds, we also need a new make target:
 
@@ -253,17 +234,6 @@ config = do
     option customTailwind -- ADD THIS OPTION
     pure ()
 ```
-
-
-## Developing with Tailwind
-
-Once everything is installed, you can start your tailwind build by calling:
-
-```bash
-make tailwind-dev
-```
-
-Whenever you change any CSS file in `tailwind/` it will automatically rebuild your styles and write it to `static/app.css`.
 
 ## Building for production
 
