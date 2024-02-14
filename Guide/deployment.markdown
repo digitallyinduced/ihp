@@ -14,7 +14,13 @@ AWS EC2 is a good choice for deploying IHP in a professional setup.
 
 Start a new EC2 instance and use the official NixOS AMI `NixOS-23.05.426.afc48694f2a-x86_64-linux`. You can find the latest NixOS AMI at https://nixos.org/download#nixos-amazon
 
-Make sure to attach SSH keys to the instance at creation time.
+Example steps:
+ - Visit [EC2 creation page](https://eu-west-1.console.aws.amazon.com/ec2/home?region=eu-west-1#LaunchInstances:) in your desired region.
+ - Select AMI by name, it will appear under "Community AMIs" after searching by name.
+ - Select at least a `t3a.small` instance size to have enough RAM for the compilation
+ - Specify a generous root disk volume. By nature NixOS can consume lots of disk space as you trial-and-error your application deployment. As a minimum, we advise 60 GiB
+ - Under `Network settings`, allow SSH traffic from your IP address only, allow HTTPS and HTTP traffic from the internet. Due to the certificate validation for Let's Encrypt, even if your application does not need to have it, allow HTTP too.
+ - Make sure to attach SSH keys to the instance at creation time, that is available locally, so you can SSH to the EC2 instance without password later.
 
 ### Connecting to the EC2 Instance
 
