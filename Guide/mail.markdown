@@ -144,11 +144,15 @@ Remember that the successfull delivery of email largely depends on the from-doma
 
 The delivery method is set in `Config/Config.hs` as shown below.
 
-### Any SMTP Server
+### Set SMTP by Environment Variables
+
+It's a good idea to not hardcode your SMTP credentials in your code. Instead, you can use environment variables to set your SMTP credentials. This is especially useful when deploying your application to a cloud provider like AWS, where it will use different credentials in production than on your local machine.
+
 
 ```haskell
 -- Add this import
 import IHP.Mail
+
 
 config :: ConfigBuilder
 config = do
@@ -163,7 +167,7 @@ config = do
 
 ### Local SMTP with Mailhog
 
-A convinient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing.
+A convenient way to see sent mails is to use a local mail testing such as [MailHog](https://github.com/mailhog/MailHog). This service will catch all outgoing emails, and show their HTML to you - which is handy while developing.
 
 1. Make sure `sendmail` is locally installed and configured.
 2. Install MailHog.
@@ -173,17 +177,90 @@ A convinient way to see sent mails is to use a local mail testing such as [MailH
 
 
 ```haskell
+-- Config/Config.hs
+
+-- Add these imports
+import IHP.Mail
+import Network.Socket (PortNumber)
+import IHP.Mail.Types (SMTPEncryption)
+import IHP.EnvVar
+
+config :: ConfigBuilder
+config = do
+    -- Previous options
+    -- ...
+
+    smtpHost <- env @Text "SMTP_HOST"
+    smtpPort <- env @PortNumber "SMTP_PORT"
+    smtpEncryption <- env @SMTPEncryption "SMTP_ENCRYPTION"
+
+    smtpUserMaybe <- envOrNothing "SMTP_USER"
+    smtpPasswordMaybe <- envOrNothing "SMTP_PASSWORD"
+
+    -- Determine if credentials are available and set SMTP configuration accordingly.
+    let smtpCredentials = case (smtpUserMaybe, smtpPasswordMaybe) of
+            (Just user, Just password) -> Just (user, password)
+            _ -> Nothing
+
+    liftIO $ putStrLn $ "SMTP HOST: " <> show smtpHost
+    liftIO $ putStrLn $ "SMTP PORT: " <> show smtpPort
+
+    -- SMTP to work with MailHog or other SMTP services.
+    option $
+        SMTP
+            { host = cs smtpHost
+            , port = smtpPort
+            , credentials = smtpCredentials
+            , encryption = smtpEncryption
+            }
+```
+
+Then set the environment variables in your `.envrc` file:
+
+```
+# Add your env vars here
+#
+# E.g. export AWS_ACCESS_KEY_ID="XXXXX"
+export SMTP_HOST="127.0.0.1" # On some computers may need `127.0.1.1` instead.
+export SMTP_PORT="1025"
+export SMTP_ENCRYPTION="Unencrypted"
+```
+
+Finally, when you'll have the app deployed, for example on AWS using SES, you would have to set the environment variables in your `flake.nix`.
+
+```nix
+services.ihp = {
+    domain = "...";
+    migrations = ./Application/Migration;
+    schema = ./Application/Schema.sql;
+    fixtures = ./Application/Fixtures.sql;
+    sessionSecret = "...";
+    additionalEnvVars = {
+        SMTP_HOST = "email-smtp.eu-west-1.amazonaws.com";
+        SMTP_PORT = "587";
+        SMTP_ENCRYPTION = "STARTTLS";
+        SMTP_USER = "your-user-name";
+        SMTP_PASSWORD = "your-password";
+        ENV_NAME = "qa";
+        AWS_ACCESS_KEY_ID = "your key ID";
+        AWS_SECRET_ACCESS_KEY = "your secret";
+    };
+};
+```
+
+### AWS SES
+
+```haskell
 -- Add this import
 import IHP.Mail
 
 config :: ConfigBuilder
 config = do
     -- other options here, then add:
-    option $ SMTP
-        { host = "127.0.1.1" -- On some computers may need `127.0.0.1` instead.
-        , port = 1025
-        , credentials = Nothing
-        , encryption = Unencrypted
+    option $ SES
+        { accessKey = "YOUR AWS ACCESS KEY"
+        , secretKey = "YOUR AWS SECRET KEY"
+        , region = "eu-west-1" -- YOUR REGION
         }
 ```
 
@@ -199,23 +276,6 @@ config = do
     option $ SendGrid
         { apiKey = "YOUR SENDGRID API KEY"
         , category = Nothing -- or Just "mailcategory"
-        }
-```
-
-
-### AWS SES
-
-```haskell
--- Add this import
-import IHP.Mail
-
-config :: ConfigBuilder
-config = do
-    -- other options here, then add:
-    option $ SES
-        { accessKey = "YOUR AWS ACCESS KEY"
-        , secretKey = "YOUR AWS SECRET KEY"
-        , region = "eu-west-1" -- YOUR REGION
         }
 ```
 
