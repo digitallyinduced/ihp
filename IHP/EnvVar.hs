@@ -12,6 +12,7 @@ import Data.String.Interpolate.IsString (i)
 import qualified System.Posix.Env.ByteString as Posix
 import Network.Socket (PortNumber)
 import Data.Word (Word16)
+import IHP.Mail.Types
 import IHP.Environment
 
 -- | Returns a env variable. The raw string
@@ -92,6 +93,7 @@ instance EnvVarReader Bool where
     envStringToValue "0"       = Right False
     envStringToValue otherwise = Left "Should be set to '1' or '0'"
 
+-- | Allow reading the env var of an SMTP port number.
 instance EnvVarReader PortNumber where
     envStringToValue string = case textToInt (cs string) of
         Just integer -> Right $ convertIntToPortNumber integer
@@ -99,3 +101,10 @@ instance EnvVarReader PortNumber where
 
 convertIntToPortNumber :: Int -> PortNumber
 convertIntToPortNumber int = fromIntegral (int :: Int) :: PortNumber
+
+-- | Allow reading the env var of an SMTP encryption method.
+instance EnvVarReader SMTPEncryption where
+    envStringToValue "Unencrypted" = Right Unencrypted
+    envStringToValue "TLS"  = Right TLS
+    envStringToValue "STARTTLS"  = Right STARTTLS
+    envStringToValue otherwise = Left [i|Expected 'Unencrypted', 'TLS' or 'STARTTLS', got #{otherwise}|]
