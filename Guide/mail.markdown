@@ -190,6 +190,7 @@ config = do
     -- Previous options
     -- ...
 
+    -- Read SMTP configuration from environment variables.
     smtpHost <- env @Text "SMTP_HOST"
     smtpPort <- env @PortNumber "SMTP_PORT"
     smtpEncryption <- env @SMTPEncryption "SMTP_ENCRYPTION"
@@ -202,6 +203,7 @@ config = do
             (Just user, Just password) -> Just (user, password)
             _ -> Nothing
 
+    -- Print out SMTP configuration for debugging purposes.
     liftIO $ putStrLn $ "SMTP HOST: " <> show smtpHost
     liftIO $ putStrLn $ "SMTP PORT: " <> show smtpPort
 
