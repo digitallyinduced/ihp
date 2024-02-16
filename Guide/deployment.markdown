@@ -26,7 +26,7 @@ Example steps:
    - Either before creating the EC2 instance, you import your existing keypair to [EC2 Key Pairs](https://us-east-1.console.aws.amazon.com/ec2/home?region=eu-west-1#ImportKeyPair:), then you should select it at the EC2 creation page.
    - Or let AWS create one on-the-fly: ![image](https://github.com/digitallyinduced/ihp/assets/114076/317b022a-ad6e-43ae-931d-8710db0b711c) . Afterwards, you will be able to download the private key file, later on it is referred as `ihp-app.pem` in this documentation.
 
-#### (optional) Creating an RDS Instance
+#### (Optional) Creating an RDS Instance
 
 For production systems, it is advised to use a fully managed PostgreSQL instance, it can be multi-region, fault tolerant, but most of all,
 daily backups happen automatically with configurable retention.
