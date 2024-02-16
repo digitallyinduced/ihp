@@ -47,7 +47,7 @@ To switch from the local PostgreSQL instance to a managed one (you can do it aft
 If your application needs to store files, on AWS, those should use an S3 bucket for that.
 
 Infrastructure-side preparation:
- - Visit the [S3 creation page](https://s3.console.aws.amazon.com/s3/bucket/create?region=eu-west-1) and create a bucket in the same region.. If objects should or should not be public, it's up to the business requirements of the application. The S3 [ARN](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) from the S3 details page should be noted down.
+ - Visit the [S3 creation page](https://s3.console.aws.amazon.com/s3/bucket/create?region=eu-west-1) and create a bucket in the same region..If objects should or should not be public, it's up to the application's business requirements. The S3 [ARN](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) from the S3 details page should be noted down.
  - Create an new IAM user for the S3 access. Create an [AWS access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html) for that IAM user.
  - For that user, attach a [policy](https://gist.github.com/AronNovak/d2e295d1644e807e27e5e759ecffbc86) that allows access to the bucket. 
  - See the [Storage guide](https://ihp.digitallyinduced.com/Guide/file-storage.html#s3) on how to use the access key.
