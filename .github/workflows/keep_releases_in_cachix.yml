@@ -1,7 +1,7 @@
 name: Keep Releases in Cachix
 on:
   schedule:
-    - cron: '0 17 * * *'
+    - cron: '0 17 1 * *'
 jobs:
   build:
     strategy:
