@@ -19,6 +19,7 @@ import IHP.Fetch
 import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
+import qualified IHP.Log as Log
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -123,7 +124,7 @@ channelName :: ByteString -> ByteString
 channelName tableName = "job_available_" <> tableName
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
-jobDidFail :: forall job.
+jobDidFail :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -134,11 +135,13 @@ jobDidFail :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> SomeException -> IO ()
 jobDidFail job exception = do
     updatedAt <- getCurrentTime
 
-    putStrLn ("Failed job with exception: " <> tshow exception)
+    Log.warn ("Failed job with exception: " <> tshow exception)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -152,7 +155,7 @@ jobDidFail job exception = do
 
     pure ()
 
-jobDidTimeout :: forall job.
+jobDidTimeout :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -163,11 +166,13 @@ jobDidTimeout :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> IO ()
 jobDidTimeout job = do
     updatedAt <- getCurrentTime
 
-    putStrLn "Job timed out"
+    Log.warn ("Job timed out" :: Text)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -183,7 +188,7 @@ jobDidTimeout job = do
   
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
-jobDidSucceed :: forall job.
+jobDidSucceed :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -194,9 +199,11 @@ jobDidSucceed :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> IO ()
 jobDidSucceed job = do
-    putStrLn "Succeeded job"
+    Log.info ("Succeeded job" :: Text)
     updatedAt <- getCurrentTime
     job
         |> set #status JobStatusSucceeded
