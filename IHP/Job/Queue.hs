@@ -94,7 +94,12 @@ pollForJob tableName pollInterval onNewJob = do
         forever do
             count :: Int <- sqlQueryScalar query params
 
-            when (count > 0) (Concurrent.putMVar onNewJob JobAvailable)
+            when (count > 0) do
+                -- For every job we send one signal to the job workers
+                -- This way we use full concurrency when we find multiple jobs
+                -- that haven't been picked up by the PGListener
+                forEach [0..count] \_ -> do
+                    Concurrent.putMVar onNewJob JobAvailable
 
             -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
             jitter <- Random.randomRIO (0, 2000000)
