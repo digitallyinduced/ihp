@@ -68,6 +68,26 @@ Infrastructure-side preparation:
 ```
  - See the [Storage guide](https://ihp.digitallyinduced.com/Guide/file-storage.html#s3) on how to use the access key.
 
+ If your application requires so, make the S3 bucket publicly available.
+  - Go to https://s3.console.aws.amazon.com/s3/buckets/YOUR-BUCKET?region=eu-west-1&bucketType=general&tab=permissions (permissions tab of the S3 bucket)
+  - Set `Block all public access˙ to entirely off.
+  - Set a bucket policy like this:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "YOUR-BUCKET-ARN/*"
+        }
+    ]
+}
+```
+ - Test the access by locating a file in a bucket under Objects and "Copy S3 URI" for it.
+
 ### Connecting to the EC2 / Virtual Machine Instance
 
 After you've created the instance, configure your local SSH settings to point to the instance.
