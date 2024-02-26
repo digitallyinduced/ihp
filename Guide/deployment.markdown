@@ -88,6 +88,36 @@ Infrastructure-side preparation:
 ```
  - Test the access by locating a file in a bucket under Objects and "Copy S3 URI" for it.
 
+#### (Optional) Connecting CloudWatch
+
+For a production system, logging is essential, so you are informed about anomalies before customer complaints, or you are able to provide an evidence for an incident and so on.
+
+Mind the region of your EC2 instance for these steps.
+
+- [Create a CloudWatch log group](https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/create-log-group), note down the ARN.
+- Create a log stream inside the previously created log group, for instance `in`.
+- Create an IAM user with an access key and secret with the following policy:
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"logs:CreateLogStream",
+				"logs:PutLogEvents",
+				"logs:DescribeLogStreams"
+			],
+			"Resource": [
+				"[YOUR-GROUP-ARN]",
+				"[YOUR-GROUP-ARN]:*"
+			]
+		}
+	]
+}
+```
+- Follow the [sample](https://github.com/digitallyinduced/ihp-boilerplate/pull/32/files) to configure your `flake.nix` to activate logging.
+
 ### Connecting to the EC2 / Virtual Machine Instance
 
 After you've created the instance, configure your local SSH settings to point to the instance.
