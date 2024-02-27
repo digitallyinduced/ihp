@@ -467,3 +467,9 @@ executable hash-password
     build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
+
+executable new-session-secret
+    import: shared-properties
+    build-depends: ihp
+    hs-source-dirs: exe
+    main-is: IHP/CLI/NewSessionSecret.hs
