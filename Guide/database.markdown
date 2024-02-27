@@ -92,6 +92,10 @@ You can also update the database while keeping its contents.
 
 When dumping the database into the `Fixtures.sql` first and then rebuilding the database with the dump, the contents will be kept when changing the schema.
 
+### Transferring/backing up DB
+
+To have the full database dumped in a portable manner, you can do `make sql_dump > /tmp/my_app.sql`, which will generate a full SQL database dump, without owner or ACL information.
+
 ## Haskell Bindings
 
 ### Model Context
