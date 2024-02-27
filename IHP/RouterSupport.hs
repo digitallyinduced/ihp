@@ -955,7 +955,7 @@ routeParam :: (?context::RequestContext, ParamReader paramType) => ByteString ->
 routeParam paramName =
     let requestContext = ?context
     in
-        let ?context = FrozenControllerContext { requestContext = requestContext, customFields = mempty }
+        let ?context = FrozenControllerContext { requestContext = requestContext, customFields = mempty, logger = requestContext.frameworkConfig.logger }
         in param paramName
 
 -- | Display a better error when the user missed to pass an argument to an action.

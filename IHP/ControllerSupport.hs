@@ -66,6 +66,10 @@ class InitControllerContext application where
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
+    mapContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?context :: ControllerContext) => ControllerContext -> ControllerContext
+    mapContext context = context
+    {-# INLINABLE mapContext #-}
+
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
@@ -123,7 +127,7 @@ newContextForAction contextSetter controller = do
                     let respond = ?context.requestContext.respond
                     in respond response
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
-        Right _ -> pure $ Right ?context
+        Right _ -> pure $ Right (mapContext @application ?context)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived

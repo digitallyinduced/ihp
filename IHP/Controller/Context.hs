@@ -47,20 +47,22 @@ import IHP.Log.Types
 -- - @action ..@: The action itself.
 -- - Freezing: Before rendering the response, the container is frozen. Frozen means that all previously mutable fields become immutable.
 -- - View Rendering: The frozen container is now used inside the view and layout to display information such as the current user or flash messages
-data ControllerContext = ControllerContext { requestContext :: RequestContext, customFieldsRef :: IORef TypeMap.TMap }
-                       | FrozenControllerContext { requestContext :: RequestContext, customFields :: TypeMap.TMap }
+data ControllerContext = ControllerContext { requestContext :: RequestContext, customFieldsRef :: IORef TypeMap.TMap, logger :: Logger }
+                       | FrozenControllerContext { requestContext :: RequestContext, customFields :: TypeMap.TMap, logger :: Logger }
 
 newControllerContext :: (?requestContext :: RequestContext) => IO ControllerContext
 newControllerContext = do
     customFieldsRef <- newIORef TypeMap.empty
-    pure ControllerContext { requestContext = ?requestContext, customFieldsRef }
+    pure ControllerContext { requestContext = ?requestContext, customFieldsRef, logger = ?requestContext.frameworkConfig.logger }
 {-# INLINABLE newControllerContext #-}
 
 -- | After freezing a container you can access its values from pure non-IO code by using 'fromFronzenContext'
 --
 -- Calls to 'putContext' will throw an exception after it's frozen.
 freeze :: ControllerContext -> IO ControllerContext
-freeze ControllerContext { requestContext, customFieldsRef } = FrozenControllerContext requestContext <$> readIORef customFieldsRef
+freeze ControllerContext { requestContext, customFieldsRef, logger } = do
+    customFields <- readIORef customFieldsRef
+    pure FrozenControllerContext { requestContext, customFields, logger }
 freeze frozen = pure frozen
 {-# INLINABLE freeze #-}
 
@@ -68,7 +70,7 @@ freeze frozen = pure frozen
 --
 -- This is used together with 'freeze' by e.g. AutoRefresh to make a immutable copy of the current controller context state
 unfreeze :: ControllerContext -> IO ControllerContext
-unfreeze FrozenControllerContext { requestContext, customFields } = do
+unfreeze FrozenControllerContext { requestContext, customFields, logger } = do
     customFieldsRef <- newIORef customFields
     pure ControllerContext { .. }
 unfreeze ControllerContext {} = error "Cannot call unfreeze on a controller context that is not frozen"
@@ -136,6 +138,3 @@ newtype ActionType = ActionType Typeable.TypeRep
 instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = controllerContext.requestContext.frameworkConfig
     {-# INLINABLE getField #-}
-
-instance HasField "logger" ControllerContext Logger where
-    getField controllerContext = controllerContext.frameworkConfig.logger
