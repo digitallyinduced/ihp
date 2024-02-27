@@ -116,7 +116,7 @@ Mind the region of your EC2 instance for these steps.
 	]
 }
 ```
-- Follow the [sample](https://github.com/digitallyinduced/ihp-boilerplate/pull/32/files) to configure your `flake.nix` to activate logging.
+- Configure the `services.vector` part in your `flake.nix` to activate logging.
 
 ### Connecting to the EC2 / Virtual Machine Instance
 
