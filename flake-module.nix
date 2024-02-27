@@ -158,6 +158,17 @@ ihpFlake:
                         cp ${ihp}/lib/IHP/IHPSchema.sql $out/
                     '';
                 };
+
+
+                schema = pkgs.stdenv.mkDerivation {
+                    name = "schema";
+                    src = cfg.projectPath;
+                    phases = [ "unpackPhase" "installPhase" ];
+                    installPhase = ''
+                        mkdir $out
+                        cp Application/Schema.sql $out/
+                    '';
+                };
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
