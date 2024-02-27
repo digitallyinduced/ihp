@@ -50,7 +50,7 @@ createControllerContext = do
     let requestBody = FormBody { params = [], files = [] }
     let request = Wai.defaultRequest
     let requestContext = RequestContext { request, respond = undefined, requestBody, vault = undefined, frameworkConfig = frameworkConfig }
-    pure FrozenControllerContext { requestContext, customFields = mempty }
+    pure FrozenControllerContext { requestContext, customFields = mempty, logger = requestContext.frameworkConfig.logger }
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)
 instance InputValue Project where inputValue = IHP.ModelSupport.recordToInputValue

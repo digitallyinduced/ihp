@@ -435,14 +435,14 @@ createControllerContextWithParams params =
             requestBody = FormBody { params, files = [] }
             request = Wai.defaultRequest
             requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
-        in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
+        in FrozenControllerContext { requestContext, customFields = TypeMap.empty, logger = error "logger is missing" }
 
 createControllerContextWithJson params =
         let
             requestBody = JSONBody { jsonPayload = Just (json params), rawPayload = cs params }
             request = Wai.defaultRequest
             requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
-        in FrozenControllerContext { requestContext, customFields = TypeMap.empty }
+        in FrozenControllerContext { requestContext, customFields = TypeMap.empty, logger = error "logger is missing" }
 
 json :: Text -> Aeson.Value
 json string =
