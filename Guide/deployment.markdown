@@ -620,19 +620,28 @@ $ ./build/bin/RunProdServer
 
 #### `IHP_SESSION_SECRET`
 
-In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each container start. This means that all your users will have to re-login on each container start.
+In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each app start. This means that all your users will have to re-login on each app start.
 
 **Note on `Config/client_session_key.aes`:** The `IHP_SESSION_SECRET` env variable is an alternative for placing a `Config/client_session_key.aes` inside the your repository. If IHP detects a `Config/` folder, and no `IHP_SESSION_SECRET` is set, it will automatically create a `Config/client_session_key.aes` file. This is designed for persistent sessions in development mode.
 
-When you start an app without specifying the `IHP_SESSION_SECRET` and no `Config/client_session_key.aes` is found, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value:
+When you start an app without specifying the `IHP_SESSION_SECRET` and no `Config/client_session_key.aes` is found, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value.
+
+An easier way is to use the `new-session-secret` CLI command:
 
 ```bash
-$ ./build/bin/RunProdServer
-IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
-Server started
+$ new-session-secret
+1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
 ```
 
-There we can copy the `IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp` value and use it as our secret:
+On macOS you can directly copy this into your clipboard like this:
+
+```bash
+$ new-session-secret | pbcopy
+```
+
+Then you can paste the value where needed.
+
+Now we can use this secret and pass it to the app binary via the `IHP_SESSION_SECRET` env var:
 
 ```bash
 $ export IHP_SESSION_SECRET="1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp"
