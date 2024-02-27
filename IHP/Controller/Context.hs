@@ -10,6 +10,7 @@ import qualified Data.Typeable as Typeable
 import IHP.Controller.RequestContext
 import IHP.FrameworkConfig
 import IHP.Log.Types
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | A container storing useful data along the request lifecycle, such as the request, the current user, set current view layout, flash messages, ...
 --
@@ -137,5 +138,10 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = controllerContext.requestContext.frameworkConfig
     {-# INLINABLE getField #-}
 
+-- The following hack is bad, but allows us to override the logger using 'putContext'
+-- The alternative would be https://github.com/digitallyinduced/ihp/pull/1921 which is also not very nice
+--
+-- This design mistake should be fixed in IHP v2
 instance HasField "logger" ControllerContext Logger where
-    getField controllerContext = controllerContext.frameworkConfig.logger
+    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @Logger)
+    getField context = (unsafePerformIO (freeze context)).logger
