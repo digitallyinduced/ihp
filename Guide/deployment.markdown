@@ -39,7 +39,7 @@ To switch from the local PostgreSQL instance to a managed one (you can do it aft
  - (Optional) Choose `Auto generate password` for having a secure master password.
  - Choose `Connect to an EC2 compute resource` and select your already existing EC2 instance.
  - Then you can `Create database`. This process is slow, check back in 10 minutes or so afterward. Note down the auto-generated password.
- - Edit your `flake.nix`, under `flake.nixosConfigurations."ihp-app".services.ihp.additionalEnvVars`, you can specify the database URL like: `DATABASE_URL = "postgresql://postgres:YOUR-PASSWORD@YOUR-HOSTNAME.amatonaws.com/postgres";`. You can find the proper hostname after the initialization is complete, on the RDS instance detail page.
+ - Edit your `flake.nix`, under `flake.nixosConfigurations."ihp-app".services.ihp`, you can specify the database URL like: `databaseUrl = lib.mkForce "postgresql://postgres:YOUR-PASSWORD@YOUR-HOSTNAME.amatonaws.com/postgres";`. You can find the proper hostname after the initialization is complete, on the RDS instance detail page.
  - `pg_dump --no-owner --no-acl` your existing local database on the EC2 instance directly, and then, you can load it to the newly created instance via `pgsql`. `deploy-to-nixos` won't populate the initial schema at an existing remote database, that's why dumping, `scp d`ing and loading it via `psql` is necessary.
 
 #### (Optional) Creating an S3 bucket
