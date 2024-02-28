@@ -460,4 +460,4 @@ getInstanceDecl instanceName full =
         takeInstanceDecl (line:rest)
             | isEmpty line = []
             | otherwise = line : takeInstanceDecl rest
-        takeInstanceDecl [] = error "never encountered newline?"
+        takeInstanceDecl [] = [] -- EOF reached
