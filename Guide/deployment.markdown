@@ -116,7 +116,43 @@ Mind the region of your EC2 instance for these steps.
 	]
 }
 ```
-- Configure the `services.vector` part in your `flake.nix` to activate logging.
+- Configure the `services.vector` part in your `flake.nix` to activate logging:
+```
+services.vector = {
+    enable = true;
+    journaldAccess = true;
+    settings = {
+        sources.journald = {
+            type = "journald";
+            include_units = ["app.service" "nginx.service" "worker.service"];
+        };
+        transforms.remap_remove_specific_keys = {
+             type = "remap";
+             inputs = ["journald"];
+             source = ''
+                 del(._STREAM_ID)
+                 del(._SYSTEMD_UNIT)
+                 del(._BOOT_ID)
+                 del(.source_type)
+             '';
+        };
+        sinks.out = {
+            auth = {
+                access_key_id = "YOUR-IAM-ACCESS-KEY";
+                secret_access_key = "YOUR-IAM-ACCESS-KEY";
+            };
+            inputs  = ["remap_remove_specific_keys"];
+            type = "aws_cloudwatch_logs";
+            compression = "gzip";
+            encoding.codec = "json";
+            region = "us-east-1";
+            group_name = "tpp-qa";
+            stream_name = "in";
+        };
+    };
+};
+```
+- Review the incoming log entries, adjust remapping accordingly. You might want to remove or transform more entries to make the logs useful for alerts or accountability.
 
 ### Connecting to the EC2 / Virtual Machine Instance
 
