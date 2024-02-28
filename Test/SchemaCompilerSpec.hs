@@ -442,7 +442,55 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
-
+        describe "compileFilterPrimaryKeyInstance" do
+            it "should compile FilterPrimaryKey instance when primary key is called id" do
+                let statement = StatementCreateTable $ CreateTable {
+                        name = "things",
+                        columns = [ Column "id" PUUID Nothing False False Nothing ],
+                        primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                        constraints = [],
+                        unlogged = False
+                    }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+                
+                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
+                    instance QueryBuilder.FilterPrimaryKey "things" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+                    |]
+            it "should compile FilterPrimaryKey instance when primary key is called thing_id" do
+                let statement = StatementCreateTable $ CreateTable {
+                        name = "things",
+                        columns = [ Column "thing_id" PUUID Nothing False False Nothing ],
+                        primaryKeyConstraint = PrimaryKeyConstraint ["thing_id"],
+                        constraints = [],
+                        unlogged = False
+                    }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+                
+                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
+                    instance QueryBuilder.FilterPrimaryKey "things" where
+                        filterWhereId thingId builder =
+                            builder |> QueryBuilder.filterWhere (#thingId, thingId)
+                        {-# INLINE filterWhereId #-}
+                    |]
+            it "should compile FilterPrimaryKey instance when primary key is composite of thing_id other_id" do
+                let statement = StatementCreateTable $ CreateTable {
+                        name = "thing_other_rels",
+                        columns = [ Column "thing_id" PUUID Nothing False False Nothing, Column "other_id" PUUID Nothing False False Nothing],
+                        primaryKeyConstraint = PrimaryKeyConstraint ["thing_id", "other_id"],
+                        constraints = [],
+                        unlogged = False
+                    }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+                
+                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
+                    instance QueryBuilder.FilterPrimaryKey "thing_other_rels" where
+                        filterWhereId (Id (thingId, otherId)) builder =
+                            builder |> QueryBuilder.filterWhere (#thingId, thingId) |> QueryBuilder.filterWhere (#otherId, otherId)
+                        {-# INLINE filterWhereId #-}
+                    |]
 
 getInstanceDecl :: Text -> Text -> Text
 getInstanceDecl instanceName full =
