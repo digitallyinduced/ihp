@@ -739,7 +739,7 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
     where
         primaryKeyPattern = case primaryKeyColumns table of
             [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-            [c] -> c.name
+            [c] -> columnNameToFieldName c.name
             cs -> "(Id (" <> intercalate ", " (map (columnNameToFieldName . (.name)) cs) <> "))"
 
         primaryKeyFilters :: [Text]
