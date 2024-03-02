@@ -65,10 +65,9 @@ run configBuilder = do
                     . runServer frameworkConfig
                     . customMiddleware
                     . corsMiddleware
-                    . sessionMiddleware
-                    . requestLoggerMiddleware
                     . methodOverridePost
-                    $ application staticApp
+                    . sessionMiddleware
+                    $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
 
@@ -99,7 +98,7 @@ initStaticApp frameworkConfig = do
 
         frameworkStaticDir = libDir <> "/static/"
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
-                { Static.ss404Handler = Just handleNotFound
+                { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge
                 }
         appSettings = (Static.defaultWebAppSettings "static/")
@@ -127,16 +126,9 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
-application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Application
-application staticApp request respond = do
-        requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-        let ?context = requestContext
-        let builtinControllers = let ?application = () in
-                [ webSocketApp @AutoRefresh.AutoRefreshWSApp
-                , webSocketAppWithCustomPath @AutoRefresh.AutoRefreshWSApp "" -- For b.c. with older versions of ihp-auto-refresh.js
-                ]
-
-        frontControllerToWAIApp RootApplication builtinControllers (staticApp request respond)
+application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Middleware -> Application
+application staticApp middleware request respond = do
+    frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
@@ -151,9 +143,6 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
                 Warp.defaultSettings
                     |> Warp.setPort appPort
                     |> Warp.setOnException exceptionTracker.onException
-
-instance ControllerSupport.InitControllerContext () where
-    initContext = pure ()
 
 withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
