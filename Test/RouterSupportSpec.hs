@@ -141,7 +141,7 @@ config = do
     option (AppPort 8000)
 
 application :: (?applicationContext :: ApplicationContext) => Application
-application = Server.application handleNotFound
+application = Server.application handleNotFound (\app -> app)
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

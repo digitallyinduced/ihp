@@ -84,37 +84,38 @@ runAction'
     :: forall application controller
      . ( Controller controller
        , ?applicationContext :: ApplicationContext
-       , ?context :: RequestContext
        , InitControllerContext application
        , ?application :: application
        , Typeable application
        , Typeable controller
        )
-     => controller -> (TMap.TMap -> TMap.TMap) -> IO ResponseReceived
-runAction' controller contextSetter = do
+     => controller -> (TMap.TMap -> TMap.TMap) -> Application
+runAction' controller contextSetter request respond = do
     let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    let ?requestContext = ?context
+    requestContext <- createRequestContext ?applicationContext request respond
+    let ?context = requestContext
+    let ?requestContext = requestContext
     contextOrErrorResponse <- newContextForAction contextSetter controller
     case contextOrErrorResponse of
         Left res -> res
         Right context -> let ?context = context in runAction controller
 {-# INLINABLE runAction' #-}
 
-type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> IO ResponseReceived)
+type RouteParseResult = IO (TMap.TMap -> TMap.TMap, (TMap.TMap -> TMap.TMap) -> Application)
 type RouteParser = Parser (RouteParseResult)
 
-toRouteParser :: Parser (IO ResponseReceived) -> RouteParser
+toRouteParser :: Parser Application -> RouteParser
 toRouteParser parser = do
     controller <- parser
     pure $ pure (\t -> t, \_ -> controller)
 
-toRouteParser' :: Parser ((TMap.TMap -> TMap.TMap) -> IO ResponseReceived) -> RouteParser
+toRouteParser' :: Parser ((TMap.TMap -> TMap.TMap) -> Application) -> RouteParser
 toRouteParser' parser = do
     controller <- parser
     pure $ pure (\t -> t, controller)
 
-toRouteParseResult :: IO ResponseReceived -> RouteParseResult
-toRouteParseResult ioResponseReceived = pure (\t -> t, \_ -> ioResponseReceived)
+toRouteParseResult :: Application -> RouteParseResult
+toRouteParseResult application = pure (\t -> t, \_ -> application)
 
 class FrontController application where
     controllers
@@ -132,8 +133,8 @@ defaultRouter
     => [RouteParser] -> RouteParser
 defaultRouter additionalControllers = do
     let allControllers = controllers <> additionalControllers
-    ioResponseReceived <- choice $ map (\r -> r <* endOfInput) allControllers
-    pure ioResponseReceived
+    applications <- choice $ map (\r -> r <* endOfInput) allControllers
+    pure applications
 {-# INLINABLE defaultRouter #-}
 
 class HasPath controller where
@@ -835,13 +836,20 @@ startPage action = get (ByteString.pack (actionPrefix @action)) action
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 {-# INLINABLE withPrefix #-}
 
-runApp :: (?applicationContext :: ApplicationContext, ?context :: RequestContext) => RouteParser -> IO ResponseReceived -> IO ResponseReceived
-runApp routes notFoundAction = do
-    let path = ?context.request.rawPathInfo
-        handleException :: SomeException -> IO (Either String (IO ResponseReceived))
+frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (?applicationContext :: ApplicationContext, FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
+frontControllerToWAIApp middleware application notFoundAction request respond = do
+    let requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, vault = ?applicationContext.session, frameworkConfig = ?applicationContext.frameworkConfig }
+
+    let ?context = requestContext
+
+    let
+        path = request.rawPathInfo
+        handleException :: SomeException -> IO (Either String Application)
         handleException exception = pure $ Right $ ErrorController.handleRouterException exception
 
-    routedAction :: Either String (IO ResponseReceived) <-
+        routes = let ?application = application in router [let ?application = () in webSocketApp @autoRefreshApp]
+
+    routedAction :: Either String Application <-
         (do
             res <- evaluate $ parseOnly (routes <* endOfInput) path
             case res of
@@ -850,17 +858,10 @@ runApp routes notFoundAction = do
                     (tmapSetter, controllerFn) <- io
                     pure $ Right $ controllerFn $ tmapSetter
             )
-            -- pure (undefined::IO ResponseReceived)))
         `Exception.catch` handleException
     case routedAction of
-        Left message -> notFoundAction
-        Right action -> action
-{-# INLINABLE runApp #-}
-
-frontControllerToWAIApp :: forall app. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController app) => app -> [RouteParser] -> IO ResponseReceived -> IO ResponseReceived
-frontControllerToWAIApp application additionalControllers notFoundAction = runApp defaultRouter notFoundAction
-    where
-        defaultRouter :: RouteParser = (let ?application = application in router additionalControllers)
+        Left message -> notFoundAction request respond
+        Right action -> (middleware action) request respond
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> RouteParser

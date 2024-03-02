@@ -37,6 +37,7 @@ import qualified System.Process as Process
 import System.Info
 import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
+import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
@@ -85,7 +86,7 @@ startToolServer' port isDebugMode = do
             let ?applicationContext = applicationContext
             requestContext <- ControllerSupport.createRequestContext applicationContext request respond
             let ?context = requestContext
-            frontControllerToWAIApp toolServerApplication [] (staticApp request respond)
+            frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
     let warpSettings = Warp.defaultSettings
