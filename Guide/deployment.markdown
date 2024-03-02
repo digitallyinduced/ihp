@@ -70,7 +70,7 @@ Infrastructure-side preparation:
 
  If your application requires so, make the S3 bucket publicly available.
   - Go to https://s3.console.aws.amazon.com/s3/buckets/YOUR-BUCKET?region=eu-west-1&bucketType=general&tab=permissions (permissions tab of the S3 bucket)
-  - Set `Block all public access˙ to entirely off.
+  - Set `Block all public access` to entirely off.
   - Set a bucket policy like this:
 ```json
 {
