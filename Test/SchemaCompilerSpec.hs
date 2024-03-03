@@ -189,8 +189,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition' #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -258,8 +258,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition' #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -327,8 +327,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition' #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -404,8 +404,8 @@ tests = do
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
-                        primaryKeyCondition LandingPage { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyCondition' #-}
 
 
                     instance InputValue LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
@@ -484,6 +484,15 @@ tests = do
                             let theRecord = Thing thingArbitraryIdent (QueryBuilder.filterWhere (#thingRef, thingArbitraryIdent) (QueryBuilder.query @Other)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
+            it "should compile Table instance" $ \statement -> do
+                getInstanceDecl "() => Table" compileOutput `shouldBe` [trimming|
+                    instance () => Table (Thing' others) where
+                        tableName = "things"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
+                        columnNames = ["thing_arbitrary_ident"]
+                        primaryKeyCondition' (Id (thingArbitraryIdent)) = [("thing_arbitrary_ident", toField thingArbitraryIdent)]
+                        {-# INLINABLE primaryKeyCondition' #-}
+                    |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
                     instance QueryBuilder.FilterPrimaryKey "things" where
@@ -538,6 +547,15 @@ tests = do
                             partRef <- field
                             let theRecord = BitPartRef bitRef partRef def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
+                    |]
+            it "should compile Table instance" $ \statement -> do
+                getInstanceDecl "(ToField bitRef, ToField partRef) => Table" compileOutput `shouldBe` [trimming|
+                    instance (ToField bitRef, ToField partRef) => Table (BitPartRef' bitRef partRef) where
+                        tableName = "bit_part_refs"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
+                        columnNames = ["bit_ref","part_ref"]
+                        primaryKeyCondition' (Id (bitRef, partRef)) = [("bit_ref", toField bitRef), ("part_ref", toField partRef)]
+                        {-# INLINABLE primaryKeyCondition' #-}
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
                 let (Just statement) = find (isNamedTable "parts") statements

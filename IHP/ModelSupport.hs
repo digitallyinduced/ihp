@@ -566,21 +566,34 @@ class
     --
     columnNames :: [ByteString]
 
-    -- | Returns WHERE conditions to match an entity by it's primary key
+    -- | Returns WHERE conditions to match an entity by it's primary key, given the entities id
     --
     -- For tables with a simple primary key this returns a tuple with the id:
     --
-    -- >>> primaryKeyCondition project
+    -- >>> primaryKeyCondition' project.id
     -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
     --
     -- If the table has a composite primary key, this returns multiple elements:
     --
-    -- >>> primaryKeyCondition postTag
+    -- >>> primaryKeyCondition' postTag.id
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-    --
-    primaryKeyCondition :: record -> [(Text, PG.Action)]
-    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
-    primaryKeyCondition record = [("id", toField record.id)]
+    primaryKeyCondition' :: Id record -> [(Text, PG.Action)]
+    default primaryKeyCondition' :: (ToField (Id record)) => Id record -> [(Text, PG.Action)]
+    primaryKeyCondition' id = [("id", toField id)]
+
+-- | Returns WHERE conditions to match an entity by it's primary key
+--
+-- For tables with a simple primary key this returns a tuple with the id:
+--
+-- >>> primaryKeyCondition project
+-- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+--
+-- If the table has a composite primary key, this returns multiple elements:
+--
+-- >>> primaryKeyCondition postTag
+-- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
+primaryKeyCondition :: forall record id. (HasField "id" record id, id ~ Id' (GetTableName record), Table record) => record -> [(Text, PG.Action)]
+primaryKeyCondition r = primaryKeyCondition' @record r.id
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do

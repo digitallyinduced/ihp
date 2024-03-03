@@ -24,6 +24,7 @@ data Post = Post
 
 type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
+type instance PrimaryKey "posts" = UUID
 
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
@@ -35,6 +36,7 @@ data Tag = Tag
 
 type instance GetTableName Tag = "tags"
 type instance GetModelByTableName "tags" = Tag 
+type instance PrimaryKey "tags" = UUID
 
 instance Table Tag where
     columnNames = ["id", "tag_text"]
@@ -48,6 +50,7 @@ data Tagging = Tagging
 
 type instance GetTableName Tagging = "taggings"
 type instance GetModelByTableName "taggings" = Tagging
+type instance PrimaryKey "taggings" = UUID
 
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
@@ -59,6 +62,7 @@ data User = User
 
 type instance GetTableName User = "users"
 type instance GetModelByTableName "users" = User 
+type instance PrimaryKey "users" = UUID
 
 instance Table User where
     columnNames = ["id", "name"]
@@ -74,7 +78,7 @@ type instance GetModelByTableName "favorite_title" = FavoriteTitle
 
 instance Table FavoriteTitle where
     columnNames = ["title", "likes"]
-    primaryKeyCondition _ = []
+    primaryKeyCondition' _ = []
 
 tests = do
     describe "QueryBuilder" do
