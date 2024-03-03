@@ -638,7 +638,7 @@ deleteRecord record =
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
     let (pkCols, paramPattern, theParameters) = case primaryKeyConditionForId @record id of
-            [] -> error "Impossible"
+            [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
             [(colName, param)] -> (colName, "?", [param])
             ps ->
               ( "(" <> intercalate "," (map fst ps) <> ")",
@@ -657,7 +657,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), record ~ GetModelByTableName table) => [record] -> IO ()
+deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), GetTableName record ~ table, record ~ GetModelByTableName table) => [record] -> IO ()
 deleteRecords records =
     deleteRecordByIds @record (ids records)
 {-# INLINABLE deleteRecords #-}
@@ -668,12 +668,20 @@ deleteRecords records =
 -- >>> delete projectIds
 -- DELETE FROM projects WHERE id IN ('..')
 --
-deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, ToField (PrimaryKey table), record ~ GetModelByTableName table) => [Id' table] -> IO ()
-deleteRecordByIds ids = do
-    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    let theParameters = (PG.Only (PG.In ids))
-    sqlExec (PG.Query . cs $! theQuery) theParameters
-    pure ()
+deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table) => [Id' table] -> IO ()
+deleteRecordByIds [] = do
+  pure () -- If there are no ids, we wouldn't even know the pkCols, so we just don't do anything, as nothing happens anyways
+deleteRecordByIds ids@(firstId : _) = do
+  let pkCols = case primaryKeyConditionForId @record firstId of
+        [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> (tableName @record) <> ". At least one primary key is required."
+        [(colName, _)] -> colName
+        ps -> "(" <> intercalate "," (map fst ps) <> ")"
+
+  let theQuery = "DELETE FROM " <> tableName @record <> " WHERE " <> pkCols <> " IN ?"
+
+  let theParameters = PG.Only $ PG.In $ map (ActionTuple . map snd . primaryKeyConditionForId @record) ids
+  sqlExec (PG.Query . cs $! theQuery) theParameters
+  pure ()
 {-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
@@ -943,6 +951,16 @@ instance ToField value => ToField [value] where
 -- using sql types such as @INT[]@
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
+
+-- | Wraps a list of actions to be used as a Tuple, useful e.g for matching composite keys
+-- >>> toField (ActionTuple [ PG.Escape "myId" ])
+-- Many [Plain "(",Escape "myId",Plain ")"]
+--
+--   Analogous to PGArray from postgres-simple
+newtype ActionTuple = ActionTuple [Action]
+
+instance ToField ActionTuple where
+  toField (ActionTuple actions) = PG.Many ([PG.Plain "("] <> intersperse (PG.Plain ",") actions <> [PG.Plain ")"])
 
 -- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
 --
