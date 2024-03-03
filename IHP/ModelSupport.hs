@@ -592,7 +592,7 @@ class
 --
 -- >>> primaryKeyCondition postTag
 -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-primaryKeyCondition :: forall record id. (HasField "id" record id, id ~ Id' (GetTableName record), Table record) => record -> [(Text, PG.Action)]
+primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> [(Text, PG.Action)]
 primaryKeyCondition r = primaryKeyCondition' @record r.id
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
@@ -623,7 +623,8 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), GetModelByTableName table ~ record, Show (PrimaryKey table), ToField (PrimaryKey table)) => record -> IO ()
+--
+deleteRecord :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), HasField "id" record (Id record), GetTableName record ~ table, record ~ GetModelByTableName table) => record -> IO ()
 deleteRecord record =
     deleteRecordById @record record.id
 {-# INLINABLE deleteRecord #-}
@@ -634,10 +635,19 @@ deleteRecord record =
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, ToField (PrimaryKey table), Show (PrimaryKey table), record ~ GetModelByTableName table) => Id' table -> IO ()
+deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
-    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id = ?"
-    let theParameters = PG.Only id
+    let (pkCols, paramPattern, theParameters) = case primaryKeyCondition' @record id of
+            [] -> error "Impossible"
+            [(colName, param)] -> (colName, "?", [param])
+            ps ->
+              ( "(" <> intercalate "," (map fst ps) <> ")",
+                "(" <> intercalate "," (map (const "?") ps) <> ")",
+                map snd ps
+              )
+
+    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE " <> pkCols <> " = " <> paramPattern
+
     sqlExec (PG.Query . cs $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordById #-}
