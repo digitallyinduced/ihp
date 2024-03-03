@@ -770,8 +770,8 @@ instance #{instanceHead} where
     tableName = \"#{name}\"
     tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
-    primaryKeyCondition' (#{pattern}) = #{condition}
-    {-# INLINABLE primaryKeyCondition' #-}
+    primaryKeyConditionForId (#{pattern}) = #{condition}
+    {-# INLINABLE primaryKeyConditionForId #-}
 |]
     where
         instanceHead :: Text

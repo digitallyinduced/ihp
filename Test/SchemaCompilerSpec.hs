@@ -189,8 +189,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -258,8 +258,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -327,8 +327,8 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
-                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -404,8 +404,8 @@ tests = do
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
-                        primaryKeyCondition' (Id (id)) = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
@@ -490,8 +490,8 @@ tests = do
                         tableName = "things"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
-                        primaryKeyCondition' (Id (thingArbitraryIdent)) = [("thing_arbitrary_ident", toField thingArbitraryIdent)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = [("thing_arbitrary_ident", toField thingArbitraryIdent)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
@@ -554,8 +554,8 @@ tests = do
                         tableName = "bit_part_refs"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
-                        primaryKeyCondition' (Id (bitRef, partRef)) = [("bit_ref", toField bitRef), ("part_ref", toField partRef)]
-                        {-# INLINABLE primaryKeyCondition' #-}
+                        primaryKeyConditionForId (Id (bitRef, partRef)) = [("bit_ref", toField bitRef), ("part_ref", toField partRef)]
+                        {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
                 let (Just statement) = find (isNamedTable "parts") statements

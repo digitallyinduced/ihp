@@ -570,16 +570,16 @@ class
     --
     -- For tables with a simple primary key this returns a tuple with the id:
     --
-    -- >>> primaryKeyCondition' project.id
+    -- >>> primaryKeyConditionForId project.id
     -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
     --
     -- If the table has a composite primary key, this returns multiple elements:
     --
-    -- >>> primaryKeyCondition' postTag.id
+    -- >>> primaryKeyConditionForId postTag.id
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-    primaryKeyCondition' :: Id record -> [(Text, PG.Action)]
-    default primaryKeyCondition' :: (ToField (Id record)) => Id record -> [(Text, PG.Action)]
-    primaryKeyCondition' id = [("id", toField id)]
+    primaryKeyConditionForId :: Id record -> [(Text, PG.Action)]
+    default primaryKeyConditionForId :: (ToField (Id record)) => Id record -> [(Text, PG.Action)]
+    primaryKeyConditionForId id = [("id", toField id)]
 
 -- | Returns WHERE conditions to match an entity by it's primary key
 --
@@ -593,7 +593,7 @@ class
 -- >>> primaryKeyCondition postTag
 -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> [(Text, PG.Action)]
-primaryKeyCondition r = primaryKeyCondition' @record r.id
+primaryKeyCondition r = primaryKeyConditionForId @record r.id
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -637,7 +637,7 @@ deleteRecord record =
 --
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
-    let (pkCols, paramPattern, theParameters) = case primaryKeyCondition' @record id of
+    let (pkCols, paramPattern, theParameters) = case primaryKeyConditionForId @record id of
             [] -> error "Impossible"
             [(colName, param)] -> (colName, "?", [param])
             ps ->
