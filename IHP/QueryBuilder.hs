@@ -837,18 +837,16 @@ filterWhereIdIn values queryBuilderProvider =
     --  We would a) need to know somehow which values are null (which is not possible with primaryKeyConditionForId returning opaque Actions)
     --  and b) then decompose the values into something like: (col_a IS NULL AND (col_b, col_c) IN ?) OR (col_b IS NULL AND (col_a, col_c) IN ?)
     let
-        qualifyColumnName col = tableName @model <> "." <> col
+        qualifyColumnName col = tableNameByteString @model <> "." <> col
 
         pkConds = map (primaryKeyConditionForId @model) values
 
         actionTuples = map (ActionTuple . map snd) pkConds
 
-        columnNames = case head pkConds of
-            Nothing -> error "filterWhereIdIn doesn't yet support empty id lists" -- TODO We need a way to figure out what the primary key fields are when no ids are given
-            Just firstPkCond -> case firstPkCond of
+        columnNames = case primaryKeyColumnNames @model of
                 [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> tableName @model <> ". At least one primary key is required."
-                [s] -> cs $ qualifyColumnName $ fst s
-                conds -> cs $ "(" <> intercalate ", " (map (qualifyColumnName . fst) conds) <> ")"
+                [s] -> cs $ qualifyColumnName s
+                conds -> cs $ "(" <> ByteString.intercalate ", " (map qualifyColumnName conds) <> ")"
 
         queryBuilder = getQueryBuilder queryBuilderProvider
 

@@ -189,6 +189,7 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = [("id", toField id)]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
@@ -258,6 +259,7 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
+                        primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = [("id", toField id)]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
@@ -327,6 +329,7 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
+                        primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = [("id", toField id)]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
@@ -404,6 +407,7 @@ tests = do
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
+                        primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = [("id", toField id)]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
@@ -490,6 +494,7 @@ tests = do
                         tableName = "things"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
+                        primaryKeyColumnNames = ["thing_arbitrary_ident"]
                         primaryKeyConditionForId (Id (thingArbitraryIdent)) = [("thing_arbitrary_ident", toField thingArbitraryIdent)]
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]
@@ -554,6 +559,7 @@ tests = do
                         tableName = "bit_part_refs"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
+                        primaryKeyColumnNames = ["bit_ref","part_ref"]
                         primaryKeyConditionForId (Id (bitRef, partRef)) = [("bit_ref", toField bitRef), ("part_ref", toField partRef)]
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]

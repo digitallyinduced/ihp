@@ -26,8 +26,23 @@ type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
 type instance PrimaryKey "posts" = UUID
 
+
+data WeirdPkTag = WeirdPkTag
+        { tagIden :: UUID
+        , tagText :: Text
+        }
+
+type instance GetTableName WeirdPkTag = "weird_tags"
+type instance GetModelByTableName "weird_tags" = WeirdPkTag 
+type instance PrimaryKey "weird_tags" = UUID
+
+instance Table WeirdPkTag where
+    columnNames = ["tag_iden", "tag_text"]
+    primaryKeyColumnNames = ["tag_iden"]
+
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
+    primaryKeyColumnNames = ["id"]
 
 data Tag = Tag
         { id :: UUID
@@ -40,6 +55,7 @@ type instance PrimaryKey "tags" = UUID
 
 instance Table Tag where
     columnNames = ["id", "tag_text"]
+    primaryKeyColumnNames = ["id"]
 
 data Tagging = Tagging 
         { id :: UUID
@@ -54,6 +70,7 @@ type instance PrimaryKey "taggings" = UUID
 
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
+    primaryKeyColumnNames = ["id"]
     
 data CompositeTagging = CompositeTagging 
         { postId :: UUID
@@ -67,6 +84,7 @@ type instance PrimaryKey "composite_taggings" = (Id' "posts", Id' "tags")
 
 instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
+    primaryKeyColumnNames = ["post_id", "tag_id"]
     primaryKeyConditionForId (Id (postId, tagId)) = [("post_id", toField postId), ("tag_id", toField tagId)]
 
 
@@ -81,6 +99,7 @@ type instance PrimaryKey "users" = UUID
 
 instance Table User where
     columnNames = ["id", "name"]
+    primaryKeyColumnNames = ["id"]
 
 data FavoriteTitle = FavoriteTitle
     {
@@ -94,6 +113,7 @@ type instance GetModelByTableName "favorite_title" = FavoriteTitle
 instance Table FavoriteTitle where
     columnNames = ["title", "likes"]
     primaryKeyConditionForId _ = []
+    primaryKeyColumnNames = []
 
 tests = do
     describe "QueryBuilder" do
@@ -174,8 +194,15 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereIdIn theValues
 
-                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.id IN ?", [Many [Plain "(", Plain ")"]])
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.id IN ?", [Plain "(null)"])
 
+            describe "with weird primary key name" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id WeirdPkTag] = ["b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"]
+                    let theQuery = query @WeirdPkTag
+                            |> filterWhereIdIn theValues
+
+                    (toSQL theQuery) `shouldBe` ("SELECT weird_tags.tag_iden, weird_tags.tag_text FROM weird_tags WHERE weird_tags.tag_iden IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")" ], Plain ")"]])
             describe "with composite keys" do
                 it "should produce a SQL with a WHERE condition" do
                     let theValues :: [Id CompositeTagging] = [Id ("b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"), Id ("8e2ef0ef-f680-4fcf-837d-7e3171385621", "95096f81-8ca6-407f-a263-cbc33546a828")]
@@ -190,7 +217,7 @@ tests = do
                         let theQuery = query @CompositeTagging
                                 |> filterWhereIdIn theValues
 
-                        (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Many [Plain "(", Plain ")"]])
+                        (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Plain "(null)"])
 
 
         describe "filterWhereInJoinedTable" do

@@ -566,6 +566,18 @@ class
     --
     columnNames :: [ByteString]
 
+    -- | Returns the list of column names, that are contained in the primary key for a given model
+    --
+    -- __Example:__
+    --
+    -- >>> primaryKeyColumnNames @User
+    -- ["id"]
+    --
+    -- >>> primaryKeyColumnNames @PostTagging
+    -- ["post_id", "tag_id"]
+    --
+    primaryKeyColumnNames :: [ByteString]
+
     -- | Returns WHERE conditions to match an entity by it's primary key, given the entities id
     --
     -- For tables with a simple primary key this returns a tuple with the id:

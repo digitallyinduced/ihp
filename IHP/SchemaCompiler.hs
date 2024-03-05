@@ -770,6 +770,7 @@ instance #{instanceHead} where
     tableName = \"#{name}\"
     tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
+    primaryKeyColumnNames = #{primaryKeyColumnNames}
     primaryKeyConditionForId (#{pattern}) = #{condition}
     {-# INLINABLE primaryKeyConditionForId #-}
 |]
@@ -788,7 +789,7 @@ instance #{instanceHead} where
                     |> \inner -> "(" <> inner <> ")"
 
         primaryKeyColumnNames :: [Text]
-        primaryKeyColumnNames = (primaryKeyColumns table) |> map (.name)
+        primaryKeyColumnNames = primaryKeyColumns table |> map (.name)
 
         primaryKeyFieldNames :: [Text]
         primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
