@@ -9,7 +9,7 @@ import IHP.Prelude
 import IHP.QueryBuilder
 import IHP.ModelSupport
 import qualified Database.PostgreSQL.Simple.ToField as ToField
-import Database.PostgreSQL.Simple.ToField (Action (..))
+import Database.PostgreSQL.Simple.ToField (Action (..), ToField (toField))
 import qualified Data.ByteString.Builder as ByteString
 
 data Post = Post
@@ -54,6 +54,21 @@ type instance PrimaryKey "taggings" = UUID
 
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
+    
+data CompositeTagging = CompositeTagging 
+        { postId :: UUID
+        , tagId :: UUID
+        }
+
+
+type instance GetTableName CompositeTagging = "composite_taggings"
+type instance GetModelByTableName "composite_taggings" = CompositeTagging
+type instance PrimaryKey "composite_taggings" = (Id' "posts", Id' "tags")
+
+instance Table CompositeTagging where
+    columnNames = ["post_id", "tag_id"]
+    primaryKeyConditionForId (Id (postId, tagId)) = [("post_id", toField postId), ("tag_id", toField tagId)]
+
 
 data User = User
     { id :: UUID,
@@ -143,6 +158,39 @@ tests = do
                             |> filterWhereIn (#categoryId, theValues)
 
                     (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.category_id IS ?", [Plain "null"])
+
+
+        describe "filterWhereIdIn" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Id Post] = ["b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"]
+                let theQuery = query @Post
+                        |> filterWhereIdIn theValues
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.id IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")" ], Plain ")"]])
+
+            describe "with empty values" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id Post] = []
+                    let theQuery = query @Post
+                            |> filterWhereIdIn theValues
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.id IN ?", [Many [Plain "(", Plain ")"]])
+
+            describe "with composite keys" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id CompositeTagging] = [Id ("b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"), Id ("8e2ef0ef-f680-4fcf-837d-7e3171385621", "95096f81-8ca6-407f-a263-cbc33546a828")]
+                    let theQuery = query @CompositeTagging
+                            |> filterWhereIdIn theValues
+
+                    (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "'8e2ef0ef-f680-4fcf-837d-7e3171385621'", Plain ",", Plain "'95096f81-8ca6-407f-a263-cbc33546a828'", Plain ")"], Plain ")"]])
+
+                describe "with empty values" do
+                    it "should produce a SQL with a WHERE condition" do
+                        let theValues :: [Id CompositeTagging] = []
+                        let theQuery = query @CompositeTagging
+                                |> filterWhereIdIn theValues
+
+                        (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Many [Plain "(", Plain ")"]])
 
 
         describe "filterWhereInJoinedTable" do
