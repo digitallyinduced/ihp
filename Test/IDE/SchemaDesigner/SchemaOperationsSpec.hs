@@ -247,6 +247,7 @@ tests = do
                             , orReplace = False
                             , returns = PTrigger
                             , language = "plpgsql"
+                            , securityDefiner = False
                             }
                 let trigger = CreateTrigger
                             { name = "update_a_updated_at"
@@ -396,6 +397,7 @@ tests = do
                             , orReplace = False
                             , returns = PTrigger
                             , language = "plpgsql"
+                            , securityDefiner = False
                             }
                 let trigger = CreateTrigger
                             { name = "update_a_updated_at"

@@ -1314,6 +1314,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     , orReplace = False
                     , returns = PTrigger
                     , language = "PLPGSQL"
+                    , securityDefiner = False
                     }]
 
             it "should delete the updated_at trigger when the updated_at column is deleted" do
