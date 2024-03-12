@@ -78,11 +78,12 @@ displayException exception action additionalInfo = do
     -- to the error tracking service (e.g. sentry). Usually this service also writes
     -- the error message to the stderr output
     --
-    let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
-    let request = ?requestContext.request
+    when (?context.frameworkConfig.environment == Environment.Production) do
+        let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
+        let request = ?requestContext.request
 
 
-    exceptionTracker (Just request) exception
+        exceptionTracker (Just request) exception
 
     supportingHandlers
         |> head
