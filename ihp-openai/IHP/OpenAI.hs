@@ -62,6 +62,9 @@ userMessage content = Message { role = UserRole, content }
 systemMessage :: Text -> Message
 systemMessage content = Message { role = SystemRole, content }
 
+assistantMessage :: Text -> Message
+assistantMessage content = Message { role = AssistantRole, content }
+
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest
     { prompt = ""
