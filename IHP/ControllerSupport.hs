@@ -66,6 +66,9 @@ class InitControllerContext application where
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
+instance InitControllerContext () where
+    initContext = pure ()
+
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
@@ -149,12 +152,11 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> IO ResponseReceived
-startWebSocketApp onHTTP = do
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp onHTTP request respond = do
     let ?modelContext = ?applicationContext.modelContext
-    let ?requestContext = ?context
-    let respond = ?context.respond
-    let request = ?context.request
+    requestContext <- createRequestContext ?applicationContext request respond
+    let ?requestContext = requestContext
 
     let handleConnection pendingConnection = do
             connection <- WebSockets.acceptRequest pendingConnection
@@ -177,7 +179,7 @@ startWebSocketApp onHTTP = do
             Just response -> respond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => Network.Wai.Application
 startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
         respond = ?context.respond

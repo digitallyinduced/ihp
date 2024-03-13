@@ -114,14 +114,17 @@ psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
 
 db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
-	echo "drop schema public cascade; create schema public;" | psql -h $$PWD/build/db -d app
-	psql -h $$PWD/build/db -d app < "${IHP_LIB}/IHPSchema.sql"
-	psql -h $$PWD/build/db -d app < Application/Schema.sql
-	psql -h $$PWD/build/db -d app < Application/Fixtures.sql
+	(echo "drop schema public cascade; create schema public;" | psql -h $${PWD}/build/db -d app) && \
+	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < "$${IHP_LIB}/IHPSchema.sql" && \
+	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < Application/Schema.sql && \
+	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < Application/Fixtures.sql
 
 dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
 	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
+
+sql_dump:  ## Saves the current database state, so it can dumped into an SQL file `make sql_dump > dump.sql`
+	@pg_dump --no-owner --no-acl -h $$PWD/build/db app | sed -e '/^--/d'
 
 build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated

@@ -483,3 +483,10 @@ executable ihp-app-to-docker-image
     build-depends: ihp
     hs-source-dirs: exe
     main-is: IHP/CLI/IHPAppToDockerImage.hs
+
+executable new-session-secret
+    default-language: Haskell2010
+    default-extensions: BlockArguments
+    build-depends: base, clientsession, bytestring, with-utf8, base64-bytestring
+    hs-source-dirs: exe
+    main-is: IHP/CLI/NewSessionSecret.hs
