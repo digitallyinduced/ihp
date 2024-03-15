@@ -24,6 +24,7 @@ module IHP.Controller.Session
   , getSessionEither
   , deleteSession
   , getSessionAndClear
+  , sessionVaultKey
   ) where
 
 import IHP.Prelude
@@ -36,6 +37,8 @@ import qualified Network.Wai as Wai
 import qualified Data.Serialize as Serialize
 import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
+import qualified Network.Wai.Session
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Types of possible errors as a result of
 -- requesting a value from the session storage
@@ -161,5 +164,9 @@ sessionVault = case vaultLookup of
         Just session -> session
         Nothing -> error "sessionInsert: The session vault is missing in the request"
     where
-        RequestContext { request, vault } = ?context.requestContext
-        vaultLookup = Vault.lookup vault (Wai.vault request)
+        RequestContext { request } = ?context.requestContext
+        vaultLookup = Vault.lookup sessionVaultKey request.vault
+
+sessionVaultKey :: Vault.Key (Network.Wai.Session.Session IO ByteString ByteString)
+sessionVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE sessionVaultKey #-}

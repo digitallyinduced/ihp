@@ -9,7 +9,6 @@ import System.Directory (listDirectory, doesDirectoryExist)
 import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import IHP.IDE.Types
-import qualified Data.Time.Clock as Clock
 import qualified Data.List as List
 import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
 import qualified Control.Debounce as Debounce
