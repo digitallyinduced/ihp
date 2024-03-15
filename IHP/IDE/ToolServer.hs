@@ -84,8 +84,6 @@ startToolServer' port isDebugMode = do
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
-            requestContext <- ControllerSupport.createRequestContext applicationContext request respond
-            let ?context = requestContext
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
