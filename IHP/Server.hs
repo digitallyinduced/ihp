@@ -5,19 +5,16 @@ import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession, Session)
+import Network.Wai.Session (withSession)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
-import qualified Data.Vault.Lazy as Vault
 import IHP.ApplicationContext
-import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
-import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
-import IHP.ErrorController
+import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.LibDir

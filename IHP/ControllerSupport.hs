@@ -29,7 +29,7 @@ module IHP.ControllerSupport
 
 import ClassyPrelude
 import IHP.HaskellSupport
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -39,7 +39,6 @@ import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
 import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
-import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))

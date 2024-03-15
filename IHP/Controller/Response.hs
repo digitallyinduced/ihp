@@ -9,12 +9,11 @@ where
 import ClassyPrelude
 import Network.HTTP.Types.Header
 import qualified IHP.Controller.Context as Context
-import IHP.Controller.Context (ControllerContext(ControllerContext))
 import qualified Network.Wai
 import Network.Wai (Response)
 import qualified Control.Exception as Exception
 
-respondAndExit :: (?context::ControllerContext) => Response -> IO ()
+respondAndExit :: (?context :: Context.ControllerContext) => Response -> IO ()
 respondAndExit response = do
     responseWithHeaders <- addResponseHeadersFromContext response
     Exception.throwIO (ResponseException responseWithHeaders)
@@ -35,7 +34,7 @@ addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> h
 -- > addResponseHeadersFromContext response
 -- You probabaly want `setHeader`
 --
-addResponseHeadersFromContext :: (?context :: ControllerContext) => Response -> IO Response
+addResponseHeadersFromContext :: (?context :: Context.ControllerContext) => Response -> IO Response
 addResponseHeadersFromContext response = do
     maybeHeaders <- Context.maybeFromContext @[Header]
     let headers = fromMaybe [] maybeHeaders
