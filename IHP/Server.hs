@@ -8,6 +8,7 @@ import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Session (withSession, Session)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
+import IHP.Controller.Session (sessionVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ApplicationContext
 import qualified IHP.ControllerSupport as ControllerSupport
@@ -48,14 +49,12 @@ run configBuilder = do
 
         withInitalizers frameworkConfig modelContext do
             withPGListener \pgListener -> do
-                sessionVault <- Vault.newKey
-
                 autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
                 let ?modelContext = modelContext
-                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
+                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
-                sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
+                sessionMiddleware <- initSessionMiddleware frameworkConfig
                 staticApp <- initStaticApp frameworkConfig
                 let corsMiddleware = initCorsMiddleware frameworkConfig
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
@@ -108,8 +107,8 @@ initStaticApp frameworkConfig = do
 
     pure (Static.staticApp appSettings)
 
-initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
-initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
+initSessionMiddleware :: FrameworkConfig -> IO Middleware
+initSessionMiddleware FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
@@ -118,7 +117,7 @@ initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
             if hasSessionSecretEnvVar || not doesConfigDirectoryExist
                 then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
                 else ClientSession.getKey path
-    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
+    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVaultKey
     pure sessionMiddleware
 
 initCorsMiddleware :: FrameworkConfig -> Middleware

@@ -74,7 +74,7 @@ config = do
 makeApplication :: (?applicationContext :: ApplicationContext) => IO Application
 makeApplication = do
     store <- Session.mapStore_
-    let sessionMiddleware :: Middleware = Session.withSession store "SESSION" ?applicationContext.frameworkConfig.sessionCookie ?applicationContext.session
+    let sessionMiddleware :: Middleware = Session.withSession store "SESSION" ?applicationContext.frameworkConfig.sessionCookie sessionVaultKey
     pure (sessionMiddleware $ (Server.application handleNotFound) (\app -> app))
 
 assertAccessDenied :: SResponse -> IO ()

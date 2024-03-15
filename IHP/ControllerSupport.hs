@@ -259,7 +259,7 @@ requestBodyJSON =
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
+createRequestContext ApplicationContext { frameworkConfig } request respond = do
     let contentType = lookup hContentType (requestHeaders request)
     requestBody <- case contentType of
         "application/json" -> do
@@ -270,7 +270,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
             (params, files) <- WaiParse.parseRequestBodyEx frameworkConfig.parseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
-    pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
+    pure RequestContext.RequestContext { request, respond, requestBody, frameworkConfig }
 
 
 -- | Returns a custom config parameter
