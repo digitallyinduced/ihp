@@ -1,4 +1,4 @@
-{ compiler ? "ghc94"
+{ compiler ? "ghc96"
 , additionalNixpkgsOptions ? {}
 , pkgs ? import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; }
 , ghc ? pkgs.haskell.packages.${compiler}
