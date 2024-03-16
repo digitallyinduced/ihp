@@ -590,8 +590,6 @@ class
     -- >>> primaryKeyConditionForId postTag.id
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
     primaryKeyConditionForId :: Id record -> [(Text, PG.Action)]
-    default primaryKeyConditionForId :: (ToField (Id record)) => Id record -> [(Text, PG.Action)]
-    primaryKeyConditionForId id = [("id", toField id)]
 
 -- | Returns WHERE conditions to match an entity by it's primary key
 --

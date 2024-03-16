@@ -39,10 +39,12 @@ type instance PrimaryKey "weird_tags" = UUID
 instance Table WeirdPkTag where
     columnNames = ["tag_iden", "tag_text"]
     primaryKeyColumnNames = ["tag_iden"]
+    primaryKeyConditionForId (Id id) = [("tag_iden", toField id)]
 
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
     primaryKeyColumnNames = ["id"]
+    primaryKeyConditionForId (Id id) = [("id", toField id)]
 
 data Tag = Tag
         { id :: UUID
@@ -56,6 +58,7 @@ type instance PrimaryKey "tags" = UUID
 instance Table Tag where
     columnNames = ["id", "tag_text"]
     primaryKeyColumnNames = ["id"]
+    primaryKeyConditionForId (Id id) = [("id", toField id)]
 
 data Tagging = Tagging 
         { id :: UUID
