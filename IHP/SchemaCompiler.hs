@@ -740,7 +740,8 @@ compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [
         idType :: Text
         idType = case primaryKeyColumns table of
                 [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                [column] -> atomicType column.columnType -- PrimaryKey User = UUID
+                [column] | column.notNull -> atomicType column.columnType -- PrimaryKey User = UUID
+                [column] | not column.notNull -> "(Maybe " <> atomicType column.columnType <> ")" -- PrimaryKey User = UUID
                 cs -> "(" <> intercalate ", " (map colType cs) <> ")" -- PrimaryKey PostsTag = (Id' "posts", Id' "tags")
             where
                 colType column = haskellType table column
