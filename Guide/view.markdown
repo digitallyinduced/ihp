@@ -199,12 +199,12 @@ instance Controller PostsController where
 postsToJson :: [Post] -> Value
 postsToJson posts =
     posts
-    |> fmap (\post -> object
-        [ "id" .= post.id
-        , "title" .= post.title
-        , "body" .= post.body
-        ])
-    |> toJSON
+        |> fmap (\post -> object
+            [ "id" .= post.id
+            , "title" .= post.title
+            , "body" .= post.body
+            ])
+        |> toJSON
 ```
 
 Then in the view, you can access the JSON data like this:
