@@ -191,20 +191,8 @@ instance Controller PostsController where
     action PostsAction = do
         posts <- query @Post |> fetch
 
-        -- Send posts also as JSON, so they can be printed in the console.
-        let postsJson = postsToJson posts
-
         render IndexView { .. }
 
-postsToJson :: [Post] -> Value
-postsToJson posts =
-    posts
-        |> fmap (\post -> object
-            [ "id" .= post.id
-            , "title" .= post.title
-            , "body" .= post.body
-            ])
-        |> toJSON
 ```
 
 Then in the view, you can access the JSON data like this:
@@ -216,13 +204,9 @@ module Web.View.Posts.Index where
 import Web.View.Prelude
 
 -- Add Aeson import.
-import Data.Aeson (encode, Value)
+import Data.Aeson (encode)
 
-data IndexView = IndexView
-    { posts :: [Post]
-    -- Declare the Posts JSON data.
-    , postsJson :: Data.Aeson.Value
-    }
+data IndexView = IndexView { posts :: [Post] }
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
@@ -230,11 +214,21 @@ instance View IndexView where
             Open the developer's console to see the posts JSON data.
         </div>
         {- Pass the encoded JSON to the JS script -}
-        <script data-posts={encode postsJson}>
+        <script data-posts={encode $ postsToJson posts}>
             // Parse the encoded JSON, and print to console
             console.log(JSON.parse(document.currentScript.dataset.posts));
         </script>
     |]
+    where
+        postsToJson :: [Post] -> Value
+        postsToJson posts =
+            posts
+                |> fmap (\post -> object
+                    [ "id" .= post.id
+                    , "title" .= post.title
+                    , "body" .= post.body
+                    ])
+                |> toJSON
 ```
 
 No you can go to `/Posts`, create a few posts, and see their JSON in the browser's developer console.
