@@ -765,14 +765,6 @@ Similarly as for renaming, deleting a column currently won't work automatically 
 1. Delete your column in the Schema Designer
 2. Delete the column from the database by executing `ALTER TABLE tablename DROP COLUMN colname`
 
-### Alternate Method
-
-There's always more than one way. This is another.
-
-1. Make changes in the Schema Designer
-2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-3. Edit `Fixtures.sql` to your heart's content.
-4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
 
 ### Migrations In Production
 
@@ -847,4 +839,17 @@ action CreateUserAction = do
         newRecord @User |> createRecord
 
     redirectTo NewSessionAction
+```
+
+## Unique Constraints
+
+It's possible to use the UI to set the unique constraint on a column. However, sometimes you might want to add a unique constraint on multiple columns. This can be done by adding a unique constraint to the `Schema.sql` file. For example, to add a unique constraint on the `email` and `username` columns of the `users` table, you would add the following to the `Schema.sql` file:
+
+```sql
+CREATE TABLE users (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    UNIQUE (email, username)
+);
 ```
