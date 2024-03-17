@@ -768,7 +768,7 @@ Similarly as for renaming, deleting a column currently won't work automatically 
 
 ### Migrations In Production
 
-IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements as shown above.
+See the [Migrations guide](https://ihp.digitallyinduced.com/Guide/database-migrations.html).
 
 
 ## Supported Database Types
