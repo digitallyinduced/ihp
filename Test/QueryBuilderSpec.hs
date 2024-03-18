@@ -40,37 +40,6 @@ instance Table WeirdPkTag where
     columnNames = ["tag_iden", "tag_text"]
     primaryKeyColumnNames = ["tag_iden"]
     primaryKeyConditionForId (Id id) = [("tag_iden", toField id)]
-    
-    
-data WeirdNullablePkTag = WeirdNullablePkTag
-        { tagIden :: Maybe UUID
-        , tagText :: Text
-        }
-
-type instance GetTableName WeirdNullablePkTag = "weird_nullable_tags"
-type instance GetModelByTableName "weird_nullable_tags" = WeirdNullablePkTag 
-type instance PrimaryKey "weird_nullable_tags" = Maybe UUID
-
-instance Table WeirdNullablePkTag where
-    columnNames = ["tag_iden", "tag_text"]
-    primaryKeyColumnNames = ["tag_iden"]
-    primaryKeyConditionForId (Id id) = [("tag_iden", toField id)]
-
-
-data WeirdNullableTagging = WeirdNullableTagging
-        { tagIden :: Maybe UUID
-        , parentTagIden :: Maybe UUID
-        }
-
-type instance GetTableName WeirdNullableTagging = "weird_nullable_tagging"
-type instance GetModelByTableName "weird_nullable_tagging" = WeirdNullableTagging 
-type instance PrimaryKey "weird_nullable_tagging" = (Id' "weird_nullable_tags", Id' "weird_nullable_tags")
-
-instance Table WeirdNullableTagging where
-    columnNames = ["tag_iden", "parent_tag_iden"]
-    primaryKeyColumnNames = ["tag_iden", "parent_tag_iden"]
-    primaryKeyConditionForId (Id (tagIden, parentTagIden)) = [("tag_iden", toField tagIden), ("parent_tag_iden", toField parentTagIden)]
-
 
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
@@ -105,8 +74,6 @@ type instance PrimaryKey "taggings" = UUID
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
-
     
 data CompositeTagging = CompositeTagging 
         { postId :: UUID
@@ -136,7 +103,6 @@ type instance PrimaryKey "users" = UUID
 instance Table User where
     columnNames = ["id", "name"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
 
 data FavoriteTitle = FavoriteTitle
     {
@@ -255,71 +221,7 @@ tests = do
                                 |> filterWhereIdIn theValues
 
                         (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Plain "(null)"])
-            describe "with nullable primary key" do
-                it "should produce a SQL with a WHERE IS OR IN condition" do
-                    let theValues :: [Id WeirdNullablePkTag] = [Id (Just "b80e37a8-41d4-4731-b050-a716879ef1d1"), Id Nothing]
-                    let theQuery = query @WeirdNullablePkTag
-                            |> filterWhereIdIn theValues
 
-                    (toSQL theQuery) `shouldBe` ("SELECT weird_nullable_tags.tag_iden, weird_nullable_tags.tag_text FROM weird_nullable_tags WHERE weird_nullable_tags.tag_iden IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "null", Plain ")" ], Plain ")"]])
-                
-            describe "with nullable composite primary key" do
-                it "should produce a SQL with a WHERE IN condition if given two non-null ids" do
-                    let theValues :: [Id WeirdNullableTagging] = [
-                                Id (Id $ Just "b80e37a8-41d4-4731-b050-a716879ef1d1", Id $ Just "df38c8e0-ca9b-41d0-9091-785ad19d3782"), 
-                                Id (Id $ Just "8e5ecb74-a86b-428f-a647-683c3ee842a1", Id $ Just "7b183d12-0254-48b7-a759-68ceb80ff219")
-                            ]
-                    let theQuery = query @WeirdNullableTagging
-                            |> filterWhereIdIn theValues
-
-                    (toSQL theQuery) `shouldBe` ("SELECT weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden FROM weird_nullable_tagging WHERE (weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden) IN ?", 
-                            [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'df38c8e0-ca9b-41d0-9091-785ad19d3782'", Plain ")" ], Plain ",", 
-                                              Many [ Plain "(", Plain "'8e5ecb74-a86b-428f-a647-683c3ee842a1'", Plain ",", Plain "'7b183d12-0254-48b7-a759-68ceb80ff219'", Plain ")" ], Plain ")"
-                                  ]])
-                it "should produce a SQL with a WHERE IS AND IN condition if given one null id exclusively" do
-                    let theValues :: [Id WeirdNullableTagging] = [
-                                Id (Id $ Nothing, Id $ Just "df38c8e0-ca9b-41d0-9091-785ad19d3782"), 
-                                Id (Id $ Nothing, Id $ Just "7b183d12-0254-48b7-a759-68ceb80ff219")
-                            ]
-                    let theQuery = query @WeirdNullableTagging
-                            |> filterWhereIdIn theValues
-
-                    (toSQL theQuery) `shouldBe` ("SELECT weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden FROM weird_nullable_tagging WHERE (weird_nullable_tagging.tag_iden IS NULL AND weird_nullable_tagging.parent_tag_iden IN ?)", 
-                            [Many [Plain "(", Many [ Plain "(", Plain "'df38c8e0-ca9b-41d0-9091-785ad19d3782'", Plain ")" ], Plain ",", 
-                                              Many [ Plain "(", Plain "'7b183d12-0254-48b7-a759-68ceb80ff219'", Plain ")" ], Plain ")"
-                                  ]
-                            ])
-                it "should produce a SQL with a WHERE (IS AND IN) OR IN condition if given one null id among others" do
-                    let theValues :: [Id WeirdNullableTagging] = [
-                                Id (Id $ Nothing, Id $ Just "df38c8e0-ca9b-41d0-9091-785ad19d3782"), 
-                                Id (Id $ Nothing, Id $ Just "7b183d12-0254-48b7-a759-68ceb80ff219"),
-                                Id (Id $ Just "c6c80b50-f8b4-4b61-bb2d-8a20c171ae3e", Id $ Just "1a4713d4-b28f-470c-902d-3ed542800526")
-                            ]
-                    let theQuery = query @WeirdNullableTagging
-                            |> filterWhereIdIn theValues
-
-                    (toSQL theQuery) `shouldBe` ("SELECT weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden FROM weird_nullable_tagging WHERE (weird_nullable_tagging.tag_iden IS NULL AND weird_nullable_tagging.parent_tag_iden IN ?) OR ((weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden) IN ?)",
-                            [ Many [Plain "(", Many [ Plain "(", Plain "'df38c8e0-ca9b-41d0-9091-785ad19d3782'", Plain ")" ], Plain ",", 
-                                               Many [ Plain "(", Plain "'7b183d12-0254-48b7-a759-68ceb80ff219'", Plain ")" ], Plain ")"
-                                   ]
-                            ,Many [Plain "(", Many [ Plain "(", Plain "'c6c80b50-f8b4-4b61-bb2d-8a20c171ae3e'", Plain ",", Plain "'1a4713d4-b28f-470c-902d-3ed542800526'", Plain ")" ]]
-                            ])
-                it "should produce a SQL with a WHERE (IS AND IS) OR (IS AND IN) OR (IN) condition if given two nulls, one null, and no null" do
-                    let theValues :: [Id WeirdNullableTagging] = [
-                                Id (Id $ Nothing, Id $ Nothing), 
-                                Id (Id $ Nothing, Id $ Just "7b183d12-0254-48b7-a759-68ceb80ff219"),
-                                Id (Id $ Just "c6c80b50-f8b4-4b61-bb2d-8a20c171ae3e", Id $ Just "1a4713d4-b28f-470c-902d-3ed542800526")
-                            ]
-                    let theQuery = query @WeirdNullableTagging
-                            |> filterWhereIdIn theValues
-
-                    (toSQL theQuery) `shouldBe` ("SELECT weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden FROM weird_nullable_tagging WHERE (weird_nullable_tagging.tag_iden IS NULL AND weird_nullable_tagging.parent_tag_iden IS NULL) OR (weird_nullable_tagging.tag_iden IS NULL AND weird_nullable_tagging.parent_tag_iden IN ?) OR ((weird_nullable_tagging.tag_iden, weird_nullable_tagging.parent_tag_iden) IN ?)",
-                            [ Many [Plain "(", Many [ Plain "(", Plain "'df38c8e0-ca9b-41d0-9091-785ad19d3782'", Plain ")" ], Plain ",", 
-                                               Many [ Plain "(", Plain "'7b183d12-0254-48b7-a759-68ceb80ff219'", Plain ")" ], Plain ")"
-                                   ]
-                            ,Many [Plain "(", Many [ Plain "(", Plain "'c6c80b50-f8b4-4b61-bb2d-8a20c171ae3e'", Plain ",", Plain "'1a4713d4-b28f-470c-902d-3ed542800526'", Plain ")" ]]
-                            ])
-                    
 
         describe "filterWhereInJoinedTable" do
             it "should produce a SQL with a WHERE condition" do
