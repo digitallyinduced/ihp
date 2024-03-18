@@ -148,7 +148,7 @@ tests = do
             it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ CreateTable {
                     name = "users",
-                    columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
+                    columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
                     , unlogged = False
@@ -164,7 +164,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -234,7 +234,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -304,7 +304,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing
+                            [ Column "id" PUUID Nothing True True Nothing
                             , Column {name = "ts", columnType = PTSVector, defaultValue = Nothing, notNull = True, isUnique = False, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -584,7 +584,7 @@ tests = do
             it "should compile FilterPrimaryKey instance when primary key is called id" do
                 let statement = StatementCreateTable $ CreateTable {
                         name = "things",
-                        columns = [ Column "id" PUUID Nothing False False Nothing ],
+                        columns = [ Column "id" PUUID Nothing True True Nothing ],
                         primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                         constraints = [],
                         unlogged = False

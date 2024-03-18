@@ -74,6 +74,7 @@ type instance PrimaryKey "taggings" = UUID
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
     primaryKeyColumnNames = ["id"]
+    primaryKeyConditionForId (Id id) = [("id", toField id)]
     
 data CompositeTagging = CompositeTagging 
         { postId :: UUID
@@ -103,6 +104,7 @@ type instance PrimaryKey "users" = UUID
 instance Table User where
     columnNames = ["id", "name"]
     primaryKeyColumnNames = ["id"]
+    primaryKeyConditionForId (Id id) = [("id", toField id)]
 
 data FavoriteTitle = FavoriteTitle
     {
