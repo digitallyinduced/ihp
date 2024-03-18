@@ -833,9 +833,7 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
 
 filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: *). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIdIn values queryBuilderProvider =
-    -- TODO Null values are ignored here for now, because they need special treatment as in sql they must be compared using "IS NULL"...
-    --  We would a) need to know somehow which values are null (which is not possible with primaryKeyConditionForId returning opaque Actions)
-    --  and b) then decompose the values into something like: (col_a IS NULL AND (col_b, col_c) IN ?) OR (col_b IS NULL AND (col_a, col_c) IN ?)
+    -- We don't need to treat null values differently here, because primary keys imply not-null
     let
         qualifyColumnName col = tableNameByteString @model <> "." <> col
 
