@@ -36,7 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [ "mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin" "relude" "inflections" "hls-hlint-plugin" "fourmolu_0_15_0_0" "pcre-heavy"];
-  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "chell" "zigzag" "typerep-map" "relude" "bytebuild" "connection" "microlens" "microlens-th" "hls-hlint-plugin" "hlint"];
+  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "chell" "zigzag" "typerep-map" "relude" "bytebuild" "connection" "microlens" "microlens-th" "hls-hlint-plugin" "hlint" "stripe-concepts" "string-random" "stripe-signature"];
   ihpDontHaddockPackages = [ ];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
