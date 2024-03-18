@@ -26,7 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghc96;
+                    default = pkgs.haskell.packages.ghc98;
                 };
 
                 packages = lib.mkOption {

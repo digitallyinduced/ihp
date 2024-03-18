@@ -36,7 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [ "mmark" "mmark-ext" "mutable-containers" "hiedb" "hls-fourmolu-plugin" "relude" "inflections" "hls-hlint-plugin"];
-  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "with-utf8" "chell" "zigzag" "typerep-map" "relude" "bytebuild" "connection" "microlens" "microlens-th" "hls-hlint-plugin" "hlint"];
+  ihpDoJailbreakPackages = [ "haskell-to-elm" "ip" "ghc-syntax-highlighter" "relude" "hs-brotli" "tuples" "singletons-th" "singletons-base" "inflections" "postgresql-simple" "chell" "zigzag" "typerep-map" "relude" "bytebuild" "connection" "microlens" "microlens-th" "hls-hlint-plugin" "hlint"];
   ihpDontHaddockPackages = [ ];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
@@ -55,5 +55,6 @@ in ghcCompiler.override {
 
     (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
     (self: super: { ormolu = if pkgs.system == "aarch64-darwin" then pkgs.haskell.lib.overrideCabal super.ormolu (_: { enableSeparateBinOutput = false; }) else super.ormolu; })
+    (self: super: { ghc-syntax-highlighter = super.ghc-syntax-highlighter_0_0_11_0; })
   ];
 }
