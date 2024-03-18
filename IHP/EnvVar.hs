@@ -11,7 +11,6 @@ import IHP.Prelude
 import Data.String.Interpolate.IsString (i)
 import qualified System.Posix.Env.ByteString as Posix
 import Network.Socket (PortNumber)
-import Data.Word (Word16)
 import IHP.Mail.Types
 import IHP.Environment
 

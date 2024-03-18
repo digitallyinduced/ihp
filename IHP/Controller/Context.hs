@@ -10,6 +10,7 @@ import qualified Data.Typeable as Typeable
 import IHP.Controller.RequestContext
 import IHP.FrameworkConfig
 import IHP.Log.Types
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | A container storing useful data along the request lifecycle, such as the request, the current user, set current view layout, flash messages, ...
 --
@@ -137,5 +138,28 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = controllerContext.requestContext.frameworkConfig
     {-# INLINABLE getField #-}
 
+-- The following hack is bad, but allows us to override the logger using 'putContext'
+-- The alternative would be https://github.com/digitallyinduced/ihp/pull/1921 which is also not very nice
+--
+-- This can be useful to customize the log formatter for all actions of an app:
+--
+-- > import IHP.Log.Types
+-- > import IHP.Controller.Context
+-- > 
+-- > instance InitControllerContext WebApplication where
+-- >     initContext = do
+-- >         let defaultLogger :: Logger = ?context.frameworkConfig.logger
+-- >         let withUserIdLogger :: Logger = { Log.formatter = userIdFormatter defaultLogger.formatter }
+-- >         putContext withUserIdLogger
+-- > 
+-- > userIdFormatter :: (?context :: Context) => Log.LogFormatter -> Log.LogFormatter
+-- > userIdFormatter existingFormatter time level string =
+-- >         existingFormatter time level (prependUserId string)
+-- > 
+-- > preprendUserId :: (?context :: Context) => Text -> Text
+-- > preprendUserId string = "userId: " <> show currentUserId <> " " <> string
+--
+-- This design mistake should be fixed in IHP v2
 instance HasField "logger" ControllerContext Logger where
-    getField controllerContext = controllerContext.frameworkConfig.logger
+    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @Logger customFields)
+    getField context = (unsafePerformIO (freeze context)).logger -- Hacky, but there's no better way. The only way to retrieve the logger here, is by reading from the IORef in an unsafe way

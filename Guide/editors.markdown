@@ -149,6 +149,70 @@ and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in
 export IHP_EDITOR="$HOME/bin/emacs-line"
 ```
 
+Another useful package set that integrates with lsp/lsp-ui and loads the default nix environment from direnv as well as removing [common flycheck issue](https://github.com/joncol/dotfiles/blob/master/homedir/.emacs.d/init.el). 
+This config also adds a jump to definition for functions bound to "C-c p":
+
+```emacs
+(use-package direnv
+  :defer
+  :custom
+  (direnv-always-show-summary nil)
+  :config
+  (direnv-mode))
+(use-package lsp-mode
+  :custom
+  (lsp-lens-enable nil)
+  (lsp-enable-symbol-highlighting nil)
+
+  :hook
+  (lsp-mode . lsp-enable-which-key-integration)
+
+  :config
+  ;; This is to make `lsp-mode' work with `direnv' and pick up the correct
+  ;; version of GHC.
+  (advice-add 'lsp :before #'direnv-update-environment)
+  (setq lsp-modeline-code-actions-enable nil))
+
+(use-package lsp-ui
+  :hook (prog-mode . lsp-ui-mode)
+  :bind (("C-c p" . lsp-ui-peek-find-definitions))
+  :config
+  (setq lsp-ui-doc-position 'bottom))
+
+;; (add-hook 'haskell-mode-hook #'lsp)
+(use-package flycheck-haskell
+  ;; Disabling this package, since it only gives error:
+  ;; "Reading Haskell configuration failed with exit code Segmentation fault and
+  ;; output:", when trying to run it in Nix/direnv setup.
+  :disabled
+  :hook (haskell-mode . flycheck-haskell-setup))
+
+(add-hook 'haskell-mode-hook
+          (lambda ()
+            (rainbow-mode -1)
+;; we aren't evil:
+;;            (evil-leader/set-key "x h" 'haskell-hoogle)
+;;            (setq evil-shift-width 2)
+            (define-key haskell-mode-map (kbd "C-c C-c C-s")
+              'haskell-mode-stylish-buffer)
+            (bind-key (kbd "C-c C-c C-a") 'haskell-sort-imports)
+            (setq haskell-auto-insert-module-format-string
+                  "module %s\n  () where\n\n")
+            (haskell-auto-insert-module-template)
+            (smartparens-mode)
+            (sp-local-pair 'haskell-mode "{" "}")
+            (setq haskell-hoogle-command nil)
+            (ligature-mode)))
+
+(use-package lsp-haskell
+  :hook ((haskell-mode . lsp-deferred)
+         (haskell-literate-mode . lsp-deferred))
+  :custom
+  (lsp-haskell-server-path "haskell-language-server"))
+
+(use-package haskell-mode
+  :defer)
+```
 
 ## Using IHP with Vim / NeoVim
 

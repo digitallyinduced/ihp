@@ -8,8 +8,6 @@ import           ClassyPrelude
 import qualified Data.ByteString.Lazy as LBS
 import           Network.Wai                   (Request, Response, ResponseReceived)
 import           Network.Wai.Parse (File, Param)
-import qualified Data.Vault.Lazy               as Vault
-import           Network.Wai.Session           (Session)
 import           IHP.FrameworkConfig
 import qualified Data.Aeson as Aeson
 
@@ -24,6 +22,5 @@ data RequestContext = RequestContext
     { request :: Request
     , respond :: Respond
     , requestBody :: RequestBody
-    , vault :: (Vault.Key (Session IO ByteString ByteString))
     , frameworkConfig :: FrameworkConfig
     }

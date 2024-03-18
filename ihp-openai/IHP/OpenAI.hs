@@ -19,7 +19,7 @@ import Control.Applicative ((<|>))
 
 data CompletionRequest = CompletionRequest
     { messages :: ![Message]
-    , prompt :: !Text
+    , prompt :: !Text -- ^ Deprecated, use 'messages' instead
     , maxTokens :: !Int
     , temperature :: !Double
     , presencePenalty :: !Double
@@ -39,7 +39,7 @@ instance ToJSON CompletionRequest where
     toJSON CompletionRequest { model, prompt, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream } =
         object
             [ "model" .= model
-            , "messages" .= (messages <> [userMessage prompt])
+            , "messages" .= (messages <> (if not (Text.null prompt) then [userMessage prompt] else []))
             , "max_tokens" .= maxTokens
             , "stream" .= stream
             , "temperature" .= temperature
@@ -61,6 +61,9 @@ userMessage content = Message { role = UserRole, content }
 
 systemMessage :: Text -> Message
 systemMessage content = Message { role = SystemRole, content }
+
+assistantMessage :: Text -> Message
+assistantMessage content = Message { role = AssistantRole, content }
 
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest

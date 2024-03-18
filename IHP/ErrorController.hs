@@ -78,11 +78,12 @@ displayException exception action additionalInfo = do
     -- to the error tracking service (e.g. sentry). Usually this service also writes
     -- the error message to the stderr output
     --
-    let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
-    let request = ?requestContext.request
+    when (?context.frameworkConfig.environment == Environment.Production) do
+        let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
+        let request = ?requestContext.request
 
 
-    exceptionTracker (Just request) exception
+        exceptionTracker (Just request) exception
 
     supportingHandlers
         |> head
@@ -316,9 +317,10 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
                 in Just (handleNotFound ?context.request ?context.respond)
         Nothing -> Nothing
 
-handleRouterException :: (?context :: RequestContext) => SomeException -> IO ResponseReceived
-handleRouterException exception =
-    case fromException exception of
+handleRouterException :: (?applicationContext :: ApplicationContext) => SomeException -> Application
+handleRouterException exception request respond =
+    let ?context = ?applicationContext
+    in case fromException exception of
         Just Router.NoConstructorMatched { expectedType, value, field } -> do
             let errorMessage = [hsx|
                     <p>Routing failed with: {tshow exception}</p>
@@ -329,14 +331,12 @@ handleRouterException exception =
             let title = case value of
                     Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
                     Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
-            let RequestContext { respond } = ?context
             respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         Just Router.BadType { expectedType, value = Just value, field } -> do
             let errorMessage = [hsx|
                     <p>Routing failed with: {tshow exception}</p>
                 |]
             let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
-            let RequestContext { respond } = ?context
             respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
         _ -> case fromException exception of
             Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
@@ -371,7 +371,6 @@ handleRouterException exception =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
-                let RequestContext { respond } = ?context
                 respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
             Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
                 let errorMessage = [hsx|
@@ -386,7 +385,6 @@ handleRouterException exception =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
-                let RequestContext { respond } = ?context
                 respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
             Just Router.UnexpectedMethodException { allowedMethods, method } -> do
                 let errorMessage = [hsx|
@@ -397,7 +395,6 @@ handleRouterException exception =
                         </p>
                     |]
                 let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
-                let RequestContext { respond } = ?context
                 respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
             _ -> do
                 let errorMessage = [hsx|
@@ -407,7 +404,6 @@ handleRouterException exception =
                         <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                     |]
                 let title = H.text "Routing failed"
-                let RequestContext { respond } = ?context
                 respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 

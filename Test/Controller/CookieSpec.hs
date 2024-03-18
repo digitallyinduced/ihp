@@ -37,6 +37,6 @@ createControllerContext = do
     let
         requestBody = FormBody { params = [], files = [] }
         request = Wai.defaultRequest
-        requestContext = RequestContext { request, respond = error "respond", requestBody, vault = error "vault", frameworkConfig = error "frameworkConfig" }
+        requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = error "frameworkConfig" }
     let ?requestContext = requestContext
     newControllerContext

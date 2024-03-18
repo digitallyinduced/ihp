@@ -29,7 +29,7 @@ module IHP.ControllerSupport
 
 import ClassyPrelude
 import IHP.HaskellSupport
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -39,7 +39,6 @@ import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
 import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
-import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
@@ -65,6 +64,9 @@ class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?context :: ControllerContext) => IO ()
     initContext = pure ()
     {-# INLINABLE initContext #-}
+
+instance InitControllerContext () where
+    initContext = pure ()
 
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
@@ -149,12 +151,11 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> IO ResponseReceived
-startWebSocketApp onHTTP = do
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp onHTTP request respond = do
     let ?modelContext = ?applicationContext.modelContext
-    let ?requestContext = ?context
-    let respond = ?context.respond
-    let request = ?context.request
+    requestContext <- createRequestContext ?applicationContext request respond
+    let ?requestContext = requestContext
 
     let handleConnection pendingConnection = do
             connection <- WebSockets.acceptRequest pendingConnection
@@ -177,7 +178,7 @@ startWebSocketApp onHTTP = do
             Just response -> respond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => Network.Wai.Application
 startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
         respond = ?context.respond
@@ -257,7 +258,7 @@ requestBodyJSON =
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
+createRequestContext ApplicationContext { frameworkConfig } request respond = do
     let contentType = lookup hContentType (requestHeaders request)
     requestBody <- case contentType of
         "application/json" -> do
@@ -268,7 +269,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
             (params, files) <- WaiParse.parseRequestBodyEx frameworkConfig.parseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
-    pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
+    pure RequestContext.RequestContext { request, respond, requestBody, frameworkConfig }
 
 
 -- | Returns a custom config parameter

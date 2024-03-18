@@ -6,13 +6,11 @@ import qualified Network.Wai.Handler.Warp as Warp
 import IHP.IDE.Types
 import IHP.IDE.PortConfig
 import qualified IHP.ControllerSupport as ControllerSupport
-import qualified IHP.ErrorController as ErrorController
 import IHP.ApplicationContext
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
-import qualified Data.Vault.Lazy as Vault
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Session (withSession)
 import qualified Network.WebSockets as Websocket
@@ -37,6 +35,7 @@ import qualified System.Process as Process
 import System.Info
 import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
+import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
@@ -48,6 +47,7 @@ import qualified IHP.PGListener as PGListener
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
+import IHP.Controller.Session (sessionVaultKey)
 
 withToolServer :: (?context :: Context) => IO () -> IO ()
 withToolServer inner = withAsyncBound async (\_ -> inner)
@@ -71,21 +71,18 @@ startToolServer' port isDebugMode = do
             Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
             Nothing -> pure ()
 
-    session <- Vault.newKey
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) session
+    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
     let modelContext = notConnectedModelContext undefined
     pgListener <- PGListener.init modelContext
     autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
     staticApp <- initStaticApp
 
-    let applicationContext = ApplicationContext { modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
+    let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
     let toolServerApplication = ToolServerApplication { devServerContext = ?context }
     let application :: Wai.Application = \request respond -> do
             let ?applicationContext = applicationContext
-            requestContext <- ControllerSupport.createRequestContext applicationContext request respond
-            let ?context = requestContext
-            frontControllerToWAIApp toolServerApplication [] (staticApp request respond)
+            frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
     let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
     let warpSettings = Warp.defaultSettings

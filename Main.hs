@@ -13,11 +13,18 @@ data DemoController = DemoAction deriving (Eq, Show, Data)
 
 instance AutoRoute DemoController
 instance InitControllerContext RootApplication
-instance FrontController RootApplication where
+data WebApplication = WebApplication deriving (Eq, Show)
+
+instance InitControllerContext WebApplication where
+    initContext = pure ()
+
+instance FrontController WebApplication where
     controllers =
-        [ parseRoute @DemoController
-        , startPage DemoAction
+        [ startPage DemoAction
         ]
+
+instance FrontController RootApplication where
+    controllers = [ mountFrontController WebApplication ]
 
 instance Controller DemoController where
     action DemoAction = renderPlain "Hello World!"

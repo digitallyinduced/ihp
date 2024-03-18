@@ -5,18 +5,16 @@ import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession, Session)
+import Network.Wai.Session (withSession)
 import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
-import qualified Data.Vault.Lazy as Vault
+import IHP.Controller.Session (sessionVaultKey)
 import IHP.ApplicationContext
-import qualified IHP.ControllerSupport as ControllerSupport
 import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
-import IHP.RouterSupport (frontControllerToWAIApp, FrontController, webSocketApp, webSocketAppWithCustomPath)
-import IHP.ErrorController
+import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import IHP.LibDir
@@ -48,14 +46,12 @@ run configBuilder = do
 
         withInitalizers frameworkConfig modelContext do
             withPGListener \pgListener -> do
-                sessionVault <- Vault.newKey
-
                 autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
                 let ?modelContext = modelContext
-                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, session = sessionVault, autoRefreshServer, frameworkConfig, pgListener }
+                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
-                sessionMiddleware <- initSessionMiddleware sessionVault frameworkConfig
+                sessionMiddleware <- initSessionMiddleware frameworkConfig
                 staticApp <- initStaticApp frameworkConfig
                 let corsMiddleware = initCorsMiddleware frameworkConfig
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
@@ -65,10 +61,9 @@ run configBuilder = do
                     . runServer frameworkConfig
                     . customMiddleware
                     . corsMiddleware
-                    . sessionMiddleware
-                    . requestLoggerMiddleware
                     . methodOverridePost
-                    $ application staticApp
+                    . sessionMiddleware
+                    $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
 
@@ -99,7 +94,7 @@ initStaticApp frameworkConfig = do
 
         frameworkStaticDir = libDir <> "/static/"
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
-                { Static.ss404Handler = Just handleNotFound
+                { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge
                 }
         appSettings = (Static.defaultWebAppSettings "static/")
@@ -109,8 +104,8 @@ initStaticApp frameworkConfig = do
 
     pure (Static.staticApp appSettings)
 
-initSessionMiddleware :: Vault.Key (Session IO ByteString ByteString) -> FrameworkConfig -> IO Middleware
-initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
+initSessionMiddleware :: FrameworkConfig -> IO Middleware
+initSessionMiddleware FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
@@ -119,7 +114,7 @@ initSessionMiddleware sessionVault FrameworkConfig { sessionCookie } = do
             if hasSessionSecretEnvVar || not doesConfigDirectoryExist
                 then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
                 else ClientSession.getKey path
-    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVault
+    let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVaultKey
     pure sessionMiddleware
 
 initCorsMiddleware :: FrameworkConfig -> Middleware
@@ -127,16 +122,9 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
-application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Application
-application staticApp request respond = do
-        requestContext <- ControllerSupport.createRequestContext ?applicationContext request respond
-        let ?context = requestContext
-        let builtinControllers = let ?application = () in
-                [ webSocketApp @AutoRefresh.AutoRefreshWSApp
-                , webSocketAppWithCustomPath @AutoRefresh.AutoRefreshWSApp "" -- For b.c. with older versions of ihp-auto-refresh.js
-                ]
-
-        frontControllerToWAIApp RootApplication builtinControllers (staticApp request respond)
+application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Middleware -> Application
+application staticApp middleware request respond = do
+    frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
 runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
@@ -151,9 +139,6 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
                 Warp.defaultSettings
                     |> Warp.setPort appPort
                     |> Warp.setOnException exceptionTracker.onException
-
-instance ControllerSupport.InitControllerContext () where
-    initContext = pure ()
 
 withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
