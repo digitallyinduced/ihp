@@ -838,7 +838,7 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (?applicationContext :: ApplicationContext, FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction request respond = do
-    let requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, vault = ?applicationContext.session, frameworkConfig = ?applicationContext.frameworkConfig }
+    let requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = ?applicationContext.frameworkConfig }
 
     let ?context = requestContext
 

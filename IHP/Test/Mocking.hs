@@ -33,6 +33,7 @@ import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
 import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
+import IHP.Controller.Session (sessionVaultKey)
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -58,17 +59,15 @@ withIHPApp application configBuilder hspecAction = do
         withTestDatabase \testDatabase -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (testDatabase.url) logger
 
-            session <- Vault.newKey
             pgListener <- PGListener.init modelContext
             autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-            let sessionVault = Vault.insert session mempty Vault.empty
-            let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
+            let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+            let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
             let requestContext = RequestContext
                  { request = defaultRequest {vault = sessionVault}
                  , requestBody = FormBody [] []
                  , respond = const (pure ResponseReceived)
-                 , vault = session
                  , frameworkConfig = frameworkConfig }
 
             (hspecAction MockContext { .. })
@@ -81,17 +80,15 @@ mockContextNoDatabase application configBuilder = do
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
-   session <- Vault.newKey
-   let sessionVault = Vault.insert session mempty Vault.empty
+   let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
    pgListener <- PGListener.init modelContext
    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-   let applicationContext = ApplicationContext { modelContext = modelContext, session, autoRefreshServer, frameworkConfig, pgListener }
+   let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}
          , requestBody = FormBody [] []
          , respond = \resp -> pure ResponseReceived
-         , vault = session
          , frameworkConfig = frameworkConfig }
 
    pure MockContext{..}
@@ -230,8 +227,8 @@ withUser user callback =
 
         insertSession key value = pure ()
 
-        newVault = Vault.insert vaultKey newSession (Wai.vault request)
-        RequestContext { request, vault = vaultKey } = ?mocking.requestContext
+        newVault = Vault.insert sessionVaultKey newSession (Wai.vault request)
+        RequestContext { request } = ?mocking.requestContext
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)

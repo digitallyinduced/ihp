@@ -49,7 +49,7 @@ createControllerContext = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
     let requestBody = FormBody { params = [], files = [] }
     let request = Wai.defaultRequest
-    let requestContext = RequestContext { request, respond = undefined, requestBody, vault = undefined, frameworkConfig = frameworkConfig }
+    let requestContext = RequestContext { request, respond = undefined, requestBody, frameworkConfig = frameworkConfig }
     pure FrozenControllerContext { requestContext, customFields = mempty }
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)

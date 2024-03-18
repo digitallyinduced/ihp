@@ -8,7 +8,7 @@ that is defined in flake-module.nix
     perSystem = { nix-filter, pkgs, lib, ... }: let
         ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
             inherit pkgs;
-            ghcCompiler = pkgs.haskell.packages.ghc94;
+            ghcCompiler = pkgs.haskell.packages.ghc96;
             ihp = ./.;
             filter = inputs.nix-filter.lib;
         };

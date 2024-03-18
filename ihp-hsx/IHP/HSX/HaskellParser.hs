@@ -30,7 +30,7 @@ parseHaskellExpression sourcePos extensions input =
                     error = renderWithContext defaultSDocContext
                         $ vcat
                         $ map (formatBulleted defaultSDocContext)
-#if __GLASGOW_HASKELL__ >= 960
+#if __GLASGOW_HASKELL__ >= 906
                         $ map (diagnosticMessage NoDiagnosticOpts)
 #else
                         $ map diagnosticMessage
