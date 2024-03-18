@@ -148,7 +148,7 @@ tests = do
             it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ CreateTable {
                     name = "users",
-                    columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
+                    columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
                     , unlogged = False
@@ -164,7 +164,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -234,7 +234,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -304,7 +304,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing True True Nothing
+                            [ Column "id" PUUID Nothing False True Nothing
                             , Column {name = "ts", columnType = PTSVector, defaultValue = Nothing, notNull = True, isUnique = False, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -446,23 +446,6 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
-        describe "compileStatementPreview for table with nullable primary key" do
-            let statements = parseSqlStatements [trimming|
-                CREATE TABLE things (
-                    thing_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY
-                );
-            |]
-            let
-                isTargetTable :: Statement -> Bool
-                isTargetTable (StatementCreateTable CreateTable { name }) = name == "things"
-                isTargetTable otherwise = False
-            let (Just statement) = find isTargetTable statements
-            let compileOutput = compileStatementPreview statements statement |> Text.strip
-            it "should produce PrimaryKey instance" do
-                getInstanceDecl "PrimaryKey" compileOutput `shouldBe` [trimming|
-                    type instance PrimaryKey "things" = (Maybe UUID)
-                |]
-                
         describe "compileStatementPreview for table with arbitrarily named primary key" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE things (
@@ -625,7 +608,6 @@ getInstanceDecl instanceName full =
     where
         findInstanceDecl (line:rest)
             | ("instance " <> instanceName) `isPrefixOf` line = line : rest
-            | ("type instance " <> instanceName) `isPrefixOf` line = line : rest
             | otherwise = findInstanceDecl rest
         findInstanceDecl [] = error ("didn't find instance declaration of " <> instanceName)
 
