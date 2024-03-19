@@ -6,9 +6,9 @@
 , dontCheckPackages ? []
 , doJailbreakPackages ? []
 , dontHaddockPackages ? []
-, nixPkgsRev ? "277bf961c323b6cde46932cc9308135d0687af95"
-, nixPkgsSha256 ? "sha256-ciSZqliNLDattmjR/1yQ0mJHZSkXWZlnIR6TcdDGFMQ"
-, compiler ? "ghc96"
+, nixPkgsRev ? "10c80b993425f377c86c2bb36da9f10b79de6fe2"
+, nixPkgsSha256 ? "sha256-yWxZq0v5Hj4bxtYsy/Pzh9g6N8nuSHCCwHpu6QNOX9E"
+, compiler ? "ghc98"
 , manualOverrides ? haskellPackagesNew: haskellPackagesOld: { } # More exotic overrides go here
 , additionalNixpkgsOptions ? {}
 }:

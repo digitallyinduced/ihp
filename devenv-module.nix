@@ -8,7 +8,7 @@ that is defined in flake-module.nix
     perSystem = { nix-filter, pkgs, lib, ... }: let
         ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
             inherit pkgs;
-            ghcCompiler = pkgs.haskell.packages.ghc96;
+            ghcCompiler = pkgs.haskell.packages.ghc98;
             ihp = ./.;
             filter = inputs.nix-filter.lib;
         };
@@ -84,7 +84,7 @@ that is defined in flake-module.nix
                         cereal-text
                         neat-interpolation
                         unagi-chan
-                        with-utf8
+                        with-utf8_1_1_0_0
 
                         # Development Specific Tools (not in ihp.nix)
                         mmark-cli
@@ -118,6 +118,7 @@ that is defined in flake-module.nix
             '';
 
             languages.haskell.stack = null; # Stack is not used in IHP
+            languages.haskell.languageServer = ghcCompiler.haskell-language-server;
         };
     };
 }
