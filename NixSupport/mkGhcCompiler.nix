@@ -58,6 +58,27 @@ in ghcCompiler.override {
     (self: super: { ormolu_0_7_4_0 = if pkgs.system == "aarch64-darwin" then pkgs.haskell.lib.overrideCabal super.ormolu_0_7_4_0 (_: { enableSeparateBinOutput = false; }) else super.ormolu_0_7_4_0; })
     (self: super: { ghc-syntax-highlighter = super.ghc-syntax-highlighter_0_0_11_0; })
     (self: super: { retrie = super.retrie.override { ghc-exactprint = self.ghc-exactprint_1_8_0_0; }; })
+
+    (self: super: { websockets = super.websockets_0_13_0_0; })
+    (self: super: {
+      minio-hs = (pkgs.haskell.lib.overrideCabal super.minio-hs (_: {
+        patches = [
+          (pkgs.fetchpatch {
+            name = "use-crypoton-connection.patch";
+            url = "https://github.com/minio/minio-hs/commit/786cf1881f0b62b7539e63547e76afc3c1ade36a.patch";
+            sha256 = "sha256-zw0/jhKzShpqV1sUyxWTl73sQOzm6kA/yQOZ9n0L1Ag";
+          }) ];
+        })).override { connection = super.crypton-connection; };
+
+
+      smtp-mail = (pkgs.haskell.lib.overrideCabal super.smtp-mail (_: {
+        patches = [
+          (pkgs.fetchpatch {
+            url = "https://github.com/jhickner/smtp-mail/commit/4c724c80814ab1da7c37256a6c10e04c88b9af95.patch";
+            sha256 = "sha256-rCyY4rB/wLspeAbLw1jji5BykYFLnmTjLiUyNkiEXmw";
+          }) ];
+        })).override { connection = super.crypton-connection; };
+    })
     
     # (self: super: { fourmolu_0_15_0_0 = super.fourmolu_0_15_0_0.override { hlint = self.ghc-exactprint_1_8_0_0; }; })
   ];
