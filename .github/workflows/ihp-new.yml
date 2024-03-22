@@ -24,6 +24,12 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: eu-west-1
+    - name: 'Clear disk space' # https://github.com/actions/runner-images/issues/2840
+      run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
     - name: Build ihp-new Package
       run: |
           cd $GITHUB_WORKSPACE
