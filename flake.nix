@@ -4,7 +4,7 @@
     inputs = {
         # TODO use nixpkgs-unstable and just .lock a version?
         # Waiting for https://github.com/NixOS/nixpkgs/pull/296909
-        nixpkgs.url = "github:mpscholten/nixpkgs?rev=f64c488137efa6aab7ad07921bd7c7483c2a35c8";
+        nixpkgs.url = "github:NixOS/nixpkgs?rev=d899609c2a22bbd345d2ed200c6ebc08a772ccc9";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
