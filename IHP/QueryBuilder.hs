@@ -54,7 +54,7 @@ module IHP.QueryBuilder
 , innerJoinThirdTable
 , HasQueryBuilder
 , JoinQueryBuilderWrapper
-, NoJoinQueryBuilderWrapper
+, NoJoinQueryBuilderWrapper(..)
 , LabeledQueryBuilderWrapper
 , getQueryBuilder
 , NoJoins
