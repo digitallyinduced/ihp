@@ -583,12 +583,12 @@ class
     -- For tables with a simple primary key this simply the id:
     --
     -- >>> primaryKeyConditionForId project.id
-    -- ["d619f3cf-f355-4614-8a4c-e9ea4f301e39"]
+    -- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
     --
     -- If the table has a composite primary key, this returns multiple elements:
     --
     -- >>> primaryKeyConditionForId postTag.id
-    -- ["0ace9270-568f-4188-b237-3789aa520588", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c"]
+    -- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
     -- 
     -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
     primaryKeyConditionForId :: Id record -> PG.Action
@@ -614,14 +614,14 @@ primaryKeyConditionColumnSelector =
 -- For tables with a simple primary key this returns a tuple with the id:
 --
 -- >>> primaryKeyCondition project
--- ["d619f3cf-f355-4614-8a4c-e9ea4f301e39"]
+-- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
 --
 -- If the table has a composite primary key, this returns multiple elements:
 --
 -- >>> primaryKeyCondition postTag
--- ["0ace9270-568f-4188-b237-3789aa520588", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c"]
+-- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
-primaryKeyCondition r = primaryKeyConditionForId @record r.id
+primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
 logQuery query parameters time = do
@@ -665,11 +665,10 @@ deleteRecord record =
 --
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
-  let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
-
-  let theParameters = PG.Only $ primaryKeyConditionForId @record id
-  sqlExec (PG.Query $! theQuery) theParameters
-  pure ()
+    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
+    let theParameters = PG.Only $ primaryKeyConditionForId @record id
+    sqlExec (PG.Query $! theQuery) theParameters
+    pure ()
 {-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
@@ -690,10 +689,10 @@ deleteRecords records =
 --
 deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table) => [Id' table] -> IO ()
 deleteRecordByIds ids = do
-  let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
-  let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
-  sqlExec (PG.Query $! theQuery) theParameters
-  pure ()
+    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
+    let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
+    sqlExec (PG.Query $! theQuery) theParameters
+    pure ()
 {-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
