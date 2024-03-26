@@ -835,11 +835,11 @@ filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: *). 
 filterWhereIdIn values queryBuilderProvider =
     -- We don't need to treat null values differently here, because primary keys imply not-null
     let
-        actionTuples = map (primaryKeyConditionActionTupleForId @model) values
+        pkConditions = map (primaryKeyConditionForId @model) values
 
         queryBuilder = getQueryBuilder queryBuilderProvider
 
-        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In actionTuples)), applyLeft = Nothing, applyRight = Nothing}
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In pkConditions)), applyLeft = Nothing, applyRight = Nothing}
      in
         injectQueryBuilder whereInQuery
 {-# INLINE filterWhereIdIn #-}

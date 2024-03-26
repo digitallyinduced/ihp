@@ -798,10 +798,10 @@ instance #{instanceHead} where
         pattern = "Id (" <> intercalate ", " primaryKeyFieldNames <> ")"
 
         condition :: Text
-        condition = primaryKeyColumns table
-                |> map primaryKeyToCondition
-                |> intercalate ", "
-                |> \listInner -> "[" <> listInner <> "]"
+        condition = case primaryKeyColumns table of
+                            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                            [column] -> primaryKeyToCondition column
+                            cols -> "Many [Plain \"(\", " <> intercalate ", Plain \",\", " (map primaryKeyToCondition cols)<> ", Plain \")\"]"
 
         primaryKeyToCondition :: Column -> Text
         primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name

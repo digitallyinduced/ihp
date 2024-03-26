@@ -591,13 +591,7 @@ class
     -- ["0ace9270-568f-4188-b237-3789aa520588", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c"]
     -- 
     -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
-    primaryKeyConditionForId :: Id record -> [PG.Action]
-
--- | Returns an ActionTuple, representing the parameters that can be passed to a prepared SQL statement
--- >>> toField $ primaryKeyConditionActionTupleForId postTag.id
--- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-primaryKeyConditionActionTupleForId :: forall record. (Table record) => Id record -> ActionTuple
-primaryKeyConditionActionTupleForId = ActionTuple . primaryKeyConditionForId @record
+    primaryKeyConditionForId :: Id record -> PG.Action
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
 -- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
@@ -626,7 +620,7 @@ primaryKeyConditionColumnSelector =
 --
 -- >>> primaryKeyCondition postTag
 -- ["0ace9270-568f-4188-b237-3789aa520588", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c"]
-primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> [PG.Action]
+primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
 primaryKeyCondition r = primaryKeyConditionForId @record r.id
 
 logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
@@ -673,7 +667,7 @@ deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table r
 deleteRecordById id = do
   let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
 
-  let theParameters = PG.Only $ primaryKeyConditionActionTupleForId @record id
+  let theParameters = PG.Only $ primaryKeyConditionForId @record id
   sqlExec (PG.Query $! theQuery) theParameters
   pure ()
 {-# INLINABLE deleteRecordById #-}
@@ -700,7 +694,7 @@ deleteRecordByIds [] = do
 deleteRecordByIds ids@(firstId : _) = do
   let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
 
-  let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionActionTupleForId @record) ids
+  let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
   sqlExec (PG.Query $! theQuery) theParameters
   pure ()
 {-# INLINABLE deleteRecordByIds #-}
@@ -972,16 +966,6 @@ instance ToField value => ToField [value] where
 -- using sql types such as @INT[]@
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
-
--- | Wraps a list of actions to be used as a Tuple, useful e.g for matching composite keys
--- >>> toField (ActionTuple [ PG.Escape "myId" ])
--- Many [Plain "(",Escape "myId",Plain ")"]
---
---   Analogous to PGArray from postgres-simple
-newtype ActionTuple = ActionTuple [Action]
-
-instance ToField ActionTuple where
-  toField (ActionTuple actions) = PG.Many ([PG.Plain "("] <> intersperse (PG.Plain ",") actions <> [PG.Plain ")"])
 
 -- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
 --
