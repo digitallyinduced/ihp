@@ -190,7 +190,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        primaryKeyConditionForId (Id (id)) = [toField id]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -260,7 +260,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        primaryKeyConditionForId (Id (id)) = [toField id]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -330,7 +330,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        primaryKeyConditionForId (Id (id)) = [toField id]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -408,7 +408,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = [("id", toField id)]
+                        primaryKeyConditionForId (Id (id)) = [toField id]
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -495,7 +495,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
-                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = [("thing_arbitrary_ident", toField thingArbitraryIdent)]
+                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = [toField thingArbitraryIdent]
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
@@ -560,7 +560,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
-                        primaryKeyConditionForId (Id (bitRef, partRef)) = [("bit_ref", toField bitRef), ("part_ref", toField partRef)]
+                        primaryKeyConditionForId (Id (bitRef, partRef)) = [toField bitRef, toField partRef]
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do

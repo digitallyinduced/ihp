@@ -804,7 +804,7 @@ instance #{instanceHead} where
                 |> \listInner -> "[" <> listInner <> "]"
 
         primaryKeyToCondition :: Column -> Text
-        primaryKeyToCondition column = "(\"" <> column.name <> "\", toField " <> columnNameToFieldName column.name <> ")"
+        primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
         columnNames = columns
                 |> map (.name)

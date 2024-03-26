@@ -39,12 +39,12 @@ type instance PrimaryKey "weird_tags" = UUID
 instance Table WeirdPkTag where
     columnNames = ["tag_iden", "tag_text"]
     primaryKeyColumnNames = ["tag_iden"]
-    primaryKeyConditionForId (Id id) = [("tag_iden", toField id)]
+    primaryKeyConditionForId (Id id) = [toField id]
 
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
+    primaryKeyConditionForId (Id id) = [toField id]
 
 data Tag = Tag
         { id :: UUID
@@ -58,7 +58,7 @@ type instance PrimaryKey "tags" = UUID
 instance Table Tag where
     columnNames = ["id", "tag_text"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
+    primaryKeyConditionForId (Id id) = [toField id]
 
 data Tagging = Tagging 
         { id :: UUID
@@ -74,7 +74,7 @@ type instance PrimaryKey "taggings" = UUID
 instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
+    primaryKeyConditionForId (Id id) = [toField id]
     
 data CompositeTagging = CompositeTagging 
         { postId :: UUID
@@ -89,7 +89,7 @@ type instance PrimaryKey "composite_taggings" = (Id' "posts", Id' "tags")
 instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
     primaryKeyColumnNames = ["post_id", "tag_id"]
-    primaryKeyConditionForId (Id (postId, tagId)) = [("post_id", toField postId), ("tag_id", toField tagId)]
+    primaryKeyConditionForId (Id (postId, tagId)) = [toField postId, toField tagId]
 
 
 data User = User
@@ -104,7 +104,7 @@ type instance PrimaryKey "users" = UUID
 instance Table User where
     columnNames = ["id", "name"]
     primaryKeyColumnNames = ["id"]
-    primaryKeyConditionForId (Id id) = [("id", toField id)]
+    primaryKeyConditionForId (Id id) = [toField id]
 
 data FavoriteTitle = FavoriteTitle
     {
