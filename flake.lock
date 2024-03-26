@@ -35,11 +35,11 @@
         "pre-commit-hooks": "pre-commit-hooks_2"
       },
       "locked": {
-        "lastModified": 1711099683,
-        "narHash": "sha256-jH1JKhGQ6aC+GlEl8SvrFTy1FEVA85IcbkQemeEYFaA=",
+        "lastModified": 1711175482,
+        "narHash": "sha256-llShiYcLHug8sJUCgBJ4TnQEZXfBnTS1oYYKeXf4t44=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "4e446c65d2295d12d1503424aa352d28e7e32c7b",
+        "rev": "4cd98abe9b509a1f69a7a5f78a831400a20d289f",
         "type": "github"
       },
       "original": {
@@ -1049,17 +1049,17 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1711066351,
-        "narHash": "sha256-xCSnQNr2izUVC/9SF2S8XHVs09Ox8FIYKs0QBZFN6cg=",
+        "lastModified": 1711411942,
+        "narHash": "sha256-xY4gqwF9i7PFHhpWIdtUjUsp/bFG7EtHtg0cwqXm4Jw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "d899609c2a22bbd345d2ed200c6ebc08a772ccc9",
+        "rev": "39a71cf239c585c3b740f94760ed20695acfcc35",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
+        "ref": "haskell-updates",
         "repo": "nixpkgs",
-        "rev": "d899609c2a22bbd345d2ed200c6ebc08a772ccc9",
         "type": "github"
       }
     },
