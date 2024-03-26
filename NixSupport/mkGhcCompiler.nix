@@ -35,9 +35,12 @@ let
     in
     builtins.listToAttrs (map toPackage names);
 
-  ihpDontCheckPackages = [];
+  ihpDontCheckPackages = [
+    "pcre-heavy" # https://github.com/NixOS/nixpkgs/pull/299118
+  ];
   ihpDoJailbreakPackages = [
     "inflections" # Can be removed after https://github.com/NixOS/nixpkgs/pull/298337 is merged
+    "string-random" # https://github.com/NixOS/nixpkgs/pull/299122
   ];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
