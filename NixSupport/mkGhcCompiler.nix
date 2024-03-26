@@ -41,6 +41,8 @@ let
   ihpDoJailbreakPackages = [
     "inflections" # Can be removed after https://github.com/NixOS/nixpkgs/pull/298337 is merged
     "string-random" # https://github.com/NixOS/nixpkgs/pull/299122
+    "stripe-concepts" # https://github.com/NixOS/nixpkgs/pull/299129
+    "stripe-signature" # https://github.com/NixOS/nixpkgs/pull/299129
   ];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
