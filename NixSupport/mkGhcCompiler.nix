@@ -36,9 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [];
-  ihpDoJailbreakPackages = [
-    "inflections" # Can be removed after https://github.com/NixOS/nixpkgs/pull/298337 is merged
-  ];
+  ihpDoJailbreakPackages = [];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
