@@ -155,6 +155,12 @@ tests = do
                 (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.external_url IS NOT ?", [Plain "null"])
 
         describe "filterWhereIn" do
+            it "should work with #id if the Model is suitable" do
+                let theValues :: [UUID] = ["b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"]
+                let theQuery = query @Post
+                        |> filterWhereIn (#id, theValues)
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.id IN ?", [Many [Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")"]])
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]
                 let theQuery = query @Post
