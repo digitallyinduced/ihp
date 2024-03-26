@@ -20,6 +20,9 @@ import GHC.Types.Error
 import GHC.Utils.Outputable hiding ((<>))
 import GHC.Utils.Error
 import qualified GHC.Types.SrcLoc as SrcLoc
+#if __GLASGOW_HASKELL__ >= 908
+import GHC.Unit.Module.Warnings
+#endif
 
 parseHaskellExpression :: SourcePos -> [TH.Extension] -> String -> Either (Int, Int, String) TH.Exp
 parseHaskellExpression sourcePos extensions input =
@@ -29,7 +32,11 @@ parseHaskellExpression sourcePos extensions input =
                 let
                     error = renderWithContext defaultSDocContext
                         $ vcat
+#if __GLASGOW_HASKELL__ >= 908
+                        $ map formatBulleted
+#else
                         $ map (formatBulleted defaultSDocContext)
+#endif
 #if __GLASGOW_HASKELL__ >= 906
                         $ map (diagnosticMessage NoDiagnosticOpts)
 #else
@@ -75,4 +82,8 @@ diagOpts =
     , diag_reverse_errors = False
     , diag_max_errors = Nothing
     , diag_ppr_ctx = defaultSDocContext
+#if __GLASGOW_HASKELL__ >= 908
+    , diag_custom_warning_categories = emptyWarningCategorySet
+    , diag_fatal_custom_warning_categories = emptyWarningCategorySet
+#endif
     }

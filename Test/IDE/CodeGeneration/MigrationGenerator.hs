@@ -1377,6 +1377,17 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should truncate very long constraint names" do
+                let actualSchema = sql $ cs [plain|
+                    ALTER TABLE organization_num_employees_ranges ADD CONSTRAINT organization_num_employees_ranges_ref_prospect_search_request_id FOREIGN KEY (prospect_search_request_id) REFERENCES prospect_search_requests (id) ON DELETE NO ACTION;
+                |]
+                let targetSchema = sql $ cs [plain|
+                    ALTER TABLE organization_num_employees_ranges ADD CONSTRAINT organization_num_employees_ranges_ref_prospect_search_request_i FOREIGN KEY (prospect_search_request_id) REFERENCES prospect_search_requests (id) ON DELETE NO ACTION;
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
             it "should deal with nested SELECT expressions inside a policy" do
                 let actualSchema = sql $ cs [plain|
                     CREATE POLICY "Allow users to see their own company" ON public.companies USING ((id = ( SELECT users.company_id

@@ -166,7 +166,11 @@ toExp (Expr.RecordCon _ name HsRecFields {rec_flds})
   = TH.RecConE (toName . unLoc $ name) (fmap toFieldExp rec_flds)
 
 toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) $ case xs of
+#if __GLASGOW_HASKELL__ >= 908
+    RegularRecUpdFields { recUpdFields = fields } ->
+#else
     Left fields ->
+#endif
         let
             f (unLoc -> x) = (name, value)
                 where
@@ -177,7 +181,7 @@ toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) 
                             Ambiguous _ (unLoc -> name) -> toName name
         in
             map f fields
-    Right xs -> error "todo"
+    otherwise -> error "todo"
 -- toExp (Expr.ListComp _ e ss)                  = TH.CompE $ map convert ss ++ [TH.NoBindS (toExp e)]
 --  where
 --   convert (Expr.QualStmt _ st)                = toStmt st
