@@ -689,11 +689,8 @@ deleteRecords records =
 -- DELETE FROM projects WHERE id IN ('..')
 --
 deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table) => [Id' table] -> IO ()
-deleteRecordByIds [] = do
-  pure () -- If there are no ids, we wouldn't even know the pkCols, so we just don't do anything, as nothing happens anyways
-deleteRecordByIds ids@(firstId : _) = do
+deleteRecordByIds ids = do
   let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
-
   let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
   sqlExec (PG.Query $! theQuery) theParameters
   pure ()
