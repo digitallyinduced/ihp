@@ -286,6 +286,25 @@ deploy-to-nixos ihp-app
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
 
+
+### Backward-incompatible database update
+
+If you have a backward-incompatible modification in the schema, you need to
+recreate the database entirely, or you need an upgrade path.
+
+Steps to do to start from scratch:
+ - `make db` locally to have a clean local state.
+ - `make sql_dump > /tmp/[your-app].sql`
+ - `scp /tmp/[your-app].sql [your-app]-[env]:~`
+ - `ssh [your-app]-[env]`
+   - `systemctl stop app.service && (echo "drop database app with (force); create database app;" | psql -U postgres -h [your-db-server-host] -p [your-db-server-port] postgres)`
+   - `cat [your-app] | psql -U postgres -h [your-db-server-host] -p [your-db-server-port] app` # Consult flake.nix for the values in case.
+   - `rm [your-app].sql`
+   - `systemctl start app.service`
+   - `exit`
+ - `rm /tmp/[your-app].sql`
+
+
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.

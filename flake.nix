@@ -2,9 +2,7 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        # TODO use nixpkgs-unstable and just .lock a version?
-        # Waiting for https://github.com/NixOS/nixpkgs/pull/296909
-        nixpkgs.url = "github:mpscholten/nixpkgs?rev=f64c488137efa6aab7ad07921bd7c7483c2a35c8";
+        nixpkgs.url = "github:NixOS/nixpkgs/haskell-updates";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
