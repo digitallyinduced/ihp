@@ -835,20 +835,11 @@ filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: *). 
 filterWhereIdIn values queryBuilderProvider =
     -- We don't need to treat null values differently here, because primary keys imply not-null
     let
-        qualifyColumnName col = tableNameByteString @model <> "." <> col
-
-        pkConds = map (primaryKeyConditionForId @model) values
-
-        actionTuples = map (ActionTuple . map snd) pkConds
-
-        columnNames = case primaryKeyColumnNames @model of
-                [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> tableName @model <> ". At least one primary key is required."
-                [s] -> cs $ qualifyColumnName s
-                conds -> cs $ "(" <> ByteString.intercalate ", " (map qualifyColumnName conds) <> ")"
+        actionTuples = map (primaryKeyConditionActionTupleForId @model) values
 
         queryBuilder = getQueryBuilder queryBuilderProvider
 
-        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (columnNames, InOp, toField (In actionTuples)), applyLeft = Nothing, applyRight = Nothing}
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In actionTuples)), applyLeft = Nothing, applyRight = Nothing}
      in
         injectQueryBuilder whereInQuery
 {-# INLINE filterWhereIdIn #-}

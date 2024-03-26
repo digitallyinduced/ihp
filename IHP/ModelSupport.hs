@@ -591,6 +591,28 @@ class
     -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
     primaryKeyConditionForId :: Id record -> [(Text, PG.Action)]
 
+-- | Returns an ActionTuple, representing the parameters that can be passed to a prepared SQL statement
+-- >>> toField $ primaryKeyConditionActionTupleForId postTag.id
+-- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
+primaryKeyConditionActionTupleForId :: forall record. (Table record) => Id record -> ActionTuple
+primaryKeyConditionActionTupleForId = ActionTuple . map snd . primaryKeyConditionForId @record
+
+-- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
+-- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
+-- >>> primaryKeyColumnSelector @PostTag
+-- "(post_tags.post_id, post_tags.tag_id)"
+-- >>> primaryKeyColumnSelector @Post
+-- "post_tags.post_id"
+primaryKeyConditionColumnSelector :: forall record. (Table record) => ByteString
+primaryKeyConditionColumnSelector = 
+    let 
+        qualifyColumnName col = tableNameByteString @record <> "." <> col
+    in
+    case primaryKeyColumnNames @record of
+            [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
+            [s] -> qualifyColumnName s
+            conds -> "(" <> intercalate ", " (map qualifyColumnName conds) <> ")"
+
 -- | Returns WHERE conditions to match an entity by it's primary key
 --
 -- For tables with a simple primary key this returns a tuple with the id:
@@ -647,19 +669,11 @@ deleteRecord record =
 --
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
-    let (pkCols, paramPattern, theParameters) = case primaryKeyConditionForId @record id of
-            [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
-            [(colName, param)] -> (colName, "?", [param])
-            ps ->
-              ( "(" <> intercalate "," (map fst ps) <> ")",
-                "(" <> intercalate "," (map (const "?") ps) <> ")",
-                map snd ps
-              )
+  let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
 
-    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE " <> pkCols <> " = " <> paramPattern
-
-    sqlExec (PG.Query . cs $! theQuery) theParameters
-    pure ()
+  let theParameters = PG.Only $ primaryKeyConditionActionTupleForId @record id
+  sqlExec (PG.Query $! theQuery) theParameters
+  pure ()
 {-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
@@ -682,15 +696,10 @@ deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (
 deleteRecordByIds [] = do
   pure () -- If there are no ids, we wouldn't even know the pkCols, so we just don't do anything, as nothing happens anyways
 deleteRecordByIds ids@(firstId : _) = do
-  let pkCols = case primaryKeyConditionForId @record firstId of
-        [] -> error . cs $ "Impossible happened in deleteRecordById. No primary keys found for table " <> (tableName @record) <> ". At least one primary key is required."
-        [(colName, _)] -> colName
-        ps -> "(" <> intercalate "," (map fst ps) <> ")"
+  let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
 
-  let theQuery = "DELETE FROM " <> tableName @record <> " WHERE " <> pkCols <> " IN ?"
-
-  let theParameters = PG.Only $ PG.In $ map (ActionTuple . map snd . primaryKeyConditionForId @record) ids
-  sqlExec (PG.Query . cs $! theQuery) theParameters
+  let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionActionTupleForId @record) ids
+  sqlExec (PG.Query $! theQuery) theParameters
   pure ()
 {-# INLINABLE deleteRecordByIds #-}
 
