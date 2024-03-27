@@ -24,6 +24,7 @@ module IHP.QueryBuilder
 , filterWhereCaseInsensitive
 , filterWhereNot
 , filterWhereIn
+, filterWhereIdIn
 , filterWhereNotIn
 , filterWhereLike
 , filterWhereILike
@@ -61,6 +62,9 @@ module IHP.QueryBuilder
 , Condition (..)
 , Join (..)
 , OrderByDirection (..)
+, injectQueryBuilder
+, FilterOperator (..)
+, toEqOrIsOperator
 )
 where
 import IHP.Prelude
@@ -825,6 +829,21 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereCaseInsensitive #-}
+
+
+filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: *). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIdIn values queryBuilderProvider =
+    -- We don't need to treat null values differently here, because primary keys imply not-null
+    let
+        pkConditions = map (primaryKeyConditionForId @model) values
+
+        queryBuilder = getQueryBuilder queryBuilderProvider
+
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In pkConditions)), applyLeft = Nothing, applyRight = Nothing}
+     in
+        injectQueryBuilder whereInQuery
+{-# INLINE filterWhereIdIn #-}
+
 
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
 -- >    query @Posts 
