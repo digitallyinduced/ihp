@@ -41,6 +41,7 @@ module IHP.Prelude
 , module Control.Concurrent.Async
 , module NeatInterpolation
 , module GHC.Stack
+, module Data.Kind
 )
 where
 
@@ -56,7 +57,6 @@ import qualified Data.Text as Text
 import Data.Proxy (Proxy (Proxy))
 import Control.Monad (when, unless, mapM, mapM_, forM, forM_, sequence, sequence_, join, forever)
 import Data.List hiding (head, last, unwords, unlines, words, lines, isPrefixOf, isSuffixOf, isInfixOf, intercalate, intersperse, (++), splitAt, null, tail, init)
-import qualified Data.List as List
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.Time.Clock
 import Data.Time.Calendar
@@ -77,6 +77,7 @@ import Control.Monad.Fail (fail)
 import Control.Concurrent.Async
 import NeatInterpolation (trimming)
 import GHC.Stack (HasCallStack, CallStack)
+import Data.Kind (Type)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
@@ -92,28 +93,28 @@ error message = Prelude.error (Text.unpack message)
 
 head :: [a] -> Maybe a
 head [] = Nothing
-head list = Just (List.head list)
+head (firstItem:rest) = Just firstItem
 
 headMay :: [a] -> Maybe a
 headMay = head
 
 last :: [a] -> Maybe a
 last [] = Nothing
-last list = Just (List.last list)
+last [item] = Just item
+last (_:rest) = last rest
 
 lastMay :: [a] -> Maybe a
 lastMay = last
 
 tail :: [a] -> Maybe [a]
+tail (_:rest) = Just rest
 tail [] = Nothing
-tail list = Just (List.tail list)
 
 tailMay :: [a] -> Maybe [a]
 tailMay = tail
 
 init :: [a] -> Maybe [a]
-init [] = Nothing
-init list = Just (List.init list)
+init list = fst <$> (unsnoc list)
 
 initMay :: [a] -> Maybe [a]
 initMay = init

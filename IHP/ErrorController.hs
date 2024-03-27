@@ -16,7 +16,7 @@ import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import IHP.Controller.RequestContext
-import Network.HTTP.Types (status500, status404, status400, status403)
+import Network.HTTP.Types (status500, status400)
 import Network.Wai
 import Network.HTTP.Types.Header
 
@@ -24,14 +24,12 @@ import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.ByteString.Lazy as LBS
 
 import IHP.HSX.QQ (hsx)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
-import qualified System.Directory as Directory
 import IHP.ApplicationContext
 import IHP.Controller.NotFound (handleNotFound)
 

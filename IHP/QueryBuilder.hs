@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
 {-|
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
@@ -539,7 +539,7 @@ filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilde
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: *). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIn (name, value) queryBuilderProvider =
         case head nullValues of
             Nothing -> injectQueryBuilder whereInQuery -- All values non null
@@ -831,7 +831,7 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
 {-# INLINE filterWhereCaseInsensitive #-}
 
 
-filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: *). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIdIn values queryBuilderProvider =
     -- We don't need to treat null values differently here, because primary keys imply not-null
     let

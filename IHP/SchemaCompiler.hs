@@ -545,7 +545,7 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("List.head <$> sqlQuery \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
+                <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
                 <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> columnNames <> "\") " <> createManyFieldValues <> "\n"
@@ -595,7 +595,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
                 <> indent (
-                    "List.head <$> sqlQuery \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
+                    "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
                 )
             )
 

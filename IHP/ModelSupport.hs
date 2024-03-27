@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -85,10 +85,8 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
-    numStripes <- GHC.Conc.getNumCapabilities
-    let create = PG.connectPostgreSQL databaseUrl
-    let destroy = PG.close
-    connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
+    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
+    connectionPool <- Pool.newPool poolConfig
 
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
@@ -364,6 +362,8 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 --
 -- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
+-- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
+--
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
     measureTimeIfLogging
@@ -373,6 +373,28 @@ sqlQuery theQuery theParameters = do
         theQuery
         theParameters
 {-# INLINABLE sqlQuery #-}
+
+
+-- | Runs a raw sql query, that is expected to return a single result row
+--
+-- Like 'sqlQuery', but useful when you expect only a single row as the result
+--
+-- __Example:__
+--
+-- > user <- sqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+--
+-- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+--
+sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record) => Query -> query -> IO record
+sqlQuerySingleRow theQuery theParameters = do
+    result <- sqlQuery theQuery theParameters
+    case result of
+        [] -> error ("sqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
+        [record] -> pure record
+        otherwise -> error ("sqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+{-# INLINABLE sqlQuerySingleRow #-}
 
 -- | Runs a sql statement (like a CREATE statement)
 --
