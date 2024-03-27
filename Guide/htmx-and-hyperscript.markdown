@@ -63,7 +63,7 @@ data CounterController
     deriving (Eq, Show, Data)
 ```
 
-Instead of using the `render` function, htmx routes are better used with `respondHtml` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as upating.
+Instead of using the `render` function, htmx routes are better used with `renderHtmlPartial` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as upating.
 
 ```haskell
 module Web.Controller.Counter where
@@ -83,12 +83,12 @@ instance Controller CounterController where
     action IncrementCountAction{counterId} = do
         counter <- fetch counterId
         updatedCounter <- counter |> incrementField #count |> updateRecord
-        respondHtml $ counterView updatedCounter
+        renderHtmlPartial $ counterView updatedCounter
 
     action DecrementCountAction{counterId} = do
         counter <- fetch counterId
         updatedCounter <- counter |> decrementField #count |> updateRecord
-        respondHtml $ counterView updatedCounter
+        renderHtmlPartial $ counterView updatedCounter
 ```
 
 We define the `CounterView` like this, separating the `counterView` function into a function that can be used be the initial view as well as the updater routes (`IncrementCountAction` and `DecrementCountAction`).
