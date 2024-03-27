@@ -92,14 +92,15 @@ error message = Prelude.error (Text.unpack message)
 
 head :: [a] -> Maybe a
 head [] = Nothing
-head list = Just (List.head list)
+head (firstItem:rest) = Just firstItem
 
 headMay :: [a] -> Maybe a
 headMay = head
 
 last :: [a] -> Maybe a
 last [] = Nothing
-last list = Just (List.last list)
+last [item] = Just item
+last (_:rest) = last rest
 
 lastMay :: [a] -> Maybe a
 lastMay = last
