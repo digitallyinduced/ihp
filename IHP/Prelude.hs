@@ -106,15 +106,14 @@ lastMay :: [a] -> Maybe a
 lastMay = last
 
 tail :: [a] -> Maybe [a]
+tail (_:rest) = Just rest
 tail [] = Nothing
-tail list = Just (List.tail list)
 
 tailMay :: [a] -> Maybe [a]
 tailMay = tail
 
 init :: [a] -> Maybe [a]
-init [] = Nothing
-init list = Just (List.init list)
+init list = fst <$> (unsnoc list)
 
 initMay :: [a] -> Maybe [a]
 initMay = init
