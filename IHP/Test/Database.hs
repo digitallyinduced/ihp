@@ -6,12 +6,10 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
-import qualified Data.ByteString as ByteString
 import qualified IHP.LibDir as LibDir
 import qualified Control.Exception as Exception
 
 import qualified System.Process as Process
-import qualified System.Directory as Directory
 
 data TestDatabase = TestDatabase
     { name :: Text

@@ -72,7 +72,7 @@ newtype IncludeWrapper (id :: Symbol) job = IncludeWrapper (Include id job)
 -- | Defines controller actions for acting on a dashboard made of some list of types.
 -- Later functions and typeclasses introduce constraints on the types in this list,
 -- so you'll get a compile error if you try and include a type that is not a job.
-data JobsDashboardController authType (jobs :: [*])
+data JobsDashboardController authType (jobs :: [Type])
     = ListJobsAction
     | ListJobAction { jobTableName :: Text, page :: Int }
     -- These actions are used for 'pathTo'. Need  to pass the parameters explicity to know how to build the path
