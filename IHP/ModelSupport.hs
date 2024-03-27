@@ -85,10 +85,8 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
-    numStripes <- GHC.Conc.getNumCapabilities
-    let create = PG.connectPostgreSQL databaseUrl
-    let destroy = PG.close
-    connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
+    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
+    connectionPool <- Pool.newPool poolConfig
 
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
