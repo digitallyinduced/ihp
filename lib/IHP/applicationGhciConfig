@@ -51,4 +51,5 @@
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
 :set -package ghc
+:set -fno-warn-ambiguous-fields 
 :l Main.hs
