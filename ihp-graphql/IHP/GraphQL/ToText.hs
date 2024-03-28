@@ -1,6 +1,6 @@
 module IHP.GraphQL.ToText where
 
-import IHP.Prelude
+import IHP.Prelude hiding (Type)
 import IHP.GraphQL.Types
 import qualified Data.Text as Text
 

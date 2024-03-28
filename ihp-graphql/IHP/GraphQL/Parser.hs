@@ -5,7 +5,7 @@ Copyright: (c) digitally induced GmbH, 2022
 -}
 module IHP.GraphQL.Parser where
 
-import IHP.Prelude
+import IHP.Prelude hiding (Type)
 import IHP.GraphQL.Types
 import qualified Data.Text as Text
 import Data.Attoparsec.Text

@@ -1,6 +1,6 @@
 module IHP.GraphQL.SchemaCompiler where
 
-import IHP.Prelude
+import IHP.Prelude hiding (Type)
 import IHP.GraphQL.Types
 
 import IHP.IDE.SchemaDesigner.Types
