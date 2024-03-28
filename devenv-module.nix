@@ -120,5 +120,9 @@ that is defined in flake-module.nix
             languages.haskell.stack = null; # Stack is not used in IHP
             languages.haskell.languageServer = ghcCompiler.haskell-language-server;
         };
+
+        packages = {
+            default = ghcCompiler.ihp;
+        };
     };
 }

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
 {-|
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
@@ -24,6 +24,7 @@ module IHP.QueryBuilder
 , filterWhereCaseInsensitive
 , filterWhereNot
 , filterWhereIn
+, filterWhereIdIn
 , filterWhereNotIn
 , filterWhereLike
 , filterWhereILike
@@ -61,6 +62,9 @@ module IHP.QueryBuilder
 , Condition (..)
 , Join (..)
 , OrderByDirection (..)
+, injectQueryBuilder
+, FilterOperator (..)
+, toEqOrIsOperator
 )
 where
 import IHP.Prelude
@@ -535,7 +539,7 @@ filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilde
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: *). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIn (name, value) queryBuilderProvider =
         case head nullValues of
             Nothing -> injectQueryBuilder whereInQuery -- All values non null
@@ -825,6 +829,21 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereCaseInsensitive #-}
+
+
+filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIdIn values queryBuilderProvider =
+    -- We don't need to treat null values differently here, because primary keys imply not-null
+    let
+        pkConditions = map (primaryKeyConditionForId @model) values
+
+        queryBuilder = getQueryBuilder queryBuilderProvider
+
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In pkConditions)), applyLeft = Nothing, applyRight = Nothing}
+     in
+        injectQueryBuilder whereInQuery
+{-# INLINE filterWhereIdIn #-}
+
 
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
 -- >    query @Posts 

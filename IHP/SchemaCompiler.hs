@@ -545,7 +545,7 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("List.head <$> sqlQuery \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
+                <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
                 <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> columnNames <> "\") " <> createManyFieldValues <> "\n"
@@ -581,11 +581,21 @@ compileUpdate table@(CreateTable { name, columns }) =
         columnNames = writableColumns
                 |> map (.name)
                 |> intercalate ", "
+
+        primaryKeyPattern = case primaryKeyColumns table of
+                                [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                                [col] -> col.name
+                                cols -> "(" <> commaSep (map (\col -> col.name) cols) <> ")"
+
+        primaryKeyParameters = case primaryKeyColumns table of
+                                [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                                [col] -> "?"
+                                cols -> "(" <> commaSep (map (const "?") (primaryKeyColumns table)) <> ")"
     in
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
                 <> indent (
-                    "List.head <$> sqlQuery \"UPDATE " <> name <> " SET " <> updates <> " WHERE id = ? RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
+                    "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
                 )
             )
 
@@ -607,19 +617,25 @@ instance FromRow #{modelName} where
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
-            | isManyToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
         isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
         isColumn name = name `elem` columnNames
-        isManyToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
+        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
         compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
                 -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
                 primaryKeyField :: Text
-                primaryKeyField = if refColumn.notNull then "id" else "Just id"
+                primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
+                actualPrimaryKeyField :: Text
+                actualPrimaryKeyField = case primaryKeyColumns table of
+                        [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                        [pk] -> columnNameToFieldName pk.name
+                        pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs name <> "' which has more than one column as its primary key."
+
 
                 (Just refTable) = let (Schema statements) = ?schema in
                         statements
@@ -754,8 +770,9 @@ instance #{instanceHead} where
     tableName = \"#{name}\"
     tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
-    primaryKeyCondition #{pattern} = #{condition}
-    {-# INLINABLE primaryKeyCondition #-}
+    primaryKeyColumnNames = #{primaryKeyColumnNames}
+    primaryKeyConditionForId (#{pattern}) = #{condition}
+    {-# INLINABLE primaryKeyConditionForId #-}
 |]
     where
         instanceHead :: Text
@@ -772,22 +789,22 @@ instance #{instanceHead} where
                     |> \inner -> "(" <> inner <> ")"
 
         primaryKeyColumnNames :: [Text]
-        primaryKeyColumnNames = (primaryKeyColumns table) |> map (.name)
+        primaryKeyColumnNames = primaryKeyColumns table |> map (.name)
 
         primaryKeyFieldNames :: [Text]
         primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
 
         pattern :: Text
-        pattern = tableNameToModelName name <> " { " <> intercalate ", " primaryKeyFieldNames <> " }"
+        pattern = "Id (" <> intercalate ", " primaryKeyFieldNames <> ")"
 
         condition :: Text
-        condition = primaryKeyColumns table
-                |> map primaryKeyToCondition
-                |> intercalate ", "
-                |> \listInner -> "[" <> listInner <> "]"
+        condition = case primaryKeyColumns table of
+                            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                            [column] -> primaryKeyToCondition column
+                            cols -> "Many [Plain \"(\", " <> intercalate ", Plain \",\", " (map primaryKeyToCondition cols)<> ", Plain \")\"]"
 
         primaryKeyToCondition :: Column -> Text
-        primaryKeyToCondition column = "(\"" <> column.name <> "\", toField " <> columnNameToFieldName column.name <> ")"
+        primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
         columnNames = columns
                 |> map (.name)

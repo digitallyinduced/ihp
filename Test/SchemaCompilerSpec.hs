@@ -133,7 +133,7 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
+                            sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
@@ -142,13 +142,13 @@ tests = do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                            sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ CreateTable {
                     name = "users",
-                    columns = [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
+                    columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                     constraints = []
                     , unlogged = False
@@ -158,13 +158,13 @@ tests = do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
+                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -189,8 +189,9 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -210,14 +211,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -233,7 +234,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
+                            [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing
                             , Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -258,8 +259,9 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -279,14 +281,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -302,7 +304,7 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
                         , columns =
-                            [ Column "id" PUUID Nothing False True Nothing
+                            [ Column "id" PUUID Nothing True True Nothing
                             , Column {name = "ts", columnType = PTSVector, defaultValue = Nothing, notNull = True, isUnique = False, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
@@ -327,8 +329,9 @@ tests = do
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
-                        primaryKeyCondition User { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -347,14 +350,14 @@ tests = do
                     instance CanCreate User where
                         create :: (?modelContext :: ModelContext) => User -> IO User
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
+                            sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
 
                     instance CanUpdate User where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                            sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -404,8 +407,9 @@ tests = do
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
-                        primaryKeyCondition LandingPage { id } = [("id", toField id)]
-                        {-# INLINABLE primaryKeyCondition #-}
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
@@ -423,14 +427,14 @@ tests = do
                     instance CanCreate LandingPage where
                         create :: (?modelContext :: ModelContext) => LandingPage -> IO LandingPage
                         create model = do
-                            List.head <$> sqlQuery "INSERT INTO landing_pages (id) VALUES (?) RETURNING id" (Only (fieldWithDefault #id model))
+                            sqlQuerySingleRow "INSERT INTO landing_pages (id) VALUES (?) RETURNING id" (Only (fieldWithDefault #id model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
 
                     instance CanUpdate LandingPage where
                         updateRecord model = do
-                            List.head <$> sqlQuery "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                            sqlQuerySingleRow "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
 
                     instance Record LandingPage where
                         {-# INLINE newRecord #-}
@@ -442,11 +446,145 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
+        describe "compileStatementPreview for table with arbitrarily named primary key" do
+            let statements = parseSqlStatements [trimming|
+                CREATE TABLE things (
+                    thing_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                );
+                CREATE TABLE others (
+                    other_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    thing_ref UUID NOT NULL
+                );
+                ALTER TABLE others ADD CONSTRAINT other_thing_refs FOREIGN KEY (thing_ref) REFERENCES things (thing_arbitrary_ident) ON DELETE NO ACTION;
+            |]
+            let
+                isTargetTable :: Statement -> Bool
+                isTargetTable (StatementCreateTable CreateTable { name }) = name == "things"
+                isTargetTable otherwise = False
+            let (Just statement) = find isTargetTable statements
+            let compileOutput = compileStatementPreview statements statement |> Text.strip
+        
+            it "should compile CanCreate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
+                    instance CanCreate Thing where
+                        create :: (?modelContext :: ModelContext) => Thing -> IO Thing
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO things (thing_arbitrary_ident) VALUES (?) RETURNING thing_arbitrary_ident" (Only (fieldWithDefault #thingArbitraryIdent model))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO things (thing_arbitrary_ident) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING thing_arbitrary_ident") (List.concat $ List.map (\model -> [toField (fieldWithDefault #thingArbitraryIdent model)]) models)
+                    |]
+            it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
+                    instance CanUpdate Thing where
+                        updateRecord model = do
+                            sqlQuerySingleRow "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ? RETURNING thing_arbitrary_ident" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
+                    |]
+            it "should compile FromRow instance" $ \statement -> do
+                getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
+                    instance FromRow Thing where
+                        fromRow = do
+                            thingArbitraryIdent <- field
+                            let theRecord = Thing thingArbitraryIdent (QueryBuilder.filterWhere (#thingRef, thingArbitraryIdent) (QueryBuilder.query @Other)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+                    |]
+            it "should compile Table instance" $ \statement -> do
+                getInstanceDecl "() => Table" compileOutput `shouldBe` [trimming|
+                    instance () => Table (Thing' others) where
+                        tableName = "things"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
+                        columnNames = ["thing_arbitrary_ident"]
+                        primaryKeyColumnNames = ["thing_arbitrary_ident"]
+                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = toField thingArbitraryIdent
+                        {-# INLINABLE primaryKeyConditionForId #-}
+                    |]
+            it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
+                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
+                    instance QueryBuilder.FilterPrimaryKey "things" where
+                        filterWhereId thingArbitraryIdent builder =
+                            builder |> QueryBuilder.filterWhere (#thingArbitraryIdent, thingArbitraryIdent)
+                        {-# INLINE filterWhereId #-}
+                    |]
+        describe "compileStatementPreview for table with composite primary key" do
+            let statements = parseSqlStatements [trimming|
+                CREATE TABLE bits (
+                    bit_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                );
+                CREATE TABLE parts (
+                    part_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                );
+                CREATE TABLE bit_part_refs (
+                    bit_ref UUID NOT NULL,
+                    part_ref UUID NOT NULL,
+                    PRIMARY KEY(bit_ref, part_ref)
+                );
+                ALTER TABLE bit_part_refs ADD CONSTRAINT bit_part_bit_refs FOREIGN KEY (bit_ref) REFERENCES bits (bit_arbitrary_ident) ON DELETE NO ACTION;
+                ALTER TABLE bit_part_refs ADD CONSTRAINT bit_part_part_refs FOREIGN KEY (part_ref) REFERENCES parts (part_arbitrary_ident) ON DELETE NO ACTION;
+            |]
+            let
+                isNamedTable :: Text -> Statement -> Bool
+                isNamedTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                isNamedTable _ _ = False
+            let (Just statement) = find (isNamedTable "bit_part_refs") statements
+            let compileOutput = compileStatementPreview statements statement |> Text.strip
+        
+            it "should compile CanCreate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
+                    instance CanCreate BitPartRef where
+                        create :: (?modelContext :: ModelContext) => BitPartRef -> IO BitPartRef
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?) RETURNING bit_ref, part_ref" ((model.bitRef, model.partRef))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?)") models)) <> " RETURNING bit_ref, part_ref") (List.concat $ List.map (\model -> [toField (model.bitRef), toField (model.partRef)]) models)
+                    |]
+            it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
+                    instance CanUpdate BitPartRef where
+                        updateRecord model = do
+                            sqlQuerySingleRow "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?) RETURNING bit_ref, part_ref" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
+                    |]
+            it "should compile FromRow instance" $ \statement -> do
+                getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
+                    instance FromRow BitPartRef where
+                        fromRow = do
+                            bitRef <- field
+                            partRef <- field
+                            let theRecord = BitPartRef bitRef partRef def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+                    |]
+            it "should compile Table instance" $ \statement -> do
+                getInstanceDecl "(ToField bitRef, ToField partRef) => Table" compileOutput `shouldBe` [trimming|
+                    instance (ToField bitRef, ToField partRef) => Table (BitPartRef' bitRef partRef) where
+                        tableName = "bit_part_refs"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
+                        columnNames = ["bit_ref","part_ref"]
+                        primaryKeyColumnNames = ["bit_ref","part_ref"]
+                        primaryKeyConditionForId (Id (bitRef, partRef)) = Many [Plain "(", toField bitRef, Plain ",", toField partRef, Plain ")"]
+                        {-# INLINABLE primaryKeyConditionForId #-}
+                    |]
+            it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
+                let (Just statement) = find (isNamedTable "parts") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+                getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
+                    instance FromRow Part where
+                        fromRow = do
+                            partArbitraryIdent <- field
+                            let theRecord = Part partArbitraryIdent (QueryBuilder.filterWhere (#partRef, partArbitraryIdent) (QueryBuilder.query @BitPartRef)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+                    |]
+            it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
+                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
+                    instance QueryBuilder.FilterPrimaryKey "bit_part_refs" where
+                        filterWhereId (Id (bitRef, partRef)) builder =
+                            builder |> QueryBuilder.filterWhere (#bitRef, bitRef) |> QueryBuilder.filterWhere (#partRef, partRef)
+                        {-# INLINE filterWhereId #-}
+                    |]
         describe "compileFilterPrimaryKeyInstance" do
             it "should compile FilterPrimaryKey instance when primary key is called id" do
                 let statement = StatementCreateTable $ CreateTable {
                         name = "things",
-                        columns = [ Column "id" PUUID Nothing False False Nothing ],
+                        columns = [ Column "id" PUUID Nothing True True Nothing ],
                         primaryKeyConstraint = PrimaryKeyConstraint ["id"],
                         constraints = [],
                         unlogged = False
@@ -457,38 +595,6 @@ tests = do
                     instance QueryBuilder.FilterPrimaryKey "things" where
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
-                        {-# INLINE filterWhereId #-}
-                    |]
-            it "should compile FilterPrimaryKey instance when primary key is called thing_id" do
-                let statement = StatementCreateTable $ CreateTable {
-                        name = "things",
-                        columns = [ Column "thing_id" PUUID Nothing False False Nothing ],
-                        primaryKeyConstraint = PrimaryKeyConstraint ["thing_id"],
-                        constraints = [],
-                        unlogged = False
-                    }
-                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
-                
-                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
-                    instance QueryBuilder.FilterPrimaryKey "things" where
-                        filterWhereId thingId builder =
-                            builder |> QueryBuilder.filterWhere (#thingId, thingId)
-                        {-# INLINE filterWhereId #-}
-                    |]
-            it "should compile FilterPrimaryKey instance when primary key is composite of thing_id other_id" do
-                let statement = StatementCreateTable $ CreateTable {
-                        name = "thing_other_rels",
-                        columns = [ Column "thing_id" PUUID Nothing False False Nothing, Column "other_id" PUUID Nothing False False Nothing],
-                        primaryKeyConstraint = PrimaryKeyConstraint ["thing_id", "other_id"],
-                        constraints = [],
-                        unlogged = False
-                    }
-                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
-                
-                getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
-                    instance QueryBuilder.FilterPrimaryKey "thing_other_rels" where
-                        filterWhereId (Id (thingId, otherId)) builder =
-                            builder |> QueryBuilder.filterWhere (#thingId, thingId) |> QueryBuilder.filterWhere (#otherId, otherId)
                         {-# INLINE filterWhereId #-}
                     |]
 

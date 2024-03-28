@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, AllowAmbiguousTypes #-}
 {-|
 Module: IHP.FetchRelated
 Description:  Provides fetchRelated, collectionFetchRelated, etc.
@@ -71,6 +71,7 @@ instance (
         , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
+        , GetTableName relatedModel ~ tableName
         , Table relatedModel
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
@@ -84,7 +85,7 @@ instance (
             Table relatedModel
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelated relatedField model = do
-        relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, map (getField @relatedField) model) |> fetch
+        relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIdIn (map (getField @relatedField) model) |> fetch
         let
             assignRelated :: model -> Include relatedField model
             assignRelated model =
@@ -121,6 +122,7 @@ instance (
         , ToField (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
+        , GetTableName relatedModel ~ tableName
         , Table relatedModel
         ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
     collectionFetchRelatedOrNothing :: forall model relatedField. (
@@ -133,7 +135,7 @@ instance (
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelatedOrNothing relatedField model = do
-        relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIn (#id, mapMaybe (getField @relatedField) model) |> fetch
+        relatedModels :: [relatedModel] <- query @relatedModel |> filterWhereIdIn (mapMaybe (getField @relatedField) model) |> fetch
         let
             assignRelated :: model -> Include relatedField model
             assignRelated model =

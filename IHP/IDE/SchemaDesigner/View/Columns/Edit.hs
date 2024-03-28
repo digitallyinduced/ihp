@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.View.Columns.Edit where
 
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (primaryKeyColumnNames)
 import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types

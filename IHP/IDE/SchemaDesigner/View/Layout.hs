@@ -15,7 +15,7 @@ module IHP.IDE.SchemaDesigner.View.Layout
 , emptyColumnSelectorContainer
 ) where
 
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (primaryKeyColumnNames)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.View
