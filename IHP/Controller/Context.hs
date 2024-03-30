@@ -143,21 +143,23 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 --
 -- This can be useful to customize the log formatter for all actions of an app:
 --
--- > import IHP.Log.Types
+-- > import IHP.Log.Types as Log
 -- > import IHP.Controller.Context
 -- > 
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
 -- >         let defaultLogger :: Logger = ?context.frameworkConfig.logger
--- >         let withUserIdLogger :: Logger = { Log.formatter = userIdFormatter defaultLogger.formatter }
+-- >         let withUserIdLogger = defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter } :: Logger
 -- >         putContext withUserIdLogger
 -- > 
 -- > userIdFormatter :: (?context :: Context) => Log.LogFormatter -> Log.LogFormatter
 -- > userIdFormatter existingFormatter time level string =
--- >         existingFormatter time level (prependUserId string)
+-- >     existingFormatter time level (prependUserId string)
 -- > 
--- > preprendUserId :: (?context :: Context) => Text -> Text
--- > preprendUserId string = "userId: " <> show currentUserId <> " " <> string
+-- > prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
+-- > prependUserId string =
+-- >     let userIdText = "userId: " <> (cs . show $ currentUserId) <> " "
+-- >     in toLogStr $ userIdText <> show string
 --
 -- This design mistake should be fixed in IHP v2
 instance HasField "logger" ControllerContext Logger where
