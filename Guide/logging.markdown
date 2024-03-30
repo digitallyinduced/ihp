@@ -229,7 +229,7 @@ prependUserId string =
     where
         userInfo =
             case currentUserOrNothing of
-                Just currentUser -> "Auth user ID: " <> (cs . show $ currentUserId) <> " "
+                Just currentUser -> "Authenticated user ID: " <> (cs . show $ currentUserId) <> " "
                 Nothing -> "Anonymous user: "
 ```
 
@@ -244,5 +244,5 @@ From your controller you can now add a log message
 In your log output, you will see the user info prepended to the log message.
 
 ```
-[30-Mar-2024 18:28:29] Auth user ID: 5f32a9e3-da09-48d8-9712-34c935a72c7a "This log message should have user info"
+[30-Mar-2024 18:28:29] Authenticated user ID: 5f32a9e3-da09-48d8-9712-34c935a72c7a "This log message should have user info"
 ```

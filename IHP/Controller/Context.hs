@@ -164,7 +164,7 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 -- >     where
 -- >         userInfo =
 -- >             case currentUserOrNothing of
--- >                 Just currentUser -> "Auth user ID: " <> (cs . show $ currentUserId) <> " "
+-- >                 Just currentUser -> "Authenticated user ID: " <> (cs . show $ currentUserId) <> " "
 -- >                 Nothing -> "Anonymous user: "
 --
 -- This design mistake should be fixed in IHP v2
