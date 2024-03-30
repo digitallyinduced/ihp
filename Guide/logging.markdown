@@ -198,5 +198,35 @@ Would log a timestamp as:
 
 > Sunday, 2020-1-31 22:10:21
 
+### Overriding the Default Logger
+
+You can override the default logger and have it decorated with additional information. A typical use case is adding the current user's ID or name to the log messages.
+
+
+```haskell
+-- Web/FrontController.hs
+
+-- Add imports
+import IHP.Log.Types as Log
+import IHP.Controller.Context
+
+instance InitControllerContext WebApplication where
+    initContext = do
+        initAuthentication @User
+        -- ... your other initContext code
+
+        let defaultLogger :: Logger = ?context.frameworkConfig.logger
+        let withUserIdLogger = defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter } :: Logger
+        putContext withUserIdLogger
+
+userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
+userIdFormatter existingFormatter time level string =
+        existingFormatter time level (prependUserId string)
+
+prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
+prependUserId string =
+    let userIdText = "userId: " <> (cs . show $ currentUserId) <> " "
+    in toLogStr $ userIdText <> show string
+```
 
 
