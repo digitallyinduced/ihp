@@ -225,8 +225,12 @@ userIdFormatter existingFormatter time level string =
 
 prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
 prependUserId string =
-    let userIdText = "userId: " <> (cs . show $ currentUserId) <> " "
-    in toLogStr $ userIdText <> show string
+    toLogStr $ userInfo <> show string
+    where
+        userInfo =
+            case currentUserOrNothing of
+                Just currentUser -> "Auth user ID: " <> (cs . show $ currentUserId) <> " "
+                Nothing -> "Anonymous user: "
 ```
 
 

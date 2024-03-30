@@ -160,8 +160,12 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 -- >
 -- > prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
 -- > prependUserId string =
--- >     let userIdText = "userId: " <> (cs . show $ currentUserId) <> " "
--- >     in toLogStr $ userIdText <> show string
+-- >     toLogStr $ userInfo <> show string
+-- >     where
+-- >         userInfo =
+-- >             case currentUserOrNothing of
+-- >                 Just currentUser -> "Auth user ID: " <> (cs . show $ currentUserId) <> " "
+-- >                 Nothing -> "Anonymous user: "
 --
 -- This design mistake should be fixed in IHP v2
 instance HasField "logger" ControllerContext Logger where
