@@ -221,7 +221,7 @@ instance InitControllerContext WebApplication where
 
 userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
 userIdFormatter existingFormatter time level string =
-        existingFormatter time level (prependUserId string)
+    existingFormatter time level (prependUserId string)
 
 prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
 prependUserId string =
