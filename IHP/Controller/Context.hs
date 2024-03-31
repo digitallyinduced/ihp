@@ -150,11 +150,18 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 -- >
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
--- >         let defaultLogger :: Logger = ?context.frameworkConfig.logger
--- >         let withUserIdLogger = defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter } :: Logger
--- >         putContext withUserIdLogger
+-- >     -- ... your other initContext code
 -- >
--- > userIdFormatter :: (?context :: Context) => Log.LogFormatter -> Log.LogFormatter
+-- >     putContext userIdLogger
+-- >
+-- > userIdLogger :: (?context :: ControllerContext) => Logger
+-- > userIdLogger =
+-- >     defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+-- >     where
+-- >         defaultLogger = ?context.frameworkConfig.logger
+-- >
+-- >
+-- > userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
 -- > userIdFormatter existingFormatter time level string =
 -- >     existingFormatter time level (prependUserId string)
 -- >

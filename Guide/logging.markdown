@@ -215,9 +215,14 @@ instance InitControllerContext WebApplication where
         initAuthentication @User
         -- ... your other initContext code
 
-        let defaultLogger :: Logger = ?context.frameworkConfig.logger
-        let withUserIdLogger = defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter } :: Logger
-        putContext withUserIdLogger
+        putContext userIdLogger
+
+userIdLogger :: (?context :: ControllerContext) => Logger
+userIdLogger =
+    defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+    where
+        defaultLogger = ?context.frameworkConfig.logger
+
 
 userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
 userIdFormatter existingFormatter time level string =
