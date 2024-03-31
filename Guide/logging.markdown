@@ -198,7 +198,7 @@ Would log a timestamp as:
 
 > Sunday, 2020-1-31 22:10:21
 
-### Overriding the Default Logger
+### Decorating the Logs with the User ID
 
 You can override the default logger and have it decorated with additional information. A typical use case is adding the current user's ID or name to the log messages.
 
