@@ -234,7 +234,7 @@ prependUserId string =
     where
         userInfo =
             case currentUserOrNothing of
-                Just currentUser -> "Authenticated user ID: " <> (cs . show $ currentUserId) <> " "
+                Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
                 Nothing -> "Anonymous user: "
 ```
 
