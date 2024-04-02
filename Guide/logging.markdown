@@ -198,5 +198,56 @@ Would log a timestamp as:
 
 > Sunday, 2020-1-31 22:10:21
 
+### Decorating the Logs with the User ID
+
+You can override the default logger and have it decorated with additional information. A typical use case is adding the current user's ID or name to the log messages.
 
 
+```haskell
+-- Web/FrontController.hs
+
+-- Add imports
+import IHP.Log.Types as Log
+import IHP.Controller.Context
+
+instance InitControllerContext WebApplication where
+    initContext = do
+        initAuthentication @User
+        -- ... your other initContext code
+
+        putContext userIdLogger
+
+userIdLogger :: (?context :: ControllerContext) => Logger
+userIdLogger =
+    defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+    where
+        defaultLogger = ?context.frameworkConfig.logger
+
+
+userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
+userIdFormatter existingFormatter time level string =
+    existingFormatter time level (prependUserId string)
+
+prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
+prependUserId string =
+    toLogStr $ userInfo <> show string
+    where
+        userInfo =
+            case currentUserOrNothing of
+                Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
+                Nothing -> "Anonymous user: "
+```
+
+From your controller you can now add a log message
+
+```haskell
+    action PostsAction = do
+        Log.debug ("This log message should have user info" :: Text)
+        -- Rest of the action code.
+```
+
+In your log output, you will see the user info prepended to the log message.
+
+```
+[30-Mar-2024 18:28:29] Authenticated user ID: 5f32a9e3-da09-48d8-9712-34c935a72c7a "This log message should have user info"
+```
