@@ -313,40 +313,24 @@ IHP has a first party CLI tool called `ihp-app-to-docker-image` to create Docker
 
 ### Creating a Docker Image
 
-Assuming your project is using IHP Pro or IHP Business, you can use the `ihp-app-to-docker-image` tool to make a docker image:
+To create a Docker image, we first need to install [Podman](https://podman.io/), and then run the following command:
 
 ```bash
-$ ihp-app-to-docker-image
+nix build .#unoptimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
 
-...
-✅ The docker image is at 'docker.tar.gz'
+cat result | podman load
 ```
 
-The command needs to be called from inside the application directory.
-
-This tool will compile your app and output an docker image at `docker.tar.gz`. The docker image is typically around 85MB in size. If your application has many dependencies declated in the `default.nix` it could also be larger.
-
-On macOS the `ihp-app-to-docker-image` tool requires Docker to be up and running. On linux you use the tool without having docker installed.
-
-You can load the `docker.tar.gz` into your running docker instance using `docker load`:
-
-```bash
-$ docker load < docker.tar.gz
-
-8e8f0ea2cd55: Loading layer [==================================================>]  87.73MB/87.73MB
-Loaded image: app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
-```
-
-Running `docker images` you can now see that the image is available:
+Running `podman images` you can now see that the image is available:
 
 ```bash
 $ docker images
 
 REPOSITORY     TAG                                IMAGE ID       CREATED         SIZE
-app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   51 years ago    86.6MB
+app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   54 years ago    86.6MB
 ```
 
-The `CREATED` timestamp is showing `51 years ago` as the image is built using nix. For having a totally reproducable build, the timestamp is set to `Jan 1970, 00:00 UTC`.
+The `CREATED` timestamp is showing over 50 years ago as the image is built using nix. For having a totally reproducible build, the timestamp is set to `Jan 1970, 00:00 UTC`.
 
 ### Starting the App Container
 
