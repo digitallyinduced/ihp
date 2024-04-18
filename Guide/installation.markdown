@@ -118,17 +118,15 @@ Note that nix can gradually grow to use several GB of disk space, especially aft
 
 Flakes is an experimental part of Nix, so the installation steps above would not have enabled this useful feature.
 
-IHP uses Flakes, but only internally and without affecting the rest of your Nix environment. Enabling it is optional, but we believe it's a great feature; well worth learning and using in your projects!
+IHP uses Flakes, but only internally and without affecting the rest of your Nix environment. Enabling it for your whole Nix environment is optional, but we believe it's a great feature that's well worth learning and using in your projects!
 
-To enable Flakes for your Nix installation, add the following line to `~/.config/nix/nix.conf` (or `/etc/nix/nix.conf` to enable flakes for every user on your machine):
+To enable Flakes, add the following line to `~/.config/nix/nix.conf` (or `/etc/nix/nix.conf` to enable flakes for every user on your machine):
 
 ```bash
 experimental-features = nix-command flakes
 ```
 
-If you are unsure whether to enable Flakes or not, we recommend enabling it.
-
-This [NixOS & Flakes Book](https://nixos-and-flakes.thiscute.world/) provides a guide for beginners.
+If you are unsure, we recommend enabling Flakes. For a beginner's guide, see this [NixOS & Flakes Book](https://nixos-and-flakes.thiscute.world/).
 
 ## 2. Installing IHP
 
