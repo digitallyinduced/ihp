@@ -598,6 +598,11 @@ compileUpdate table@(CreateTable { name, columns }) =
                     "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
                 )
             )
+        <> indent ("updateRecordDiscardResult model = do\n"
+                <> indent (
+                    "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")\n"
+                )
+            )
 
 compileFromRowInstance :: (?schema :: Schema) => CreateTable -> Text
 compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
