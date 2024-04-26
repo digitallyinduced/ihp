@@ -7,6 +7,7 @@ module IHP.Job.Types
 , Worker (..)
 , JobWorkerProcess (..)
 , JobWorkerProcessMessage (..)
+, BackoffStrategy (..)
 )
 where
 
@@ -14,6 +15,11 @@ import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified IHP.PGListener as PGListener
 import qualified Control.Concurrent as Concurrent
+
+data BackoffStrategy
+    = LinearBackoff { delayInSeconds :: !Int }
+    | ExponentialBackoff { delayInSeconds :: !Int }
+    deriving (Eq, Show)
 
 class Job job where
     perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
@@ -37,6 +43,9 @@ class Job job where
     -- independent processes of the job runner, the limit will be @N * maxConcurrency@
     maxConcurrency :: Int
     maxConcurrency = 16
+
+    backoffStrategy :: BackoffStrategy
+    backoffStrategy = LinearBackoff { delayInSeconds = 30 }
 
 class Worker application where
     workers :: application -> [JobWorker]
