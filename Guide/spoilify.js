@@ -1,23 +1,32 @@
 function spoilify () {
     if (document.getElementById("mac") == null) {return;}
-    var mac = document.getElementById("mac");
-    var linux = document.getElementById("linux");
-    var windows = document.getElementById("windows");
+
+    // Headers for each section.
+    const mac = document.getElementById("mac");
+    const linux = document.getElementById("linux");
+    const windows = document.getElementById("windows");
 
     var macSection = [mac];
     var linuxSection = [linux];
     var windowsSection = [windows];
-    var entryPoint = mac.previousElementSibling;
+    const entryPoint = mac.previousElementSibling;
 
-    var section = mac.parentElement.children;
+    const section = mac.parentElement.children;
     var currentSection = "mac"
+
+    // Build arrays of section contents to be collapsed into `<details>`.
     function fetch() {
+        // First seek to the H3 with `id="mac"` and get its offset.
         for (var i = 0; i < section.length; i++) {
             if (section[i].id == "mac") {
                 var macId = i;
                 i = section.length;
             }
         }
+
+        // Use the offset found above to loop through every element in `section` until:
+        // every element is added to a section, or; (more likely) the loop hits a heading
+        // element like h1, h2, or h3.
         for (var i = macId; i < section.length; i++) {
             switch (section[i].id) {
                 case "mac":
@@ -30,17 +39,25 @@ function spoilify () {
                     currentSection = "windows";
                     break;
                 default:
+                    // There are H6 level headings inside sections, skip them without
+                    // further processing.
+                    // @todo: it seems this is superfluous.
                     if (section[i].nodeName == "H6") {
                         break;
-                    } else if (section[i].nodeName == "H2") {
+                    // If the loop has hit another high-level header element, the section
+                    // is complete.
+                    } else if (["H1", "H2", "H3"].includes(section[i].nodeName)) {
                         return;
                     }
             }
             switch (section[i].nodeName) {
+                // Each section's header is in an H3, and is handled outside this statement.
                 case "H3":
                     if (currentSection != section[i].id)
                     break;
                 default:
+                    // Push the current DOM element onto the array of elements for the
+                    // current section.
                     switch (currentSection) {
                         case "mac":
                             macSection.push(section[i]);

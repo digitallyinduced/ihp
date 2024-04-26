@@ -114,17 +114,19 @@ Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/
 
 Note that nix can gradually grow to use several GB of disk space, especially after upgrading IHP. You can always run `nix-collect-garbage` in a `nix-shell` which will delete older/unused files.
 
-### Enabling flakes
+### Optional: Enabling Flakes
 
-IHP uses Nix flakes. While already widely used, they are still a quite new feature and not yet enabled by default by the Nix install scripts.
+Flakes is an experimental part of Nix, so the installation steps above would not have enabled this useful feature.
 
-If you use IHP normally and with direnv this won't be a problem for you because all the Nix stuff is being handled for you. However, it's a good idea to enable flakes, so you can benefit from their features if you need them or want to try them out.
+IHP uses Flakes, but only internally and without affecting the rest of your Nix environment. Enabling it for your whole Nix environment is optional, but we believe it's a great feature that's well worth learning and using in your projects!
 
-To enable flakes, either edit `~/.config/nix/nix.conf` (to enable just for your user) or `/etc/nix/nix.conf` (to enable flakes globally) and add the following line:
+To enable Flakes, add the following line to `~/.config/nix/nix.conf` (or `/etc/nix/nix.conf` to enable flakes for every user on your machine):
 
 ```bash
 experimental-features = nix-command flakes
 ```
+
+If you are unsure, we recommend enabling Flakes. For a beginner's guide, see this [NixOS & Flakes Book](https://nixos-and-flakes.thiscute.world/).
 
 ## 2. Installing IHP
 

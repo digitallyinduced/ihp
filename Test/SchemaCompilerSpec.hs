@@ -143,6 +143,8 @@ tests = do
                     instance CanUpdate User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
@@ -159,6 +161,8 @@ tests = do
                     instance CanUpdate User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable CreateTable
@@ -219,6 +223,8 @@ tests = do
                     instance CanUpdate User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -289,6 +295,8 @@ tests = do
                     instance CanUpdate User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -358,6 +366,8 @@ tests = do
                     instance CanUpdate User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
                     instance Record User where
                         {-# INLINE newRecord #-}
@@ -435,6 +445,8 @@ tests = do
                     instance CanUpdate LandingPage where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE landing_pages SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
                     instance Record LandingPage where
                         {-# INLINE newRecord #-}
@@ -479,6 +491,8 @@ tests = do
                     instance CanUpdate Thing where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ? RETURNING thing_arbitrary_ident" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ?" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
@@ -543,6 +557,8 @@ tests = do
                     instance CanUpdate BitPartRef where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?) RETURNING bit_ref, part_ref" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?)" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|

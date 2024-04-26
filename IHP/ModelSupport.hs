@@ -106,6 +106,12 @@ class CanCreate a where
 class CanUpdate a where
     updateRecord :: (?modelContext :: ModelContext) => a -> IO a
 
+    -- | Like 'updateRecord' but doesn't return the updated record
+    updateRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
+    updateRecordDiscardResult record = do
+        _ <- updateRecord record
+        pure ()
+
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
 createRecord = create
@@ -410,6 +416,17 @@ sqlExec theQuery theParameters = do
         theQuery
         theParameters
 {-# INLINABLE sqlExec #-}
+
+-- | Runs a sql statement (like a CREATE statement), but doesn't return any result
+--
+-- __Example:__
+--
+-- > sqlExecDiscardResult "CREATE TABLE users ()" ()
+sqlExecDiscardResult :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO ()
+sqlExecDiscardResult theQuery theParameters = do
+    _ <- sqlExec theQuery theParameters
+    pure ()
+{-# INLINABLE sqlExecDiscardResult #-}
 
 -- | Wraps the query with Row level security boilerplate, if a row level security context was provided
 --
