@@ -43,8 +43,9 @@ fetchNextJob :: forall job.
     , Table job
     ) => UUID -> IO (Maybe job)
 fetchNextJob workerId = do
-    let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
-    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry)
+    let baseDelay :: Int = 30 -- base delay in seconds
+    let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count))) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
+    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, baseDelay)
 
     result :: [PG.Only (Id job)] <- sqlQuery query params
     case result of
@@ -88,7 +89,8 @@ watchForJob pgListener tableName pollInterval onNewJob = do
 --
 pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
 pollForJob tableName pollInterval onNewJob = do
-    let query = "SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1"
+    let baseDelay :: Int = 30 -- base delay in seconds
+    let query = "SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count))) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1"
     let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry)
     Async.asyncBound do
         forever do
