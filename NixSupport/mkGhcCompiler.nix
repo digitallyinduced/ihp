@@ -36,7 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [];
-  ihpDoJailbreakPackages = [];
+  ihpDoJailbreakPackages = ["ghcide"];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
