@@ -1050,16 +1050,15 @@
     },
     "nixpkgs_4": {
       "locked": {
-        "lastModified": 1714222982,
-        "narHash": "sha256-pT+XTpV0IQSYSOpVcG+wdY4wNXSxX7mA7ZfS0dNcos4=",
+        "lastModified": 1714250575,
+        "narHash": "sha256-QviqPhOeUQ1OxtubNB5UIPD3tjJsOKSnDFvVuF1s+Qg=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "c93aff17d599feb24ca6a0e2156afd3b184a7afb",
+        "rev": "4d205c7146fb04255a8bd6a6a109c56471e04888",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "haskell-updates",
         "repo": "nixpkgs",
         "type": "github"
       }
