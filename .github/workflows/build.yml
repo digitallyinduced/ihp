@@ -46,7 +46,7 @@ jobs:
           export TARBALL_URL=`aws s3 presign s3://${{ secrets.S3_BUCKET }}/releases/${{ github.sha }}.tar.gz`
           export hash=$(nix-prefetch-url --unpack "$TARBALL_URL" --name "ihp-tarball" | tail -1)
           cd ihp-boilerplate
-          php ../.github/patch-flakes.php "$TARBALL_URL"
+          nix-shell -p php --run "php ../.github/patch-flakes.php '$TARBALL_URL'"
           cat flake.nix
           mv Makefile Makefile.old
           echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile

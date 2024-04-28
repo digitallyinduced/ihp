@@ -2,7 +2,7 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs/haskell-updates";
+        nixpkgs.url = "github:NixOS/nixpkgs";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
