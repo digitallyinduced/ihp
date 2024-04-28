@@ -92,6 +92,7 @@ instance Job EmailCustomersJob where
 ```
 
 #### Backoff Strategy
+
 By default, retries will occur every 30 seconds, until maxAttempts is reached. To change the timing so that retries happen every 5 seconds, you can set:
 
 ```haskell
