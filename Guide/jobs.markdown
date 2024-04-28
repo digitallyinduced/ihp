@@ -91,6 +91,23 @@ instance Job EmailCustomersJob where
     maxAttempts = 3
 ```
 
+#### Backoff Strategy
+By default, retries will occur every 30 seconds, until maxAttempts is reached. To change the timing so that retries happen every 5 seconds, you can set:
+
+```haskell
+backoffStrategy :: BackoffStrategy
+backoffStrategy = LinearBackoff { delayInSeconds = 5 }
+```
+
+For an increasing delay between retries, you can use the `ExponentialBackoff` strategy. This method increases the wait time exponentially between each attempt. Here's how it works:
+
+```haskell
+backoffStrategy :: BackoffStrategy
+backoffStrategy = ExponentialBackoff { delayInSeconds = 5 }
+```
+
+With `ExponentialBackoff` the delay before the first retry will be 5 seconds. Each subsequent retry will wait longer than the previous one. Thus, the delays will be 5 seconds for the first retry, 25 seconds for the second, 625 seconds for the third, and so on. This strategy is useful for scenarios where you want to gradually reduce the frequency of retries, perhaps to reduce the load on a failing component or to increase the likelihood that intermittent issues will be resolved by the time the next retry occurs.
+
 #### Timeout
 
 Sometimes you might want a job to stop if its runtime exceeds some threshold. For that case, there's a [`timeoutInMicroseconds`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Types.html#v:timeoutInMicroseconds) option which you can set for your job. The default is no timeout. If you want your job to time out after some time, set it to a `Just Int` value, like in the following example, which causes the job to time out after one minute:
