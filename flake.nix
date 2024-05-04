@@ -11,7 +11,7 @@
         flake-parts.url = "github:hercules-ci/flake-parts";
 
         # used for setting up development environments
-        devenv.url = "github:cachix/devenv?ref=refs/tags/v1.0.2";
+        devenv.url = "github:cachix/devenv?ref=refs/tags/v1.0.5";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
         # TODO use a corresponding release branch
