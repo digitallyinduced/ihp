@@ -19,15 +19,15 @@ source-repository head
 library
     default-language: Haskell2010
     build-depends:
-          base >= 4.17.0 && < 4.18
+          base >= 4.17.0 && < 4.20
         , blaze-html >= 0.9.1 && < 0.10
-        , bytestring >= 0.11.3 && < 0.12
-        , template-haskell >= 2.19.0 && < 2.20
-        , text >= 2.0.1 && < 2.1
+        , bytestring >= 0.11.3 && < 0.13
+        , template-haskell >= 2.19.0 && < 2.22
+        , text >= 2.0.1 && < 2.2
         , containers >= 0.6.6 && < 0.7
         , blaze-markup >= 0.8.2 && < 0.9
-        , ghc >= 9.4.4 && < 9.5
-        , megaparsec >= 9.2.2 && < 9.3
+        , ghc >= 9.4.4 && < 9.9
+        , megaparsec >= 9.2.2 && < 9.7
         , string-conversions >= 0.4.0 && < 0.5
     default-extensions:
         OverloadedStrings
