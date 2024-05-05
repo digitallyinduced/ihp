@@ -9,6 +9,7 @@
 
         # a module framework for flakes
         flake-parts.url = "github:hercules-ci/flake-parts";
+        flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
         # used for setting up development environments
         devenv.url = "github:cachix/devenv?ref=refs/tags/v1.0.5";
