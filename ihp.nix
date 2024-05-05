@@ -69,7 +69,7 @@
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v1.2.0";
+  version = "v1.3.0";
   src = filter { root = ./.; include = ["IHP" "ihp.cabal" "exe" "LICENSE" "lib"]; };
   isLibrary = true;
   isExecutable = true;
