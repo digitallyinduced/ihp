@@ -19,7 +19,6 @@ import Control.Applicative ((<|>))
 
 data CompletionRequest = CompletionRequest
     { messages :: ![Message]
-    , prompt :: !Text -- ^ Deprecated, use 'messages' instead
     , maxTokens :: !Int
     , temperature :: !Double
     , presencePenalty :: !Double
@@ -36,10 +35,10 @@ data Message = Message
 data Role = UserRole | SystemRole | AssistantRole
 
 instance ToJSON CompletionRequest where
-    toJSON CompletionRequest { model, prompt, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream } =
+    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream } =
         object
             [ "model" .= model
-            , "messages" .= (messages <> (if not (Text.null prompt) then [userMessage prompt] else []))
+            , "messages" .= messages
             , "max_tokens" .= maxTokens
             , "stream" .= stream
             , "temperature" .= temperature
@@ -67,8 +66,7 @@ assistantMessage content = Message { role = AssistantRole, content }
 
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest
-    { prompt = ""
-    , messages = []
+    { messages = []
     , maxTokens = 0
     , temperature = 0.5
     , presencePenalty = 2
@@ -116,7 +114,7 @@ streamCompletion secretKey completionRequest' onStart callback = do
             Exception.try (streamCompletionWithoutRetry secretKey completionRequest onStart' (wrappedCallback completionRequestRef))
 
         wrappedCallback completionRequestRef text = do
-            modifyIORef' completionRequestRef (\completionRequest -> completionRequest { prompt = completionRequest.prompt <> text, maxTokens = completionRequest.maxTokens - (length (Text.words text)) })
+            modifyIORef' completionRequestRef (\completionRequest -> completionRequest { messages = completionRequest.messages <> [assistantMessage text], maxTokens = completionRequest.maxTokens - (length (Text.words text)) })
             callback text
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
