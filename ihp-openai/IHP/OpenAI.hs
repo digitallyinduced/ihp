@@ -18,8 +18,8 @@ import qualified Control.Exception as Exception
 import Control.Applicative ((<|>))
 
 data CompletionRequest = CompletionRequest
-    { model :: !Text
-    , messages :: ![Message]
+    { messages :: ![Message]
+    , model :: !Text
     , maxTokens :: !(Maybe Int)
     , temperature :: !(Maybe Double)
     , presencePenalty :: !(Maybe Double)
