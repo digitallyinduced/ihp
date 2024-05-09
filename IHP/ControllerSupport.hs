@@ -86,17 +86,6 @@ runAction controller = do
 
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
-applyContextSetter :: (TypeMap.TMap -> TypeMap.TMap) -> ControllerContext -> IO ControllerContext
-applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
-    modifyIORef' customFieldsRef (applySetter setter)
-    pure $ ctx { customFieldsRef }
-    where
-        fromSetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap
-        fromSetter f = f TypeMap.empty
-
-        applySetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap -> TypeMap.TMap
-        applySetter f map = TypeMap.union (fromSetter f) map
-
 {-# INLINE newContextForAction #-}
 newContextForAction
     :: forall application controller
@@ -108,15 +97,14 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => (TypeMap.TMap -> TypeMap.TMap) -> controller -> IO (Either (IO ResponseReceived) ControllerContext)
-newContextForAction contextSetter controller = do
+    => controller -> IO (Either (IO ResponseReceived) ControllerContext)
+newContextForAction controller = do
     let ?modelContext = ?applicationContext.modelContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    applyContextSetter contextSetter controllerContext
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
@@ -130,7 +118,7 @@ newContextForAction contextSetter controller = do
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
-    contextOrResponse <- newContextForAction (\t -> t) controller
+    contextOrResponse <- newContextForAction controller
     case contextOrResponse of
         Left response -> response
         Right context -> do
