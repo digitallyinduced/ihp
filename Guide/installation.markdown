@@ -138,22 +138,6 @@ nix-env --install ihp-new
 
 If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages. If you use nix flakes, you likely want to run `nix profile install nixpkgs#ihp-new` instead.
 
-#### NixOS specific
-
-If you get the following error during this step on NixOS:
-
-```bash
-MustBeRoot "Run command as root OR execute: $ echo \"trusted-users = root $USER\" | sudo tee -a /etc/nix/nix.conf && sudo pkill nix-daemon"
-```
-
-You have to add this to your NixOS configuration:
-
-```bash
-nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
-```
-
-[See the documentation for `nix.settings.trusted-users` to learn more about what this is doing](https://search.nixos.org/options?show=nix.settings.trusted-users&query=nix.settings.trusted-users).
-
 #### GitHub Codespaces / VSCode Devcontainers
 
 To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit.
