@@ -26,8 +26,8 @@ jobs:
         aws-region: eu-west-1
     - name: Build Docs
       run: |
-          cd $GITHUB_WORKSPACE
-          nix develop --impure --command build-guide
+          cd $GITHUB_WORKSPACE/Guide
+          nix build --impure --out-link guide.tar.gz
     - name: Build API Reference
       run: |
           cd $GITHUB_WORKSPACE
@@ -35,5 +35,5 @@ jobs:
           tar -czvf api-reference.tar.gz haddock-build
     - name: Uploading to S3
       run: |
-          aws s3 cp ./Guide/guide.tar.gz s3://${{ secrets.S3_BUCKET }}/docs/guide.tar.gz
+          aws s3 cp ./guide.tar.gz s3://${{ secrets.S3_BUCKET }}/docs/guide.tar.gz
           aws s3 cp ./api-reference.tar.gz s3://${{ secrets.S3_BUCKET }}/docs/api-reference.tar.gz
