@@ -2,6 +2,32 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to 1.3.0 from 1.2.0
+1. **Switch IHP version**
+
+    - **IHP Basic**
+
+        Open `flake.nix` and change the git commit in line 3 to the following:
+
+        ```diff
+        -        ihp.url = "github:digitallyinduced/ihp/v1.2";
+        +        ihp.url = "github:digitallyinduced/ihp/v1.3";
+        ```
+
+    - **IHP Pro & IHP Business**
+
+        Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.3.0 URL into your `flake.nix`.
+
+2. **Remake Env**
+
+    Run the following commands:
+
+    ```bash
+    direnv reload
+    ```
+
+    Now you can start your project as usual with `devenv up`.
+
 # Upgrade to 1.2.0 from 1.1.0
 1. **Switch IHP version**
 

@@ -20,7 +20,7 @@ that is defined in flake-module.nix
         };
 
         devenv.shells.default = {
-            packages = with pkgs; [ entr nodejs-18_x ];
+            packages = with pkgs; [];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
 
             languages.haskell.enable = true;
@@ -87,7 +87,6 @@ that is defined in flake-module.nix
                         with-utf8_1_1_0_0
 
                         # Development Specific Tools (not in ihp.nix)
-                        mmark-cli
                         hspec
                         ihp-hsx
                         ihp-postgresql-simple-extra
@@ -104,12 +103,6 @@ that is defined in flake-module.nix
             scripts.build-ihp-new.exec = ''
                 cd ProjectGenerator
                 make tarball.tar.gz
-            '';
-
-            scripts.build-guide.exec = ''
-                cd Guide
-                export LANG=en_US.UTF-8
-                make guide.tar.gz
             '';
 
             scripts.build-api-reference.exec = ''

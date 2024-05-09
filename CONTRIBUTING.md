@@ -108,16 +108,17 @@ cd IHP
 direnv allow
 ```
 
-Then switch to the `Guide` directory:
+Then switch to the `Guide` directory and run `direnv allow` again:
 
 ```
 cd Guide
+direnv allow
 ```
 
 To rebuild the html files from the markdown files on every file change run:
 
 ```
-make watch
+devenv up
 ```
 
 This will automatically open a browser window with the compiled html of the documentation. You can now make changes to the markdown files and they are reflected in the browser after a page refresh.

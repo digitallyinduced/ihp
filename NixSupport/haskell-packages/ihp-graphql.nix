@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-graphql";
-  version = "v1.2.0";
+  version = "v1.3.0";
   src = ./../../ihp-graphql;
   libraryHaskellDepends = [
     aeson attoparsec base ihp postgresql-simple text
