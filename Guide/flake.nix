@@ -15,12 +15,10 @@
                     src = ./.;
                     nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli nodejs-18_x curl cacert ];
                     buildPhase = ''
-                        export LANG=en_US.UTF-8
-
                         # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
                         export HOME=/tmp
-                        
-                        make guide.tar.gz
+
+                        LANG=en_US.UTF-8 make guide.tar.gz
                     '';
                     installPhase = ''
                         mv guide.tar.gz $out
