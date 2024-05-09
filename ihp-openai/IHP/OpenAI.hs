@@ -25,6 +25,7 @@ data CompletionRequest = CompletionRequest
     , presencePenalty :: !(Maybe Double)
     , frequencePenalty :: !(Maybe Double)
     , stream :: !Bool
+    , responseFormat :: !(Maybe ResponseFormat)
     } deriving (Eq, Show)
 
 data Message = Message
@@ -38,8 +39,17 @@ data Role
     | AssistantRole
     deriving (Eq, Show)
 
+data ResponseFormat
+    = ResponseFormat { type_ :: !ResponseFormatType }
+    deriving (Eq, Show)
+
+data ResponseFormatType
+    = Text
+    | JsonObject
+    deriving (Eq, Show)
+
 instance ToJSON CompletionRequest where
-    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream } =
+    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat } =
         object
             [ "model" .= model
             , "messages" .= messages
@@ -48,6 +58,7 @@ instance ToJSON CompletionRequest where
             , "temperature" .= temperature
             , "presence_penalty" .= presencePenalty
             , "frequency_penalty" .= frequencePenalty
+            , "response_format" .= responseFormat
             ]
 
 instance ToJSON Role where
@@ -58,6 +69,14 @@ instance ToJSON Role where
 instance ToJSON Message where
     toJSON Message { role, content } =
         object [ "role" .= role, "content" .= content ]
+
+instance ToJSON ResponseFormat where
+    toJSON ResponseFormat { type_ } =
+        object [ "type" .= type_ ]
+
+instance ToJSON ResponseFormatType where
+    toJSON Text = toJSON ("text" :: Text)
+    toJSON JsonObject = toJSON ("json_object" :: Text)
 
 userMessage :: Text -> Message
 userMessage content = Message { role = UserRole, content }
@@ -77,6 +96,7 @@ newCompletionRequest = CompletionRequest
     , frequencePenalty = Nothing
     , model = "gpt-3.5-turbo"
     , stream = False
+    , responseFormat = Nothing
     }
 
 data CompletionResult = CompletionResult
