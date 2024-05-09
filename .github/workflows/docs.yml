@@ -27,7 +27,7 @@ jobs:
     - name: Build Docs
       run: |
           cd $GITHUB_WORKSPACE/Guide
-          nix build --impure --out-link guide.tar.gz
+          nix build --option sandbox false --impure --out-link guide.tar.gz
     - name: Build API Reference
       run: |
           cd $GITHUB_WORKSPACE
