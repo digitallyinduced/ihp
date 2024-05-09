@@ -18,12 +18,12 @@ import qualified Control.Exception as Exception
 import Control.Applicative ((<|>))
 
 data CompletionRequest = CompletionRequest
-    { messages :: ![Message]
-    , maxTokens :: !Int
-    , temperature :: !Double
-    , presencePenalty :: !Double
-    , frequencePenalty :: !Double
-    , model :: !Text
+    { model :: !Text
+    , messages :: ![Message]
+    , maxTokens :: !(Maybe Int)
+    , temperature :: !(Maybe Double)
+    , presencePenalty :: !(Maybe Double)
+    , frequencePenalty :: !(Maybe Double)
     , stream :: !Bool
     } deriving (Eq, Show)
 
@@ -71,10 +71,10 @@ assistantMessage content = Message { role = AssistantRole, content }
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest
     { messages = []
-    , maxTokens = 0
-    , temperature = 0.5
-    , presencePenalty = 2
-    , frequencePenalty = 0.2
+    , maxTokens = Nothing
+    , temperature = Nothing
+    , presencePenalty = Nothing
+    , frequencePenalty = Nothing
     , model = "gpt-3.5-turbo"
     , stream = False
     }
@@ -118,7 +118,13 @@ streamCompletion secretKey completionRequest' onStart callback = do
             Exception.try (streamCompletionWithoutRetry secretKey completionRequest onStart' (wrappedCallback completionRequestRef))
 
         wrappedCallback completionRequestRef text = do
-            modifyIORef' completionRequestRef (\completionRequest -> completionRequest { messages = completionRequest.messages <> [assistantMessage text], maxTokens = completionRequest.maxTokens - (length (Text.words text)) })
+            modifyIORef' completionRequestRef (\completionRequest -> completionRequest
+                    { messages = completionRequest.messages <> [assistantMessage text]
+                    , maxTokens = case completionRequest.maxTokens of
+                        Just maxTokens -> Just $ maxTokens - (length (Text.words text))
+                        Nothing -> Nothing
+                    }
+                )
             callback text
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
