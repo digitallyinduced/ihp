@@ -25,14 +25,18 @@ data CompletionRequest = CompletionRequest
     , frequencePenalty :: !Double
     , model :: !Text
     , stream :: !Bool
-    }
+    } deriving (Eq, Show)
 
 data Message = Message
     { role :: !Role
     , content :: !Text
-    }
+    } deriving (Eq, Show)
 
-data Role = UserRole | SystemRole | AssistantRole
+data Role
+    = UserRole
+    | SystemRole
+    | AssistantRole
+    deriving (Eq, Show)
 
 instance ToJSON CompletionRequest where
     toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream } =
