@@ -136,15 +136,7 @@ You can now install IHP by running:
 nix-env --install ihp-new
 ```
 
-If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages.
-
-#### Package not Found?
-
-The package has only been added to nixpkgs recently. In case you're using an older nixpkgs version, the package might not be available yet. In that case you can install `ihp-new` like this:
-
-```bash
-nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
-```
+If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages. If you use nix flakes, you likely want to run `nix profile install nixpkgs#ihp-new` instead.
 
 #### NixOS specific
 
