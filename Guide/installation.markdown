@@ -136,31 +136,7 @@ You can now install IHP by running:
 nix-env --install ihp-new
 ```
 
-If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages.
-
-#### Package not Found?
-
-The package has only been added to nixpkgs recently. In case you're using an older nixpkgs version, the package might not be available yet. In that case you can install `ihp-new` like this:
-
-```bash
-nix-env -f https://downloads.digitallyinduced.com/ihp-new.tar.gz -i ihp-new
-```
-
-#### NixOS specific
-
-If you get the following error during this step on NixOS:
-
-```bash
-MustBeRoot "Run command as root OR execute: $ echo \"trusted-users = root $USER\" | sudo tee -a /etc/nix/nix.conf && sudo pkill nix-daemon"
-```
-
-You have to add this to your NixOS configuration:
-
-```bash
-nix.settings.trusted-users = [ "root" "USERNAME_HERE" ];
-```
-
-[See the documentation for `nix.settings.trusted-users` to learn more about what this is doing](https://search.nixos.org/options?show=nix.settings.trusted-users&query=nix.settings.trusted-users).
+If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages. If you use nix flakes, you likely want to run `nix profile install nixpkgs#ihp-new` instead.
 
 #### GitHub Codespaces / VSCode Devcontainers
 
