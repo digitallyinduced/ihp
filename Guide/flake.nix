@@ -18,11 +18,13 @@
                         # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
                         export HOME=/tmp
 
-                        LANG=en_US.UTF-8 make guide.tar.gz
+                        make guide.tar.gz
                     '';
                     installPhase = ''
                         mv guide.tar.gz $out
-                    '';
+                    '';#
+                    LOCALE_ARCHIVE = pkgs.lib.optionalString pkgs.stdenv.isLinux "${pkgs.glibcLocales}/lib/locale/locale-archive";
+                    LANG = "en_US.UTF-8";
                 };
 
                 devenv.shells.default = {
