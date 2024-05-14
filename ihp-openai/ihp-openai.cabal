@@ -36,6 +36,8 @@ library
         , BlockArguments
         , OverloadedRecordDot
         , BlockArguments
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
     ghc-options:
         -fstatic-argument-transformation
         -funbox-strict-fields
@@ -50,3 +52,27 @@ library
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI
+
+test-suite tests
+    type: exitcode-stdio-1.0
+    main-is: IHP/OpenAISpec.hs
+    build-depends:
+        base
+        , hspec
+        , neat-interpolation
+        , ihp-openai
+        , text
+    hs-source-dirs: Test
+    default-language: Haskell2010
+    default-extensions:
+        OverloadedStrings
+          FlexibleContexts
+        , ScopedTypeVariables
+        , NamedFieldPuns
+        , BangPatterns
+        , BlockArguments
+        , OverloadedRecordDot
+        , BlockArguments
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , QuasiQuotes
