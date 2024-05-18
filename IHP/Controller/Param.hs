@@ -628,7 +628,7 @@ instance (FillParams rest record
             Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
             Left ParamCouldNotBeParsedException { parserError } -> fill @rest (attachFailure (Proxy @fieldName) (cs parserError) record)
             Left ParamNotFoundException {} -> fill @rest record
-    {-# INLINE fill #-}
+    {-# INLINABLE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
 ifValid branch model = branch $! if ModelSupport.isValid model
