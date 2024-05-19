@@ -17,7 +17,7 @@ in
             };
             script = ''
                 cd ${migrateApp}
-                ${ihp.apps.x86_64-linux.migrate.program}
+                ${ihp.apps."${pkgs.system}".migrate.program}
             '';
             environment = {
                 DATABASE_URL = cfg.databaseUrl;
