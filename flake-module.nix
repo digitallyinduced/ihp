@@ -98,6 +98,14 @@ ihpFlake:
                     type = lib.types.str;
                     default = "-A96m -N";
                 };
+
+                optimizationLevel = lib.mkOption {
+                    description = ''
+                        With optimizationLevel = 2, will pass -O2 to GHC when compiling optimized-prod-server
+                    '';
+                    type = lib.types.str;
+                    default = "2";
+                };
             };
         }
     );
@@ -130,6 +138,7 @@ ihpFlake:
                     ghc = ghcCompiler;
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
+                    optimizationLevel = cfg.optimizationLevel;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -142,6 +151,7 @@ ihpFlake:
                     ghc = ghcCompiler;
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
+                    optimizationLevel = "0";
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {

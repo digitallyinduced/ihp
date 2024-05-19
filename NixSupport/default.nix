@@ -11,6 +11,7 @@
 , optimized ? false
 , includeDevTools ? !optimized # Include Postgres?
 , rtsFlags ? ""
+, optimizationLevel ? "2"
 }:
 
 let
@@ -47,6 +48,7 @@ in
           export IHP_LIB=${ihp}/lib/IHP
           export IHP=${ihp}/lib/IHP
           export APP_RTS_FLAGS="${rtsFlags}"
+          export OPTIMIZATION_LEVEL="${optimizationLevel}"
 
           make -j ${appBinary}
 

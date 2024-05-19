@@ -77,7 +77,7 @@ with lib;
 
         package = mkOption {
             type = types.package;
-            default = if config.services.ihp.optimized then self.packages.x86_64-linux.optimized-prod-server else self.packages.x86_64-linux.default;
+            default = if config.services.ihp.optimized then self.packages."${pkgs.system}".optimized-prod-server else self.packages."${pkgs.system}".default;
         };
         
         optimized = mkOption {

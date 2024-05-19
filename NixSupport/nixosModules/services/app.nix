@@ -1,7 +1,6 @@
 { config, pkgs, modulesPath, lib, self, ... }:
 let
     cfg = config.services.ihp;
-    ihpApp = self.packages.x86_64-linux.default;
 in
 {
     systemd.services.app = {
