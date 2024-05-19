@@ -84,6 +84,11 @@ with lib;
             type = types.bool;
             default = false;
         };
+
+        rtsFlags = mkOption {
+            type = types.str;
+            default = "-A96m -n4m -N --numa";
+        };
     };
 }
 

@@ -90,6 +90,14 @@ ihpFlake:
                     type = lib.types.listOf (lib.types.str);
                     default = [];
                 };
+
+                rtsFlags = lib.mkOption {
+                    description = ''
+                        GHC RTS Flags used for compiled binaries (unoptimized-prod-server and optimized-prod-server)
+                    '';
+                    type = lib.types.str;
+                    default = "-A96m -N";
+                };
             };
         }
     );
@@ -121,6 +129,7 @@ ihpFlake:
                     optimized = true;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
+                    rtsFlags = cfg.rtsFlags;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -132,6 +141,7 @@ ihpFlake:
                     optimized = false;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
+                    rtsFlags = cfg.rtsFlags;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {

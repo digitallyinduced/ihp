@@ -22,6 +22,7 @@ in
                     IHP_REQUEST_LOGGER_IP_ADDR_SOURCE = cfg.requestLoggerIPAddrSource;
                     DATABASE_URL = cfg.databaseUrl;
                     IHP_SESSION_SECRET = cfg.sessionSecret;
+                    GHCRTS = cfg.rtsFlags;
                 };
             in
                 defaultEnv // cfg.additionalEnvVars;

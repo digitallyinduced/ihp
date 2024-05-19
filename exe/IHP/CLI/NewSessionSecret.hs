@@ -12,4 +12,8 @@ main :: IO ()
 main = withUtf8 do
     (string, _) <- ClientSession.randomKey
     let encoded = Base64.encode string
-    ByteString.putStr encoded
+
+    -- Create a ByteString from a newline character.
+    let newline = Char8.pack "\n"
+    -- Append newline to encoded output and print, so it won't print `%` as a suffix on certain terminals.
+    ByteString.putStr (ByteString.append encoded newline)
