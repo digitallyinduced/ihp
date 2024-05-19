@@ -246,6 +246,7 @@ buildFrameworkConfig appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
+            assetBaseUrl <- envOrNothing "IHP_ASSET_BASEURL"
             customMiddleware <- findOption @CustomMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
@@ -406,6 +407,9 @@ data FrameworkConfig = FrameworkConfig
     -- string @"dev"@.
     --
     , assetVersion :: !Text
+
+    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN
+    , assetBaseUrl :: !(Maybe Text)
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
