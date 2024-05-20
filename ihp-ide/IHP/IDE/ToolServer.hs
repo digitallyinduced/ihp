@@ -100,12 +100,19 @@ startToolServer' port isDebugMode = do
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
-    libDirectory <- cs <$> LibDir.findLibDirectory
-    let staticSettings = (Static.defaultWebAppSettings (libDirectory <> "static/"))
+    toolServerStatic <- EnvVar.env "TOOLSERVER_STATIC"
+    ihpStatic <- EnvVar.env "IHP_STATIC"
+
+    let ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days
+    let ihpStaticSettings = (Static.defaultWebAppSettings ihpStatic)
             { Static.ss404Handler = Just handleNotFound
-            , Static.ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days
+            , Static.ssMaxAge = ssMaxAge
             }
-    pure (Static.staticApp staticSettings)
+    let toolServerStaticSettings = (Static.defaultWebAppSettings toolServerStatic)
+            { Static.ss404Handler = Just (Static.staticApp ihpStaticSettings)
+            , Static.ssMaxAge = ssMaxAge
+            }
+    pure (Static.staticApp toolServerStaticSettings)
 
 openUrl :: Text -> IO ()
 openUrl url = do

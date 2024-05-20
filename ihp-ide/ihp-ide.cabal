@@ -65,7 +65,10 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             -- Used for 'Control.Debounce' in 'IHP.IDE.FileWatcher'
-            , auto-update 
+            , auto-update
+            , base16-bytestring
+            , cryptohash
+            , http-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

@@ -138,6 +138,11 @@ mkDerivation {
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
 
+  postInstall = ''
+    mkdir -p $out/lib/IHP
+    cp -r lib/IHP/* $out/lib/IHP
+  '';
+
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations
   # configureFlags = [ "--flag FastBuild" ];

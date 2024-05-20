@@ -175,7 +175,7 @@ ihpFlake:
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
                         mkdir $out
-                        cp ${ihp}/lib/IHP/IHPSchema.sql $out/
+                        cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
                     '';
                 };
 
@@ -248,8 +248,8 @@ ihpFlake:
                     }
                 ];
 
-                env.IHP_LIB = "${ihp}/lib/IHP";
-                env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
+                env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
+                env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then

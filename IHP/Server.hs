@@ -85,6 +85,7 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
     libDir <- cs <$> findLibDirectory
+    ihpStatic <- EnvVar.envOrNothing "IHP_STATIC"
 
     let
         maxAge = case frameworkConfig.environment of
@@ -92,7 +93,7 @@ initStaticApp frameworkConfig = do
             Env.Production -> Static.MaxAgeForever
 
 
-        frameworkStaticDir = libDir <> "/static/"
+        frameworkStaticDir = fromMaybe (libDir <> "/static/") ihpStatic
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
                 { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge
