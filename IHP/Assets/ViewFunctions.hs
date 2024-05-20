@@ -20,7 +20,9 @@ import qualified IHP.FrameworkConfig as Config
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
 assetPath :: (?context :: ControllerContext) => Text -> Text
-assetPath assetPath = assetPath <> "?v=" <> assetVersion
+assetPath assetPath = baseUrl <> assetPath <> "?v=" <> assetVersion
+    where
+        baseUrl = fromMaybe "" ?context.frameworkConfig.assetBaseUrl
 {-# INLINABLE assetPath #-}
 
 -- | Returns the assetVersion
