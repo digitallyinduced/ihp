@@ -116,6 +116,7 @@ that is defined in flake-module.nix
 
         packages = {
             default = ghcCompiler.ihp;
+            ide = ghcCompiler.ihp-ide;
         };
     };
 }

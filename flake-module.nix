@@ -192,7 +192,7 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.postgresql_13 pkgs.gnumake ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
                     ;
@@ -213,7 +213,7 @@ ihpFlake:
                 languages.haskell.stack = null; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    ${ghcCompiler.ihp}/bin/RunDevServer
+                    ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.devServer.exec = "start";

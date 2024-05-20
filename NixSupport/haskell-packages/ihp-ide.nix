@@ -64,13 +64,12 @@
 , with-utf8_1_1_0_0
 , ihp-hsx
 , ihp-postgresql-simple-extra
-, nix-gitignore
-, filter
+, ihp
 }:
 mkDerivation {
-  pname = "ihp";
+  pname = "ihp-ide";
   version = "v1.3.0";
-  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "LICENSE" "lib"]; };
+  src = ./../../ihp-ide;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
@@ -135,9 +134,15 @@ mkDerivation {
     with-utf8_1_1_0_0
     ihp-hsx
     ihp-postgresql-simple-extra
+    ihp
   ];
   license = lib.licenses.mit;
-  enableLibraryForGhci = true;
+  postInstall = ''
+    cp exe/IHP/CLI/run-script $out/bin/run-script
+
+    mkdir -p $out/lib/IHP
+    cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
+  '';
   homepage = "https://ihp.digitallyinduced.com";
 
   # For faster builds when hacking on IHP:
