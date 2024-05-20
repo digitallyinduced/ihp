@@ -145,6 +145,7 @@ mkDerivation {
     mkdir -p $out/lib/IHP
     cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
     cp -r ${ihp}/lib/IHP/static/* $out/lib/IHP/static # B.c. for Makefile
+    cp ${ihp}/lib/IHP/Makefile.dist $out/lib/IHP/Makefile.dist # B.c. for Makefile
   '';
   postFixup = ''
     wrapProgram $out/bin/RunDevServer --set TOOLSERVER_STATIC "$out/lib/IHP/static" --set IHP_STATIC "${ihp}/lib/IHP/static"
