@@ -131,7 +131,7 @@ common shared-properties
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
-            -fexpose-all-unfoldings
+            -fspecialise-aggressively
             -Wno-ambiguous-fields
 
 library

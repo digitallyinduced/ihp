@@ -104,7 +104,7 @@ ihpFlake:
                         With optimizationLevel = 2, will pass -O2 to GHC when compiling optimized-prod-server
                     '';
                     type = lib.types.str;
-                    default = "2";
+                    default = "1";
                 };
             };
         }
