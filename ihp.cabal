@@ -63,7 +63,6 @@ common shared-properties
             , process
             , typerep-map
             , basic-prelude
-            , megaparsec
             , async
             , network
             , unliftio
@@ -261,14 +260,6 @@ library
         , IHP.PageHead.ViewFunctions
         , IHP.Assets.Types
         , IHP.Assets.ViewFunctions
-        -- Server Side Component Modules
-        , IHP.ServerSideComponent.Types
-        , IHP.ServerSideComponent.ViewFunctions
-        , IHP.ServerSideComponent.RouterFunctions
-        , IHP.ServerSideComponent.ControllerFunctions
-        , IHP.ServerSideComponent.Controller.ComponentsController
-        , IHP.ServerSideComponent.HtmlDiff
-        , IHP.ServerSideComponent.HtmlParser
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
