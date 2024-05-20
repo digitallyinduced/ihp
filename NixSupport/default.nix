@@ -34,6 +34,8 @@ in
     pkgs.stdenv.mkDerivation {
         name = "app";
         buildPhase = ''
+          runHook preBuild
+
           mkdir -p build
 
           # When npm install is executed by the project's makefile it will fail with:
@@ -70,8 +72,12 @@ in
             #
             make -j1 $SCRIPT_TARGETS;
           fi;
+
+          runHook postBuild
         '';
         installPhase = ''
+          runHook preInstall
+
           mkdir -p "$out"
           mkdir -p $out/bin $out/lib
 
@@ -95,6 +101,8 @@ in
             done
 
           mv static "$out/lib/static"
+
+          runHook postInstall
         '';
         dontFixup = true;
         src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
