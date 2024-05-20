@@ -41,7 +41,6 @@
 , cookie
 , process
 , unix
-, fsnotify
 , countable-inflections
 , typerep-map
 , basic-prelude
@@ -111,7 +110,6 @@ mkDerivation {
     cookie
     process
     unix
-    fsnotify
     countable-inflections
     typerep-map
     basic-prelude
