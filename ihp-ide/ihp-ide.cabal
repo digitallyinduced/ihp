@@ -217,6 +217,7 @@ library
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
+        , IHP.Telemetry
 
 executable RunDevServer
     import: shared-properties

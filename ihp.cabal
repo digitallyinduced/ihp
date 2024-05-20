@@ -247,7 +247,6 @@ library
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
         , IHP.LibDir
-        , IHP.Telemetry
         , IHP.Test.Mocking
         , IHP.Test.Database
         , IHP.Version
