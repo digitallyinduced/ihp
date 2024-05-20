@@ -41,6 +41,7 @@
 , cookie
 , process
 , unix
+, fsnotify
 , countable-inflections
 , typerep-map
 , basic-prelude
@@ -63,13 +64,13 @@
 , with-utf8_1_1_0_0
 , ihp-hsx
 , ihp-postgresql-simple-extra
-, nix-gitignore
-, filter
+, ihp
+, makeWrapper
 }:
 mkDerivation {
-  pname = "ihp";
+  pname = "ihp-ide";
   version = "v1.3.0";
-  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "LICENSE" "lib"]; };
+  src = ./../../ihp-ide;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
@@ -110,6 +111,7 @@ mkDerivation {
     cookie
     process
     unix
+    fsnotify
     countable-inflections
     typerep-map
     basic-prelude
@@ -133,19 +135,26 @@ mkDerivation {
     with-utf8_1_1_0_0
     ihp-hsx
     ihp-postgresql-simple-extra
+    ihp
   ];
+  buildDepends = [ makeWrapper ];
   license = lib.licenses.mit;
-  enableLibraryForGhci = true;
-  homepage = "https://ihp.digitallyinduced.com";
-
   postInstall = ''
+    cp exe/IHP/CLI/run-script $out/bin/run-script
+
     mkdir -p $out/lib/IHP
-    cp -r lib/IHP/* $out/lib/IHP
+    cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
+    cp -r ${ihp}/lib/IHP/static/* $out/lib/IHP/static # B.c. for Makefile
+    cp ${ihp}/lib/IHP/Makefile.dist $out/lib/IHP/Makefile.dist # B.c. for Makefile
   '';
+  postFixup = ''
+    wrapProgram $out/bin/RunDevServer --set TOOLSERVER_STATIC "$out/lib/IHP/static" --set IHP_STATIC "${ihp}/lib/IHP/static"
+  '';
+  homepage = "https://ihp.digitallyinduced.com";
 
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations
-  # configureFlags = [ "--flag FastBuild" ];
+  configureFlags = [ "--flag FastBuild" ];
   # Uncommenting will not generate documentation
-  # doHaddock = false;
+  doHaddock = false;
 }

@@ -93,7 +93,7 @@ that is defined in flake-module.nix
                     ]);
 
             scripts.tests.exec = ''
-                runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iIDE Test/Main.hs
+                runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
             '';
 
             scripts.fastbuild.exec = ''
@@ -116,6 +116,8 @@ that is defined in flake-module.nix
 
         packages = {
             default = ghcCompiler.ihp;
+            ide = ghcCompiler.ihp-ide;
+            ssc = ghcCompiler.ihp-ssc;
         };
     };
 }

@@ -104,7 +104,7 @@ ihpFlake:
                         With optimizationLevel = 2, will pass -O2 to GHC when compiling optimized-prod-server
                     '';
                     type = lib.types.str;
-                    default = "2";
+                    default = "1";
                 };
             };
         }
@@ -175,7 +175,7 @@ ihpFlake:
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
                         mkdir $out
-                        cp ${ihp}/lib/IHP/IHPSchema.sql $out/
+                        cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
                     '';
                 };
 
@@ -192,7 +192,7 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.postgresql_13 pkgs.gnumake ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
                     ;
@@ -213,7 +213,7 @@ ihpFlake:
                 languages.haskell.stack = null; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    ${ghcCompiler.ihp}/bin/RunDevServer
+                    ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.devServer.exec = "start";
@@ -248,8 +248,8 @@ ihpFlake:
                     }
                 ];
 
-                env.IHP_LIB = "${ihp}/lib/IHP";
-                env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
+                env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
+                env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then

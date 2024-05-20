@@ -110,6 +110,7 @@ in
         nativeBuildInputs = builtins.concatLists [
           [ pkgs.makeWrapper
             pkgs.cacert # Needed for npm install to work from within the IHP build process
+            ghc.ihp-ide # Needed for build-generated-code
           ]
           (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions)] else [])
         ];
