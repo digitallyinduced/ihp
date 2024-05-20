@@ -1,4 +1,6 @@
 :set -i.
+:set -iihp-ide
+:set -iihp-ssc
 :set -threaded
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
