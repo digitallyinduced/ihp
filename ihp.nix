@@ -73,7 +73,6 @@ mkDerivation {
   src = filter { root = ./.; include = ["IHP" "ihp.cabal" "exe" "LICENSE" "lib" "ihp-ide"]; };
   isLibrary = true;
   isExecutable = true;
-  allowInconsistentDependencies = true;
   libraryHaskellDepends = [
     base
     classy-prelude
