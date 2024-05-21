@@ -293,12 +293,6 @@ executable new-migration
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
 
-executable migrate
-    import: shared-properties
-    build-depends: ihp, ihp-ide
-    hs-source-dirs: exe
-    main-is: IHP/CLI/Migrate.hs
-
 executable hash-password
     import: shared-properties
     build-depends: ihp, ihp-ide

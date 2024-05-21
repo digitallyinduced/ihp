@@ -16,7 +16,7 @@ that is defined in flake-module.nix
 
         apps.migrate = {
             type = "app";
-            program = "${ghcCompiler.ihp}/bin/migrate";
+            program = "${ghcCompiler.ihp-migrate}/bin/migrate";
         };
 
         devenv.shells.default = {
@@ -118,6 +118,7 @@ that is defined in flake-module.nix
             default = ghcCompiler.ihp;
             ide = ghcCompiler.ihp-ide;
             ssc = ghcCompiler.ihp-ssc;
+            migrate = ghcCompiler.ihp-migrate;
         };
     };
 }

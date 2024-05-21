@@ -1,0 +1,50 @@
+cabal-version:       2.2
+name:                ihp-migrate
+version:             1.3.0
+synopsis:            Provides the IHP migrate binary
+description:         Postgres DB migrations
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Database
+build-type:          Simple
+
+executable migrate
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+        , TemplateHaskell
+        , OverloadedRecordDot
+    build-depends: ihp, with-utf8
+    hs-source-dirs: .
+    main-is: Migrate.hs
