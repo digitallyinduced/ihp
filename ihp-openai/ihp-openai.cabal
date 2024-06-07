@@ -62,6 +62,7 @@ test-suite tests
         , neat-interpolation
         , ihp-openai
         , text
+        , aeson
     hs-source-dirs: Test
     default-language: Haskell2010
     default-extensions:
