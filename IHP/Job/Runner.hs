@@ -169,7 +169,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
                 case receivedAction of
                     JobAvailable -> do
-                        maybeJob <- Queue.fetchNextJob @job (backoffStrategy @job) workerId
+                        maybeJob <- Queue.fetchNextJob @job (timeoutInMicroseconds @job) (backoffStrategy @job) workerId
                         case maybeJob of
                             Just job -> do
                                 Log.info ("Starting job: " <> tshow job)
@@ -191,7 +191,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
         loop
 
-    (subscription, poller) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) (backoffStrategy @job) action
+    (subscription, poller) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) (timeoutInMicroseconds @job) (backoffStrategy @job) action
 
 
     pure JobWorkerProcess { runners, subscription, poller, action }

@@ -27,7 +27,7 @@ class Job job where
     maxAttempts :: (?job :: job) => Int
     maxAttempts = 10
 
-    timeoutInMicroseconds :: (?job :: job) => Maybe Int
+    timeoutInMicroseconds :: Maybe Int
     timeoutInMicroseconds = Nothing
 
     -- | While jobs are typically fetch using pg_notiy, we have to poll the queue table

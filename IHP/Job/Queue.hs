@@ -41,10 +41,10 @@ fetchNextJob :: forall job.
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , Table job
-    ) => BackoffStrategy -> UUID -> IO (Maybe job)
-fetchNextJob backoffStrategy workerId = do
-    let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
-    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds)
+    ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
+fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
+    let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
+    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
 
     result :: [PG.Only (Id job)] <- sqlQuery query params
     case result of
@@ -68,12 +68,12 @@ fetchNextJob backoffStrategy workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
-watchForJob pgListener tableName pollInterval backoffStrategy onNewJob = do
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
+watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
     sqlExec (createNotificationTrigger tableNameBS) ()
 
-    poller <- pollForJob tableName pollInterval backoffStrategy onNewJob
+    poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
 
     pure (subscription, poller)
@@ -86,10 +86,10 @@ watchForJob pgListener tableName pollInterval backoffStrategy onNewJob = do
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
-pollForJob tableName pollInterval backoffStrategy onNewJob = do
-    let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1")
-    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds)
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
+pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
+    let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " LIMIT 1")
+    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
     Async.asyncBound do
         forever do
             count :: Int <- sqlQueryScalar query params
@@ -259,3 +259,7 @@ instance IHP.Controller.Param.ParamReader JobStatus where
 retryQuery :: BackoffStrategy -> ByteString
 retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"
 retryQuery ExponentialBackoff {} = "updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count)"
+
+timeoutCondition :: Maybe Int -> ByteString
+timeoutCondition (Just timeoutInMicroseconds) = "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((? + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
+timeoutCondition Nothing = "AND (? IS NULL)"
