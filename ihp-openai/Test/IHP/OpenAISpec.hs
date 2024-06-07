@@ -5,6 +5,7 @@ import IHP.OpenAI
 import NeatInterpolation (trimming)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text as Text
+import Data.Aeson
 
 main :: IO ()
 main = hspec do
@@ -585,3 +586,13 @@ tests = do
                 let parseLines = foldl (\state line -> (parseResponseChunk state (Text.encodeUtf8 line)).state) emptyParserState (Text.lines input)
 
                 parseLines `shouldBe` result
+
+        describe "ToJSON Tool" do
+            it "encode Function call with parameter descriptions" do
+                let function = Function
+                        { name = "fetchUrl"
+                        , description = Just "Fetches a url"
+                        , parameters = Just (JsonSchemaObject [ Property { propertyName = "url", type_ = JsonSchemaString, required = True, description = Just "The url to fetch" }])
+                        }
+
+                encode function `shouldBe` "{\"function\":{\"description\":\"Fetches a url\",\"name\":\"fetchUrl\",\"parameters\":{\"properties\":{\"url\":{\"description\":\"The url to fetch\",\"type\":\"string\"}},\"type\":\"object\"}},\"type\":\"function\"}"

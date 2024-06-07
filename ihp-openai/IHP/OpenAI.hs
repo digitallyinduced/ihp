@@ -65,7 +65,7 @@ data JsonSchema
     deriving (Eq, Show)
 
 data Property
-    = Property { propertyName :: !Text, type_ :: !JsonSchema, required :: !Bool }
+    = Property { propertyName :: !Text, type_ :: !JsonSchema, required :: !Bool, description :: !(Maybe Text) }
     deriving (Eq, Show)
 
 instance ToJSON CompletionRequest where
@@ -117,8 +117,11 @@ instance ToJSON JsonSchema where
     toJSON (JsonSchemaObject properties) =
         object
             [ "type" .= ("object" :: Text)
-            , "properties" .= (object (concat (map (\property -> [ (Key.fromText property.propertyName) .= (toJSON property.type_) ]) properties)))
+            , "properties" .= (object (concat (map (\property -> [ (Key.fromText property.propertyName) .= ((toJSON property.type_) `mergeObj` (object [ "description" .= property.description ])) ]) properties)))
             ]
+        where
+            mergeObj (Object first) (Object second) = Object (first <> second)
+            mergeObj _ _ = error "JsonSchema.mergeObj failed with invalid type"
     toJSON JsonSchemaString =
         object [ "type" .= ("string" :: Text) ]
     
