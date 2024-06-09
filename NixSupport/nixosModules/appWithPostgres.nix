@@ -21,8 +21,6 @@ in
     environment.systemPackages = with pkgs; [ vim postgresql ];
     programs.vim.defaultEditor = true;
 
-    system.stateVersion = "23.05";
-
     # Allow public access
     networking.firewall.enable = true;
     networking.firewall.allowedTCPPorts = [ 80 22 ];

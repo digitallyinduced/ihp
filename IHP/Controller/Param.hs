@@ -622,13 +622,16 @@ instance (FillParams rest record
     , HasField "meta" record ModelSupport.MetaBag
     , SetField "meta" record ModelSupport.MetaBag
     ) => FillParams (fieldName:rest) record where
-    fill !record = do
-        let name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
-        case paramOrError name of
-            Right !(value :: fieldType) -> fill @rest (setField @fieldName value record)
-            Left ParamCouldNotBeParsedException { parserError } -> fill @rest (attachFailure (Proxy @fieldName) (cs parserError) record)
-            Left ParamNotFoundException {} -> fill @rest record
-    {-# INLINABLE fill #-}
+    fill !record =
+        let
+            name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
+            record' = case paramOrError name of
+                Right !(value :: fieldType) -> setField @fieldName value record
+                Left ParamCouldNotBeParsedException { parserError } -> attachFailure (Proxy @fieldName) (cs parserError) record
+                Left ParamNotFoundException {} -> record
+        in
+            fill @rest record'
+    {-# INLINE fill #-}
 
 ifValid :: (HasField "meta" model ModelSupport.MetaBag) => (Either model model -> IO r) -> model -> IO r
 ifValid branch model = branch $! if ModelSupport.isValid model

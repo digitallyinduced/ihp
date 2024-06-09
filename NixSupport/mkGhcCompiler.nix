@@ -39,6 +39,9 @@ let
   ihpDoJailbreakPackages = ["microlens-th"];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
+  ghc = ghcCompiler.ghc.overrideAttrs (oldAttrs: {
+    patches = [ ./ghc-12264.patch ] ++ (oldAttrs.patches or []);
+  });
   overrides = composeExtensionsList [
     generatedOverrides
 
