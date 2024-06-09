@@ -89,14 +89,13 @@ instance ToJSON Role where
     toJSON ToolRole = toJSON ("tool" :: Text)
 
 instance ToJSON Message where
-    toJSON Message { role, content, name, toolCallId, toolCalls } =
-        object
-            [ "role" .= role
-            , "content" .= content
-            , "name" .= name
-            , "tool_call_id" .= toolCallId
-            , "tool_calls" .= emptyListToNothing toolCalls
-            ]
+    toJSON Message { role, content, name, toolCallId, toolCalls } = object $ Maybe.catMaybes
+        [ Just ("role" .= role)
+        , Just ("content" .= content)
+        , ("name" .=) <$> name
+        , ("tool_call_id" .=) <$> toolCallId
+        , if null toolCalls then Nothing else Just ("tool_calls" .= toolCalls)
+        ]
 
 instance ToJSON ResponseFormat where
     toJSON Text = object [ "type" .= ("text" :: Text) ]

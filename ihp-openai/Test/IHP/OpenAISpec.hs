@@ -596,3 +596,9 @@ tests = do
                         }
 
                 encode function `shouldBe` "{\"function\":{\"description\":\"Fetches a url\",\"name\":\"fetchUrl\",\"parameters\":{\"properties\":{\"url\":{\"description\":\"The url to fetch\",\"type\":\"string\"}},\"type\":\"object\"}},\"type\":\"function\"}"
+
+        describe "ToJSON Message" do
+            it "encode a message but only set fields that are not null" do
+                let message = userMessage ""
+
+                encode message `shouldBe` "{\"content\":\"\",\"role\":\"user\"}"
