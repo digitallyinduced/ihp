@@ -42,15 +42,22 @@ compileModules options schema =
     [ ("build/Generated/Types.hs", compileIndex schema)
     ]
 
-tableModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
-tableModules options schema =
+applyTables :: (CreateTable -> (FilePath, Text)) -> Schema -> [(FilePath, Text)]
+applyTables applyFunction schema =
     let ?schema = schema
     in
         schema.statements
         |> mapMaybe (\case
-                StatementCreateTable t | tableHasPrimaryKey t -> Just (tableModule options t)
+                StatementCreateTable table | tableHasPrimaryKey table -> Just (applyFunction table)
                 otherwise -> Nothing
             )
+
+tableModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+tableModules options schema =
+    let ?schema = schema
+    in
+        applyTables (tableModule options) schema
+        <> applyTables tableIncludeModule schema
 
 tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (FilePath, Text)
 tableModule options table =
@@ -69,6 +76,19 @@ tableModule options table =
             $defaultImports
             import Generated.ActualTypes
         |]
+
+tableIncludeModule :: (?schema :: Schema) => CreateTable -> (FilePath, Text)
+tableIncludeModule table =
+        ("build/Generated/" <> cs (tableNameToModelName table.name) <> "Include.hs", prelude <> compileInclude table)
+    where
+        moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            module $moduleName where
+            import Generated.ActualTypes
+            import IHP.ModelSupport (Include, GetModelById)
+        |] <> "\n\n"
+
 
 tableModuleBody :: (?schema :: Schema) => CompilerOptions -> CreateTable -> Text
 tableModuleBody options table = Text.unlines
@@ -183,7 +203,6 @@ compileActualTypesForTable :: (?schema :: Schema) => CreateTable -> Text
 compileActualTypesForTable table = Text.unlines
     [ compileData table
     , compilePrimaryKeyInstance table
-    , compileInclude table
     , compileTypeAlias table
     , compileHasTableNameInstance table
     , compileDefaultIdInstance table
@@ -193,8 +212,6 @@ compileActualTypesForTable table = Text.unlines
 compileIndex :: Schema -> Text
 compileIndex schema = [trimming|
         -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-        {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
-        {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
         module Generated.Types ($rexports) where
         import Generated.ActualTypes
         $tableModuleImports
@@ -202,10 +219,16 @@ compileIndex schema = [trimming|
         where
             tableModuleNames =
                 schema.statements
-                |> mapMaybe (\case
-                        StatementCreateTable table -> Just ("Generated." <> tableNameToModelName table.name)
-                        otherwise -> Nothing
+                |> map (\case
+                        StatementCreateTable table ->
+                            let modelName = tableNameToModelName table.name
+                            in
+                                [ "Generated." <> modelName
+                                , "Generated." <> modelName <> "Include"
+                                ]
+                        otherwise -> []
                     )
+                |> concat
             tableModuleImports = tableModuleNames
                     |> map (\name -> "import " <> name)
                     |> Text.unlines
@@ -737,9 +760,7 @@ compileHasTableNameInstance table@(CreateTable { name }) =
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
-compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|
-    type instance PrimaryKey $symbol = $idType
-|]
+compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"
     where
         symbol = tshow name
         idType :: Text
