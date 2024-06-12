@@ -87,7 +87,7 @@ tableIncludeModule table =
             module $moduleName where
             import Generated.ActualTypes
             import IHP.ModelSupport (Include, GetModelById)
-        |]
+        |] <> "\n\n"
 
 
 tableModuleBody :: (?schema :: Schema) => CompilerOptions -> CreateTable -> Text
