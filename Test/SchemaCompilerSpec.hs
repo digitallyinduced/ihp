@@ -403,9 +403,7 @@ tests = do
                     data LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages = LandingPage {id :: (Id' "landing_pages"), paragraphCtasLandingPages :: paragraphCtasLandingPages, paragraphCtasToLandingPages :: paragraphCtasToLandingPages, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "landing_pages" = UUID
-                    type instance Include "paragraphCtasLandingPages" (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) = LandingPage' [ParagraphCta] paragraphCtasToLandingPages
-                    type instance Include "paragraphCtasToLandingPages" (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) = LandingPage' paragraphCtasLandingPages [ParagraphCta]
-
+                    
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
