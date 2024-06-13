@@ -602,3 +602,9 @@ tests = do
                 let message = userMessage ""
 
                 encode message `shouldBe` "{\"content\":\"\",\"role\":\"user\"}"
+
+        describe "ToJSON JsonSchema" do
+            it "not render null description's for object properties" do
+                let object = JsonSchemaObject [Property { propertyName = "a", type_ = JsonSchemaString, required = True, description = Nothing } ]
+
+                encode object `shouldBe` "{\"properties\":{\"a\":{\"type\":\"string\"}},\"type\":\"object\"}"

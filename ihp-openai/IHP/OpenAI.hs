@@ -116,7 +116,7 @@ instance ToJSON JsonSchema where
     toJSON (JsonSchemaObject properties) =
         object
             [ "type" .= ("object" :: Text)
-            , "properties" .= (object (concat (map (\property -> [ (Key.fromText property.propertyName) .= ((toJSON property.type_) `mergeObj` (object [ "description" .= property.description ])) ]) properties)))
+            , "properties" .= (object (concat (map (\property -> [ (Key.fromText property.propertyName) .= ((toJSON property.type_) `mergeObj` (object $ Maybe.catMaybes [ ("description" .=) <$> property.description ])) ]) properties)))
             ]
         where
             mergeObj (Object first) (Object second) = Object (first <> second)
