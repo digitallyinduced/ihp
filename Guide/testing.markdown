@@ -328,31 +328,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: cachix/install-nix-action@v26
+    - uses: cachix/install-nix-action@v27
       with:
         nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/51bcdc4cdaac48535dabf0ad4642a66774c609ed.tar.gz
 
     # Use the cachix cache for faster builds.
     - name: Cachix Init
-      uses: cachix/cachix-action@v12
+      uses: cachix/cachix-action@v15
       with:
         name: digitallyinduced
         skipPush: true
 
-    # Install devenv.
-    - uses: cachix/cachix-action@v12
-      with:
-        name: devenv
-    - name: Install devenv.sh
-      run: nix profile install github:cachix/devenv/latest
-      shell: sh
-
     # Install direnv, which also `direnv allow`s the project.
-    - uses: HatsuneMiku3939/direnv-action@v1
+    - uses: HatsuneMiku3939/direnv-action@v1.0.7
       with:
         direnvVersion: 2.32.3
 
-    - run: |
+    - name: Run project and tests
+      run: |
           # Build generated files.
           nix-shell --run "make build/Generated/Types.hs"
 
