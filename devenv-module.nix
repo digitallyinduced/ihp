@@ -119,6 +119,7 @@ that is defined in flake-module.nix
             ide = ghcCompiler.ihp-ide;
             ssc = ghcCompiler.ihp-ssc;
             migrate = ghcCompiler.ihp-migrate;
+            datasync-typescript = ghcCompiler.ihp-datasync-typescript;
         };
     };
 }
