@@ -67,6 +67,16 @@ renderHtml !view = do
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
+-- | Renders an HTML partial without the layout. 
+-- This is useful when you want to render a view inside another view, for example with htmx.
+renderHtmlPartial :: (?context :: ControllerContext) => Html -> IO ()
+renderHtmlPartial htmlPartial = do
+    frozenContext <- Context.freeze ?context
+    let ?context = frozenContext
+    let boundHtml = let ?context = frozenContext in htmlPartial
+    respondHtml boundHtml
+{-# INLINABLE renderHtmlPartial #-}
+
 renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 {-# INLINABLE renderFile #-}
