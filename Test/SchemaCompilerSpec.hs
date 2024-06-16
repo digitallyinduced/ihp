@@ -137,6 +137,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
@@ -219,6 +222,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
                     instance CanUpdate User where
                         updateRecord model = do
@@ -291,6 +297,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
                     instance CanUpdate User where
                         updateRecord model = do
@@ -362,6 +371,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
 
                     instance CanUpdate User where
                         updateRecord model = do
@@ -439,6 +451,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => LandingPage -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO landing_pages (id) VALUES (?)" (Only (fieldWithDefault #id model))
 
                     instance CanUpdate LandingPage where
                         updateRecord model = do
@@ -483,6 +498,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO things (thing_arbitrary_ident) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING thing_arbitrary_ident") (List.concat $ List.map (\model -> [toField (fieldWithDefault #thingArbitraryIdent model)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Thing -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO things (thing_arbitrary_ident) VALUES (?)" (Only (fieldWithDefault #thingArbitraryIdent model))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
@@ -549,6 +567,9 @@ tests = do
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?)") models)) <> " RETURNING bit_ref, part_ref") (List.concat $ List.map (\model -> [toField (model.bitRef), toField (model.partRef)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => BitPartRef -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?)" ((model.bitRef, model.partRef))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
