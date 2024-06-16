@@ -104,12 +104,6 @@ path_exists(
     "Main.hs missing. Is this an IHP project?"
 )
 
-path_exists(
-    "start",
-    "Found start script",
-    "start script missing. Is this an IHP project?"
-)
-
 nix_output = run_command(["nix", "--version"])
 
 if nix_output.returncode != 0:
