@@ -167,18 +167,30 @@ newCompletionRequest = CompletionRequest
     , tools = []
     }
 
-data CompletionResult = CompletionResult
+data CompletionResult
+    = CompletionResult
     { choices :: [Choice]
     }
+    | CompletionError
+    { message :: !Text
+    }
+    deriving (Eq, Show)
 
 instance FromJSON CompletionResult where
-    parseJSON = withObject "CompletionResult" $ \v -> CompletionResult
-        <$> v .: "choices"
+    parseJSON = withObject "CompletionResult" \v -> do
+        let result = CompletionResult <$> v .: "choices"
+        let error = do
+                errorObj <- v .: "error"
+                message <- errorObj .: "message"
+                pure CompletionError { message }
+
+        result <|> error
 
 -- [{"text": "Introdu", "index": 0, "logprobs": null, "finish_reason": null}]
 data Choice = Choice
     { text :: !Text
     }
+    deriving (Eq, Show)
 
 instance FromJSON Choice where
     parseJSON = withObject "Choice" $ \v -> do
@@ -308,7 +320,10 @@ fetchCompletion secretKey completionRequest = do
         result <- Retry.retrying retryPolicyDefault shouldRetry action
         case result of
             Left (e :: SomeException) -> Exception.throwIO e
-            Right result -> pure result
+            Right result ->
+                case result of
+                    CompletionResult { choices } -> pure (mconcat $ map (.text) choices)
+                    CompletionError { message } -> error (Text.unpack message)
     where
         shouldRetry retryStatus (Left _) = pure True
         shouldRetry retryStatus (Right _) = pure False
@@ -316,7 +331,7 @@ fetchCompletion secretKey completionRequest = do
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
 
-fetchCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO Text
+fetchCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO CompletionResult
 fetchCompletionWithoutRetry secretKey completionRequest = do
         modifyContextSSL (\context -> do
                 SSL.contextSetVerificationMode context SSL.VerifyNone
@@ -330,8 +345,7 @@ fetchCompletionWithoutRetry secretKey completionRequest = do
                                 Network.Http.Client.setHeader "Authorization" ("Bearer " <> secretKey)
 
                     sendRequest connection q (jsonBody completionRequest)
-                    completionResult :: CompletionResult <- receiveResponse connection jsonHandler
-                    pure (mconcat $ map (.text) completionResult.choices)
+                    receiveResponse connection jsonHandler
 
 enableStream :: CompletionRequest -> CompletionRequest
 enableStream completionRequest = completionRequest { stream = True }

@@ -574,6 +574,11 @@ compileCreate table@(CreateTable { name, columns }) =
                 <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> columnNames <> "\") " <> createManyFieldValues <> "\n"
                     )
             )
+        <> indent (
+            "createRecordDiscardResult :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+                <> "createRecordDiscardResult model = do\n"
+                <> indent ("sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")\n")
+            )
 
 commaSep :: [Text] -> Text
 commaSep = intercalate ", "

@@ -608,3 +608,46 @@ tests = do
                 let object = JsonSchemaObject [Property { propertyName = "a", type_ = JsonSchemaString, required = True, description = Nothing } ]
 
                 encode object `shouldBe` "{\"properties\":{\"a\":{\"type\":\"string\"}},\"type\":\"object\"}"
+
+        describe "FromJSON CompletionResult" do
+            it "should decode a successful response" do
+                let response = [trimming|
+                    {
+                        "id": "chatcmpl-abc123",
+                        "object": "chat.completion",
+                        "created": 1677858242,
+                        "model": "gpt-3.5-turbo-0613",
+                        "usage": {
+                            "prompt_tokens": 13,
+                            "completion_tokens": 7,
+                            "total_tokens": 20
+                        },
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "\n\nThis is a test!"
+                                },
+                                "logprobs": null,
+                                "finish_reason": "stop",
+                                "index": 0
+                            }
+                        ]
+                    }
+                |]
+
+                decodeStrictText (response) `shouldBe` (Just CompletionResult { choices = [ Choice { text = "\n\nThis is a test!" } ] })
+
+            it "should decode an error response" do
+                let response = [trimming|
+                    {
+                        "error": {
+                            "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.",
+                            "type": "insufficient_quota",
+                            "param": null,
+                            "code": "insufficient_quota"
+                        }
+                    }
+                |]
+
+                decodeStrictText (response) `shouldBe` (Just CompletionError { message = "You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors." })
