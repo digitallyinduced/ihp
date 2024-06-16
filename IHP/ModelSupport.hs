@@ -102,6 +102,12 @@ type family GetModelByTableName (tableName :: Symbol) :: Type
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a
     createMany :: (?modelContext :: ModelContext) => [a] -> IO [a]
+    
+    -- | Like 'createRecord' but doesn't return the created record
+    createRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
+    createRecordDiscardResult record = do
+        _ <- createRecord record
+        pure ()
 
 class CanUpdate a where
     updateRecord :: (?modelContext :: ModelContext) => a -> IO a
