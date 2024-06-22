@@ -1030,6 +1030,26 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
     
 {-# INLINE queryUnion #-}
 
+-- | Like 'queryUnion', but applied on all the elements on the list
+--
+-- >  action ProjectsAction = do
+-- >      let values :: [(ProjectType, Int)] = [(ProjectTypeOngoing, 3), (ProjectTypeNotStarted, 2)]
+-- >
+-- >          valuePairToCondition :: (ProjectType, Int) -> QueryBuilder "projects"
+-- >          valuePairToCondition (projectType, participants) =
+-- >              query @Project
+-- >                  |> filterWhere (#projectType, projectType)
+-- >                  |> filterWhere (#participants, participants)
+-- >
+-- >          theQuery = queryOrList (map valuePairToCondition values)
+-- >
+-- >      projects <- fetch theQuery
+-- >      render IndexView { .. }
+queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
+queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Plain "id"), applyLeft = Nothing, applyRight = Nothing }
+queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
+queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
+
 
 -- | Adds an @a OR b@ condition
 --
