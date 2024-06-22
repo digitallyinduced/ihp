@@ -1126,3 +1126,22 @@ onlyWhereReferencesMaybe field referenced records = filter (\record -> get field
 --
 isValid :: forall record. (HasField "meta" record MetaBag) => record -> Bool
 isValid record = isEmpty record.meta.annotations
+
+-- | Copies all the fields (except the 'id' field) into a new record
+--
+-- Example: Duplicate a database record (except the primary key of course)
+--
+-- > project <- fetch projectId
+-- > duplicatedProject <- createRecord (copyRecord project)
+--
+copyRecord :: forall record id. (Table record, SetField "id" record id, Default id, SetField "meta" record MetaBag) => record -> record
+copyRecord existingRecord =
+    let
+        fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
+
+        meta :: MetaBag
+        meta = def { touchedFields = map (IHP.NameSupport.columnNameToFieldName . cs) fieldsExceptId }
+    in
+        existingRecord
+            |> set #id def
+            |> set #meta meta
