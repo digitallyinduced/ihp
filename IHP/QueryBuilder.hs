@@ -18,6 +18,7 @@ module IHP.QueryBuilder
 , limit
 , offset
 , queryUnion
+, queryUnionList
 , queryOr
 , DefaultScope (..)
 , filterWhere
