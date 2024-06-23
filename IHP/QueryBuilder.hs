@@ -1041,7 +1041,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >                  |> filterWhere (#projectType, projectType)
 -- >                  |> filterWhere (#participants, participants)
 -- >
--- >          theQuery = queryOrList (map valuePairToCondition values)
+-- >          theQuery = queryUnionList (map valuePairToCondition values)
 -- >
 -- >      projects <- fetch theQuery
 -- >      render IndexView { .. }
