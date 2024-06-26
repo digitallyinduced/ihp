@@ -251,6 +251,9 @@ ihpFlake:
                 env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
                 env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
 
+                # Use Overmind so when running tests in GitHub actions, we can execute `devenv up &` without an error.
+                process.implementation = "overmind";
+
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
                         echo "usage: deploy-to-nixos <target-host>"
