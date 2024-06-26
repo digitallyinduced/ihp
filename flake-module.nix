@@ -197,6 +197,14 @@ ihpFlake:
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
                     ;
 
+                # Hack to avoid --impure
+                # See https://github.com/cachix/devenv/commit/cc0944a60978ad7cf74d429d18c2a8065f018545
+                devenv.root =
+                    let
+                        devenvRootFileContent = builtins.readFile ihpFlake.inputs.devenv-root.outPath;
+                    in
+                        pkgs.lib.mkIf (devenvRootFileContent != "") devenvRootFileContent;
+
                 /*
                 we currently don't use devenv containers, and they break nix flake show
                 without the proper inputs set

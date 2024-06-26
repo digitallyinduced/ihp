@@ -20,6 +20,13 @@
         ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
 
         nix-filter.url = "github:numtide/nix-filter";
+
+        # Hack to avoid --impure flag
+        # See https://github.com/cachix/devenv/commit/cc0944a60978ad7cf74d429d18c2a8065f018545
+        devenv-root = {
+            url = "file+file:///dev/null";
+            flake = false;
+        };
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
