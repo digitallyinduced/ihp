@@ -22,6 +22,14 @@ ihpFlake:
             options.ihp = {
                 enable = lib.mkEnableOption "Enable IHP support";
 
+                name = lib.mkOption {
+                    description = ''
+                        The name of your project. Used in the package name.
+                    '';
+                    default = "app";
+                    type = lib.types.str;
+                };
+
                 ghcCompiler = lib.mkOption {
                     description = ''
                         The GHC compiler to use for IHP.
@@ -139,6 +147,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
+                    name = cfg.name;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -152,6 +161,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
+                    name = cfg.name;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
@@ -204,6 +214,8 @@ ihpFlake:
                         devenvRootFileContent = builtins.readFile ihpFlake.inputs.devenv-root.outPath;
                     in
                         pkgs.lib.mkIf (devenvRootFileContent != "") devenvRootFileContent;
+
+                name = cfg.name;
 
                 /*
                 we currently don't use devenv containers, and they break nix flake show
