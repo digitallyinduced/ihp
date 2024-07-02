@@ -236,9 +236,13 @@ attributeFromName name value =
         value' :: TH.ExpQ
         value' = if Text.null value then [| mempty |] else [| Html5.preEscapedTextValue value |] 
 
+        attr = attributeFromName' name
+    in
+        [| (! $attr $value') |]
 
-        attr :: TH.ExpQ
-        attr = case name of
+attributeFromName' :: Text -> TH.ExpQ
+attributeFromName' name =
+    case name of
             "accept" -> [| Attributes.accept |]
             "accept-charset" -> [| Attributes.acceptCharset |]
             "accesskey" -> [| Attributes.accesskey |]
@@ -415,8 +419,6 @@ attributeFromName name value =
             "wrap" -> [| Attributes.wrap |]
             "xmlns" -> [| Attributes.xmlns |]
             _ -> attributeFromNameGeneric name
-    in
-        [| (! $attr $value') |]
 
 attributeFromNameGeneric :: Text -> TH.ExpQ
 attributeFromNameGeneric name =
