@@ -259,6 +259,9 @@ Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flak
 +                            sessionSecret = "xxx";
 +                        };
 +
++                        # Job workers are active by default. Disable them like this:
++                        # systemd.services.worker.enable = pkgs.lib.mkForce false;
++
 +                        # Add swap to avoid running out of memory during builds
 +                        # Useful if your server have less than 4GB memory
 +                        swapDevices = [ { device = "/swapfile"; size = 8192; } ];
