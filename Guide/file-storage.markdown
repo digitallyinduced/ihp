@@ -869,7 +869,7 @@ import Web.Controller.Prelude
 import IHP.ControllerSupport
 import System.Directory (doesFileExist)
 import qualified Data.Text as Text
-import qualified Data.UUID as UUID (fromString)
+import qualified Data.UUID as UUID (fromText)
 
 instance Controller ImageStyleController where
     action RenderImageStyleAction { width, height, originalImagePath } = do
