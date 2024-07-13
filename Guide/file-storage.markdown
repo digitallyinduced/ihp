@@ -893,7 +893,7 @@ instance Controller ImageStyleController where
                         { directory = imageStylePathDirectory
                         , preprocess = applyImageMagick "jpg" ["-resize", cs size <> "^", "-gravity", "center", "-extent", cs size, "-quality", "85%", "-strip"]
                         -- Keep the original filename.
-                        , fileName = UUID.fromString (cs uuid)
+                        , fileName = UUID.fromText uuid
                         }
 
                 storedFile <- storeFileFromPath (cs $ storagePrefix <> originalImageDirectory <> "/" <> uuid) options
