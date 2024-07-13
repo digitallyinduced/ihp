@@ -11,6 +11,7 @@
 , template-haskell
 , haskell-src-meta
 , containers
+, unordered-containers
 }:
 mkDerivation {
   pname = "ihp-hsx";
@@ -29,6 +30,7 @@ mkDerivation {
     megaparsec
     template-haskell
     containers
+    unordered-containers
   ];
   license = lib.licenses.mit;
   enableLibraryForGhci = true;

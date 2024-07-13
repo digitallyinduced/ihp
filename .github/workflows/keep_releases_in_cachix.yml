@@ -1,12 +1,14 @@
 name: Keep Releases in Cachix
 on:
+  push:
+    branches: master
   schedule:
     - cron: '0 17 1 * *'
 jobs:
   build:
     strategy:
       matrix:
-        version: ["v1.1.0", "v1.0.1", "v1.0.0"]
+        version: ["v1.3.0", "v1.2.0", "v1.1.0", "v1.0.1", "v1.0.0"]
         os: [ubuntu-latest, macos-latest, ARM64]
     runs-on: ${{ matrix.os }}
     steps:

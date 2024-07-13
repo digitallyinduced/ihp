@@ -63,6 +63,8 @@ data CounterController
     deriving (Eq, Show, Data)
 ```
 
+Add `parseRoute @CounterController` to the list of `instance FrontController WebApplication` in `FrontController.hs` (or you'll get a 404 on calling it), and add an `instance AutoRoute CounterController` to `Routes.hs` (or you'll get a compilation error about it not being an instance of AutoRoute).
+
 Instead of using the `render` function, htmx routes are better used with `respondHtml` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as upating.
 
 ```haskell

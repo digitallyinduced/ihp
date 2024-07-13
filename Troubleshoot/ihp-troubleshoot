@@ -105,9 +105,9 @@ path_exists(
 )
 
 path_exists(
-    "start",
-    "Found start script",
-    "start script missing. Is this an IHP project?"
+    "flake.nix",
+    "Found flake.nix",
+    "flake.nix missing. Is this an IHP project?"
 )
 
 nix_output = run_command(["nix", "--version"])
