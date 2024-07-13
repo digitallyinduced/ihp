@@ -869,6 +869,7 @@ import Web.Controller.Prelude
 import IHP.ControllerSupport
 import System.Directory (doesFileExist)
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID (fromString)
 
 instance Controller ImageStyleController where
     action RenderImageStyleAction { width, height, originalImagePath } = do
@@ -891,6 +892,8 @@ instance Controller ImageStyleController where
                 let options :: StoreFileOptions = def
                         { directory = imageStylePathDirectory
                         , preprocess = applyImageMagick "jpg" ["-resize", cs size <> "^", "-gravity", "center", "-extent", cs size, "-quality", "85%", "-strip"]
+                        -- Keep the original filename.
+                        , fileName = UUID.fromString (cs uuid)
                         }
 
                 storedFile <- storeFileFromPath (cs $ storagePrefix <> originalImageDirectory <> "/" <> uuid) options
