@@ -12,6 +12,35 @@ AWS EC2 is a good choice for deploying IHP in a professional setup.
 
 ### AWS infrastructure preparation
 
+#### Creating infrastructure with Terraform
+
+The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup automatically using [Terraform](https://www.terraform.io/).
+
+1. Install terraform
+1. Setup AWS credentials in .aws/config and .aws/credentials
+1. Go to the folder IaC/aws. If the folder doesn't exist in the repo, get it from [ihp-boilerplate](https://github.com/digitallyinduced/ihp-boilerplate) Run:
+   ```
+   terraform init
+   ```
+1. Create the file `terraform.tfvars` with the following content:
+   ```
+   prefix = "Project prefix for the resource names"
+   region = "AWS Region to deploy to"
+   az_1 = "Availability Zone 1"
+   az_2 = "Availability Zone 2"
+   key_name = "The key name of the SSH key-pair"
+   db_password = "The password for the RDS database"
+   ```
+   - The two AZs are needed to setup the RDS database.
+   - The SSH key-pair should be created in the AWS web interface.
+1. Run:
+   ```
+   terraform apply
+   ```
+1. Important data like the RDS endpoint and the EC2 instance URL is written to the file `db_info.txt`
+
+Now the NixOS instance and Postgres database is setup and an SSH conncetion can be established to it.
+
 #### Creating a new EC2 Instance
 
 Start a new EC2 instance and use the official NixOS AMI `NixOS-23.05.426.afc48694f2a-x86_64-linux`. You can find the latest NixOS AMI at https://nixos.org/download#nixos-amazon
