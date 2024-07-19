@@ -22,7 +22,7 @@ The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup
    ```
    terraform init
    ```
-1. Create the file `terraform.tfvars` with the following content:
+4. Create the file `terraform.tfvars` with the following content:
    ```
    prefix = "Project prefix for the resource names"
    region = "AWS Region to deploy to"
