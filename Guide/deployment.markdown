@@ -17,7 +17,7 @@ AWS EC2 is a good choice for deploying IHP in a professional setup.
 The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup automatically using [Terraform](https://www.terraform.io/).
 
 1. Install terraform
-1. Setup AWS credentials in .aws/config and .aws/credentials
+2. Setup AWS credentials in `.aws/config` and `.aws/credentials`
 1. Go to the folder IaC/aws. If the folder doesn't exist in the repo, get it from [ihp-boilerplate](https://github.com/digitallyinduced/ihp-boilerplate) Run:
    ```
    terraform init
