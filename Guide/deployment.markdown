@@ -37,7 +37,7 @@ The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup
    ```
    terraform apply
    ```
-1. Important data like the RDS endpoint and the EC2 instance URL is written to the file `db_info.txt`
+6. Important data like the RDS endpoint and the EC2 instance URL is written to the file `db_info.txt`
 
 Now the NixOS instance and Postgres database is setup and an SSH conncetion can be established to it.
 
