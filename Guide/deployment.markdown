@@ -33,7 +33,7 @@ The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup
    ```
    - The two AZs are needed to setup the RDS database.
    - The SSH key-pair should be created in the AWS web interface.
-1. Run:
+5. Run:
    ```
    terraform apply
    ```
