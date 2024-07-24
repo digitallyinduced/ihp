@@ -55,14 +55,18 @@ If you are ok to commit your secrets to git repo, you can also put the env vars 
 You can now access the `StripePublicKey` parameter by calling `getAppConfig @Config.StripePublicKey`:
 
 ```haskell
-import qualified Config
-
 action MyAction = do
     let (StripePublicKey stripePublicKey) = getAppConfig @Config.StripePublicKey
 
     putStrLn ("Stripe public key: " <> stripePublicKey)
 ```
 
+If you want to fetch it in a helper function, we need to define the `?context`:
+
+```haskell
+getStripePublicKey :: (?context :: ControllerContext) => StripePublicKey
+getStripePublicKey = getAppConfig @Config.StripePublicKey
+```
 
 ## Environment Variables
 
