@@ -52,29 +52,6 @@ ihpFlake:
                     ];
                 };
 
-                appName = lib.mkOption {
-                  description ='' 
-                  The derivation name.
-                  Can be omitted if pname and version are set, in which case it is automatically set to ''${pname}-''${version}.
-                '';
-                 type= lib.types.str;
-                 default="app";
-                };
-
-                pName = lib.mkOption {
-                  description = ''
-                      The package name.
-                  '';
-                 type= lib.types.str;
-                };
-
-                version = lib.mkOption {
-                  description = ''
-                      The package version.
-                  '';
-                 type= lib.types.str;
-                };
-
                 projectPath = lib.mkOption {
                     description = ''
                         Path to the IHP project. You likely want to set this to `./.`.
