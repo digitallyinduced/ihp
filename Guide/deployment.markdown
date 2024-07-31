@@ -18,7 +18,7 @@ The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup
 
 1. Install terraform
 2. Setup AWS credentials in `.aws/config` and `.aws/credentials`
-3. Go to the folder IaC/aws. If the folder doesn't exist in the repo, get it from [ihp-boilerplate](https://github.com/digitallyinduced/ihp-boilerplate) Run:
+3. Copy the files from the IaC/aws folder from [the branch IaC-aws in ihp-boilerplate](https://github.com/digitallyinduced/ihp-boilerplate/tree/IaC-aws) to you IHP project repo. Run the init command from the IaC/aws folder:
    ```
    terraform init
    ```
