@@ -11,6 +11,7 @@
 , optimized ? false
 , includeDevTools ? !optimized # Include Postgres?
 , rtsFlags ? ""
+, appName ? "app"
 , optimizationLevel ? "2"
 }:
 
@@ -32,7 +33,7 @@ let
       else "build/bin/RunJobs";
 in
     pkgs.stdenv.mkDerivation {
-        name = "app";
+        name = appName;
         buildPhase = ''
           runHook preBuild
 

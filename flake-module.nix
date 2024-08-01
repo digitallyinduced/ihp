@@ -52,6 +52,14 @@ ihpFlake:
                     ];
                 };
 
+                appName = lib.mkOption {
+                    description = '' 
+                        The derivation name.
+                    '';
+                    type = lib.types.str;
+                    default = "app";
+                };
+
                 projectPath = lib.mkOption {
                     description = ''
                         Path to the IHP project. You likely want to set this to `./.`.
@@ -139,6 +147,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
+                    appName = cfg.appName;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -152,6 +161,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
+                    appName = cfg.appName;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
