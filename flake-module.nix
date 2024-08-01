@@ -53,12 +53,11 @@ ihpFlake:
                 };
 
                 appName = lib.mkOption {
-                  description ='' 
-                  The derivation name.
-                  Can be omitted if pname and version are set, in which case it is automatically set to ''${pname}-''${version}.
-                '';
-                 type= lib.types.str;
-                 default="app";
+                    description = '' 
+                        The derivation name.
+                    '';
+                    type = lib.types.str;
+                    default = "app";
                 };
 
                 projectPath = lib.mkOption {
@@ -148,7 +147,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
-                    appName=cfg.appName;
+                    appName = cfg.appName;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -162,7 +161,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
-                    appName=cfg.appName;
+                    appName = cfg.appName;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
