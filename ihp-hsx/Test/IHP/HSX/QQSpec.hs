@@ -8,8 +8,9 @@ import Test.Hspec
 import Prelude
 import IHP.HSX.QQ
 import qualified Text.Blaze.Renderer.Text as Blaze
-import Text.Blaze (preEscapedTextValue)
+import IHP.HSX.Html (preEscapedToHtml)
 import Data.Text
+import IHP.HSX.Html
 
 tests :: SpecWith ()
 tests = do
@@ -183,7 +184,7 @@ tests = do
         it "should support pre escaped class names" do
             -- See https://github.com/digitallyinduced/ihp/issues/1527
 
-            let className = preEscapedTextValue "a&"
+            let className = preEscapedToHtml "a&"
             [hsx|<div class={className}></div>|] `shouldBeHtml` "<div class=\"a&\"></div>"
 
         it "should support support doctype" do
@@ -200,6 +201,5 @@ newtype NewPlaceId = NewPlaceId Text
 newPlaceData = NewPlaceId "New Punches Cross"
 locationId = LocationId 17 (PlaceId "Punches Cross")
 
-
-
-shouldBeHtml hsx expectedHtml = (Blaze.renderMarkup hsx) `shouldBe` expectedHtml
+shouldBeHtml :: Html -> Text -> IO ()
+shouldBeHtml hsx expectedHtml = (renderHtml hsx) `shouldBe` expectedHtml

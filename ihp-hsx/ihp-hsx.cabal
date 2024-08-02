@@ -30,6 +30,7 @@ library
         , megaparsec >= 9.2.2 && < 9.7
         , string-conversions >= 0.4.0 && < 0.5
         , unordered-containers
+        , binary
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -89,6 +90,7 @@ library
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
         , IHP.HSX.Attribute
+        , IHP.HSX.Html
 
 test-suite ihp-hsx-tests
     type:                exitcode-stdio-1.0
