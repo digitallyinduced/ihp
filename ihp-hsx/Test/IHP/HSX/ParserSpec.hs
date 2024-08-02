@@ -1,11 +1,11 @@
 {-|
-Module: Test.HSX.QQSpec
+Module: IHP.HSX.QQSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.HSX.ParserSpec where
+module IHP.HSX.ParserSpec where
 
 import Test.Hspec
-import IHP.Prelude
+import Prelude
 import IHP.HSX.Parser
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Megaparsec.Error as Megaparsec
@@ -62,12 +62,12 @@ tests = do
         it "should parse spread values" do
             let p = parseHsx position extensions "<div {...variables}/>"
             -- We cannot easily construct the @VarE variables@ expression, therefore we use show here for comparison
-            tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
+            show p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
 
         it "should parse spread values with a space" do
             -- See https://github.com/digitallyinduced/ihp/issues/1588
             let p = parseHsx position extensions "<div { ...variables }/>"
-            tshow p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
+            show p `shouldBe` "Right (Children [Node \"div\" [SpreadAttributes (VarE variables)] [] False])"
 
         it "should accept underscores in data attributes" do
             let p = parseHsx position extensions "<div data-client_id=\"test\"/>"

@@ -1,15 +1,17 @@
 {-|
-Module: Test.HSX.QQSpec
+Module: IHP.HSX.QQSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.HSX.QQSpec where
+module IHP.HSX.QQSpec where
 
 import Test.Hspec
-import IHP.Prelude
+import Prelude
 import IHP.HSX.QQ
 import qualified Text.Blaze.Renderer.Text as Blaze
 import Text.Blaze (preEscapedTextValue)
+import Data.Text
 
+tests :: SpecWith ()
 tests = do
     describe "HSX" do
         it "should work with static html" do
