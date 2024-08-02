@@ -114,7 +114,8 @@ code _ src = [hsx|
     
 |]
 
-checkmark = preEscapedToHtml [plain|
+checkmark :: Html
+checkmark = preEscapedToHtml [trimming|
 <svg width="16px" height="12px" viewBox="0 0 16 12" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <g id="Migrations" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
         <g id="Mig-Redesign-with-messages" transform="translate(-1401.000000, -607.000000)" fill="#059053">

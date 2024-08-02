@@ -18,6 +18,7 @@ import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Context
 import IHP.Controller.Response (respondAndExit)
+import qualified IHP.HSX.Html as HSX
 
 
 -- | Stops the action execution with a not found message (404) when the access condition is True.
@@ -64,7 +65,7 @@ buildNotFoundResponse = do
 
 -- | The default IHP 404 not found page
 defaultNotFoundResponse :: Response
-defaultNotFoundResponse = responseBuilder status404 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
+defaultNotFoundResponse = responseBuilder status404 [(hContentType, "text/html")] $ HSX.renderHtmlBuilder [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>

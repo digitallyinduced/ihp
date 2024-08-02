@@ -6,9 +6,9 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified IHP.HSX.Html as Blaze
 import qualified Network.HTTP.Types.Header as HTTP
-import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.HSX.Html as Html5
 import qualified Network.HTTP.Types as HTTP
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types

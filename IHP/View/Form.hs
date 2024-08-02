@@ -16,7 +16,7 @@ import           IHP.ValidationSupport
 import           IHP.HSX.ConvertibleStrings ()
 import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
-import qualified Text.Blaze.Html5                   as Html5
+import qualified IHP.HSX.Html                   as Html5
 import IHP.HSX.ToHtml
 import GHC.Types
 import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue, didTouchField)
@@ -312,7 +312,7 @@ submitButton =
         buttonText = modelName |> humanize -- We do this to turn 'Create ProjectTask' into 'Create Project Task'
         isNew = IHP.ModelSupport.isNew (model ?formContext)
     in SubmitButton
-    { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
+    { label = Html5.textToHtml $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
     , buttonDisabled = False
     , cssFramework = ?formContext.cssFramework

@@ -1,8 +1,8 @@
 module IHP.Breadcrumb.Types where
 
 import IHP.Prelude
-import Text.Blaze.Html (Html)
-import Text.Blaze.Html.Renderer.String (renderHtml)
+import IHP.HSX.Html (Html)
+import IHP.HSX.Html (renderHtml)
 import ClassyPrelude
 
 data BreadcrumbItem =

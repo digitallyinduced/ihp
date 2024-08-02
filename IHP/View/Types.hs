@@ -19,7 +19,7 @@ module IHP.View.Types
 where
 
 import IHP.Prelude hiding (div)
-import qualified Text.Blaze.Html5 as Blaze
+import qualified IHP.HSX.Html as Blaze
 import IHP.FlashMessages.Types
 import IHP.ModelSupport (Violation)
 import IHP.Breadcrumb.Types

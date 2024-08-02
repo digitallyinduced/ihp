@@ -26,8 +26,8 @@ instance View CodeView where
             submitUrl = pathTo SaveCodeAction
             errorDiv = case error of
                 Nothing -> mempty
-                Just error -> preEscapedToHtml [plain|
+                Just error -> [hsx|
                         <div class="error-box">
-                            <pre class="text-white p-5">#{error}</pre>
+                            <pre class="text-white p-5">{error}</pre>
                         </div>
                     |]

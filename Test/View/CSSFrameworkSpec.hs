@@ -14,8 +14,8 @@ import IHP.View.Types
 import IHP.View.CSSFramework
 import IHP.FlashMessages.Types
 import IHP.Controller.Session
-import qualified Text.Blaze.Renderer.Text as Blaze
-import qualified Text.Blaze.Html5 as H
+import qualified IHP.HSX.Html as Blaze
+import qualified IHP.HSX.Html as H
 import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
 import IHP.Breadcrumb.Types

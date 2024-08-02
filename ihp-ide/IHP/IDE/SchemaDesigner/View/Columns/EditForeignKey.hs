@@ -70,12 +70,12 @@ instance View EditForeignKeyView where
             |]
                 where
                     renderTableNameSelector tableName = if tableName == referenceTable
-                        then preEscapedToHtml [plain|<option selected>#{tableName}</option>|]
-                        else preEscapedToHtml [plain|<option>#{tableName}</option>|]
+                        then [hsx|<option selected>{tableName}</option>|]
+                        else [hsx|<option>{tableName}</option>|]
                     onDeleteSelector option = if option == onDelete
-                        then preEscapedToHtml [plain|<option selected>#{option}</option>|]
-                        else preEscapedToHtml [plain|<option>#{option}</option>|]
-                    select2 = preEscapedToHtml [plain|
+                        then [hsx|<option selected>{option}</option>|]
+                        else [hsx|<option>{option}</option>|]
+                    select2 = [hsx|
                         <script>
                             $('.select2').select2();
                         </script>

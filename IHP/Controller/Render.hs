@@ -12,8 +12,8 @@ import IHP.ControllerSupport
 import qualified Network.HTTP.Media as Accept
 import qualified Data.List as List
 
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import Text.Blaze.Html (Html)
+import qualified IHP.HSX.Html as Blaze
+import IHP.HSX.Html (Html)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified IHP.FrameworkConfig as FrameworkConfig

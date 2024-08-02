@@ -19,7 +19,6 @@ module IHP.ViewSupport
 , onLoad
 , theRequest
 , viewContext
-, addStyle
 , ViewFetchHelpMessage
 , param
 , fetch
@@ -34,7 +33,7 @@ module IHP.ViewSupport
 ) where
 
 import IHP.Prelude
-import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.HSX.Html as Html5
 import IHP.ControllerSupport
 import IHP.ModelSupport
 import qualified Data.Aeson as JSON
@@ -56,6 +55,7 @@ import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
+import qualified IHP.HSX.Html as HSX
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -200,25 +200,6 @@ viewContext :: (?context :: ControllerContext) => ControllerContext
 viewContext = ?context
 {-# INLINE viewContext #-}
 
--- | Adds an inline style element to the html.
---
--- This helps to work around the issue, that our HSX parser cannot deal with CSS yet.
---
--- __Example:__
---
--- > myStyle = addStyle "#my-div { color: blue; }"
--- > [hsx|{myStyle}<div id="my-div">Hello World</div>|]
---
--- This will render like:
---
--- > <style>
--- >     #my-div { color: blue; }
--- > </style>
--- > <div id="my-div">Hello World</div>
-addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
-addStyle style = Html5.style (Html5.preEscapedText (cs style))
-{-# INLINE addStyle #-}
-
 -- | This class provides helpful compile-time error messages when you use common
 -- controller functions inside of your views.
 class ViewParamHelpMessage where
@@ -253,7 +234,7 @@ nl2br :: (Sequences.Textual text, ToHtml text) => text -> Html5.Html
 nl2br content = content
     |> Sequences.lines
     |> map (\line -> [hsx|{line}<br/>|])
-    |> mconcat
+    |> HSX.concat
 
 type Html = HtmlWithContext ControllerContext
 
@@ -263,5 +244,5 @@ liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
 
-instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
-    applyAttribute attr attr' value h = HSX.applyAttribute attr attr' (inputValue value) h
+instance InputValue (PrimaryKey table) => HSX.AttributeConverter (Id' table) where
+    attributeValueToText name value = HSX.attributeValueToText name (inputValue value)

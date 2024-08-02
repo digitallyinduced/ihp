@@ -7,7 +7,7 @@ module IHP.View.CSSFramework where
 
 import IHP.Prelude
 import IHP.FlashMessages.Types
-import qualified Text.Blaze.Html5 as Blaze
+import qualified IHP.HSX.Html as Blaze
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
 import IHP.View.Types

@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.FlashMessages.ViewFunctions where
 
 import IHP.FlashMessages.Types
-import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.HSX.Html as Html5
 import IHP.ViewSupport
 import IHP.View.Types
 import IHP.Controller.Context

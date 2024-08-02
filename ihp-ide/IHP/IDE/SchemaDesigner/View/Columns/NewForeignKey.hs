@@ -66,11 +66,12 @@ instance View NewForeignKeyView where
                 {select2}
             |]
                 where
+                    onDeleteSelector :: Text -> Html
                     onDeleteSelector option = if option == "NoAction"
-                        then preEscapedToHtml [plain|<option selected>#{option}</option>|]
-                        else preEscapedToHtml [plain|<option>#{option}</option>|]
+                        then [hsx|<option selected>{option}</option>|]
+                        else [hsx|<option>{option}</option>|]
                     renderTableNameSelector tableName = [hsx|<option>{tableName}</option>|]
-                    select2 = preEscapedToHtml [plain|
+                    select2 = [hsx|
                         <script>
                             $('.select2').select2();
                         </script>

@@ -21,7 +21,7 @@ import IHP.PageHead.Types
 import IHP.Controller.Context
 import IHP.PageHead.ControllerFunctions
 import IHP.HSX.QQ (hsx)
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Html (Html)
 
 -- | Returns the current page title. The title can be set using @setTitle "my title"@ from the action.
 --

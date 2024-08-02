@@ -13,7 +13,6 @@ module IHP.ViewPrelude (
     hsx,
     toHtml,
     preEscapedToHtml,
-    preEscapedTextValue,
     module IHP.ValidationSupport,
     pathTo,
     urlTo,
@@ -42,7 +41,7 @@ import IHP.Prelude
 import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import Text.Blaze (stringValue, (!))
-import Text.Blaze.Html5 (preEscapedToHtml, preEscapedTextValue)
+import IHP.HSX.Html (preEscapedToHtml)
 import IHP.View.Form
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml

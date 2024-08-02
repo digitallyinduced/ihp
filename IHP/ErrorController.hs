@@ -20,8 +20,8 @@ import Network.HTTP.Types (status500, status400)
 import Network.Wai
 import Network.HTTP.Types.Header
 
-import qualified Text.Blaze.Html5            as H
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified IHP.HSX.Html            as H
+import qualified IHP.HSX.Html as Blaze
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.ByteString.Char8 as ByteString
 
@@ -401,7 +401,7 @@ handleRouterException exception request respond =
                         <h2>Possible Solutions</h2>
                         <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                     |]
-                let title = H.text "Routing failed"
+                let title = "Routing failed"
                 respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
 
 

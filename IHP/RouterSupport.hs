@@ -55,6 +55,8 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
+import qualified IHP.HSX.ToHtml as HSX
+import qualified IHP.HSX.Attribute as HSX
 import qualified Text.Blaze.Html5 as Html5
 import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
@@ -879,9 +881,9 @@ catchAll action = do
 {-# INLINABLE catchAll #-}
 
 -- | This instances makes it possible to write @<a href={MyAction}/>@ in HSX
-instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
-    convertString action = Html5.textValue (pathTo action)
-    {-# INLINE convertString #-}
+instance {-# OVERLAPPABLE #-} (HasPath action) => HSX.AttributeConverter action where
+    attributeValueToText name action = HSX.attributeValueToText name (pathTo action)
+    {-# INLINE attributeValueToText #-}
 
 -- | Parses and returns an UUID
 parseUUID :: Parser UUID

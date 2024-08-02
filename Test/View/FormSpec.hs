@@ -7,7 +7,7 @@ module Test.View.FormSpec where
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.RequestContext
-import qualified Text.Blaze.Renderer.Text as Blaze
+import qualified IHP.HSX.Html as Blaze
 import IHP.ModelSupport
 import qualified Network.Wai as Wai
 import IHP.ViewPrelude

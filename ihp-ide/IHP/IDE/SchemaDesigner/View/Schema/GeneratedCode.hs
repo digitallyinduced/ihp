@@ -29,7 +29,7 @@ instance View GeneratedCodeView where
             modalCloseUrl = pathTo TablesAction
             modalTitle = "Generated Haskell Code"
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
-            customCss = preEscapedToHtml [plain|
+            customCss = [hsx|
             <style>
                 #modal-inner {
                     max-width: 90vw !important;

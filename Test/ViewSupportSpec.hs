@@ -31,6 +31,7 @@ import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
 import IHP.ApplicationContext
+import qualified IHP.HSX.Html as HSX
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -134,6 +135,6 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 id :: Id' "users"
                 id = Id ("70a10b53-a776-470a-91a8-900cdda06aa2" :: UUID)
             
-            (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\">"
+            (HSX.renderHtml [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\">"
 
 type instance PrimaryKey "users" = UUID

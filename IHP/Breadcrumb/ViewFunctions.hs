@@ -11,7 +11,7 @@ import IHP.Breadcrumb.Types
 
 import IHP.ControllerSupport
 
-import Text.Blaze.Html (Html)
+import IHP.HSX.Html (Html)
 
 import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)

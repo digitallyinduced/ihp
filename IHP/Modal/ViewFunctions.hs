@@ -9,7 +9,7 @@ import IHP.Prelude
 import IHP.Controller.Context
 import IHP.HSX.QQ (hsx)
 import IHP.Modal.Types
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Html (Html)
 
 renderModal modal = renderModal' modal True
 renderModal' Modal { .. } show = [hsx|

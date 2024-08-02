@@ -12,6 +12,8 @@
 , haskell-src-meta
 , containers
 , unordered-containers
+, hspec
+, binary
 }:
 mkDerivation {
   pname = "ihp-hsx";
@@ -31,6 +33,21 @@ mkDerivation {
     template-haskell
     containers
     unordered-containers
+    binary
+  ];
+  testHaskellDepends = [
+    classy-prelude
+    string-conversions
+    blaze-html
+    blaze-markup
+    text
+    bytestring
+    basic-prelude
+    megaparsec
+    template-haskell
+    containers
+    unordered-containers
+    hspec
   ];
   license = lib.licenses.mit;
   enableLibraryForGhci = true;

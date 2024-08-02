@@ -18,7 +18,7 @@ import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Context
 import IHP.Controller.Response (respondAndExit)
-
+import qualified IHP.HSX.Html as HSX
 
 -- | Stops the action execution with an access denied message (403) when the access condition is True.
 --
@@ -63,7 +63,7 @@ buildAccessDeniedResponse = do
 
 -- | The default IHP 403 not found page
 defaultAccessDeniedResponse :: Response
-defaultAccessDeniedResponse = responseBuilder status403 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
+defaultAccessDeniedResponse = responseBuilder status403 [(hContentType, "text/html")] $ HSX.renderHtmlBuilder [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>
