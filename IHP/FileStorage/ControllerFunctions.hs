@@ -112,7 +112,7 @@ storeFileWithOptions fileInfo options = do
                 |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = ?context.frameworkConfig
-            pure $ frameworkConfig.baseUrl <> "/" <> objectPath
+            pure $ "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> (.fileContent)
