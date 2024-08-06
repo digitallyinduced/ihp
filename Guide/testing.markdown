@@ -346,6 +346,11 @@ jobs:
 
     - name: Run project and tests
       run: |
+          # @see https://github.com/actions/runner-images/issues/2840#issuecomment-1284059930
+          # IHP - NixOS requires a lots of disk space.
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
           # Build generated files.
           nix-shell --run "make build/Generated/Types.hs"
 
