@@ -12,7 +12,7 @@
         flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
         # used for setting up development environments
-        devenv.url = "github:cachix/devenv?rev=800f19d1b999f89464fd8e0226abf4b3b444b0fa";
+        devenv.url = "github:cachix/devenv?rev=6e318854efa95c5e67a1152547f838754e8f0306";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
         # TODO use a corresponding release branch
