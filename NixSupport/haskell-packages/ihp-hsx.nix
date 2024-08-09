@@ -12,6 +12,7 @@
 , haskell-src-meta
 , containers
 , unordered-containers
+, hspec
 }:
 mkDerivation {
   pname = "ihp-hsx";
@@ -32,6 +33,7 @@ mkDerivation {
     containers
     unordered-containers
   ];
+  testHaskellDepends = [ hspec ];
   license = lib.licenses.mit;
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";

@@ -551,9 +551,18 @@ compileCreate table@(CreateTable { name, columns }) =
         values = commaSep (map columnPlaceholder writableColumns)
 
         toBinding column@(Column { name }) =
-            if hasExplicitOrImplicitDefault column
-                then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
-                else "model." <> columnNameToFieldName name
+                if hasExplicitOrImplicitDefault column && not isArrayColumn
+                    then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+                    else "model." <> columnNameToFieldName name
+            where
+                -- We cannot use DEFAULT with array columns as postgres will throw an error:
+                --
+                -- > DEFAULT is not allowed in this context
+                --
+                -- To walk around this error, we explicitly specify an empty array.
+                isArrayColumn = case column.columnType of
+                    PArray _ -> True
+                    _        -> False
 
 
         bindings :: [Text]
