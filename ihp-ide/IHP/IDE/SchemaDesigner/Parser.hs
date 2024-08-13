@@ -118,7 +118,7 @@ createTable = do
             _ -> Prelude.fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> Prelude.fail "Multiple columns with PRIMARY KEY constraint"
 
-    pure CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged }
+    pure CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }
 
 createEnumType = do
     lexeme "CREATE"
