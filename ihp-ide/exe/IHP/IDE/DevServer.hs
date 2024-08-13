@@ -1,4 +1,4 @@
-module Main (main) where
+module Main (main, mainInParentDirectory) where
 
 import ClassyPrelude
 import qualified System.Process as Process
@@ -30,9 +30,25 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
 import qualified System.Environment as Env
+import qualified System.Directory as Directory
+
+mainInParentDirectory :: IO ()
+mainInParentDirectory = do
+    cwd <- Directory.getCurrentDirectory
+    let projectDir = cwd <> "/../"
+    Directory.setCurrentDirectory projectDir
+
+    Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
+    Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
+    Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
+
+    mainWithOptions True
 
 main :: IO ()
-main = withUtf8 do
+main = mainWithOptions False
+
+mainWithOptions :: Bool -> IO ()
+mainWithOptions wrapWithDirenv = withUtf8 do
     actionVar <- newEmptyMVar
     appStateRef <- emptyAppState >>= newIORef
     portConfig <- findAvailablePortConfig
@@ -45,7 +61,7 @@ main = withUtf8 do
     logger <- Log.newLogger def
     (ghciInChan, ghciOutChan) <- Queue.newChan
     liveReloadClients <- newIORef mempty
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, liveReloadClients }
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, liveReloadClients, wrapWithDirenv }
 
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -215,7 +231,7 @@ startOrWaitPostgres = do
         startPostgres
         pure ()
 
-startGHCI :: IO ManagedProcess
+startGHCI :: (?context :: Context) => IO ManagedProcess
 startGHCI = do
     let args =
             [ "-threaded"
@@ -227,7 +243,8 @@ startGHCI = do
             , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
             , "+RTS", "-A128m", "-n2m", "-H2m", "--nonmoving-gc", "-N"
             ]
-    createManagedProcess (Process.proc "ghci" args)
+
+    createManagedProcess (procDirenvAware "ghci" args)
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
