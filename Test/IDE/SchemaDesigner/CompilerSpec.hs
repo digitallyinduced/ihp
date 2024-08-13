@@ -628,7 +628,7 @@ tests = do
                     , indexType = Nothing
                     }
             compileSql [statement] `shouldBe` sql
-        
+
         it "should escape an index name inside a 'CREATE INDEX' statement" do
             let sql = cs [plain|CREATE INDEX "Some Index" ON "Some Table" ("Some Col");\n|]
             let statement = CreateIndex
@@ -841,7 +841,7 @@ tests = do
                         )
                     }
             compileSql [policy] `shouldBe` sql
-        
+
         it "should compile 'CREATE POLICY' statements with a 'ihp_user_id() IS NOT NULL' expression" do
             -- https://github.com/digitallyinduced/ihp/issues/1412
             let sql = "CREATE POLICY \"Users can manage tasks if logged in\" ON tasks USING (ihp_user_id() IS NOT NULL) WITH CHECK (ihp_user_id() IS NOT NULL);\n"
@@ -1040,7 +1040,7 @@ tests = do
         it "should compile 'CREATE UNLOGGED TABLE' statements" do
             let sql = [trimming|
                 CREATE UNLOGGED TABLE pg_large_notifications (
-                
+
                 );
             |] <> "\n"
             let statements = [
@@ -1068,3 +1068,22 @@ tests = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+
+        it "should compile a CREATE TABLE statement with INHERITS" do
+            let sql = "CREATE TABLE child_table (\n    id UUID PRIMARY KEY\n) INHERITS (parent_table);\n"
+            let statement = StatementCreateTable CreateTable
+                    { name = "child_table"
+                    , columns = [Column
+                        { name = "id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , notNull = False
+                        , isUnique = False
+                        , generator = Nothing
+                        }]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    , unlogged = False
+                    , inherits = Just "parent_table"
+                    }
+            compileSql [statement] `shouldBe` sql
