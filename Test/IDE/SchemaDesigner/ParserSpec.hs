@@ -15,7 +15,7 @@ import GHC.IO (evaluate)
 tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -114,6 +114,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with a generated column" do
@@ -146,13 +147,14 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
-            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
 
         it "should parse a CREATE TABLE with public schema prefix" do
-            parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
 
         it "should parse ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             parseSql "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;" `shouldBe` AddConstraint
@@ -513,6 +515,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
@@ -525,6 +528,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
@@ -537,6 +541,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
@@ -551,6 +556,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
@@ -565,6 +571,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
@@ -578,6 +585,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
@@ -594,6 +602,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should fail to parse a CREATE TABLE statement with PRIMARY KEY column and table constraints" do
@@ -611,6 +620,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE statement with a bigserial id" do
@@ -620,6 +630,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE statement with an array column" do
@@ -629,6 +640,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE statement with a point column" do
@@ -638,6 +650,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE statement with a polygon column" do
@@ -647,6 +660,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE INDEX statement" do
@@ -805,14 +819,14 @@ $$;
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
         it "should parse a integer default value" do
             let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
@@ -900,7 +914,7 @@ $$;
             let sql = cs [plain|
                 CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
             |]
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
             parseSql sql `shouldBe` statement
 
 
@@ -924,6 +938,7 @@ $$;
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
             parseSql sql `shouldBe` statement
 
@@ -947,6 +962,7 @@ $$;
                     , primaryKeyConstraint = PrimaryKeyConstraint []
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
             parseSql sql `shouldBe` statement
         it "should parse a pg_dump header" do
@@ -1127,17 +1143,17 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse 'COMMIT' statements" do
             let sql = cs [plain|COMMIT;|]
             parseSql sql `shouldBe` Commit
-        
+
         it "should parse 'DROP FUNCTION ..' statements" do
             let sql = cs [plain|DROP FUNCTION my_function;|]
             parseSql sql `shouldBe` DropFunction { functionName = "my_function" }
-        
+
         it "should parse 'CREATE TABLE ..' statements when the table name starts with public" do
             let sql = cs [plain|CREATE TABLE public_variables (id UUID);|]
-            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = CreateTable {name = "public_variables", columns = [Column {name = "id", columnType = PUUID, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = []}, constraints = [], unlogged = False}}
+            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = CreateTable {name = "public_variables", columns = [Column {name = "id", columnType = PUUID, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = []}, constraints = [], unlogged = False, inherits = Nothing}}
 
         it "should parse an 'CREATE UNLOGGED TABLE' statement" do
-            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True }
+            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True, inherits = Nothing }
 
 
 col :: Column
