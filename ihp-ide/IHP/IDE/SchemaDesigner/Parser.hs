@@ -98,6 +98,8 @@ createTable = do
         columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> parseColumn)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
 
+    inherits <- optional parseInheritsClause
+
     char ';'
 
     -- Check that either there is a single column with a PRIMARY KEY constraint,
@@ -221,6 +223,12 @@ parseOnDelete = choice
         , (lexeme "SET" >> ((lexeme "NULL" >> pure SetNull) <|> (lexeme "DEFAULT" >> pure SetDefault)))
         , (lexeme "CASCADE" >> pure Cascade)
         ]
+
+parseInheritsClause :: Parser Text
+parseInheritsClause = do
+    lexeme "INHERITS"
+    parentTable <- between (char '(' >> space) (char ')' >> space) qualifiedIdentifier
+    pure parentTable
 
 parseColumn :: Parser (Bool, Column)
 parseColumn = do
