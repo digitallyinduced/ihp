@@ -82,7 +82,7 @@ use `make console` to load your application together with the framework located 
 
 ```
 ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
+:l IHP/ihp-ide/exe/IHP/IDE/DevServer.hs
 main
 ```
 
