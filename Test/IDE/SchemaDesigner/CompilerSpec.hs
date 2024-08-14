@@ -1058,9 +1058,10 @@ tests = do
                         StatementCreateTable CreateTable
                             { name = "pg_large_notifications"
                             , columns = []
+                            , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = True
-                            , primaryKeyConstraint = PrimaryKeyConstraint []
+                            , inherits = Nothing
                             }
                         ]
             compileSql statements `shouldBe` sql
