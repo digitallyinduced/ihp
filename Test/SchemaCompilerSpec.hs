@@ -184,12 +184,12 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                compileOutput `shouldBe` [trimming|
+                compileOutput `shouldBe` ([trimming|
                     data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User'
+                    type User = User'U+0020
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -246,6 +246,10 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
+                    -- Replace `U+0020` with a space.
+                    |> Text.replace "U+0020" " ")
+
+
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable CreateTable
                         { name = "users"
@@ -336,12 +340,12 @@ tests = do
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
-                compileOutput `shouldBe` [trimming|
+                compileOutput `shouldBe` ([trimming|
                     data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User'
+                    type User = User'U+0020
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -397,6 +401,9 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
+                    -- Replace `U+0020` with a space.
+                    |> Text.replace "U+0020" " ")
+
             it "should deal with multiple has many relationships to the same table" do
                 let statements = parseSqlStatements [trimming|
                     CREATE TABLE landing_pages (
