@@ -120,13 +120,13 @@ tests = do
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable
-                { name = "users",
-                , columns = [ Column "id" PUUID Nothing False False Nothing ]
-                , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                , constraints = []
-                , unlogged = False
-                , inherits = Nothing
-                }
+                    { name = "users"
+                    , columns = [ Column "id" PUUID Nothing False False Nothing ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    , unlogged = False
+                    , inherits = Nothing
+                    }
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
