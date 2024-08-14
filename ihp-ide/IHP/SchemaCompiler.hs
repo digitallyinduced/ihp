@@ -336,19 +336,38 @@ primaryKeyTypeName :: Text -> Text
 primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
 compileData :: (?schema :: Schema) => CreateTable -> Text
-compileData table@(CreateTable { name, columns }) =
-        "data " <> modelName <> "' " <> typeArguments
-        <> " = " <> modelName <> " {"
+compileData table@(CreateTable { name, inherits }) =
+    "data " <> modelName <> "' " <> typeArguments <> " = " <> modelName <> " {"
+    <>
+        parentFields
         <>
-            table
-            |> dataFields
-            |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
-            |> commaSep
-        <> "} deriving (Eq, Show)\n"
+        table
+        |> dataFields
+        |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
+        |> commaSep
+    <> "} deriving (Eq, Show)\n"
     where
         modelName = tableNameToModelName name
         typeArguments :: Text
         typeArguments = dataTypeArguments table |> unwords
+
+        -- Include fields from parent tables
+        parentFields = inherits
+            |> maybe "" (\parentTable -> compileParentFields parentTable)
+            |> (<> ", ")
+
+        compileParentFields parentTable =
+            let parentTableDef = findTableByName parentTable
+            in parentTableDef
+                |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
+                |> commaSep
+
+        findTableByName tableName = ?schema.statements
+            |> find (\case
+                StatementCreateTable CreateTable { name } | name == tableName -> True
+                _ -> False)
+
 
 compileInputValueInstance :: CreateTable -> Text
 compileInputValueInstance table =
@@ -642,19 +661,54 @@ compileUpdate table@(CreateTable { name, columns }) =
             )
 
 compileFromRowInstance :: (?schema :: Schema) => CreateTable -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
+compileFromRowInstance table@(CreateTable { name, columns, inherits }) = cs [i|
 instance FromRow #{modelName} where
     fromRow = do
-#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
+#{unsafeInit . indent . indent . unlines $ map columnBinding allColumnNames}
         let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
         pure theRecord
 
 |]
     where
         modelName = tableNameToModelName name
-        columnNames = map (columnNameToFieldName . (.name)) columns
+        allColumns = gatherColumns table
+        allColumnNames = map (columnNameToFieldName . (.name)) allColumns
+
+        columnBinding :: Text -> Text
         columnBinding columnName = columnName <> " <- field"
 
+        -- Recursively gather columns from the current table and all parent tables
+        gatherColumns :: CreateTable -> [Column]
+        gatherColumns CreateTable { columns, inherits = Nothing } = columns
+        gatherColumns CreateTable { columns, inherits = Just parentTableName } =
+            let parentColumns = findParentColumns parentTableName
+            in parentColumns ++ columns
+
+        -- Function to find the columns of a parent table by its name
+        findParentColumns :: Text -> [Column]
+        findParentColumns parentTableName =
+            case findTableByName parentTableName of
+                Just CreateTable {columns, primaryKeyConstraint} ->
+                    gatherColumns (CreateTable
+                        { name = parentTableName
+                        , columns = columns
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        , inherits = Nothing
+                        })
+                Nothing -> error ("Parent table " <> cs parentTableName <> " not found.")
+
+        -- Function to find a table by its name in the schema
+        findTableByName :: Text -> Maybe CreateTable
+        findTableByName tableName = ?schema.statements
+            |> mapMaybe (\case
+                StatementCreateTable table | table.name == tableName -> Just table
+                _ -> Nothing
+            )
+            |> listToMaybe
+
+        -- Original logic
         referencing = columnsReferencingTable table.name
 
         compileField (fieldName, _)
@@ -664,7 +718,7 @@ instance FromRow #{modelName} where
             | otherwise = "def"
 
         isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
-        isColumn name = name `elem` columnNames
+        isColumn name = name `elem` allColumnNames
         isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
         compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
@@ -693,40 +747,6 @@ instance FromRow #{modelName} where
                             Just refColumn -> refColumn
                             Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
-        compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
-        -- compileQuery column@(Column { name }) | isReferenceColum column = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
-        --compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
-        --    where
-        --        compileInverseOf Nothing = (columnNameToFieldName (singularize name)) <> "Id"
-        --        compileInverseOf (Just name) = columnNameToFieldName (singularize name)
-        --        relatedFieldName = compileInverseOf inverseOf
-        --        relatedIdField = relatedField "id"
-        --        relatedForeignKeyField = relatedField relatedFieldName
-        --        relatedField :: Text -> Attribute
-        --        relatedField relatedFieldName =
-        --            let
-        --                isFieldName name (Field fieldName _) = (columnNameToFieldName fieldName) == name
-        --                (Table _ attributes) = relatedTable
-        --            in case find (isFieldName relatedFieldName) (fieldsOnly attributes) of
-        --                Just a -> a
-        --                Nothing ->
-        --                    let (Table tableName _) = relatedTable
-        --                    in error (
-        --                            "Could not find field "
-        --                            <> show relatedFieldName
-        --                            <> " in table"
-        --                            <> cs tableName
-        --                            <> " "
-        --                            <> (show $ fieldsOnly attributes)
-        --                            <> ".\n\nThis is caused by `+ hasMany " <> show hasManyName <> "`"
-        --                        )
-        --        relatedTable = case find (\(Table tableName _) -> tableName == hasManyName) database of
-        --            Just t -> t
-        --            Nothing -> error ("Could not find table " <> show hasManyName)
-        --        toBinding' modelName attributes =
-        --            case relatedForeignKeyField of
-        --                Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
-        --                otherwise -> toBinding modelName attributes
 
 compileBuild :: (?schema :: Schema) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =
