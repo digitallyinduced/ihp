@@ -119,12 +119,13 @@ tests = do
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
         describe "compileCreate" do
-            let statement = StatementCreateTable $ CreateTable {
-                    name = "users",
-                    columns = [ Column "id" PUUID Nothing False False Nothing ],
-                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                    constraints = [],
-                    unlogged = False
+            let statement = StatementCreateTable $ CreateTable
+                { name = "users",
+                , columns = [ Column "id" PUUID Nothing False False Nothing ]
+                , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                , constraints = []
+                , unlogged = False
+                , inherits = Nothing
                 }
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -151,13 +152,14 @@ tests = do
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
-                let statement = StatementCreateTable $ CreateTable {
-                    name = "users",
-                    columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
-                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                    constraints = []
+                let statement = StatementCreateTable $ CreateTable
+                    { name = "users"
+                    , columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
                     , unlogged = False
-                }
+                    , inherits = Nothing
+                    }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
@@ -177,6 +179,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -185,7 +188,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -252,6 +255,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -260,7 +264,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -327,6 +331,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -335,7 +340,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -415,7 +420,7 @@ tests = do
                     data LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages = LandingPage {id :: (Id' "landing_pages"), paragraphCtasLandingPages :: paragraphCtasLandingPages, paragraphCtasToLandingPages :: paragraphCtasToLandingPages, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "landing_pages" = UUID
-                    
+
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
@@ -481,6 +486,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -513,7 +519,7 @@ tests = do
                 isTargetTable otherwise = False
             let (Just statement) = find isTargetTable statements
             let compileOutput = compileStatementPreview statements statement |> Text.strip
-        
+
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
                     instance CanCreate Thing where
@@ -582,7 +588,7 @@ tests = do
                 isNamedTable _ _ = False
             let (Just statement) = find (isNamedTable "bit_part_refs") statements
             let compileOutput = compileStatementPreview statements statement |> Text.strip
-        
+
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
                     instance CanCreate BitPartRef where
@@ -642,15 +648,16 @@ tests = do
                     |]
         describe "compileFilterPrimaryKeyInstance" do
             it "should compile FilterPrimaryKey instance when primary key is called id" do
-                let statement = StatementCreateTable $ CreateTable {
-                        name = "things",
-                        columns = [ Column "id" PUUID Nothing True True Nothing ],
-                        primaryKeyConstraint = PrimaryKeyConstraint ["id"],
-                        constraints = [],
-                        unlogged = False
-                    }
+                let statement = StatementCreateTable $ CreateTable
+                        { name = "things",
+                        , columns = [ Column "id" PUUID Nothing True True Nothing ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        , inherits = Nothing
+                        }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
-                
+
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
                     instance QueryBuilder.FilterPrimaryKey "things" where
                         filterWhereId id builder =
