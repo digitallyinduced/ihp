@@ -32,6 +32,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                     ]
         it "should build a view with name \"EditView\"" do

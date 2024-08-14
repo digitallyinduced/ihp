@@ -31,6 +31,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                     },
                     StatementCreateTable CreateTable {
                         name = "people"
@@ -65,6 +66,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                     }
                 ]
 
