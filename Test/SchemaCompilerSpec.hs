@@ -152,14 +152,15 @@ tests = do
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
-                let statement = StatementCreateTable $ CreateTable
-                    { name = "users"
-                    , columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing]
-                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
+                let statement = StatementCreateTable $ CreateTable {
+                    name = "users",
+                    columns = [ Column "id" PUUID Nothing True True Nothing, Column "ids" (PArray PUUID) Nothing False False Nothing],
+                    primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                    constraints = []
                     , unlogged = False
                     , inherits = Nothing
-                    }
+                }
+
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
@@ -648,14 +649,14 @@ tests = do
                     |]
         describe "compileFilterPrimaryKeyInstance" do
             it "should compile FilterPrimaryKey instance when primary key is called id" do
-                let statement = StatementCreateTable $ CreateTable
-                        { name = "things",
-                        , columns = [ Column "id" PUUID Nothing True True Nothing ]
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        , inherits = Nothing
-                        }
+                let statement = StatementCreateTable $ CreateTable {
+                        name = "things",
+                        columns = [ Column "id" PUUID Nothing True True Nothing ],
+                        primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                        constraints = [],
+                        unlogged = False,
+                        inherits = Nothing
+                    }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
