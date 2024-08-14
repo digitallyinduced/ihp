@@ -82,11 +82,12 @@ use `ghci` to load your application together with the framework located in `IHP`
 
 ```
 ghci
--- Add the IHP/ihp-ide directory to the load path
-:set -iIHP/ihp-ide
+
 -- Load the development server
-:l IHP/ihp-ide/exe/IHP/IDE/DevServer.hs
-main
+ :l ihp-ide/exe/IHP/IDE/DevServer.hs
+
+--  Run the IHP project in the parent project directory
+mainInParentDirectory
 ```
 
 We don't need to start postgres as the IDE starts it automatically.
