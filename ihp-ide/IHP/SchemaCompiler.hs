@@ -351,10 +351,11 @@ compileData table@(CreateTable { name, inherits }) =
         typeArguments :: Text
         typeArguments = dataTypeArguments table |> unwords
 
-        -- Include fields from parent tables
+        -- Include fields from parent table, if any.
         parentFields = inherits
             |> maybe "" (\parentTable -> compileParentFields parentTable)
-            |> (<> ", ")
+            -- Add comma, if there are fields from parent tables
+            |> (\parentFields -> if null parentFields then "" else parentFields <> ", ")
 
         compileParentFields parentTable =
             let parentTableDef = findTableByName parentTable
