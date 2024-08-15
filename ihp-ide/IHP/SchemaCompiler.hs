@@ -351,9 +351,10 @@ compileData table@(CreateTable { name, inherits }) =
         typeArguments :: Text
         typeArguments = dataTypeArguments table |> unwords
 
-        -- Include fields from parent table, if any.
+        -- If the table inherits from another table, include the fields from the parent table.
         parentFields = inherits
             |> maybe "" (\parentTable -> compileParentFields parentTable)
+
             -- Add comma, if there are fields from parent tables
             |> (\parentFields -> if null parentFields then "" else parentFields <> ", ")
 
@@ -361,6 +362,8 @@ compileData table@(CreateTable { name, inherits }) =
             let parentTableDef = findTableByName parentTable
             in parentTableDef
                 |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                -- Remove the MetaBag field from the parent table
+                |> filter (\(fieldName, _) -> fieldName /= "meta")
                 |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
                 |> commaSep
 
