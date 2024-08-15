@@ -362,7 +362,8 @@ compileData table@(CreateTable { name, inherits }) =
             let parentTableDef = findTableByName parentTable
             in parentTableDef
                 |> maybe [] (dataFields . (.unsafeGetCreateTable))
-                -- Remove the MetaBag field from the parent table
+                -- Remove the MetaBag field from the parent table.
+                -- @todo: Avoid clashing of field names.
                 |> filter (\(fieldName, _) -> fieldName /= "meta")
                 |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
                 |> commaSep
