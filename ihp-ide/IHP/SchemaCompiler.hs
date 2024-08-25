@@ -905,7 +905,30 @@ compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
 compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
-compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
+compileTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> "' " <> dataTypeCompiled
+    where
+        dataTypeCompiled = if null parentTypeArguments
+            then currentTypeArguments
+            else currentTypeArguments <> " " <> parentTypeArguments
+
+        currentTypeArguments = dataTypeArguments table |> unwords
+
+        modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentTypeArguments :: Text
+        parentTypeArguments =
+            case inherits of
+                Nothing -> ""
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            -- @todo: We should remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+                            |> unwords
 
 compileInclude :: (?schema :: Schema) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
