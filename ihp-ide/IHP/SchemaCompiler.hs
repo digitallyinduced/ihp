@@ -442,7 +442,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                 -- Of course having two fields in the same record does not work, so we have to
                 -- detect these duplicate query builder fields and use a more qualified name.
                 --
-                -- In the example this will lead to two fileds called @referralsUsers@ and @referralsReferredUsers@
+                -- In the example this will lead to two fields called @referralsUsers@ and @referralsReferredUsers@
                 -- being added to the data structure.
                 hasDuplicateQueryBuilder =
                     columns
