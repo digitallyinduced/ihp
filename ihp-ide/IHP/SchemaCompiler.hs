@@ -348,25 +348,41 @@ compileData table@(CreateTable { name, inherits }) =
     <> "} deriving (Eq, Show)\n"
     where
         modelName = tableNameToModelName name
+
         typeArguments :: Text
-        typeArguments = dataTypeArguments table |> unwords
+        typeArguments =
+                if null parentTypeArguments
+                   then currentTypeArguments
+                   else currentTypeArguments <> " " <> parentTypeArguments
+                where
+                    currentTypeArguments = dataTypeArguments table |> unwords
+
+        parentTypeArguments :: Text
+        parentTypeArguments =
+            case inherits of
+                Nothing -> ""
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            |> unwords
 
         -- If the table inherits from another table, include the fields from the parent table.
         parentFields = inherits
             |> maybe "" (\parentTable -> compileParentFields parentTable)
-
             -- Add comma, if there are fields from parent tables
             |> (\parentFields -> if null parentFields then "" else parentFields <> ", ")
 
         compileParentFields parentTable =
-            let parentTableDef = findTableByName parentTable
-            in parentTableDef
-                |> maybe [] (dataFields . (.unsafeGetCreateTable))
-                -- Remove the MetaBag field from the parent table.
-                -- @todo: Avoid clashing of field names.
-                |> filter (\(fieldName, _) -> fieldName /= "meta")
-                |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
-                |> commaSep
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                    |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                    -- Remove the MetaBag field from the parent table.
+                    -- @todo: Avoid clashing of field names.
+                    |> filter (\(fieldName, _) -> fieldName /= "meta")
+                    |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
+                    |> commaSep
+                    -- |> \e -> error (show parentTable ++ show e ++ show parentTableDef)
 
         findTableByName tableName = ?schema.statements
             |> find (\case
@@ -713,7 +729,6 @@ instance FromRow #{modelName} where
             )
             |> listToMaybe
 
-        -- Original logic
         referencing = columnsReferencingTable table.name
 
         compileField (fieldName, _)
