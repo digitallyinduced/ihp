@@ -390,11 +390,6 @@ compileData table@(CreateTable { name, inherits }) =
                     |> commaSep
                     -- |> \e -> error (show parentTable ++ show e ++ show parentTableDef)
 
-        findTableByName tableName = ?schema.statements
-            |> find (\case
-                StatementCreateTable CreateTable { name } | name == tableName -> True
-                _ -> False)
-
 
 compileInputValueInstance :: CreateTable -> Text
 compileInputValueInstance table =
@@ -892,9 +887,16 @@ instance #{instanceHead} where
         primaryKeyToCondition :: Column -> Text
         primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
-        columnNames = columns
+        currentColumnNames = columns
                 |> map (.name)
-                |> tshow
+
+        parentColumnNames = case table.inherits of
+            Just parentTableName -> findTableByName parentTableName
+                |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                |> map fst
+            Nothing -> []
+
+        columnNames = tshow $ currentColumnNames <> parentColumnNames
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
@@ -1013,3 +1015,9 @@ hasExplicitOrImplicitDefault column = case column of
         Column { columnType = PSerial } -> True
         Column { columnType = PBigserial } -> True
         _ -> False
+
+
+findTableByName tableName = ?schema.statements
+    |> find (\case
+        StatementCreateTable CreateTable { name } | name == tableName -> True
+        _ -> False)
