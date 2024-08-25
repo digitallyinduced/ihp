@@ -364,6 +364,7 @@ compileData table@(CreateTable { name, inherits }) =
                 Just parentTable ->
                     let parentTableDef = findTableByName parentTable
                     in parentTableDef
+                            -- @todo: We should remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
                             |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
                             |> unwords
 
