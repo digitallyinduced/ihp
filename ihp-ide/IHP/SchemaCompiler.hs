@@ -893,6 +893,7 @@ instance #{instanceHead} where
         parentColumnNames = case table.inherits of
             Just parentTableName -> findTableByName parentTableName
                 |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                |> filter (\(fieldName, _) -> fieldName /= "meta")
                 |> map fst
             Nothing -> []
 
