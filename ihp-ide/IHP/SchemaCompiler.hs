@@ -1023,7 +1023,7 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
 
 compileUpdateFieldInstances :: (?schema :: Schema) => CreateTable -> Text
 compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) =
-    unlines (map compileSetField (dataFields table))
+    unlines (map compileSetField (dataFieldsIncludingParents table))
     where
         modelName = tableNameToModelName name
 
@@ -1042,23 +1042,42 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) =
                            <> filter (\fieldName -> Text.toLower fieldName /= colName) parentTypeArgs
                     Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
 
+        -- Gather data fields including those from parent tables.
+        dataFieldsIncludingParents :: (?schema :: Schema) => CreateTable -> [(Text, Text)]
+        dataFieldsIncludingParents table@(CreateTable { inherits }) =
+            let currentFields = dataFields table
+                parentFields = case inherits of
+                    Nothing -> []
+                    Just parentTableName ->
+                        let parentTableDef = findTableByName parentTableName
+                        in parentTableDef
+                            |> maybe [] (dataFieldsIncludingParents . (.unsafeGetCreateTable))
+                            -- Filter out `meta`, fields with the same name as current table, and `id` field from parent.
+                            |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+            in parentFields <> currentFields
+
         compileSetField (name, fieldType) =
-            "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+            "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> patternMatch <> ") = " <> modelName <> " " <> fieldReconstruction
             where
                 (valueTypeA, valueTypeB) =
                     if name `elem` typeArgs
                         then (name, name <> "'")
                         else (fieldType, fieldType)
 
-                compileAttribute name'
-                    | name' == name = "newValue"
-                    | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
-                    | otherwise = name'
+                -- Pattern matching with the correct order of fields
+                patternMatch = unwords (map (\field -> columnNameToFieldName field) allFieldNames)
 
-                compileTypePattern' ::  Text -> Text
+                -- Field reconstruction in the correct order, replacing the updated field with `newValue`
+                fieldReconstruction = unwords (map (\field -> if field == name then "newValue" else columnNameToFieldName field) allFieldNames)
+
+                -- Collect all field names in the correct order, including parent fields
+                allFieldNames = dataFieldsIncludingParents table |> map fst
+
+                compileTypePattern' :: Text -> Text
                 compileTypePattern' name =
                     let filteredArgs = map (\f -> if f == name then name <> "'" else f) typeArgs
                     in tableNameToModelName table.name <> "' " <> unwords filteredArgs
+
 
 
 compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
