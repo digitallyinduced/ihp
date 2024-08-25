@@ -384,7 +384,8 @@ compileData table@(CreateTable { name, inherits }) =
                     |> maybe [] (dataFields . (.unsafeGetCreateTable))
                     -- Remove the MetaBag field from the parent table.
                     -- @todo: Avoid clashing of field names.
-                    |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName)
+                    -- @todo: Check name of `id` column.
+                    |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
                     |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
                     |> commaSep
                     -- |> \e -> error (show parentTable ++ show e ++ show parentTableDef)
