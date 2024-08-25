@@ -349,6 +349,9 @@ compileData table@(CreateTable { name, inherits }) =
     where
         modelName = tableNameToModelName name
 
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
         typeArguments :: Text
         typeArguments =
                 if null parentTypeArguments
@@ -366,6 +369,7 @@ compileData table@(CreateTable { name, inherits }) =
                     in parentTableDef
                             -- @todo: We should remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
                             |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
                             |> unwords
 
         -- If the table inherits from another table, include the fields from the parent table.
@@ -380,7 +384,7 @@ compileData table@(CreateTable { name, inherits }) =
                     |> maybe [] (dataFields . (.unsafeGetCreateTable))
                     -- Remove the MetaBag field from the parent table.
                     -- @todo: Avoid clashing of field names.
-                    |> filter (\(fieldName, _) -> fieldName /= "meta")
+                    |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName)
                     |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
                     |> commaSep
                     -- |> \e -> error (show parentTable ++ show e ++ show parentTableDef)
