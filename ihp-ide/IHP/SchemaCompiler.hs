@@ -317,13 +317,15 @@ tableHasPrimaryKey :: CreateTable -> Bool
 tableHasPrimaryKey table = table.primaryKeyConstraint /= (PrimaryKeyConstraint [])
 
 compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
-compileTypeAlias table@(CreateTable { name, columns }) =
+compileTypeAlias table@(CreateTable { name, columns, inherits }) =
         "type "
         <> modelName
         <> " = "
         <> modelName
         <> "' "
         <> unwords (map (haskellType table) (variableAttributes table))
+        <> " "
+        <> unwords parentVariables
         <> hasManyDefaults
         <> "\n"
     where
@@ -331,6 +333,17 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         hasManyDefaults = columnsReferencingTable name
                 |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
+
+        parentVariables = case inherits of
+                Nothing -> []
+                Just parentTableName ->
+                    case findTableByName parentTableName of
+                        Just parentTable ->
+                            let parentCreateTable = parentTable.unsafeGetCreateTable
+                            in map (haskellType parentCreateTable) (variableAttributes parentCreateTable)
+                        -- Satisfy the compiler.
+                        Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name
+
 
 primaryKeyTypeName :: Text -> Text
 primaryKeyTypeName name = "Id' " <> tshow name <> ""
