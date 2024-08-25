@@ -823,9 +823,25 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
 toDefaultValueExpr _ = "def"
 
 compileHasTableNameInstance :: (?schema :: Schema) => CreateTable -> Text
-compileHasTableNameInstance table@(CreateTable { name }) =
-    "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
-    <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
+compileHasTableNameInstance table@(CreateTable { name, inherits }) =
+    let
+        -- Convert the model name to its plural, lowercase form to match the column name.
+        colName = tableNameToModelName name |> pluralize |> Text.toLower
+
+        -- Determine the type arguments considering inheritance.
+        typeArguments = case inherits of
+            Nothing -> map (const "_") (dataTypeArguments table)
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        let parentTypeArgs = dataTypeArguments parentTable.unsafeGetCreateTable
+                        in map (const "_") (dataTypeArguments table)
+                           <> filter (\fieldName -> Text.toLower fieldName /= colName) parentTypeArgs
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+    in
+        "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords typeArguments <>  ") = " <> tshow name <> "\n"
+        <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"
