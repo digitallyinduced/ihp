@@ -663,11 +663,27 @@ toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameTo
 
 onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNothing generator)
 
-compileUpdate :: CreateTable -> Text
-compileUpdate table@(CreateTable { name, columns }) =
+compileUpdate :: (?schema :: Schema) => CreateTable -> Text
+compileUpdate table@(CreateTable { name, columns, inherits }) =
     let
         modelName = tableNameToModelName name
-        writableColumns = onlyWritableColumns columns
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        writableColumns = onlyWritableColumns allColumns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
         toPrimaryKeyBinding Column { name } = "model." <> columnNameToFieldName name
