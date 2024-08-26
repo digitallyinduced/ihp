@@ -592,11 +592,27 @@ columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypeca
         columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
         columnPlaceholderNeedsTypecast _ = False
 
-compileCreate :: CreateTable -> Text
-compileCreate table@(CreateTable { name, columns }) =
+compileCreate :: (?schema :: Schema) => CreateTable -> Text
+compileCreate table@(CreateTable { name, columns, inherits }) =
     let
-        writableColumns = onlyWritableColumns columns
         modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        writableColumns = onlyWritableColumns allColumns
         columnNames = commaSep (map (.name) writableColumns)
         values = commaSep (map columnPlaceholder writableColumns)
 
