@@ -401,7 +401,6 @@ compileData table@(CreateTable { name, inherits }) =
                     |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
                     |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
                     |> commaSep
-                    -- |> \e -> error (show parentTable ++ show e ++ show parentTableDef)
 
 
 compileInputValueInstance :: CreateTable -> Text
@@ -1067,7 +1066,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = un
 
         allTypeArguments = currentTypeArguments <> parentTypeArguments
 
-        currentDataFields = dataFields table
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
 
         parentDataFields = case inherits of
             Nothing -> []
@@ -1077,10 +1076,10 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = un
                         |> maybe [] (dataFields . (.unsafeGetCreateTable))
                         -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
                         -- @todo: Check name of `id` column.
-                        |> filter (\(fieldName, _) -> Text.toLower fieldName /= colName && fieldName /= "id")
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
 
 
-        allDateFields = currentDataFields <> parentDataFields
+        allDateFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
 
         compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (allDateFields |> map fst)))
             where
