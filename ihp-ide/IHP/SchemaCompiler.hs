@@ -950,7 +950,27 @@ compileGetModelName table@(CreateTable { name, inherits }) =
 
 
 compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
-compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
+compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> " " <> unwords (allDateFields |> map fst)
+    where
+        modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentDataFields = dataFields table
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        allDateFields = currentDataFields <> parentDataFields
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
 compileTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> "' " <> dataTypeCompiled
@@ -1054,7 +1074,8 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = un
                 in parentTableDef
                         |> maybe [] (dataFields . (.unsafeGetCreateTable))
                         -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
-                        |> filter (\(fieldName, _) -> fieldName /= "meta")
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
 
 
         allDateFields = currentDataFields <> parentDataFields
