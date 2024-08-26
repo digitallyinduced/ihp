@@ -779,10 +779,28 @@ instance FromRow #{modelName} where
 
 
 compileBuild :: (?schema :: Schema) => CreateTable -> Text
-compileBuild table@(CreateTable { name, columns }) =
+compileBuild table@(CreateTable { name, columns, inherits }) =
         "instance Record " <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
+        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr allColumns) <> " " <> (allColumnsReferencingTable |> map (const "def") |> unwords) <> " def\n"
+    where
+        (parentColumns, parentColumnsReferencingTable) = case inherits of
+            Nothing -> ([], [])
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        (parentTable.unsafeGetCreateTable.columns, columnsReferencingTable parentTableName)
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        allColumnsReferencingTable = columnsReferencingTable name <> parentColumnsReferencingTable
+
+
+
+
 
 
 compileDefaultIdInstance :: CreateTable -> Text
