@@ -970,7 +970,10 @@ compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModel
                         |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
 
 
+        -- Place the `meta` as the last value.
         allDateFields = currentDataFields <> parentDataFields
+            |> filter (\(fieldName, _) -> fieldName /= "meta")
+            |> \fields -> fields <> [("meta", "MetaBag")]
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
 compileTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> "' " <> dataTypeCompiled
