@@ -1075,7 +1075,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = un
                         |> maybe [] (dataFields . (.unsafeGetCreateTable))
                         -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
                         -- @todo: Check name of `id` column.
-                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+                        |> filter (\(fieldName, _) -> Text.toLower fieldName /= colName && fieldName /= "id")
 
 
         allDateFields = currentDataFields <> parentDataFields
