@@ -1048,21 +1048,54 @@ compileTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName
                             |> unwords
 
 compileInclude :: (?schema :: Schema) => CreateTable -> Text
-compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
+compileInclude table@(CreateTable { name, columns, inherits }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
-        belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        belongsToIncludes = map compileBelongsTo (filter (isRefCol table) allColumns)
         hasManyIncludes = columnsReferencingTable name
                 |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
                 |> map compileHasMany
-        typeArgs = dataTypeArguments table
+
         modelName = tableNameToModelName name
         modelConstructor = modelName <> "'"
+
+
+        currentTypeArguments = dataTypeArguments table
+
+        parentTypeArguments :: [Text]
+        parentTypeArguments =
+            case inherits of
+                Nothing -> []
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+
+
+        allTypeArguments = currentTypeArguments <> parentTypeArguments
+
 
         includeType :: Text -> Text -> Text
         includeType fieldName includedType = "type instance Include " <> tshow fieldName <> " (" <> leftModelType <> ") = " <> rightModelType
             where
-                leftModelType = unwords (modelConstructor:typeArgs)
-                rightModelType = unwords (modelConstructor:(map compileTypeVariable' typeArgs))
+                leftModelType = unwords (modelConstructor:allTypeArguments)
+                rightModelType = unwords (modelConstructor:(map compileTypeVariable' allTypeArguments))
                 compileTypeVariable' name | name == fieldName = includedType
                 compileTypeVariable' name = name
 
