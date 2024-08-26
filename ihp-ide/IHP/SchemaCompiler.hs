@@ -1107,7 +1107,7 @@ compileInclude table@(CreateTable { name, columns, inherits }) = (belongsToInclu
 
 
 compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
-compileSetFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField (dataFields table))
+compileSetFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField allDataFields)
     where
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
         modelName = tableNameToModelName name
