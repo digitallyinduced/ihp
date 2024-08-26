@@ -784,13 +784,17 @@ compileBuild table@(CreateTable { name, columns, inherits }) =
         <> "    {-# INLINE newRecord #-}\n"
         <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr allColumns) <> " " <> (allColumnsReferencingTable |> map (const "def") |> unwords) <> " def\n"
     where
+        colName = tableNameToModelName name |> pluralize |> Text.toLower
+
         (parentColumns, parentColumnsReferencingTable) = case inherits of
             Nothing -> ([], [])
             Just parentTableName ->
                 let parentTableDef = findTableByName parentTableName
                 in case parentTableDef of
                     Just parentTable ->
-                        (parentTable.unsafeGetCreateTable.columns, columnsReferencingTable parentTableName)
+                        ( parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+                        , columnsReferencingTable parentTableName
+                        )
 
                     Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
 
