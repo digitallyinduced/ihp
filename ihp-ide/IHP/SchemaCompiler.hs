@@ -800,7 +800,8 @@ compileBuild table@(CreateTable { name, columns, inherits }) =
 
         allColumns = columns <> parentColumns
 
-        allColumnsReferencingTable = columnsReferencingTable name <> parentColumnsReferencingTable
+        -- @todo: Parent is not needed?
+        allColumnsReferencingTable = columnsReferencingTable name -- <> parentColumnsReferencingTable
 
 
 
