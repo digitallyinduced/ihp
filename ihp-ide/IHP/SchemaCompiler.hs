@@ -1023,16 +1023,35 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
 
 
 compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
-compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
+compileSetFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField (dataFields table))
     where
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
         modelName = tableNameToModelName name
-        typeArgs = dataTypeArguments table
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        allDataFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
+
+
         compileSetField (name, fieldType) =
             "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
             "    {-# INLINE setField #-}\n" <>
             "    setField newValue (" <> compileDataTypePattern table <> ") =\n" <>
-            "        " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+            "        " <> modelName <> " " <> (unwords (map compileAttribute (allDataFields |> map fst)))
             where
                 compileAttribute name'
                     | name' == name = "newValue"
@@ -1040,14 +1059,13 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
                     | otherwise = name'
 
 compileUpdateFieldInstances :: (?schema :: Schema) => CreateTable -> Text
-compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField (dataFields table))
+compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField allDataFields)
     where
         modelName = tableNameToModelName name
         -- @todo: Find a better way.
         colName = modelName |> pluralize |> Text.toLower
 
         currentTypeArguments = dataTypeArguments table
-
 
         parentTypeArguments :: [Text]
         parentTypeArguments =
