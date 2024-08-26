@@ -352,12 +352,9 @@ compileData :: (?schema :: Schema) => CreateTable -> Text
 compileData table@(CreateTable { name, inherits }) =
     "data " <> modelName <> "' " <> typeArguments <> " = " <> modelName <> " {"
     <>
-        parentFields
-        <>
-        table
-        |> dataFields
-        |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
-        |> commaSep
+        allDataFields
+            |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
+            |> commaSep
     <> "} deriving (Eq, Show)\n"
     where
         modelName = tableNameToModelName name
@@ -385,22 +382,22 @@ compileData table@(CreateTable { name, inherits }) =
                             |> filter (\fieldName -> Text.toLower fieldName /= colName)
                             |> unwords
 
-        -- If the table inherits from another table, include the fields from the parent table.
-        parentFields = inherits
-            |> maybe "" (\parentTable -> compileParentFields parentTable)
-            -- Add comma, if there are fields from parent tables
-            |> (\parentFields -> if null parentFields then "" else parentFields <> ", ")
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
 
-        compileParentFields parentTable =
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
                 let parentTableDef = findTableByName parentTable
                 in parentTableDef
-                    |> maybe [] (dataFields . (.unsafeGetCreateTable))
-                    -- Remove the MetaBag field from the parent table.
-                    -- @todo: Avoid clashing of field names.
-                    -- @todo: Check name of `id` column.
-                    |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
-                    |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
-                    |> commaSep
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        -- Place the `meta` as the last value.
+        allDataFields = currentDataFields <> parentDataFields
+            |> \fields -> fields <> [("meta", "MetaBag")]
 
 
 compileInputValueInstance :: CreateTable -> Text
@@ -949,7 +946,7 @@ compileGetModelName table@(CreateTable { name, inherits }) =
 
 
 compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
-compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> " " <> unwords (allDateFields |> map fst)
+compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> " " <> unwords (allDataFields |> map fst)
     where
         modelName = tableNameToModelName name
 
@@ -970,7 +967,7 @@ compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModel
 
 
         -- Place the `meta` as the last value.
-        allDateFields = currentDataFields <> parentDataFields
+        allDataFields = currentDataFields <> parentDataFields
             |> \fields -> fields <> [("meta", "MetaBag")]
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
@@ -1079,9 +1076,9 @@ compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = un
                         |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
 
 
-        allDateFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
+        allDataFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
 
-        compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (allDateFields |> map fst)))
+        compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (allDataFields |> map fst)))
             where
                 (valueTypeA, valueTypeB) =
                     if name `elem` allTypeArguments
