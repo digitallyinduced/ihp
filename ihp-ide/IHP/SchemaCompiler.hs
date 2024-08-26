@@ -957,7 +957,7 @@ compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModel
         -- @todo: Find a better way.
         colName = modelName |> pluralize |> Text.toLower
 
-        currentDataFields = dataFields table
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
 
         parentDataFields = case inherits of
             Nothing -> []
@@ -972,7 +972,6 @@ compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModel
 
         -- Place the `meta` as the last value.
         allDateFields = currentDataFields <> parentDataFields
-            |> filter (\(fieldName, _) -> fieldName /= "meta")
             |> \fields -> fields <> [("meta", "MetaBag")]
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
