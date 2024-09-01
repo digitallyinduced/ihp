@@ -222,6 +222,11 @@ renderColumnSelector tableName columns statements = [hsx|
                 {forEach columns (\column -> renderColumn (snd column) (fst column) tableName statements)}
             </tbody>
         </table>
+
+        <div>
+            Inherits: {inherits}
+        </div>
+
         {suggestedColumnsSection tableName columns}
     </section>
     {auth}
@@ -250,6 +255,16 @@ renderColumnSelector tableName columns statements = [hsx|
 
         auth :: Html
         auth = renderPolicies tableName statements
+
+        inherits = statements
+                |> find (\case
+                    StatementCreateTable CreateTable { name } | name == tableName -> True
+                    _ -> False)
+                -- Get the table that this table inherits from
+                |> \case
+                    Just (StatementCreateTable CreateTable { inherits }) -> inherits
+                    _ -> Nothing
+
 
 suggestedColumnsSection :: Text -> [(Int, Column)] -> Html
 suggestedColumnsSection tableName indexAndColumns = unless isUsersTable [hsx|
@@ -411,7 +426,7 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable}>Edit Foreign Key Constraint</a>
                 <a href={DeleteForeignKeyAction constraintName tableName} class="js-delete">Delete Foreign Key Constraint</a>|]
             _ -> [hsx|<a href={NewForeignKeyAction tableName name}>Add Foreign Key Constraint</a>|]
-        
+
         addIndex :: Html
         addIndex = unless alreadyHasIndex [hsx|
             <form method="POST" action={CreateIndexAction tableName name}>
