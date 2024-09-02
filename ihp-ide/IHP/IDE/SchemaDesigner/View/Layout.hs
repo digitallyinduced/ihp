@@ -261,9 +261,10 @@ renderColumnSelector tableName columns statements = [hsx|
                 _ -> False
             |> \case
                 Just (StatementCreateTable CreateTable { inherits = Just parentTableName }) ->
-                    [hsx|<div>
-                        This table <code>inherits</code> from table <code>{parentTableName}<code>
-                    </div>|]
+                    [hsx|<div class="pl-2">
+                        This table <code>inherits</code> from table <code>{parentTableName}</code>
+                        </div>
+                    |]
                 _ -> ""
 
 
