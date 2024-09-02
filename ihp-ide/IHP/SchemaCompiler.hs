@@ -342,6 +342,7 @@ compileTypeAlias table@(CreateTable { name, columns, inherits }) =
                             parentTypes = map (haskellType parentCreateTable) (variableAttributes parentCreateTable)
                         in if null parentTypes
                             then []
+                            -- Add space if there are parent types.
                             else " " : parentTypes
 
                     -- Satisfy the compiler.
