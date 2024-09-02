@@ -223,9 +223,7 @@ renderColumnSelector tableName columns statements = [hsx|
             </tbody>
         </table>
 
-        <div>
-            Inherits: {inherits}
-        </div>
+        {maybeInherits}
 
         {suggestedColumnsSection tableName columns}
     </section>
@@ -251,19 +249,23 @@ renderColumnSelector tableName columns statements = [hsx|
                         {renderColumnIndexes tableName statements}
                     </table>
                 |]
-                Nothing -> [hsx||]
+                Nothing -> ""
 
         auth :: Html
         auth = renderPolicies tableName statements
 
-        inherits = statements
-                |> find (\case
-                    StatementCreateTable CreateTable { name } | name == tableName -> True
-                    _ -> False)
-                -- Get the table that this table inherits from
-                |> \case
-                    Just (StatementCreateTable CreateTable { inherits }) -> inherits
-                    _ -> Nothing
+        maybeInherits =
+            statements
+            |> find \case
+                StatementCreateTable CreateTable { name } | name == tableName -> True
+                _ -> False
+            |> \case
+                Just (StatementCreateTable CreateTable { inherits = Just parentTableName }) ->
+                    [hsx|<div>
+                        This table <code>inherits</code> from table <code>{parentTableName}<code>
+                    </div>|]
+                _ -> ""
+
 
 
 suggestedColumnsSection :: Text -> [(Int, Column)] -> Html
