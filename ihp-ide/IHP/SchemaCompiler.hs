@@ -324,7 +324,6 @@ compileTypeAlias table@(CreateTable { name, columns, inherits }) =
         <> modelName
         <> "' "
         <> unwords (map (haskellType table) (variableAttributes table))
-        <> " "
         <> unwords parentVariables
         <> hasManyDefaults
         <> "\n"
@@ -335,14 +334,19 @@ compileTypeAlias table@(CreateTable { name, columns, inherits }) =
                 |> unwords
 
         parentVariables = case inherits of
-                Nothing -> []
-                Just parentTableName ->
-                    case findTableByName parentTableName of
-                        Just parentTable ->
-                            let parentCreateTable = parentTable.unsafeGetCreateTable
-                            in map (haskellType parentCreateTable) (variableAttributes parentCreateTable)
-                        -- Satisfy the compiler.
-                        Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name
+            Nothing -> []
+            Just parentTableName ->
+                case findTableByName parentTableName of
+                    Just parentTable ->
+                        let parentCreateTable = parentTable.unsafeGetCreateTable
+                            parentTypes = map (haskellType parentCreateTable) (variableAttributes parentCreateTable)
+                        in if null parentTypes
+                            then []
+                            else " " : parentTypes
+
+                    -- Satisfy the compiler.
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name
+
 
 
 primaryKeyTypeName :: Text -> Text
