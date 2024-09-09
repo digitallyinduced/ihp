@@ -13,6 +13,7 @@
 , rtsFlags ? ""
 , appName ? "app"
 , optimizationLevel ? "2"
+, filter
 }:
 
 let
@@ -31,13 +32,43 @@ let
     jobsBinary = if optimized
         then "build/bin/RunJobsOptimized"
         else "build/bin/RunJobs";
+
+    odir = if optimized then "RunOptimizedProdServer" else "RunUnoptimizedProdServer";
+
+    schemaObjectFiles =
+        let
+            self = projectPath;
+        in
+            pkgs.stdenv.mkDerivation {
+                name = appName + "-schema";
+                buildPhase = ''
+                    mkdir -p build/Generated
+                    build-generated-code
+
+                    export IHP=${ihp}/lib/IHP
+                    ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/${odir} -hidir build/${odir}
+
+                    cp -r build $out
+                '';
+                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; };
+                nativeBuildInputs =
+                    [ (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
+                    ]
+                ;
+                dontInstall = true;
+                dontFixup = false;
+            };
 in
     pkgs.stdenv.mkDerivation {
         name = appName;
         buildPhase = ''
             runHook preBuild
 
-            mkdir -p build
+            mkdir -p build/Generated build/${odir}
+            cp -r ${schemaObjectFiles}/${odir} build/
+            cp -r ${schemaObjectFiles}/Generated build/
+
+            chmod -R +w build/${odir}/*
 
             # When npm install is executed by the project's makefile it will fail with:
             #
@@ -111,7 +142,6 @@ in
         nativeBuildInputs = builtins.concatLists [
             [ pkgs.makeWrapper
             pkgs.cacert # Needed for npm install to work from within the IHP build process
-            ghc.ihp-ide # Needed for build-generated-code
             ]
             (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions)] else [])
         ];
