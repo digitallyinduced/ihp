@@ -148,6 +148,7 @@ ihpFlake:
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
                     appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -162,6 +163,7 @@ ihpFlake:
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
                     appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
