@@ -196,6 +196,7 @@ removeNoise = filter \case
 migrateTable :: Statement -> Statement -> [Statement]
 migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } StatementCreateTable { unsafeGetCreateTable = actualTable } = migrateTable' targetTable actualTable
     where
+        migrateTable' :: CreateTable -> CreateTable -> [Statement]
         migrateTable' CreateTable { name = tableName, columns = targetColumns } CreateTable { columns = actualColumns } =
                 (map dropColumn dropColumns <> map createColumn createColumns)
                     |> applyRenameColumn
@@ -451,7 +452,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
         --
         let
             defaultName = ([tableName] <> columnNames <> ["key"])
-                    |> Text.intercalate "_" 
+                    |> Text.intercalate "_"
         in
             if uniqueName == defaultName
                 then constraint { name = Nothing }

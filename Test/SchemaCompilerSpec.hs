@@ -675,6 +675,86 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                     |]
+        describe "compileCreate with INHERITS" do
+            it "should compile a table that inherits from another table" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE parent_table (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        parent_column TEXT NOT NULL
+                    );
+                    CREATE TABLE child_table (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        child_column INT NOT NULL
+                    ) INHERITS (parent_table);
+                |]
+                let (Just childTableStatement) = find isChildTable statements
+                let compileOutput = compileStatementPreview statements childTableStatement |> Text.strip
+
+                compileOutput `shouldBe` ([trimming|
+                    data ChildTable'  = ChildTable {id :: (Id' "child_table"), childColumn :: Int, parentColumn :: Text, meta :: MetaBag} deriving (Eq, Show)
+
+                    type instance PrimaryKey "child_table" = UUID
+
+                    type ChildTable = ChildTable'U+0020
+
+                    type instance GetTableName (ChildTable' ) = "child_table"
+                    type instance GetModelByTableName "child_table" = ChildTable
+
+                    instance Default (Id' "child_table") where def = Id def
+
+                    instance () => Table (ChildTable' ) where
+                        tableName = "child_table"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "child_table"
+                        columnNames = ["id","child_column","id","parentColumn"]
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
+
+
+                    instance InputValue ChildTable where inputValue = IHP.ModelSupport.recordToInputValue
+
+
+                    instance FromRow ChildTable where
+                        fromRow = do
+                            id <- field
+                            childColumn <- field
+                            parentColumn <- field
+                            let theRecord = ChildTable id childColumn parentColumn def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
+                    type instance GetModelName (ChildTable' ) = "ChildTable"
+
+                    instance CanCreate ChildTable where
+                        create :: (?modelContext :: ModelContext) => ChildTable -> IO ChildTable
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO child_table (id, child_column, parent_column) VALUES (?, ?, ?) RETURNING id, child_column, parent_column" ((fieldWithDefault #id model, model.childColumn, model.parentColumn))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO child_table (id, child_column, parent_column) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?, ?)") models)) <> " RETURNING id, child_column, parent_column") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model), toField (model.childColumn), toField (model.parentColumn)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => ChildTable -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO child_table (id, child_column, parent_column) VALUES (?, ?, ?)" ((fieldWithDefault #id model, model.childColumn, model.parentColumn))
+
+                    instance CanUpdate ChildTable where
+                        updateRecord model = do
+                            sqlQuerySingleRow "UPDATE child_table SET id = ?, child_column = ?, parent_column = ? WHERE id = ? RETURNING id, child_column, parent_column" ((fieldWithUpdate #id model, fieldWithUpdate #childColumn model, fieldWithUpdate #parentColumn model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE child_table SET id = ?, child_column = ?, parent_column = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #childColumn model, fieldWithUpdate #parentColumn model, model.id))
+
+                    instance Record ChildTable where
+                        {-# INLINE newRecord #-}
+                        newRecord = ChildTable def def def  def
+
+
+                    instance QueryBuilder.FilterPrimaryKey "child_table" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+                |]
+                    -- Replace `U+0020` with a space.
+                    |> Text.replace "U+0020" " ")
+
 
 getInstanceDecl :: Text -> Text -> Text
 getInstanceDecl instanceName full =
@@ -693,3 +773,8 @@ getInstanceDecl instanceName full =
             | isEmpty line = []
             | otherwise = line : takeInstanceDecl rest
         takeInstanceDecl [] = [] -- EOF reached
+
+isChildTable :: Statement -> Bool
+isChildTable (StatementCreateTable CreateTable { name = "child_table" }) = True
+isChildTable _ = False
+
