@@ -915,3 +915,11 @@ action CreatePostRevisionAction { postId } = do
 - **Fetch and Set**: The action fetches the current post by its `postId`, then creates a new `PostRevision` record by setting its fields based on the current state of the post.
 - **CreateRecord**: The new revision is inserted into the `post_revisions` table.
 - **Redirect**: After creating the revision, the user is redirected to the appropriate page, such as showing the post.
+
+### Note on Constraints in Inherited Tables
+
+When using table inheritance in PostgreSQL and IHP, it's important to understand that constraints such as **UNIQUE**, **PRIMARY KEY**, and other table-level constraints are **not inherited** by child tables. While the child table inherits all the columns from its parent table, it does not inherit the constraints applied to those columns.
+
+#### Why Constraints Are Not Inherited
+
+This behavior is particularly useful in scenarios like creating revision or history tables. For example, consider a `posts` table where the `title` column has a **UNIQUE** constraint to prevent duplicate titles. When creating a `post_revisions` table that inherits from `posts`, you wouldn't want the **UNIQUE** constraint on `title` to apply. This is because multiple revisions of the same post might have the same `title`, and enforcing uniqueness would prevent this.
