@@ -1278,7 +1278,7 @@ hasExplicitOrImplicitDefault column = case column of
 
 
 findTableByName :: (?schema :: Schema) => Text -> Maybe Statement
-findTableByName tableName = ?schema.statements
-    |> find (\case
-        StatementCreateTable CreateTable { name } | name == tableName -> True
-        _ -> False)
+findTableByName tableName = find matchesTable ?schema.statements
+    where
+        matchesTable (StatementCreateTable CreateTable { name }) = name == tableName
+        matchesTable _ = False
