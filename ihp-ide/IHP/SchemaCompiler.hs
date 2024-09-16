@@ -509,7 +509,7 @@ isVariableAttribute :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isVariableAttribute = isRefCol
 
 
--- | Returns @True@ when the coluns is referencing another column via foreign key constraint
+-- | Returns @True@ when the column is referencing another column via foreign key constraint
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isRefCol table column = isJust (findForeignKeyConstraint table column)
 
