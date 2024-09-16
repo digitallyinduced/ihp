@@ -431,7 +431,7 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
             let fieldName = columnNameToFieldName column.name
             in
                 ( fieldName
-                , if isVariableAttribute table column
+                , if isRefCol table column
                         then fieldName
                         else haskellType table column
                 )
@@ -503,11 +503,7 @@ columnsReferencingTable theTableName =
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema) => CreateTable -> [Column]
-variableAttributes table@(CreateTable { columns }) = filter (isVariableAttribute table) columns
-
-isVariableAttribute :: (?schema :: Schema) => CreateTable -> Column -> Bool
-isVariableAttribute = isRefCol
-
+variableAttributes table@(CreateTable { columns }) = filter (isRefCol table) columns
 
 -- | Returns @True@ when the column is referencing another column via foreign key constraint
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
