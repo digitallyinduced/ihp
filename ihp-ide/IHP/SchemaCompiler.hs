@@ -317,13 +317,14 @@ tableHasPrimaryKey :: CreateTable -> Bool
 tableHasPrimaryKey table = table.primaryKeyConstraint /= (PrimaryKeyConstraint [])
 
 compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
-compileTypeAlias table@(CreateTable { name, columns }) =
+compileTypeAlias table@(CreateTable { name, columns, inherits }) =
         "type "
         <> modelName
         <> " = "
         <> modelName
         <> "' "
         <> unwords (map (haskellType table) (variableAttributes table))
+        <> unwords parentVariables
         <> hasManyDefaults
         <> "\n"
     where
@@ -332,23 +333,77 @@ compileTypeAlias table@(CreateTable { name, columns }) =
                 |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
 
+        parentVariables = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                case findTableByName parentTableName of
+                    Just parentTable ->
+                        let parentCreateTable = parentTable.unsafeGetCreateTable
+                            parentTypes = map (haskellType parentCreateTable) (variableAttributes parentCreateTable)
+                        in if null parentTypes
+                            then []
+                            -- Add space if there are parent types.
+                            else " " : parentTypes
+
+                    -- Satisfy the compiler.
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name
+
+
+
 primaryKeyTypeName :: Text -> Text
 primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
 compileData :: (?schema :: Schema) => CreateTable -> Text
-compileData table@(CreateTable { name, columns }) =
-        "data " <> modelName <> "' " <> typeArguments
-        <> " = " <> modelName <> " {"
-        <>
-            table
-            |> dataFields
+compileData table@(CreateTable { name, inherits }) =
+    "data " <> modelName <> "' " <> typeArguments <> " = " <> modelName <> " {"
+    <>
+        allDataFields
             |> map (\(fieldName, fieldType) -> fieldName <> " :: " <> fieldType)
             |> commaSep
-        <> "} deriving (Eq, Show)\n"
+    <> "} deriving (Eq, Show)\n"
     where
         modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
         typeArguments :: Text
-        typeArguments = dataTypeArguments table |> unwords
+        typeArguments =
+                if null parentTypeArguments
+                   then currentTypeArguments
+                   else currentTypeArguments <> " " <> parentTypeArguments
+                where
+                    currentTypeArguments = dataTypeArguments table |> unwords
+
+        parentTypeArguments :: Text
+        parentTypeArguments =
+            case inherits of
+                Nothing -> ""
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+                            |> unwords
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        -- Place the `meta` as the last value.
+        allDataFields = currentDataFields <> parentDataFields
+            |> \fields -> fields <> [("meta", "MetaBag")]
+
 
 compileInputValueInstance :: CreateTable -> Text
 compileInputValueInstance table =
@@ -376,7 +431,7 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
             let fieldName = columnNameToFieldName column.name
             in
                 ( fieldName
-                , if isVariableAttribute table column
+                , if isRefCol table column
                         then fieldName
                         else haskellType table column
                 )
@@ -401,7 +456,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                 -- Of course having two fields in the same record does not work, so we have to
                 -- detect these duplicate query builder fields and use a more qualified name.
                 --
-                -- In the example this will lead to two fileds called @referralsUsers@ and @referralsReferredUsers@
+                -- In the example this will lead to two fields called @referralsUsers@ and @referralsReferredUsers@
                 -- being added to the data structure.
                 hasDuplicateQueryBuilder =
                     columns
@@ -448,13 +503,9 @@ columnsReferencingTable theTableName =
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema) => CreateTable -> [Column]
-variableAttributes table@(CreateTable { columns }) = filter (isVariableAttribute table) columns
+variableAttributes table@(CreateTable { columns }) = filter (isRefCol table) columns
 
-isVariableAttribute :: (?schema :: Schema) => CreateTable -> Column -> Bool
-isVariableAttribute = isRefCol
-
-
--- | Returns @True@ when the coluns is referencing another column via foreign key constraint
+-- | Returns @True@ when the column is referencing another column via foreign key constraint
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isRefCol table column = isJust (findForeignKeyConstraint table column)
 
@@ -542,11 +593,27 @@ columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypeca
         columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
         columnPlaceholderNeedsTypecast _ = False
 
-compileCreate :: CreateTable -> Text
-compileCreate table@(CreateTable { name, columns }) =
+compileCreate :: (?schema :: Schema) => CreateTable -> Text
+compileCreate table@(CreateTable { name, columns, inherits }) =
     let
-        writableColumns = onlyWritableColumns columns
         modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        writableColumns = onlyWritableColumns allColumns
         columnNames = commaSep (map (.name) writableColumns)
         values = commaSep (map columnPlaceholder writableColumns)
 
@@ -597,11 +664,27 @@ toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameTo
 
 onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNothing generator)
 
-compileUpdate :: CreateTable -> Text
-compileUpdate table@(CreateTable { name, columns }) =
+compileUpdate :: (?schema :: Schema) => CreateTable -> Text
+compileUpdate table@(CreateTable { name, columns, inherits }) =
     let
         modelName = tableNameToModelName name
-        writableColumns = onlyWritableColumns columns
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        writableColumns = onlyWritableColumns allColumns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
         toPrimaryKeyBinding Column { name } = "model." <> columnNameToFieldName name
@@ -642,17 +725,50 @@ compileUpdate table@(CreateTable { name, columns }) =
             )
 
 compileFromRowInstance :: (?schema :: Schema) => CreateTable -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
+compileFromRowInstance table@(CreateTable { name, columns, inherits }) = cs [i|
 instance FromRow #{modelName} where
     fromRow = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
+        let theRecord = #{modelName} #{intercalate " " (map compileField allDataFields)}
         pure theRecord
 
 |]
     where
         modelName = tableNameToModelName name
-        columnNames = map (columnNameToFieldName . (.name)) columns
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        -- Place the `meta` as the last value.
+        allDataFields = currentDataFields <> parentDataFields
+            |> \fields -> fields <> [("meta", "MetaBag")]
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        columnNames = map (columnNameToFieldName . (.name)) allColumns
         columnBinding columnName = columnName <> " <- field"
 
         referencing = columnsReferencingTable table.name
@@ -729,11 +845,29 @@ instance FromRow #{modelName} where
         --                otherwise -> toBinding modelName attributes
 
 compileBuild :: (?schema :: Schema) => CreateTable -> Text
-compileBuild table@(CreateTable { name, columns }) =
+compileBuild table@(CreateTable { name, columns, inherits }) =
         "instance Record " <> tableNameToModelName name <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
+        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr allColumns) <> " " <> (allColumnsReferencingTable |> map (const "def") |> unwords) <> " def\n"
+    where
+        colName = tableNameToModelName name |> pluralize |> Text.toLower
 
+        (parentColumns, parentColumnsReferencingTable) = case inherits of
+            Nothing -> ([], [])
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        ( parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+                        , columnsReferencingTable parentTableName
+                        )
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        -- @todo: Parent is not needed?
+        allColumnsReferencingTable = columnsReferencingTable name -- <> parentColumnsReferencingTable
 
 compileDefaultIdInstance :: CreateTable -> Text
 compileDefaultIdInstance table = "instance Default (Id' \"" <> table.name <> "\") where def = Id def"
@@ -769,9 +903,25 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
 toDefaultValueExpr _ = "def"
 
 compileHasTableNameInstance :: (?schema :: Schema) => CreateTable -> Text
-compileHasTableNameInstance table@(CreateTable { name }) =
-    "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
-    <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
+compileHasTableNameInstance table@(CreateTable { name, inherits }) =
+    let
+        -- Convert the model name to its plural, lowercase form to match the column name.
+        colName = tableNameToModelName name |> pluralize |> Text.toLower
+
+        -- Determine the type arguments considering inheritance.
+        typeArguments = case inherits of
+            Nothing -> map (const "_") (dataTypeArguments table)
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        let parentTypeArgs = dataTypeArguments parentTable.unsafeGetCreateTable
+                        in map (const "_") (dataTypeArguments table)
+                           <> filter (\fieldName -> Text.toLower fieldName /= colName) parentTypeArgs
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+    in
+        "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords typeArguments <>  ") = " <> tshow name <> "\n"
+        <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"
@@ -846,35 +996,139 @@ instance #{instanceHead} where
         primaryKeyToCondition :: Column -> Text
         primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
-        columnNames = columns
+        currentColumnNames = columns
                 |> map (.name)
-                |> tshow
+
+        parentColumnNames = case table.inherits of
+            Just parentTableName -> findTableByName parentTableName
+                |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                |> filter (\(fieldName, _) -> fieldName /= "meta")
+                |> map fst
+            Nothing -> []
+
+        columnNames = tshow $ currentColumnNames <> parentColumnNames
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
-compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+compileGetModelName table@(CreateTable { name, inherits }) =
+    let
+        -- @todo: Improve: Convert the model name to its plural, lowercase form to match the column name.
+        colName = tableNameToModelName name |> pluralize |> Text.toLower
+
+        -- Determine the type arguments considering inheritance.
+        typeArguments = case inherits of
+            Nothing -> map (const "_") (dataTypeArguments table)
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        let parentTypeArgs = dataTypeArguments parentTable.unsafeGetCreateTable
+                        in map (const "_") (dataTypeArguments table)
+                           <> filter (\fieldName -> Text.toLower fieldName /= colName) parentTypeArgs
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+    in
+        "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords typeArguments <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+
 
 compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
-compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
+compileDataTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> " " <> unwords (allDataFields |> map fst)
+    where
+        modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        -- Place the `meta` as the last value.
+        allDataFields = currentDataFields <> parentDataFields
+            |> \fields -> fields <> [("meta", "MetaBag")]
 
 compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
-compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
+compileTypePattern table@(CreateTable { name, inherits }) = tableNameToModelName name <> "' " <> dataTypeCompiled
+    where
+        dataTypeCompiled = if null parentTypeArguments
+            then currentTypeArguments
+            else currentTypeArguments <> " " <> parentTypeArguments
+
+        currentTypeArguments = dataTypeArguments table |> unwords
+
+        modelName = tableNameToModelName name
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentTypeArguments :: Text
+        parentTypeArguments =
+            case inherits of
+                Nothing -> ""
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+                            |> unwords
 
 compileInclude :: (?schema :: Schema) => CreateTable -> Text
-compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
+compileInclude table@(CreateTable { name, columns, inherits }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
-        belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        parentColumns = case inherits of
+            Nothing -> []
+            Just parentTableName ->
+                let parentTableDef = findTableByName parentTableName
+                in case parentTableDef of
+                    Just parentTable ->
+                        parentTable.unsafeGetCreateTable.columns |> filter (\column -> column.name /= "meta" && Text.toLower column.name /= colName && column.name /= "id")
+
+                    Nothing -> error $ "Parent table " <> cs parentTableName <> " not found for table " <> cs name <> "."
+
+        allColumns = columns <> parentColumns
+
+        belongsToIncludes = map compileBelongsTo (filter (isRefCol table) allColumns)
         hasManyIncludes = columnsReferencingTable name
                 |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
                 |> map compileHasMany
-        typeArgs = dataTypeArguments table
+
         modelName = tableNameToModelName name
         modelConstructor = modelName <> "'"
+
+
+        currentTypeArguments = dataTypeArguments table
+
+        parentTypeArguments :: [Text]
+        parentTypeArguments =
+            case inherits of
+                Nothing -> []
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+
+
+        allTypeArguments = currentTypeArguments <> parentTypeArguments
+
 
         includeType :: Text -> Text -> Text
         includeType fieldName includedType = "type instance Include " <> tshow fieldName <> " (" <> leftModelType <> ") = " <> rightModelType
             where
-                leftModelType = unwords (modelConstructor:typeArgs)
-                rightModelType = unwords (modelConstructor:(map compileTypeVariable' typeArgs))
+                leftModelType = unwords (modelConstructor:allTypeArguments)
+                rightModelType = unwords (modelConstructor:(map compileTypeVariable' allTypeArguments))
                 compileTypeVariable' name | name == fieldName = includedType
                 compileTypeVariable' name = name
 
@@ -886,16 +1140,35 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
 
 
 compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
-compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
+compileSetFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField allDataFields)
     where
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
         modelName = tableNameToModelName name
-        typeArgs = dataTypeArguments table
+
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        allDataFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
+
+
         compileSetField (name, fieldType) =
             "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
             "    {-# INLINE setField #-}\n" <>
             "    setField newValue (" <> compileDataTypePattern table <> ") =\n" <>
-            "        " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+            "        " <> modelName <> " " <> (unwords (map compileAttribute (allDataFields |> map fst)))
             where
                 compileAttribute name'
                     | name' == name = "newValue"
@@ -903,14 +1176,47 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
                     | otherwise = name'
 
 compileUpdateFieldInstances :: (?schema :: Schema) => CreateTable -> Text
-compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
+compileUpdateFieldInstances table@(CreateTable { name, columns, inherits }) = unlines (map compileSetField allDataFields)
     where
         modelName = tableNameToModelName name
-        typeArgs = dataTypeArguments table
-        compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+        -- @todo: Find a better way.
+        colName = modelName |> pluralize |> Text.toLower
+
+        currentTypeArguments = dataTypeArguments table
+
+        parentTypeArguments :: [Text]
+        parentTypeArguments =
+            case inherits of
+                Nothing -> []
+                Just parentTable ->
+                    let parentTableDef = findTableByName parentTable
+                    in parentTableDef
+                            |> maybe [] (dataTypeArguments . (.unsafeGetCreateTable))
+                            -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                            |> filter (\fieldName -> Text.toLower fieldName /= colName)
+
+
+        allTypeArguments = currentTypeArguments <> parentTypeArguments
+
+        currentDataFields = dataFields table |> filter (\(fieldName, _) -> fieldName /= "meta")
+
+        parentDataFields = case inherits of
+            Nothing -> []
+            Just parentTable ->
+                let parentTableDef = findTableByName parentTable
+                in parentTableDef
+                        |> maybe [] (dataFields . (.unsafeGetCreateTable))
+                        -- We remove ref to own table (e.g. `post_revisions` table should not have postRevisions)
+                        -- @todo: Check name of `id` column.
+                        |> filter (\(fieldName, _) -> fieldName /= "meta" && Text.toLower fieldName /= colName && fieldName /= "id")
+
+
+        allDataFields = currentDataFields <> parentDataFields <> [("meta", "MetaBag")]
+
+        compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (allDataFields |> map fst)))
             where
                 (valueTypeA, valueTypeB) =
-                    if name `elem` typeArgs
+                    if name `elem` allTypeArguments
                         then (name, name <> "'")
                         else (fieldType, fieldType)
 
@@ -920,7 +1226,9 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                     | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
-                compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
+                compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) allTypeArguments)
+
+
 
 compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
@@ -967,3 +1275,10 @@ hasExplicitOrImplicitDefault column = case column of
         Column { columnType = PSerial } -> True
         Column { columnType = PBigserial } -> True
         _ -> False
+
+
+findTableByName :: (?schema :: Schema) => Text -> Maybe Statement
+findTableByName tableName = find matchesTable ?schema.statements
+    where
+        matchesTable (StatementCreateTable CreateTable { name }) = name == tableName
+        matchesTable _ = False

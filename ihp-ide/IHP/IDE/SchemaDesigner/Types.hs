@@ -85,6 +85,7 @@ data CreateTable
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
       , unlogged :: !Bool
+      , inherits :: Maybe Text
       }
   deriving (Eq, Show)
 

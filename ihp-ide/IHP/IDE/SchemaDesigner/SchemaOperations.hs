@@ -30,6 +30,7 @@ addTable tableName list = list <> [StatementCreateTable CreateTable
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
     , unlogged = False
+    , inherits = Nothing
     }]
 
 
@@ -472,11 +473,11 @@ updateTable tableId tableName statements =
         |> map \case
             (StatementCreateTable table@(CreateTable { name })) | name == oldTableName -> StatementCreateTable (table { name = tableName })
             constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName -> (constraint :: Statement) { tableName, constraint = c { name = Text.replace oldTableName tableName <$> (c.name) } }
-            index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
+            index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName }
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
-            otherwise -> otherwise  
+            otherwise -> otherwise
 
 
 updatedAtTriggerName :: Text -> Text
@@ -512,7 +513,7 @@ addUpdatedAtTrigger tableName schema =
                 |> isJust
 
         setUpdatedAtToNowTrigger :: Statement
-        setUpdatedAtToNowTrigger = 
+        setUpdatedAtToNowTrigger =
             CreateFunction
                 { functionName = "set_updated_at_to_now"
                 , functionBody = "\n" <> [trimming|
@@ -560,7 +561,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
         deleteColumnInTable statement = statement
 
         deletePolicyReferencingPolicy :: Statement -> Bool
-        deletePolicyReferencingPolicy CreatePolicy { tableName = policyTable, using, check } | policyTable == tableName = 
+        deletePolicyReferencingPolicy CreatePolicy { tableName = policyTable, using, check } | policyTable == tableName =
             case (using, check) of
                 (Just using, Nothing) -> not (isRef using)
                 (Nothing, Just check) -> not (isRef check)
@@ -652,7 +653,7 @@ deleteIndex :: Text -> Schema -> Schema
 deleteIndex indexName statements =
     statements
     |> filter \case
-        CreateIndex { indexName = name } | name == indexName -> False 
+        CreateIndex { indexName = name } | name == indexName -> False
         otherwise                                            -> True
 
 

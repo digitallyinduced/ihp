@@ -78,12 +78,16 @@ Note that it takes around 30 minutes for the IHP GitHub actions to prepare a bin
 
 
 When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
-use `make console` to load your application together with the framework located in `IHP`.
+use `ghci` to load your application together with the framework located in `IHP`.
 
 ```
 ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
-main
+
+-- Load the development server
+ :l ihp-ide/exe/IHP/IDE/DevServer.hs
+
+--  Run the IHP project in the parent project directory
+mainInParentDirectory
 ```
 
 We don't need to start postgres as the IDE starts it automatically.

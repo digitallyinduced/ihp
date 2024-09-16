@@ -9,8 +9,8 @@ import qualified Text.Megaparsec as Megaparsec
 
 tests = do
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
-        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
-        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+        let tableA = StatementCreateTable CreateTable { name = "a", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
+        let tableB = StatementCreateTable CreateTable { name = "b", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
         let enumA = CreateEnumType { name = "enumA", values = [] }
         let enumB = CreateEnumType { name = "enumB", values = [] }
         let comment = Comment { content = "comment" }
@@ -27,7 +27,7 @@ tests = do
                 let expectedSchema = [enumA, enumB, tableA]
 
                 (SchemaOperations.addEnum "enumB" inputSchema) `shouldBe` expectedSchema
-            
+
             it "should deal with the empty case" do
                 let inputSchema = []
                 let expectedSchema = [enumA]
@@ -46,38 +46,38 @@ tests = do
                 let expectedSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
 
                 (SchemaOperations.enableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
-            
+
             it "should not do anything if already enabled" do
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
                 let expectedSchema = [tableA, EnableRowLevelSecurity { tableName = "a"} ]
 
                 (SchemaOperations.enableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
-        
+
         describe "disableRowLevelSecurity" do
             it "should disable row level security if enabled" do
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}]
                 let expectedSchema = [tableA]
 
                 (SchemaOperations.disableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
-            
+
             it "should not do anything if the row level security is not enabled" do
                 let inputSchema = [tableA]
                 let expectedSchema = [tableA]
 
                 (SchemaOperations.disableRowLevelSecurity "a" inputSchema) `shouldBe` expectedSchema
-        
+
         describe "disableRowLevelSecurityIfNoPolicies" do
             it "should disable row level security if there's no policy" do
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}]
                 let expectedSchema = [tableA]
 
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` expectedSchema
-            
+
             it "should not do anything if the row level security is not enabled" do
                 let inputSchema = [tableA]
 
                 (SchemaOperations.disableRowLevelSecurityIfNoPolicies "a" inputSchema) `shouldBe` inputSchema
-            
+
             it "should not do anything if there's a policy" do
                 let policy = CreatePolicy { tableName = "a", action = Nothing, name = "p", check = Nothing, using = Nothing }
                 let inputSchema = [tableA, EnableRowLevelSecurity { tableName = "a"}, policy]
@@ -112,6 +112,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -134,6 +135,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -155,6 +157,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -164,6 +167,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema =
                             [ tasksTable
@@ -198,11 +202,12 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let expectedSchema = [tableAWithCreatedAt, index]
-                
+
                 let options = SchemaOperations.AddColumnOptions
                         { tableName = "a"
                         , columnName = "created_at"
@@ -219,7 +224,7 @@ tests = do
                         }
 
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
-            
+
             it "should add a trigger to updated_at columns" do
                 let inputSchema = [tableA]
 
@@ -238,6 +243,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let function = CreateFunction
@@ -260,7 +266,7 @@ tests = do
                             }
 
                 let expectedSchema = [function, tableAWithCreatedAt, trigger]
-                
+
                 let options = SchemaOperations.AddColumnOptions
                         { tableName = "a"
                         , columnName = "updated_at"
@@ -277,7 +283,7 @@ tests = do
                         }
 
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
-            
+
             it "should add a policy if autoPolicy = true" do
                 let inputSchema = [tableA]
 
@@ -296,6 +302,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let index = CreateIndex
@@ -322,7 +329,7 @@ tests = do
                         }
 
                 let expectedSchema = [tableAWithCreatedAt, index, constraint, enableRLS, policy]
-                
+
                 let options = SchemaOperations.AddColumnOptions
                         { tableName = "a"
                         , columnName = "user_id"
@@ -357,12 +364,13 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let inputSchema = [tableAWithCreatedAt, index]
                 let expectedSchema = [tableA]
-                
+
                 let options = SchemaOperations.DeleteColumnOptions
                         { tableName = "a"
                         , columnName = "created_at"
@@ -370,7 +378,7 @@ tests = do
                         }
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
-            
+
             it "should delete a updated_at trigger" do
                 let tableAWithCreatedAt = StatementCreateTable CreateTable
                             { name = "a"
@@ -387,6 +395,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let function = CreateFunction
@@ -410,7 +419,7 @@ tests = do
 
                 let inputSchema = [function, tableAWithCreatedAt, trigger]
                 let expectedSchema = [function, tableA]
-                
+
                 let options = SchemaOperations.DeleteColumnOptions
                         { tableName = "a"
                         , columnName = "updated_at"
@@ -418,7 +427,7 @@ tests = do
                         }
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
-            
+
             it "should delete an referenced policy" do
                 let tableAWithUserId = StatementCreateTable CreateTable
                             { name = "a"
@@ -435,12 +444,13 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
                 let inputSchema = [tableAWithUserId, policy]
                 let expectedSchema = [tableA]
-                
+
                 let options = SchemaOperations.DeleteColumnOptions
                         { tableName = "a"
                         , columnName = "user_id"
@@ -465,6 +475,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let tableAWithUpdatedColumn = StatementCreateTable CreateTable
@@ -482,11 +493,12 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let inputSchema = [tableAWithCreatedAt]
                 let expectedSchema = [tableAWithUpdatedColumn]
-                
+
                 let options = SchemaOperations.UpdateColumnOptions
                         { tableName = "a"
                         , columnName = "created_at2"
@@ -516,6 +528,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let tableWithoutPK = StatementCreateTable CreateTable
@@ -533,11 +546,12 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let inputSchema = [tableWithoutPK]
                 let expectedSchema = [tableWithPK]
-                
+
                 let options = SchemaOperations.UpdateColumnOptions
                         { tableName = "a"
                         , columnName = "id2"
@@ -560,6 +574,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -569,6 +584,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let inputSchema =
                             [ tasksTable
@@ -584,13 +600,14 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
                             , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
-                
+
                 let options = SchemaOperations.UpdateColumnOptions
                         { tableName = "tasks"
                         , columnName = "list_id"
@@ -620,6 +637,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -638,12 +656,13 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
                 let inputSchema = [tableAWithCreatedAt, index]
                 let expectedSchema = [tableAWithUpdatedColumn, indexUpdated]
-                
+
                 let options = SchemaOperations.UpdateColumnOptions
                         { tableName = "a"
                         , columnName = "created_at"

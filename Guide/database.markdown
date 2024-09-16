@@ -853,3 +853,73 @@ CREATE TABLE users (
     UNIQUE (email, username)
 );
 ```
+
+## Inheritance
+
+### Introduction to Table Inheritance
+
+In PostgreSQL, tables can inherit the structure and data of other tables using the `INHERITS` keyword. This allows you to create a hierarchy of tables where a child table automatically has all the columns of its parent table, but can also have additional columns. In IHP, table inheritance can be utilized to create versions or revisions of records efficiently.
+
+### Using Inheritance with Triggers
+
+One common use case for inheritance is to create a history of changes made to a record. For example, you might want to create a history of revisions for a `Post` record. By using table inheritance and a trigger, you can automatically create a revision every time a `Post` is updated.
+
+Here’s how you can achieve this in your `Schema.sql`:
+
+```sql
+CREATE TABLE post_revisions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    post_id UUID NOT NULL
+) INHERITS (posts);
+
+CREATE OR REPLACE FUNCTION create_post_revision() RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO post_revisions (id, post_id, title, body, user_id)
+    VALUES (uuid_generate_v4(), NEW.id, NEW.title, NEW.body, NEW.user_id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER post_revision_trigger
+AFTER UPDATE ON posts
+FOR EACH ROW
+EXECUTE FUNCTION create_post_revision();
+```
+
+- __`INHERITS`__: The `post_revisions` table inherits all columns from the posts table. It also has an additional `post_id` column to link the revision back to the original post.
+- __Trigger Function__: The `create_post_revision` function is defined to insert a new record into the `post_revisions` table whenever a `Post` is updated.
+- __Trigger__: The `post_revision_trigger` is created to automatically execute the `create_post_revision` function after every update on the posts table.
+
+This setup ensures that every time a `Post` is updated, a corresponding revision is saved in the `post_revisions` table, preserving the history of changes.
+
+### Using Inheritance with Actions
+
+Another approach to managing inheritance and revisions is to handle the creation of revisions within your IHP actions. This provides more control and can be useful if you want to manage the revision process explicitly in your application logic.
+
+Here’s an example of how you might do this in an action:
+
+```haskell
+action CreatePostRevisionAction { postId } = do
+    post <- fetch postId
+    let revision = newRecord @PostRevision
+            |> set #postId post.id
+            |> set #title post.title
+            |> set #body post.body
+
+    createRecord revision
+
+    redirectTo ShowPostAction { .. }
+```
+
+- **Action Logic**: In this approach, you define an explicit action, `CreatePostRevisionAction`, to create a new revision.
+- **Fetch and Set**: The action fetches the current post by its `postId`, then creates a new `PostRevision` record by setting its fields based on the current state of the post.
+- **CreateRecord**: The new revision is inserted into the `post_revisions` table.
+- **Redirect**: After creating the revision, the user is redirected to the appropriate page, such as showing the post.
+
+### Note on Constraints in Inherited Tables
+
+When using table inheritance in PostgreSQL and IHP, it's important to understand that constraints such as **UNIQUE**, **PRIMARY KEY**, and other table-level constraints are **not inherited** by child tables. While the child table inherits all the columns from its parent table, it does not inherit the constraints applied to those columns.
+
+#### Why Constraints Are Not Inherited
+
+This behavior is particularly useful in scenarios like creating revision or history tables. For example, consider a `posts` table where the `title` column has a **UNIQUE** constraint to prevent duplicate titles. When creating a `post_revisions` table that inherits from `posts`, you wouldn't want the **UNIQUE** constraint on `title` to apply. This is because multiple revisions of the same post might have the same `title`, and enforcing uniqueness would prevent this.
