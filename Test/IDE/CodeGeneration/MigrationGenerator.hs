@@ -1362,6 +1362,17 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should ignore ar_did_update_.. triggers by IHP.AutoRefresh" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE TRIGGER ar_did_update_plans AFTER UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.notify_did_change_plans();
+                    CREATE TRIGGER ar_did_insert_offices AFTER INSERT ON public.offices FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_offices();
+                    CREATE TRIGGER ar_did_delete_company_profiles AFTER DELETE ON public.company_profiles FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_company_profiles();
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
             it "should deal with truncated identifiers" do
                 let actualSchema = sql $ cs [plain|
                     CREATE POLICY "Users can manage the prepare_context_jobs if they can see the C" ON public.prepare_context_jobs USING ((EXISTS ( SELECT 1

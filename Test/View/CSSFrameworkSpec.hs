@@ -198,23 +198,23 @@ tests = do
 
                 it "should render" do
                     let select = baseSelect
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with disabled" do
                     let select = baseSelect { disabled = True }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with selected" do
                     let select = baseSelect { fieldValue = "b" }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option value=\"\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
 
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with additional attributes" do
                     let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"mb-3\" id=\"form-group-project_user_id\"><label class=\"form-label\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
             describe "radio" do
                 let baseRadio = FormField

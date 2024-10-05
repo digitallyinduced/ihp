@@ -471,6 +471,31 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
+            it "should not use DEFAULT for array columns" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "users"
+                        , columns =
+                            [ Column "id" PUUID Nothing True True Nothing
+                            , Column {name = "keywords", columnType = PArray PText, defaultValue = Just (VarExpression "NULL"), notNull = False, isUnique = False, generator = Nothing}
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
+                    instance CanCreate User where
+                        create :: (?modelContext :: ModelContext) => User -> IO User
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[]) RETURNING id, keywords" ((model.id, model.keywords))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO users (id, keywords) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: TEXT[])") models)) <> " RETURNING id, keywords") (List.concat $ List.map (\model -> [toField (model.id), toField (model.keywords)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[])" ((model.id, model.keywords))
+                    |]
         describe "compileStatementPreview for table with arbitrarily named primary key" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE things (

@@ -1,8 +1,8 @@
 cabal-version:       2.2
 name:                ihp-openai
 version:             1.3.0
-synopsis:            Call GPT4 from IHP
-description:         Call GPT4 from IHP
+synopsis:            Call GPT4 from your Haskell apps
+description:         Streaming functions to access the OpenAI APIs, with Retry and Function Calling
 license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
@@ -19,7 +19,7 @@ source-repository head
 library
     default-language: Haskell2010
     build-depends:
-          base
+          base >= 4.17.0 && < 4.20
         , text
         , http-streams
         , retry
@@ -57,7 +57,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: IHP/OpenAISpec.hs
     build-depends:
-        base
+        base >= 4.17.0 && < 4.20
         , hspec
         , neat-interpolation
         , ihp-openai

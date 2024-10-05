@@ -27,8 +27,6 @@ import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
 import qualified Test.IDE.CodeGeneration.MailGenerator
 import qualified Test.IDE.CodeGeneration.JobGenerator
-import qualified Test.HSX.QQSpec
-import qualified Test.HSX.ParserSpec
 import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
@@ -64,10 +62,8 @@ main = hspec do
     Test.IDE.CodeGeneration.ViewGenerator.tests
     Test.IDE.CodeGeneration.MailGenerator.tests
     Test.IDE.CodeGeneration.JobGenerator.tests
-    Test.HSX.QQSpec.tests
     Test.NameSupportSpec.tests
     Test.HaskellSupportSpec.tests
-    Test.HSX.ParserSpec.tests
     Test.View.CSSFrameworkSpec.tests
     Test.View.FormSpec.tests
     Test.Controller.ContextSpec.tests

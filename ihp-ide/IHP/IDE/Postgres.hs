@@ -19,7 +19,7 @@ startPostgres = do
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
     let args = ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="]
-    let params = (Process.proc "postgres" args)
+    let params = (procDirenvAware "postgres" args)
                 { Process.std_in = Process.CreatePipe
                 , Process.std_out = Process.CreatePipe
                 , Process.std_err = Process.CreatePipe
