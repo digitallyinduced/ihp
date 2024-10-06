@@ -165,7 +165,7 @@ class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
     getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
     getQueryIndex _ = Nothing
-    {-# INLINE getQueryIndex #-}
+    {-# INLINABLE getQueryIndex #-}
 
 -- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
@@ -186,24 +186,24 @@ instance HasQueryBuilder QueryBuilder EmptyModelList where
 -- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINE getQueryBuilder #-}
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder = JoinQueryBuilderWrapper 
-    {-# INLINE injectQueryBuilder #-}
+    {-# INLINABLE injectQueryBuilder #-}
 
 -- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINE getQueryBuilder #-}
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder  = NoJoinQueryBuilderWrapper 
-    {-# INLINE injectQueryBuilder #-}
+    {-# INLINABLE injectQueryBuilder #-}
 
 instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINE getQueryBuilder #-}
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder = LabeledQueryBuilderWrapper
-    {-# INLINE injectQueryBuilder #-}
+    {-# INLINABLE injectQueryBuilder #-}
     getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
-    {-# INLINE getQueryIndex #-}
+    {-# INLINABLE getQueryIndex #-}
 
 
 data QueryBuilder (table :: Symbol) =
