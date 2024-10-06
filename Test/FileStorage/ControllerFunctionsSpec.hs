@@ -15,10 +15,20 @@ import Data.Time.Clock (getCurrentTime, addUTCTime)
 import Network.Wai as Wai (defaultRequest)
 import Network.Wai.Parse (FileInfo(..))
 import IHP.Controller.RequestContext
+import IHP.FileStorage.Config
+import qualified IHP.FrameworkConfig as Config
+
 
 tests :: Spec
 tests = describe "IHP.FileStorage.ControllerFunctions" $ do
-    let withFrameworkConfig = IHP.FrameworkConfig.withFrameworkConfig (pure ())
+
+    let config :: ConfigBuilder
+        config = do
+            initStaticDirStorage
+
+    let withFrameworkConfig = IHP.FrameworkConfig.withFrameworkConfig config
+
+
     describe "storeFileWithOptions" $ do
         it "returns the objectPath without the baseUrl" $ do
             withSystemTempDirectory "ihp-test" $ \tempDir -> do
@@ -62,3 +72,7 @@ createControllerContext frameworkConfig = do
         requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = frameworkConfig }
     let ?requestContext = requestContext
     newControllerContext
+
+
+
+
