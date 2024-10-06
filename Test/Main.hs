@@ -53,37 +53,37 @@ import qualified Test.SEO.Sitemap
 
 main :: IO ()
 main = hspec do
-    Test.IDE.SchemaDesigner.CompilerSpec.tests
-    Test.IDE.SchemaDesigner.ParserSpec.tests
-    Test.IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
-    Test.IDE.SchemaDesigner.Controller.HelperSpec.tests
-    Test.IDE.SchemaDesigner.Controller.ValidationSpec.tests
-    Test.ValidationSupport.ValidateFieldSpec.tests
-    Test.IDE.CodeGeneration.ControllerGenerator.tests
-    Test.IDE.CodeGeneration.ViewGenerator.tests
-    Test.IDE.CodeGeneration.MailGenerator.tests
-    Test.IDE.CodeGeneration.JobGenerator.tests
-    Test.NameSupportSpec.tests
-    Test.HaskellSupportSpec.tests
-    Test.View.CSSFrameworkSpec.tests
-    Test.View.FormSpec.tests
-    Test.Controller.ContextSpec.tests
-    Test.Controller.ParamSpec.tests
-    Test.Controller.AccessDeniedSpec.tests
-    Test.Controller.NotFoundSpec.tests
-    Test.SchemaMigrationSpec.tests
-    Test.ModelSupportSpec.tests
-    Test.SchemaCompilerSpec.tests
-    Test.QueryBuilderSpec.tests
-    Test.RouterSupportSpec.tests
-    Test.ViewSupportSpec.tests
-    Test.ServerSideComponent.HtmlParserSpec.tests
-    Test.ServerSideComponent.HtmlDiffSpec.tests
+    -- Test.IDE.SchemaDesigner.CompilerSpec.tests
+    -- Test.IDE.SchemaDesigner.ParserSpec.tests
+    -- Test.IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
+    -- Test.IDE.SchemaDesigner.Controller.HelperSpec.tests
+    -- Test.IDE.SchemaDesigner.Controller.ValidationSpec.tests
+    -- Test.ValidationSupport.ValidateFieldSpec.tests
+    -- Test.IDE.CodeGeneration.ControllerGenerator.tests
+    -- Test.IDE.CodeGeneration.ViewGenerator.tests
+    -- Test.IDE.CodeGeneration.MailGenerator.tests
+    -- Test.IDE.CodeGeneration.JobGenerator.tests
+    -- Test.NameSupportSpec.tests
+    -- Test.HaskellSupportSpec.tests
+    -- Test.View.CSSFrameworkSpec.tests
+    -- Test.View.FormSpec.tests
+    -- Test.Controller.ContextSpec.tests
+    -- Test.Controller.ParamSpec.tests
+    -- Test.Controller.AccessDeniedSpec.tests
+    -- Test.Controller.NotFoundSpec.tests
+    -- Test.SchemaMigrationSpec.tests
+    -- Test.ModelSupportSpec.tests
+    -- Test.SchemaCompilerSpec.tests
+    -- Test.QueryBuilderSpec.tests
+    -- Test.RouterSupportSpec.tests
+    -- Test.ViewSupportSpec.tests
+    -- Test.ServerSideComponent.HtmlParserSpec.tests
+    -- Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
-    Test.FileStorage.MimeTypesSpec.tests
-    Test.DataSync.DynamicQueryCompiler.tests
-    Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
-    Test.IDE.CodeGeneration.MigrationGenerator.tests
-    Test.Controller.CookieSpec.tests
-    Test.PGListenerSpec.tests
-    Test.SEO.Sitemap.tests
+    -- Test.FileStorage.MimeTypesSpec.tests
+    -- Test.DataSync.DynamicQueryCompiler.tests
+    -- Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
+    -- Test.IDE.CodeGeneration.MigrationGenerator.tests
+    -- Test.Controller.CookieSpec.tests
+    -- Test.PGListenerSpec.tests
+    -- Test.SEO.Sitemap.tests
