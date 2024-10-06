@@ -18,43 +18,47 @@ import IHP.Controller.RequestContext
 
 tests :: Spec
 tests = describe "IHP.FileStorage.ControllerFunctions" $ do
+    let withFrameworkConfig = IHP.FrameworkConfig.withFrameworkConfig (pure ())
     describe "storeFileWithOptions" $ do
         it "returns the objectPath without the baseUrl" $ do
             withSystemTempDirectory "ihp-test" $ \tempDir -> do
-                context <- createControllerContext
-                let ?context = context
+                withFrameworkConfig \frameworkConfig -> do
+                    context <- createControllerContext frameworkConfig
+                    let ?context = context
 
-                let fileInfo = FileInfo
-                        { fileName = "test.txt"
-                        , fileContentType = "text/plain"
-                        , fileContent = "Hello, world!"
-                        }
+                    let fileInfo = FileInfo
+                            { fileName = "test.txt"
+                            , fileContentType = "text/plain"
+                            , fileContent = "Hello, world!"
+                            }
 
-                result <- storeFile fileInfo "Test.FileStorage.ControllerFunctionsSpec"
+                    result <- storeFile fileInfo "Test.FileStorage.ControllerFunctionsSpec"
 
-                result.url `shouldBe` "Test.FileStorage.ControllerFunctionsSpec/test.txt"
+                    result.url `shouldBe` "Test.FileStorage.ControllerFunctionsSpec/test.txt"
 
-    describe "createTemporaryDownloadUrlFromPathWithExpiredAt" $ do
+    describe "createTemporaryDownloadUrlFromPath" $ do
         it "returns baseUrl concatenated with objectPath when objectPath does not start with http:// or https://" $ do
-            context <- createControllerContext
-            let ?context = context
-            let objectPath = "static/test.txt"
-            temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
+            withFrameworkConfig \frameworkConfig -> do
+                context <- createControllerContext frameworkConfig
+                let ?context = context
+                let objectPath = "static/test.txt"
+                temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
 
-            temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"
+                temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"
 
         it "returns '/' concatenated with objectPath when objectPath starts with 'http://' or 'https://'" $ do
-            context <- createControllerContext
-            let ?context = context
-            let objectPath = "https://example.com/static/test.txt"
-            temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
+            withFrameworkConfig \frameworkConfig -> do
+                context <- createControllerContext frameworkConfig
+                let ?context = context
+                let objectPath = "https://example.com/static/test.txt"
+                temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
 
-            temporaryDownloadUrl.url `shouldBe` "https://example.com/static/test.txt"
+                temporaryDownloadUrl.url `shouldBe` "https://example.com/static/test.txt"
 
-createControllerContext = do
+createControllerContext frameworkConfig = do
     let
         requestBody = FormBody { params = [], files = [] }
         request = Wai.defaultRequest
-        requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = error "frameworkConfig" }
+        requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = frameworkConfig }
     let ?requestContext = requestContext
     newControllerContext
