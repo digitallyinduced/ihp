@@ -70,7 +70,3 @@ createControllerContext frameworkConfig = do
         requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = frameworkConfig }
     let ?requestContext = requestContext
     newControllerContext
-
-
-
-
