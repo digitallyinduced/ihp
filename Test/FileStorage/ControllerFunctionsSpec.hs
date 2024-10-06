@@ -42,9 +42,15 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
                             , fileContent = "Hello, world!"
                             }
 
-                    result <- storeFile fileInfo "Test.FileStorage.ControllerFunctionsSpec"
+                    -- We pass the UUID that will be used as the filename, so we can easily assert the objectPath.
+                    let options :: StoreFileOptions = def
+                            { fileName = Just "4c55dac2-e411-45ac-aa10-b957b01221df"
+                            , directory = "Test.FileStorage.ControllerFunctionsSpec"
+                            }
 
-                    result.url `shouldBe` "Test.FileStorage.ControllerFunctionsSpec/test.txt"
+                    result <- storeFileWithOptions fileInfo options
+
+                    result.url `shouldBe` ("Test.FileStorage.ControllerFunctionsSpec/4c55dac2-e411-45ac-aa10-b957b01221df")
 
     describe "createTemporaryDownloadUrlFromPath" $ do
         it "returns baseUrl concatenated with objectPath when objectPath does not start with http:// or https://" $ do
