@@ -11,8 +11,6 @@ import IHP.Controller.RequestContext
 import IHP.FileStorage.Types
 import IHP.FileStorage.Config
 
-
-
 tests :: Spec
 tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
