@@ -28,7 +28,6 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
     let withFrameworkConfig = IHP.FrameworkConfig.withFrameworkConfig config
 
-
     describe "storeFileWithOptions" $ do
         it "returns the objectPath without the baseUrl" $ do
             withSystemTempDirectory "ihp-test" $ \tempDir -> do
