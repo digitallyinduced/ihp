@@ -23,23 +23,9 @@ spec = describe "IHP.FileStorage.ControllerFunctions" $ do
     describe "storeFileWithOptions" $ do
         it "returns the objectPath without the baseUrl" $ do
             withSystemTempDirectory "ihp-test" $ \tempDir -> do
-                let frameworkConfig = def
-                        { baseUrl = "http://localhost:8000"
-                        , staticDir = tempDir
-                        , storageDir = tempDir
-                        , appConfig = StaticDirStorage
-                        }
-                let ?context = ControllerContext
-                        { requestContext = RequestContext
-                            { request = defaultRequest
-                            , respond = \_ -> pure undefined
-                            , vault = mempty
-                            , frameworkConfig = frameworkConfig
-                            , requestBody = pure ""
-                            }
-                        , response = error "response not used in test"
-                        , applicationContext = error "applicationContext not used in test"
-                        }
+                context <- newControllerContext
+                let ?context = context
+
                 let fileInfo = FileInfo
                         { fileName = "test.txt"
                         , contentType = "text/plain"
@@ -53,36 +39,14 @@ spec = describe "IHP.FileStorage.ControllerFunctions" $ do
 
     describe "createTemporaryDownloadUrlFromPathWithExpiredAt" $ do
         it "returns baseUrl concatenated with objectPath when objectPath does not start with http:// or https://" $ do
-            let frameworkConfig = def { baseUrl = "http://localhost:8000", appConfig = StaticDirStorage }
-            let ?context = ControllerContext
-                    { requestContext = RequestContext
-                        { request = defaultRequest
-                        , respond = \_ -> pure undefined
-                        , vault = mempty
-                        , frameworkConfig = frameworkConfig
-                        , requestBody = pure ""
-                        }
-                    , response = error "response not used in test"
-                    , applicationContext = error "applicationContext not used in test"
-                    }
+            context <- newControllerContext
             let objectPath = "static/test.txt"
             temporaryDownloadUrl <- createTemporaryDownloadUrlFromPathWithExpiredAt 3600 objectPath
 
             temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"
 
         it "returns '/' concatenated with objectPath when objectPath starts with 'http://' or 'https://'" $ do
-            let frameworkConfig = def { baseUrl = "http://localhost:8000", appConfig = StaticDirStorage }
-            let ?context = ControllerContext
-                    { requestContext = RequestContext
-                        { request = defaultRequest
-                        , respond = \_ -> pure undefined
-                        , vault = mempty
-                        , frameworkConfig = frameworkConfig
-                        , requestBody = pure ""
-                        }
-                    , response = error "response not used in test"
-                    , applicationContext = error "applicationContext not used in test"
-                    }
+            context <- newControllerContext
             let objectPath = "https://example.com/static/test.txt"
             temporaryDownloadUrl <- createTemporaryDownloadUrlFromPathWithExpiredAt 3600 objectPath
 
