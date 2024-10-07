@@ -22,3 +22,6 @@ devenv.local.nix
 result*
 
 .idea
+
+# Test folders
+static/Test.FileStorage.ControllerFunctionsSpec
