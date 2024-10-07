@@ -40,14 +40,14 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
                 result <- storeFileWithOptions fileInfo options
 
-                result.url `shouldBe` ("Test.FileStorage.ControllerFunctionsSpec/4c55dac2-e411-45ac-aa10-b957b01221df")
+                result.url `shouldBe` ("/Test.FileStorage.ControllerFunctionsSpec/4c55dac2-e411-45ac-aa10-b957b01221df")
 
     describe "createTemporaryDownloadUrlFromPath" $ do
         it "returns baseUrl concatenated with objectPath when objectPath does not start with http:// or https://" $ do
             withFrameworkConfig \frameworkConfig -> do
                 context <- createControllerContext frameworkConfig
                 let ?context = context
-                let objectPath = "static/test.txt"
+                let objectPath = "/static/test.txt"
                 temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
 
                 temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"

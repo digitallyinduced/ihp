@@ -112,7 +112,8 @@ storeFileWithOptions fileInfo options = do
                 |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = ?context.frameworkConfig
-            pure $ objectPath
+            -- Prefix with a slash so it can be used in URLs, even if the baseUrl is empty.
+            pure $ "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> (.fileContent)
@@ -231,8 +232,8 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
             let url = if any (`isPrefixOf` objectPath) urlSchemes
                     -- BC, before we saved only the relative path of a file, we saved the full URL. So use it as is.
                     then objectPath
-                    -- We have the relative path, so add the baseUrl.
-                    else frameworkConfig.baseUrl <> "/" <> objectPath
+                    -- We have the relative path (prefixed with slash), so add the baseUrl.
+                    else frameworkConfig.baseUrl <> objectPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
