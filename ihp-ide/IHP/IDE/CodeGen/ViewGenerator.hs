@@ -80,7 +80,7 @@ buildPlan' schema config =
 
             genericView = [trimming|
                 ${viewHeader}
-                data ${nameWithSuffix} = {$nameWithSuffix}
+                data ${nameWithSuffix} = ${nameWithSuffix}
 
                 instance View ${nameWithSuffix} where
                     html ${nameWithSuffix} { .. } = [hsx|
