@@ -7,9 +7,7 @@
 , otherDeps ? (p: [])
 , projectPath ? ./.
 , withHoogle ? false
-, postgresExtensions ? (p: [])
 , optimized ? false
-, includeDevTools ? !optimized # Include Postgres?
 , rtsFlags ? ""
 , appName ? "app"
 , optimizationLevel ? "2"
@@ -175,7 +173,6 @@ in
             [ pkgs.makeWrapper
             pkgs.cacert # Needed for npm install to work from within the IHP build process
             ]
-            (if includeDevTools then [(pkgs.postgresql_13.withPackages postgresExtensions)] else [])
         ];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
         enableParallelBuilding = true;
