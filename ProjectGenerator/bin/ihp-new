@@ -133,8 +133,8 @@ if ! [ -x "$(command -v direnv)" ]; then
 	if [ $DIRENV_HOOK_ADDED = 0 ]; then
 		echo ""
 		echo "Please add the hook manually."
-		echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc"
-		echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc"
+		echo -e "Bash: Add \e[4meval \"\$(direnv hook bash)\"\e[0m to ~/.bashrc or ~/.bash_profile"
+		echo -e "ZSH: Add \e[4meval \"\$(direnv hook zsh)\"\e[0m to ~/.zshrc or ~/.zprofile"
 		echo "Other shells: See https://direnv.net/#README"
 		echo -e "\e[1mHave you hooked direnv into your shell? (Type y to proceed) \e[0m"
 		while true; do
@@ -160,12 +160,12 @@ fi
 DIRENV_SETUP=0;
 case "${SHELL##*/}" in
 zsh )
-    if grep direnv "$HOME/.zshrc" "$HOME/.zprofile" 2>&1 >/dev/null; then
+    if grep -q -s direnv "$HOME/.zshrc" "$HOME/.zprofile"; then
         DIRENV_SETUP=1;
     fi;
     ;;
 bash )
-    if grep direnv "$HOME/.bashrc" "$HOME/.bash_profile" 2>&1 >/dev/null; then
+    if grep -q -s direnv "$HOME/.bashrc" "$HOME/.bash_profile"; then
         DIRENV_SETUP=1;
     fi;
     ;;
