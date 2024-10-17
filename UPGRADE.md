@@ -942,9 +942,9 @@ Now you can start your project as usual with `./start`.
 
 ## Updating jQuery
 
-The jQuery version used by IHP has changed. We're switching from `3.2.1` to `3.6.0`. jQuery `3.2.1` has some known security vulnerabilities, so it's recommended that you follow these update steps.
+The jQuery version used by IHP has changed. We're switching from `3.2.1` to `3.7.1`. jQuery `3.2.1` has some known security vulnerabilities, so it's recommended that you follow these update steps.
 
-To update your application looks search for the string `/vendor/jquery-3.2.1.slim.min.js` in your code base and replace it with `/vendor/jquery-3.6.0.slim.min.js`. Likely the only mention is inside the `Web/View/Layout.hs`.
+To update your application looks search for the string `/vendor/jquery-3.2.1.slim.min.js` in your code base and replace it with `/vendor/jquery-3.7.1.slim.min.js`. Likely the only mention is inside the `Web/View/Layout.hs`.
 
 # Upgrade to Beta 0.11.0 from Beta 0.10.0
 
