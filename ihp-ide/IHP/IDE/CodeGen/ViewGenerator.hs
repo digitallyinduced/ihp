@@ -15,8 +15,8 @@ data ViewConfig = ViewConfig
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> Text -> IO (Either Text [GeneratorAction])
-buildPlan viewName applicationName controllerName' =
-    if (null viewName || null controllerName')
+buildPlan viewName' applicationName controllerName' =
+    if (null viewName' || null controllerName')
         then pure $ Left "Neither view name nor controller name can be empty"
         else do
             schema <- SchemaDesigner.parseSchemaSql >>= \case
@@ -24,6 +24,7 @@ buildPlan viewName applicationName controllerName' =
                 Right statements -> pure statements
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
+            let viewName = tableNameToViewName viewName'
             let paginationEnabled = False
             let viewConfig = ViewConfig { .. }
             pure $ Right $ buildPlan' schema viewConfig
@@ -80,7 +81,7 @@ buildPlan' schema config =
 
             genericView = [trimming|
                 ${viewHeader}
-                data ${nameWithSuffix} = {$nameWithSuffix}
+                data ${nameWithSuffix} = ${nameWithSuffix}
 
                 instance View ${nameWithSuffix} where
                     html ${nameWithSuffix} { .. } = [hsx|

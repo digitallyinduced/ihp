@@ -33,6 +33,17 @@ tests = do
                 tableNameToControllerName "users_projects" `shouldBe` "UsersProjects"
                 tableNameToControllerName "people" `shouldBe` "People"
 
+        describe "tableNameToViewName" do
+            it "should deal with empty input" do
+                tableNameToViewName "" `shouldBe` ""
+
+            it "should transform table names to controller names" do
+                tableNameToViewName "users" `shouldBe` "Users"
+                tableNameToViewName "projects" `shouldBe` "Projects"
+                tableNameToViewName "user_projects" `shouldBe` "UserProjects"
+                tableNameToViewName "users_projects" `shouldBe` "UsersProjects"
+                tableNameToViewName "people" `shouldBe` "People"
+
         describe "enumValueToControllerName" do
             it "should handle spaces in table names" do
                 enumValueToControllerName "very happy" `shouldBe` "VeryHappy"
