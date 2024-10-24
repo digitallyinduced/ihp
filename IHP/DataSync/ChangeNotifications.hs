@@ -41,7 +41,7 @@ createNotificationFunction :: RLS.TableWithRLS -> PG.Query
 createNotificationFunction table = [i|
     DO $$
     BEGIN
-            CREATE FUNCTION #{functionName}() RETURNS TRIGGER AS $BODY$
+            CREATE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
                 DECLARE
                     payload TEXT;
                     large_pg_notification_id UUID;
@@ -86,14 +86,14 @@ createNotificationFunction table = [i|
                     RETURN new;
                 END;
             $BODY$ language plpgsql;
-            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
-            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
-            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
+            DROP TRIGGER IF EXISTS "#{insertTriggerName}" ON "#{tableName}";
+            DROP TRIGGER IF EXISTS "#{updateTriggerName}" ON "#{tableName}";
+            DROP TRIGGER IF EXISTS "#{deleteTriggerName}" ON "#{tableName}";
 
 
-            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
-            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
-            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
+            CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+            CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+            CREATE TRIGGER "#{deleteTriggerName}" AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
         EXCEPTION
             WHEN duplicate_function THEN
             null;

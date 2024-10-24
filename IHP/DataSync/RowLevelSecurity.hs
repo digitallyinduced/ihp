@@ -128,7 +128,7 @@ makeCachedEnsureRLSEnabled = do
 -- >>> hasRLSEnabled "my_table"
 -- True
 hasRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO Bool
-hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE oid = ?::regclass" [table]
+hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(?)::regclass" [table]
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --
