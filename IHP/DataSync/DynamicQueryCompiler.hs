@@ -14,7 +14,10 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.List as List
 
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
-compileQuery DynamicSQLQuery { .. } = (sql, args)
+compileQuery query = compileQueryMapped (mapColumnNames fieldNameToColumnName query)
+
+compileQueryMapped :: DynamicSQLQuery -> (PG.Query, [PG.Action])
+compileQueryMapped DynamicSQLQuery { .. } = (sql, args)
     where
         sql = "SELECT" <> distinctOnSql <> "? FROM ?" <> whereSql <> orderBySql <> limitSql <> offsetSql
         args = distinctOnArgs
@@ -28,7 +31,7 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
                 <> offsetArgs
 
         (distinctOnSql, distinctOnArgs) = case distinctOnColumn of
-            Just column -> (" DISTINCT ON (?) ", [PG.toField $ PG.Identifier (fieldNameToColumnName $ cs column)])
+            Just column -> (" DISTINCT ON (?) ", [PG.toField $ PG.Identifier (cs column)])
             Nothing     -> (" ", [])
 
         (orderBySql, orderByArgs) = case orderByClause of
@@ -38,13 +41,13 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
                     , orderByClauses
                         |> map (\case
                             OrderByClause { orderByColumn, orderByDirection } ->
-                                    [ PG.toField $ PG.Identifier (fieldNameToColumnName $ cs orderByColumn)
+                                    [ PG.toField $ PG.Identifier (cs orderByColumn)
                                     , PG.toField $ if orderByDirection == QueryBuilder.Desc
                                         then PG.Plain "DESC"
                                         else PG.Plain ""
                                     ]
                             OrderByTSRank { tsvector, tsquery } ->
-                                    [ PG.toField $ PG.Identifier (fieldNameToColumnName tsvector)
+                                    [ PG.toField $ PG.Identifier tsvector
                                     , PG.toField tsquery
                                     ]
                         )
@@ -63,6 +66,29 @@ compileQuery DynamicSQLQuery { .. } = (sql, args)
                 Just offset -> (" OFFSET ?", [PG.toField offset])
                 Nothing -> ("", [])
 
+-- | Used to transform column names from @camelCase@ to @snake_case@
+mapColumnNames :: (Text -> Text) -> DynamicSQLQuery -> DynamicSQLQuery
+mapColumnNames rename query =
+    query
+    { selectedColumns = mapSelectedColumns query.selectedColumns
+    , whereCondition = mapConditionExpression <$> query.whereCondition
+    , orderByClause = map mapOrderByClause query.orderByClause
+    , distinctOnColumn = (cs . rename . cs) <$> query.distinctOnColumn
+    }
+    where
+        mapSelectedColumns :: SelectedColumns -> SelectedColumns
+        mapSelectedColumns SelectAll = SelectAll
+        mapSelectedColumns (SelectSpecific columns) = SelectSpecific (map rename columns)
+
+        mapConditionExpression :: ConditionExpression -> ConditionExpression
+        mapConditionExpression ColumnExpression { field } = ColumnExpression { field = rename field }
+        mapConditionExpression InfixOperatorExpression { left, op, right } = InfixOperatorExpression { left = mapConditionExpression left, op, right = mapConditionExpression right }
+        mapConditionExpression otherwise = otherwise
+
+        mapOrderByClause :: OrderByClause -> OrderByClause
+        mapOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (rename (cs orderByColumn)), orderByDirection }
+        mapOrderByClause otherwise = otherwise
+
 compileOrderByClause :: OrderByClause -> Text
 compileOrderByClause OrderByClause {} = "? ?"
 compileOrderByClause OrderByTSRank { tsvector, tsquery } = "ts_rank(?, to_tsquery('english', ?))"
@@ -79,7 +105,7 @@ compileSelectedColumns (SelectSpecific fields) = PG.Many args
 -- TODO: validate query against schema
 
 compileCondition :: ConditionExpression -> (PG.Query, [PG.Action])
-compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier (fieldNameToColumnName column)])
+compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier column])
 compileCondition (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null)) -- Turn 'a = NULL' into 'a IS NULL'
 compileCondition (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIsNot (LiteralExpression Null)) -- Turn 'a <> NULL' into 'a IS NOT NULL'
 compileCondition (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
