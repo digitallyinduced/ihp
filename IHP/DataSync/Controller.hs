@@ -8,6 +8,7 @@ import IHP.DataSync.RowLevelSecurity
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.ControllerImpl (runDataSyncController, cleanupAllSubscriptions)
+import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 
 instance (
     PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -21,5 +22,5 @@ instance (
     run = do
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled
         installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
-        runDataSyncController ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ())
+        runDataSyncController ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
     onClose = cleanupAllSubscriptions

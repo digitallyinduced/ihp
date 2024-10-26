@@ -13,8 +13,40 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.List as List
 
+data Renamer = Renamer
+    { fieldToColumn :: Text -> Text
+    , columnToField :: Text -> Text
+    }
+
 compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
-compileQuery query = compileQueryMapped (mapColumnNames fieldNameToColumnName query)
+compileQuery = compileQueryWithRenamer camelCaseRenamer
+
+compileQueryWithRenamer :: Renamer -> DynamicSQLQuery -> (PG.Query, [PG.Action])
+compileQueryWithRenamer renamer query = compileQueryMapped (mapColumnNames renamer.fieldToColumn query)
+
+-- | Default renamer used by DataSync.
+--
+-- Transforms JS inputs in @camelCase@ to snake_case for the database
+-- and DB outputs in @snake_case@ back to @camelCase@
+camelCaseRenamer :: Renamer
+camelCaseRenamer =
+    Renamer
+    { fieldToColumn = fieldNameToColumnName
+    , columnToField = columnNameToFieldName
+    }
+
+-- | Renamer that does not modify the column names
+unmodifiedRenamer :: Renamer
+unmodifiedRenamer =
+    Renamer
+    { fieldToColumn = id
+    , columnToField = id
+    }
+
+-- | When a Field is retrieved from the database, it's all in @snake_case@. This turns it into @camelCase@
+renameField :: Renamer -> Field -> Field
+renameField renamer field =
+    field { fieldName = renamer.columnToField field.fieldName }
 
 compileQueryMapped :: DynamicSQLQuery -> (PG.Query, [PG.Action])
 compileQueryMapped DynamicSQLQuery { .. } = (sql, args)

@@ -127,7 +127,7 @@ instance PG.FromField Field where
             pure Field { .. }
         where
             fieldName = (PG.name field)
-                |> fmap (columnNameToFieldName . cs)
+                |> fmap cs
                 |> fromMaybe ""
 
 instance PG.FromField DynamicValue where
