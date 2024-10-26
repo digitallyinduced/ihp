@@ -13,7 +13,18 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Void
 import Data.String.Conversions (cs)
-import qualified Data.Set as Set
+import qualified IHP.HSX.HaskellParser as HaskellParser
+import Text.Blaze.Internal (MarkupM(Parent, Leaf), attribute)
+import qualified Data.List.NonEmpty as NE
+
+type Parser = Parsec Void Text
+
+data UNode = UNode Text [(Text, AttributeValue)] [UNode] Bool
+           | UTextNode Text
+           | USplicedNode Exp
+           deriving (Show)
+
+data AttributeValue = TextValue Text | ExpressionValue Exp deriving (Show)
 
 uncheckedHsx :: QuasiQuoter
 uncheckedHsx = QuasiQuoter
@@ -27,89 +38,76 @@ quoteUncheckedHsxExpression :: String -> Q Exp
 quoteUncheckedHsxExpression code = do
     loc <- location
     let position = SourcePos (loc_filename loc) (mkPos (fst (loc_start loc))) (mkPos (snd (loc_start loc)))
-    case runParser uncheckedParser "" (cs code) of
+    extensions <- extsEnabled
+    case runParser (uncheckedParser extensions) "" (cs code) of
         Left err -> fail $ errorBundlePretty err
         Right result -> compileToHaskell result
 
-type Parser = Parsec Void Text
-
-data UNode = UNode Text [(Text, Text)] [UNode] Bool
-           | UTextNode Text
-           | USplicedNode Exp
-           deriving (Show)
-
-uncheckedParser :: Parser UNode
-uncheckedParser = space *> (manyUncheckedElement <|> uncheckedElement) <* space <* eof
+uncheckedParser :: [Extension] -> Parser UNode
+uncheckedParser extensions = space *> manyUncheckedElement <* eof
 
 manyUncheckedElement :: Parser UNode
 manyUncheckedElement = do
-    children <- many uncheckedChild
+    children <- many (try uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode)
     return $ UNode "div" [] children False
 
 uncheckedElement :: Parser UNode
 uncheckedElement = do
     char '<'
-    tagName <- some (alphaNumChar <|> char '-' <|> char '_')
+    tagName <- some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
     attrs <- many uncheckedAttribute
     space
     (do  string "/>"
          return $ UNode (T.pack tagName) attrs [] True)
      <|>
      (do  char '>'
-          children <- many uncheckedChild
-          string "</"
-          string (T.pack tagName)
-          char '>'
-          return $ UNode (T.pack tagName) attrs children False)
-     <|>
-     (do  char '>'
-          if tagName `Set.member` selfClosingTags
-              then return $ UNode (T.pack tagName) attrs [] True
-              else do
-                  children <- many uncheckedChild
-                  string "</"
-                  string (T.pack tagName)
-                  char '>'
-                  return $ UNode (T.pack tagName) attrs children False)
+          children <- many (try uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode)
+          closing <- optional (try $ string "</" >> string (T.pack tagName) >> char '>')
+          case closing of
+            Just _  -> return $ UNode (T.pack tagName) attrs children False
+            Nothing -> return $ UNode (T.pack tagName) attrs children True)
 
-uncheckedAttribute :: Parser (Text, Text)
+uncheckedAttribute :: Parser (Text, AttributeValue)
 uncheckedAttribute = do
     space
-    name <- some (alphaNumChar <|> char '-' <|> char '_')
-    value <- option "" (char '=' *> (quoted <|> unquoted))
-    return (T.pack name, T.pack value)
+    name <- some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
+    value <- option (TextValue "") (char '=' *> (quotedValue <|> unquotedValue <|> expressionValue))
+    return (T.pack name, value)
   where
-    quoted = char '"' *> manyTill anySingle (char '"')
-    unquoted = some (alphaNumChar <|> char '-' <|> char '_')
-
-uncheckedChild :: Parser UNode
-uncheckedChild = uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode
+    quotedValue = TextValue . T.pack <$> (char '"' *> manyTill anySingle (char '"'))
+    unquotedValue = TextValue . T.pack <$> some (alphaNumChar <|> char '-' <|> char '_')
+    expressionValue = ExpressionValue <$> (char '{' *> parseHaskellExpression <* char '}')
 
 uncheckedTextNode :: Parser UNode
-uncheckedTextNode = UTextNode . T.pack <$> some (anySingleBut '<')
+uncheckedTextNode = UTextNode . T.pack <$> some (satisfy (\c -> c /= '<' && c /= '{' && c /= '}'))
 
 uncheckedSplicedNode :: Parser UNode
-uncheckedSplicedNode = between (string "{") (string "}") $ do
-    expr <- parseHaskellExpression
-    return $ USplicedNode expr
+uncheckedSplicedNode = USplicedNode <$> (char '{' *> parseHaskellExpression <* char '}')
 
 parseHaskellExpression :: Parser Exp
-parseHaskellExpression = error "Implement Haskell expression parsing here"
+parseHaskellExpression = do
+    pos <- getSourcePos
+    code <- takeWhileP Nothing (\c -> c /= '}')
+    case HaskellParser.parseHaskellExpression pos [] (cs code) of
+        Right exp -> return exp
+        Left err -> fail $ show err
 
 compileToHaskell :: UNode -> Q Exp
 compileToHaskell (UNode name attrs children isLeaf) =
-    let element = if isLeaf
-                  then [| H.preEscapedText $(litE $ stringL $ T.unpack $ "<" <> name <> "/>") |]
-                  else [| H.preEscapedText $(litE $ stringL $ T.unpack $ "<" <> name <> ">") |]
-        applyAttrs = foldr (\(k, v) e -> [| $e ! H.customAttribute (H.stringTag $(litE $ stringL $ T.unpack k)) $(litE $ stringL $ T.unpack v) |]) element attrs
+    let element = [| H.preEscapedText $(litE $ stringL $ "<" ++ T.unpack name) |]
+        applyAttrs = foldr (\(k, v) e -> [| $e <> $(compileAttribute k v) |]) element attrs
+        closeTag = if isLeaf
+                   then [| H.preEscapedText $(litE $ stringL "/>") |]
+                   else [| H.preEscapedText $(litE $ stringL ">") |]
         applyChildren = if null children
-                        then applyAttrs
-                        else [| $applyAttrs <> mconcat $(listE (map compileToHaskell children)) <> H.preEscapedText $(litE $ stringL $ T.unpack $ "</" <> name <> ">") |]
+                        then [| $applyAttrs <> $closeTag |]
+                        else [| $applyAttrs <> H.preEscapedText $(litE $ stringL ">") <> 
+                                mconcat $(listE (map compileToHaskell children)) <> 
+                                H.preEscapedText $(litE $ stringL $ "</" ++ T.unpack name ++ ">") |]
     in applyChildren
 compileToHaskell (UTextNode text) = [| H.text $(litE $ stringL $ T.unpack text) |]
 compileToHaskell (USplicedNode exp) = [| H.preEscapedToHtml $(return exp) |]
 
-selfClosingTags :: Set.Set String
-selfClosingTags = Set.fromList ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]
-
--- You can add more helper functions here as needed
+compileAttribute :: Text -> AttributeValue -> Q Exp
+compileAttribute name (TextValue value) = [| H.preEscapedText $(litE $ stringL $ " " ++ T.unpack name ++ "=\"" ++ T.unpack value ++ "\"") |]
+compileAttribute name (ExpressionValue exp) = [| H.preEscapedText (T.pack $ " " ++ T.unpack name ++ "=\"") <> H.toHtml $(return exp) <> H.preEscapedText "\"" |]
