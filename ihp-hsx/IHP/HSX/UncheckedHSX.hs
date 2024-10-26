@@ -16,12 +16,20 @@ import Data.String.Conversions (cs)
 import qualified IHP.HSX.HaskellParser as HaskellParser
 import Text.Blaze.Internal (MarkupM(Parent, Leaf), attribute)
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Set as Set
+import Control.Monad (when)
+import Data.Char (isLower)
+import qualified Text.Megaparsec.Char.Lexer as L
+import Data.Functor (void)
+import qualified Text.Megaparsec.Char as C
 
 type Parser = Parsec Void Text
 
 data UNode = UNode Text [(Text, AttributeValue)] [UNode] Bool
            | UTextNode Text
            | USplicedNode Exp
+           | UCommentNode Text
+           | UNoRenderCommentNode
            deriving (Show)
 
 data AttributeValue = TextValue Text | ExpressionValue Exp deriving (Show)
@@ -49,32 +57,34 @@ uncheckedParser extensions = space *> manyUncheckedElement <* eof
 manyUncheckedElement :: Parser UNode
 manyUncheckedElement = do
     children <- many (try uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode)
-    return $ UNode "div" [] children False
+    case children of
+        [node] -> return node
+        _      -> return $ UNode "div" [] children False
 
 uncheckedElement :: Parser UNode
 uncheckedElement = do
-    char '<'
-    tagName <- some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
+    void $ char '<'
+    tagName <- T.pack <$> some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
     attrs <- many uncheckedAttribute
     space
-    (do  string "/>"
-         return $ UNode (T.pack tagName) attrs [] True)
-     <|>
-     (do  char '>'
-          children <- many (try uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode)
-          closing <- optional (try $ string "</" >> string (T.pack tagName) >> char '>')
-          case closing of
-            Just _  -> return $ UNode (T.pack tagName) attrs children False
-            Nothing -> return $ UNode (T.pack tagName) attrs children True)
+    if Set.member tagName selfClosingTags
+        then (void (string "/>" <|> string ">")) >> return (UNode tagName attrs [] True)
+        else do
+            void $ char '>'
+            children <- many (try uncheckedElement <|> uncheckedTextNode <|> uncheckedSplicedNode)
+            closing <- optional (try $ string "</" *> chunk tagName *> char '>')
+            case closing of
+                Just _  -> return $ UNode tagName attrs children False
+                Nothing -> fail $ "Unclosed tag: <" ++ T.unpack tagName ++ ">"
 
 uncheckedAttribute :: Parser (Text, AttributeValue)
 uncheckedAttribute = do
     space
-    name <- some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
+    name <- T.pack <$> some (alphaNumChar <|> char '-' <|> char '_' <|> char ':')
     value <- option (TextValue "") (char '=' *> (quotedValue <|> unquotedValue <|> expressionValue))
-    return (T.pack name, value)
+    return (name, value)
   where
-    quotedValue = TextValue . T.pack <$> (char '"' *> manyTill anySingle (char '"'))
+    quotedValue = TextValue . T.pack <$> (char '"' *> manyTill L.charLiteral (char '"'))
     unquotedValue = TextValue . T.pack <$> some (alphaNumChar <|> char '-' <|> char '_')
     expressionValue = ExpressionValue <$> (char '{' *> parseHaskellExpression <* char '}')
 
@@ -88,25 +98,60 @@ parseHaskellExpression :: Parser Exp
 parseHaskellExpression = do
     pos <- getSourcePos
     code <- takeWhileP Nothing (\c -> c /= '}')
-    case HaskellParser.parseHaskellExpression pos [] (cs code) of
+    case HaskellParser.parseHaskellExpression pos [] (T.unpack code) of
         Right exp -> return exp
         Left err -> fail $ show err
 
 compileToHaskell :: UNode -> Q Exp
-compileToHaskell (UNode name attrs children isLeaf) =
-    let element = [| H.preEscapedText $(litE $ stringL $ "<" ++ T.unpack name) |]
+compileToHaskell (UNode name attrs children isLeaf) = do
+    when (T.toLower name `notElem` knownElements && T.toLower name `notElem` knownLeafs) $
+        case validateCustomElement name of
+            Left err -> fail err
+            Right () -> pure ()
+    when (not isLeaf && null children && name `notElem` voidElements) $
+        fail $ "Empty non-void element: <" ++ T.unpack name ++ ">"
+    let element = if isLeaf || name `elem` voidElements
+                  then nodeToBlazeLeaf name
+                  else nodeToBlazeElement name
         applyAttrs = foldr (\(k, v) e -> [| $e <> $(compileAttribute k v) |]) element attrs
         closeTag = if isLeaf
-                   then [| H.preEscapedText $(litE $ stringL "/>") |]
-                   else [| H.preEscapedText $(litE $ stringL ">") |]
+                   then [| mempty |]
+                   else [| H.preEscapedText $(litE $ stringL $ "</" ++ T.unpack name ++ ">") |]
         applyChildren = if null children
-                        then [| $applyAttrs <> $closeTag |]
-                        else [| $applyAttrs <> H.preEscapedText $(litE $ stringL ">") <> 
-                                mconcat $(listE (map compileToHaskell children)) <> 
-                                H.preEscapedText $(litE $ stringL $ "</" ++ T.unpack name ++ ">") |]
-    in applyChildren
-compileToHaskell (UTextNode text) = [| H.text $(litE $ stringL $ T.unpack text) |]
+                        then [| $applyAttrs |]
+                        else [| $applyAttrs <> mconcat $(listE (map compileToHaskell children)) |]
+    [| $applyChildren <> $closeTag |]
+compileToHaskell (UTextNode value) = [| H.text $(litE $ stringL $ T.unpack value) |]
 compileToHaskell (USplicedNode exp) = [| H.preEscapedToHtml $(return exp) |]
+compileToHaskell (UCommentNode value) = [| H.textComment $(litE $ stringL $ T.unpack value) |]
+compileToHaskell UNoRenderCommentNode = [| mempty |]
+
+selfClosingTags :: Set.Set Text
+selfClosingTags = Set.fromList
+    [ "area", "base", "br", "col", "embed", "hr", "img", "input"
+    , "link", "meta", "param", "source", "track", "wbr"
+    ]
+
+voidElements :: [Text]
+voidElements = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]
+
+validateCustomElement :: Text -> Either String ()
+validateCustomElement name 
+    | T.any (== '-') name && not (isLower (T.head name)) = Left $ "Custom element '" ++ T.unpack name ++ "' must start with a lowercase letter"
+    | T.any (== '-') name = Right ()
+    | otherwise = Left $ "Custom element '" ++ T.unpack name ++ "' must contain a hyphen (-) and start with a lowercase letter"
+
+knownElements :: [Text]
+knownElements = ["div", "span", "p", "a", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "table", "tr", "td", "th", "form", "input", "button", "select", "option", "textarea", "label", "header", "footer", "nav", "main", "section", "article", "aside"]
+
+knownLeafs :: [Text]
+knownLeafs = ["br", "hr", "img", "input", "meta", "link"]
+
+nodeToBlazeLeaf :: Text -> Q Exp
+nodeToBlazeLeaf name = [| H.preEscapedText $(litE $ stringL $ "<" ++ T.unpack name ++ "/>") |]
+
+nodeToBlazeElement :: Text -> Q Exp
+nodeToBlazeElement name = [| H.preEscapedText $(litE $ stringL $ "<" ++ T.unpack name ++ ">") |]
 
 compileAttribute :: Text -> AttributeValue -> Q Exp
 compileAttribute name (TextValue value) = [| H.preEscapedText $(litE $ stringL $ " " ++ T.unpack name ++ "=\"" ++ T.unpack value ++ "\"") |]
