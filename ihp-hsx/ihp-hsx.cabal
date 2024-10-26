@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.3.0
+version:             1.4.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -89,6 +89,7 @@ library
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
         , IHP.HSX.Attribute
+        , IHP.HSX.UncheckedHSX
 
 test-suite ihp-hsx-tests
     type:                exitcode-stdio-1.0
