@@ -39,7 +39,7 @@ hsx = QuasiQuoter {
 
 uncheckedHsx :: QuasiQuoter
 uncheckedHsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings False Set.empty Set.empty),
+        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = False, additionalTagNames = Set.empty, ... = Set.empty }),
         quotePat = error "quotePat: not defined",
         quoteDec = error "quoteDec: not defined",
         quoteType = error "quoteType: not defined"
