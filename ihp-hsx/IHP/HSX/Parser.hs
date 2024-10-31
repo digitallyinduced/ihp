@@ -57,15 +57,16 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 -- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 -- > let hsxText = "<strong>Hello</strong>"
 -- >
--- > let (Right node) = parseHsx position [] hsxText
-parseHsx :: SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
-parseHsx position extensions code =
+-- > let (Right node) = parseHsx True position [] hsxText
+parseHsx :: Bool -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
+parseHsx checkMarkup position extensions code =
     let
         ?extensions = extensions
+        ?checkMarkup = checkMarkup
     in
         runParser (setPosition position *> parser) "" code
 
-type Parser a = (?extensions :: [TH.Extension]) => Parsec Void Text a
+type Parser a = (?extensions :: [TH.Extension], ?checkMarkup :: Bool) => Parsec Void Text a
 
 setPosition pstateSourcePos = updateParserState (\state -> state {
         statePosState = (statePosState state) { pstateSourcePos }
@@ -211,13 +212,12 @@ hsxNodeAttribute = do
 hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
-        unless (isValidAttributeName name) (fail $ "Invalid attribute name: " <> cs name)
+        unless (isValidAttributeName name || not ?checkMarkup) (fail $ "Invalid attribute name: " <> cs name)
         pure name
     where
         isValidAttributeName name =
             "data-" `Text.isPrefixOf` name
             || "aria-" `Text.isPrefixOf` name
-            || "hx-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
             || name `Set.member` attributes
 
@@ -291,7 +291,7 @@ hsxElementName = do
     let isValidParent = name `Set.member` parents
     let isValidLeaf = name `Set.member` leafs
     let isValidCustomWebComponent = "-" `Text.isInfixOf` name
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent) (fail $ "Invalid tag name: " <> cs name)
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || not ?checkMarkup) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
 

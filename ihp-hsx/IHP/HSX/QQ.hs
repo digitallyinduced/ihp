@@ -5,7 +5,7 @@ Module: IHP.HSX.QQ
 Description: Defines the @[hsx||]@ syntax
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.HSX.QQ (hsx) where
+module IHP.HSX.QQ (hsx, uncheckedHsx) where
 
 import           Prelude
 import Data.Text (Text)
@@ -30,17 +30,25 @@ import qualified Data.HashMap.Strict as HashMap
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression,
+        quoteExp = quoteHsxExpression True,
         quotePat = error "quotePat: not defined",
         quoteDec = error "quoteDec: not defined",
         quoteType = error "quoteType: not defined"
     }
 
-quoteHsxExpression :: String -> TH.ExpQ
-quoteHsxExpression code = do
+uncheckedHsx :: QuasiQuoter
+uncheckedHsx = QuasiQuoter {
+        quoteExp = quoteHsxExpression False,
+        quotePat = error "quotePat: not defined",
+        quoteDec = error "quoteDec: not defined",
+        quoteType = error "quoteType: not defined"
+    }
+
+quoteHsxExpression :: Bool -> String -> TH.ExpQ
+quoteHsxExpression checkMarkup code = do
         hsxPosition <- findHSXPosition
         extensions <- TH.extsEnabled
-        expression <- case parseHsx hsxPosition extensions (cs code) of
+        expression <- case parseHsx checkMarkup hsxPosition extensions (cs code) of
                 Left error   -> fail (Megaparsec.errorBundlePretty error)
                 Right result -> pure result
         compileToHaskell expression
