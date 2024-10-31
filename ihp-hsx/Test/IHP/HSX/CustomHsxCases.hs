@@ -11,18 +11,28 @@ import qualified Text.Blaze.Renderer.Text as Blaze
 import Data.Text
 import Language.Haskell.TH.Quote
 import IHP.HSX.Parser
+import qualified Data.Set as Set
 
 myCustomHsx :: QuasiQuoter
 myCustomHsx = customHsx 
-    (AdditionalTags ["mycustomtag", "anothercustomtag"])
-    (AdditionalAttributes ["my-custom-attr", "anothercustomattr"])
+    (HsxSettings { checkMarkup = True
+                 , additionalTagNames = Set.fromList ["mycustomtag", "anothercustomtag"]
+                 , additionalAttributeNames = Set.fromList ["my-custom-attr", "anothercustomattr"] 
+                 }
+    )
 
 myTagsOnlyHsx :: QuasiQuoter
 myTagsOnlyHsx = customHsx
-    (AdditionalTags ["mycustomtag", "anothercustomtag"])
-    (AdditionalAttributes [])
+    (HsxSettings { checkMarkup = True
+                 , additionalTagNames = Set.fromList ["mycustomtag", "anothercustomtag"]
+                 , additionalAttributeNames = Set.fromList []
+                 }
+    )
 
 myAttrsOnlyHsx :: QuasiQuoter
 myAttrsOnlyHsx = customHsx
-    (AdditionalTags [])
-    (AdditionalAttributes ["my-custom-attr", "anothercustomattr"])
+    (HsxSettings { checkMarkup = True
+                 , additionalTagNames = Set.fromList []
+                 , additionalAttributeNames = Set.fromList ["my-custom-attr", "anothercustomattr"]
+                 }
+    )

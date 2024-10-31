@@ -147,7 +147,6 @@ tests = do
                 (Set.fromList ["mycustomtag"])
                 (Set.fromList ["my-custom-attr"])
 
-
         it "should allow specified custom tags" do
             let p = parseHsx customSettings position extensions "<mycustomtag>hello</mycustomtag>"
             p `shouldBe` (Right (Children [Node "mycustomtag" [] [TextNode "hello"] False]))

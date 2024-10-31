@@ -5,7 +5,7 @@ Module: IHP.HSX.QQ
 Description: Defines the @[hsx||]@ syntax
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.HSX.QQ (hsx, uncheckedHsx, customHsx, AdditionalTags(..), AdditionalAttributes(..)) where
+module IHP.HSX.QQ (hsx, uncheckedHsx, customHsx) where
 
 import           Prelude
 import Data.Text (Text)
@@ -45,12 +45,9 @@ uncheckedHsx = QuasiQuoter {
         quoteType = error "quoteType: not defined"
     }
 
-newtype AdditionalTags = AdditionalTags [Text]
-newtype AdditionalAttributes = AdditionalAttributes [Text]
-
-customHsx :: AdditionalTags -> AdditionalAttributes -> QuasiQuoter
-customHsx (AdditionalTags additionalTagNames) (AdditionalAttributes additionalAttributeNames) = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings True (Set.fromList additionalTagNames) (Set.fromList additionalAttributeNames)),
+customHsx :: HsxSettings -> QuasiQuoter
+customHsx settings = QuasiQuoter {
+        quoteExp = quoteHsxExpression settings,
         quotePat = error "quotePat: not defined",
         quoteDec = error "quoteDec: not defined",
         quoteType = error "quoteType: not defined"
