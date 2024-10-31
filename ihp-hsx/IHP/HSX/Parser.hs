@@ -15,6 +15,7 @@ module IHP.HSX.Parser
 , Attribute (..)
 , AttributeValue (..)
 , collapseSpace
+, HsxSettings (..)
 ) where
 
 import Prelude
@@ -33,6 +34,12 @@ import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
+
+data HsxSettings = HsxSettings {
+    checkMarkup :: Bool,
+    additionalTagNames :: Set Text,
+    additionalAttributeNames :: Set Text
+}
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
@@ -58,15 +65,15 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 -- > let hsxText = "<strong>Hello</strong>"
 -- >
 -- > let (Right node) = parseHsx True position [] hsxText
-parseHsx :: Bool -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
-parseHsx checkMarkup position extensions code =
+parseHsx :: HsxSettings -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
+parseHsx settings position extensions code =
     let
         ?extensions = extensions
-        ?checkMarkup = checkMarkup
+        ?settings = settings
     in
         runParser (setPosition position *> parser) "" code
 
-type Parser a = (?extensions :: [TH.Extension], ?checkMarkup :: Bool) => Parsec Void Text a
+type Parser a = (?extensions :: [TH.Extension], ?settings :: HsxSettings) => Parsec Void Text a
 
 setPosition pstateSourcePos = updateParserState (\state -> state {
         statePosState = (statePosState state) { pstateSourcePos }
@@ -212,7 +219,9 @@ hsxNodeAttribute = do
 hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
-        unless (isValidAttributeName name || not ?checkMarkup) (fail $ "Invalid attribute name: " <> cs name)
+        let shouldCheckMarkup = ?settings.checkMarkup
+        let isValidAdditionalAttribute = name `Set.member` ?settings.additionalAttributeNames
+        unless (isValidAttributeName name || not shouldCheckMarkup || isValidAdditionalAttribute) (fail $ "Invalid attribute name: " <> cs name)
         pure name
     where
         isValidAttributeName name =
@@ -285,13 +294,18 @@ hsxSplicedNode = do
         treeToString acc (TokenNode (x:xs)) = ((treeToString (acc <> "{") x) <> (Text.concat $ fmap (treeToString "") xs)) <> "}"
 
 
+
 hsxElementName :: Parser Text
 hsxElementName = do
     name <- takeWhile1P (Just "identifier") (\c -> Char.isAlphaNum c || c == '_' || c == '-' || c == '!')
     let isValidParent = name `Set.member` parents
     let isValidLeaf = name `Set.member` leafs
-    let isValidCustomWebComponent = "-" `Text.isInfixOf` name
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || not ?checkMarkup) (fail $ "Invalid tag name: " <> cs name)
+    let isValidCustomWebComponent = "-" `Text.isInfixOf` name 
+                                  && not (Text.isPrefixOf "-" name)
+                                  && not (Char.isNumber (Text.head name))
+    let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
+    let shouldCheckMarkup = ?settings.checkMarkup
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not shouldCheckMarkup) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
 
