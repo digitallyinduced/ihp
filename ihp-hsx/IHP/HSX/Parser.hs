@@ -35,11 +35,11 @@ import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
 
-data HsxSettings = HsxSettings {
-    checkMarkup :: Bool,
-    additionalTagNames :: Set Text,
-    additionalAttributeNames :: Set Text
-}
+data HsxSettings = HsxSettings
+    { checkMarkup :: Bool
+    , additionalTagNames :: Set Text
+    , additionalAttributeNames :: Set Text
+    }
 
 data AttributeValue = TextValue !Text | ExpressionValue !Haskell.Exp deriving (Eq, Show)
 
