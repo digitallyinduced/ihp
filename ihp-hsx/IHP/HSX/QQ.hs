@@ -5,7 +5,7 @@ Module: IHP.HSX.QQ
 Description: Defines the @[hsx||]@ syntax
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.HSX.QQ (hsx, uncheckedHsx) where
+module IHP.HSX.QQ (hsx) where
 
 import           Prelude
 import Data.Text (Text)
@@ -27,7 +27,6 @@ import Data.List (foldl')
 import IHP.HSX.Attribute
 import qualified Text.Blaze.Html5.Attributes as Attributes
 import qualified Data.HashMap.Strict as HashMap
-import IHP.HSX.UncheckedHSX (uncheckedHsx)
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
@@ -460,4 +459,3 @@ textToStaticString text = StaticString (Text.unpack text ++) (Text.encodeUtf8 te
 
 instance Show (MarkupM ()) where
     show html = BlazeString.renderHtml html
-

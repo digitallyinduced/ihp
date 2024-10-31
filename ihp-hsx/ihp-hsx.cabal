@@ -89,7 +89,6 @@ library
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
         , IHP.HSX.Attribute
-        , IHP.HSX.UncheckedHSX
 
 test-suite ihp-hsx-tests
     type:                exitcode-stdio-1.0
