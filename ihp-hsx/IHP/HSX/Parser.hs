@@ -219,9 +219,8 @@ hsxNodeAttribute = do
 hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
-        let shouldCheckMarkup = ?settings.checkMarkup
-        let isValidAdditionalAttribute = name `Set.member` ?settings.additionalAttributeNames
-        unless (isValidAttributeName name || not shouldCheckMarkup || isValidAdditionalAttribute) (fail $ "Invalid attribute name: " <> cs name)
+        let checkingMarkup = ?settings.checkMarkup
+        unless (isValidAttributeName name || not checkingMarkup) (fail $ "Invalid attribute name: " <> cs name)
         pure name
     where
         isValidAttributeName name =
@@ -229,6 +228,7 @@ hsxAttributeName = do
             || "aria-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
             || name `Set.member` attributes
+            || name `Set.member` ?settings.additionalAttributeNames
 
         rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-' || c == '_')
 
@@ -304,8 +304,8 @@ hsxElementName = do
                                   && not (Text.isPrefixOf "-" name)
                                   && not (Char.isNumber (Text.head name))
     let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
-    let shouldCheckMarkup = ?settings.checkMarkup
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not shouldCheckMarkup) (fail $ "Invalid tag name: " <> cs name)
+    let checkingMarkup = ?settings.checkMarkup
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) (fail $ "Invalid tag name: " <> cs name)
     space
     pure name
 
