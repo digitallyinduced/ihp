@@ -64,7 +64,7 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 -- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 -- > let hsxText = "<strong>Hello</strong>"
 -- >
--- > let (Right node) = parseHsx settings position extensions hsxText
+-- > let (Right node) = parseHsx settings position [] hsxText
 parseHsx :: HsxSettings -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
 parseHsx settings position extensions code =
     let
