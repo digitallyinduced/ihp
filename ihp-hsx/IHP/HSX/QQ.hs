@@ -459,3 +459,4 @@ textToStaticString text = StaticString (Text.unpack text ++) (Text.encodeUtf8 te
 
 instance Show (MarkupM ()) where
     show html = BlazeString.renderHtml html
+    
