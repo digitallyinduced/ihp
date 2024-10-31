@@ -31,7 +31,7 @@ import qualified Data.Set as Set
 
 hsx :: QuasiQuoter
 hsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings True Set.empty Set.empty),
+        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = True, additionalTagNames = Set.empty, additionalAttributeNames = Set.empty }),
         quotePat = error "quotePat: not defined",
         quoteDec = error "quoteDec: not defined",
         quoteType = error "quoteType: not defined"
@@ -39,7 +39,7 @@ hsx = QuasiQuoter {
 
 uncheckedHsx :: QuasiQuoter
 uncheckedHsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = False, additionalTagNames = Set.empty, ... = Set.empty }),
+        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = False, additionalTagNames = Set.empty, additionalAttributeNames = Set.empty }),
         quotePat = error "quotePat: not defined",
         quoteDec = error "quoteDec: not defined",
         quoteType = error "quoteType: not defined"
