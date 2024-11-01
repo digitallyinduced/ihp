@@ -360,7 +360,7 @@ This approach is particularly useful for:
 - UI libraries with non-standard attributes
 - Integration with third-party frameworks that extend HTML syntax
 
-It's not usable for libraries with highly esoteric attributes, like Alpine.js. Even `uncheckedHsx` will throw an error because it doesn't recognize html attributes starting with `@` or has `:` in the attribute name.
+It's not usable for libraries with highly esoteric attributes, like Alpine.js.  Even `uncheckedHsx` will throw an error because it doesn't recognize html attributes starting with `@` or has `:` in the attribute name. In these cases, the spread syntax `{...attributeList}` likely your best bet.
 
 ## Common HSX Patterns
 
