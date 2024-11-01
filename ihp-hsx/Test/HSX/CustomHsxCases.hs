@@ -1,5 +1,5 @@
 {-|
-Module: IHP.HSX.TestHsx
+Module: Test.HSX.CustomHsxCases
 Description: Test helpers for HSX tests with custom tags and attributes
 -}
 module Test.HSX.CustomHsxCases where
