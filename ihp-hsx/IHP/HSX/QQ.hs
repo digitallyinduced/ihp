@@ -45,15 +45,16 @@ uncheckedHsx = customHsx
             , additionalTagNames = Set.empty
             , additionalAttributeNames = Set.empty
             }
-    )
+        )
 
 customHsx :: HsxSettings -> QuasiQuoter
-customHsx settings = QuasiQuoter {
-        quoteExp = quoteHsxExpression settings,
-        quotePat = error "quotePat: not defined",
-        quoteDec = error "quoteDec: not defined",
-        quoteType = error "quoteType: not defined"
-    }
+customHsx settings = 
+    QuasiQuoter 
+        { quoteExp = quoteHsxExpression settings
+        , quotePat = error "quotePat: not defined"
+        , quoteDec = error "quoteDec: not defined"
+        , quoteType = error "quoteType: not defined"
+        }
 
 quoteHsxExpression :: HsxSettings -> String -> TH.ExpQ
 quoteHsxExpression settings code = do
