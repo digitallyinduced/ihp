@@ -291,9 +291,9 @@ It will still check for a valid HTML structure, but it will accept any tag and a
 
 ```haskell
 [uncheckedHsx|
-    <my-custom-element custom-attribute="value">
+    <anytagname custom-attribute="value">
         Content
-    </my-custom-element>
+    </anytagname>
 |]
 ```
 
@@ -323,7 +323,7 @@ myHsx :: QuasiQuoter
 myHsx = customHsx 
     (HsxSettings 
         { checkMarkup = True
-        , additionalTagNames = Set.fromList ["book", "title", "name"]
+        , additionalTagNames = Set.fromList ["book", "heading", "name"]
         , additionalAttributeNames = Set.fromList ["_", "custom-attribute"]
         }
     )
@@ -350,8 +350,8 @@ import Application.Helper.CustomHsx (myHsx) -- Add this line
 
 ```haskell
 [myHsx|
-    <book>
-        <title custom-attribute="value">My Book</title>
+    <book _="on click log 'Hello'">
+        <heading custom-attribute="value">My Book</heading>
         <name>Author Name</name>
     </book>
 |]
