@@ -282,7 +282,7 @@ HSX provides two additional QuasiQuoters beyond the standard `[hsx|...|]` for in
 
 `uncheckedHsx` provides a quick way to bypass HSX's strict tag and attribute name checking. 
 
-It will still check for valid HTML, but it will accept any tag and attribute names.
+It will still check for a valid HTML structure, but it will accept any tag and attribute names.
 
 
 ```haskell
