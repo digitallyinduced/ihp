@@ -30,20 +30,22 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 
 hsx :: QuasiQuoter
-hsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = True, additionalTagNames = Set.empty, additionalAttributeNames = Set.empty }),
-        quotePat = error "quotePat: not defined",
-        quoteDec = error "quoteDec: not defined",
-        quoteType = error "quoteType: not defined"
-    }
+hsx = customHsx 
+        (HsxSettings 
+            { checkMarkup = True
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+        )
 
 uncheckedHsx :: QuasiQuoter
-uncheckedHsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression (HsxSettings { checkMarkup = False, additionalTagNames = Set.empty, additionalAttributeNames = Set.empty }),
-        quotePat = error "quotePat: not defined",
-        quoteDec = error "quoteDec: not defined",
-        quoteType = error "quoteType: not defined"
-    }
+uncheckedHsx = customHsx
+        (HsxSettings 
+            { checkMarkup = False
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+    )
 
 customHsx :: HsxSettings -> QuasiQuoter
 customHsx settings = QuasiQuoter {

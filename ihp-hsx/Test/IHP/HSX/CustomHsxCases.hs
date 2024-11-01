@@ -2,7 +2,7 @@
 Module: IHP.HSX.TestHsx
 Description: Test helpers for HSX tests with custom tags and attributes
 -}
-module IHP.HSX.CustomHsxCases where
+module Test.IHP.HSX.CustomHsxCases where
 
 import Test.Hspec
 import Prelude
