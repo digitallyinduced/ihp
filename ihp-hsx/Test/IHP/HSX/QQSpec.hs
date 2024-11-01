@@ -10,7 +10,7 @@ import IHP.HSX.QQ
 import qualified Text.Blaze.Renderer.Text as Blaze
 import Text.Blaze (preEscapedTextValue)
 import Data.Text
-import Test.HSX.CustomHsxCases
+import IHP.HSX.CustomHsxCases
 
 tests :: SpecWith ()
 tests = do
