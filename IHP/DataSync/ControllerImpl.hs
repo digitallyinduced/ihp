@@ -259,7 +259,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let columns = patch
                         |> HashMap.keys
-                        |> map fieldNameToColumnName
+                        |> map (renamer table).fieldToColumn
                         |> map PG.Identifier
 
                 let values = patch
@@ -294,7 +294,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let columns = patch
                         |> HashMap.keys
-                        |> map fieldNameToColumnName
+                        |> map (renamer table).fieldToColumn
                         |> map PG.Identifier
 
                 let values = patch
