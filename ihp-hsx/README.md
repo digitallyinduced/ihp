@@ -274,6 +274,102 @@ The underlying HTML library blaze currently does not support an empty HTML attri
 
 If you use HTML entities, such as `&nbsp;` for a non-breaking space, you will notice they appear exactly like that. To output directly (i.e. unescaped) use the method `preEscapedToMarkup` from `Text.Blaze.Html5`.
 
+### Custom HSX and Unchecked HSX
+
+HSX provides two additional QuasiQuoters beyond the standard `[hsx|...|]` for increased flexibility: `uncheckedHsx` and `customHsx`.
+
+#### Using `uncheckedHsx`
+
+`uncheckedHsx` provides a quick way to bypass HSX's strict tag and attribute name checking. 
+
+It will still check for a valid HTML structure, but it will accept any tag and attribute names.
+
+
+```haskell
+[uncheckedHsx|
+    <anytagname custom-attribute="value">
+        Content
+    </anytagname>
+|]
+```
+
+While convenient for rapid development, use it with caution as you lose the benefits of compile-time guarantees for your markup.
+
+#### Using `customHsx`
+
+`customHsx` allows you to extend the default HSX with additional whitelisted tag names and attribute names while maintaining the same strict compile-time checking of the default `hsx`. 
+
+This makes it easier to use custom elements that often also contain special attributes, and javascript libraries, for example `_hyperscript`, that use the `_` as an attribute name.
+
+
+To use `customHsx`, you need to create it in a separate module due to Template Haskell restrictions. Here's how to set it up:
+
+1. First, create a new module for your custom HSX (e.g., `Application.Helper.CustomHsx`):
+
+```haskell
+module Application.Helper.CustomHsx where
+
+import IHP.Prelude
+import IHP.HSX.QQ (customHsx)
+import IHP.HSX.Parser
+import Language.Haskell.TH.Quote
+import qualified Data.Set as Set
+
+myHsx :: QuasiQuoter
+myHsx = customHsx 
+    (HsxSettings 
+        { checkMarkup = True
+        , additionalTagNames = Set.fromList ["book", "heading", "name"]
+        , additionalAttributeNames = Set.fromList ["_", "custom-attribute"]
+        }
+    )
+```
+
+Configuration options for `HsxSettings`:
+- `checkMarkup`: Boolean to enable/disable markup checking
+- `additionalTagNames`: Set of additional allowed tag names
+- `additionalAttributeNames`: Set of additional allowed attribute names
+
+2. Make it available in your views by adding it to your view helpers module:
+
+```haskell
+module Application.Helper.View (
+    module Application.Helper.View,
+    module Application.Helper.CustomHsx -- Add this line
+) where
+
+import IHP.ViewPrelude
+import Application.Helper.CustomHsx (myHsx) -- Add this line
+```
+
+3. Use it in your views:
+
+```haskell
+[myHsx|
+    <book _="on click log 'Hello'">
+        <heading custom-attribute="value">My Book</heading>
+        <name>Author Name</name>
+    </book>
+|]
+```
+
+The custom HSX will validate that tags and attributes are either in the default HSX whitelist or in your additional sets. This gives you the flexibility to use custom elements and attributes.
+
+This approach is particularly useful for:
+- Web Components with custom attribute names
+- UI libraries with non-standard attributes
+- Domain-specific XML markup languages
+- Integration with third-party frameworks that extend HTML syntax
+
+`customHsx` whitelisting and even `uncheckedHsx` does not entirely help for libraries with very unusual symbols in their attributes, like Alpine.js, because they don't recognize html attributes starting with `@` or has `:` in the attribute name. In these cases, the spread syntax `{...attributeList}` is likely your best bet.
+
+```haskell
+-- This will not work
+[uncheckedHsx|<button @click="open = true">Expand</button>|]
+
+-- Using spread syntax will work
+[hsx|<button {...[("@click", "open = true" :: Text)]}>Expand</button>|]
+```
 
 ## Common HSX Patterns
 
