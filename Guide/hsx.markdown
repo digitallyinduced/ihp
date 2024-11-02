@@ -365,7 +365,15 @@ This approach is particularly useful for:
 - Domain-specific XML markup languages like [Hyperview](https://hyperview.org/docs/example_navigation)
 - Integration with third-party frameworks that extend HTML syntax
 
-It's not usable for libraries with very unusual symbols in their attributes, like Alpine.js.  Even `uncheckedHsx` will throw an error because it doesn't recognize html attributes starting with `@` or has `:` in the attribute name. In these cases, the spread syntax `{...attributeList}` is likely your best bet.
+`customHsx` whitelisting and even `uncheckedHsx` does not entirely help for libraries with very unusual symbols in their attributes, like Alpine.js, because they don't recognize html attributes starting with `@` or has `:` in the attribute name. In these cases, the spread syntax `{...attributeList}` is likely your best bet.
+
+```haskell
+-- This will not work
+[uncheckedHsx|<button @click="open = true">Expand</button>|]
+
+-- Using spread syntax will work
+[hsx|<button {...[("@click", "open = true" :: Text)]}>Expand</button>|]
+```
 
 ## Common HSX Patterns
 
