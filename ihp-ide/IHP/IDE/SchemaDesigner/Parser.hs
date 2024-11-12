@@ -612,6 +612,7 @@ createFunction = do
     space
     lexeme "RETURNS"
     returns <- sqlType
+    space
 
     language <- optional do
         lexeme "language" <|> lexeme "LANGUAGE"
