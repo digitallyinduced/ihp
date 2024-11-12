@@ -55,6 +55,8 @@ compileStatement UnknownStatement { raw } = raw <> ";"
 compileStatement Set { name, value } = "SET " <> compileIdentifier name <> " = " <> compileExpression value <> ";"
 compileStatement SelectStatement { query } = "SELECT " <> query <> ";"
 compileStatement DropTrigger { name, tableName } = "DROP TRIGGER " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> ";"
+compileStatement CreateEventTrigger { name, eventOn, whenCondition, functionName, arguments } = "CREATE EVENT TRIGGER " <> compileIdentifier name <> " ON " <> compileIdentifier eventOn <> " " <> (maybe "" (\expression -> "WHEN " <> compileExpression expression) whenCondition) <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
+compileStatement DropEventTrigger { name } = "DROP EVENT TRIGGER " <> compileIdentifier name <> ";"
 
 -- | Emit a PRIMARY KEY constraint when there are multiple primary key columns
 compilePrimaryKeyConstraint :: PrimaryKeyConstraint -> Maybe Text
@@ -132,6 +134,7 @@ compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a
 compileExpression (IsExpression a (NotExpression b)) = compileExpressionWithOptionalParenthese a <> " IS NOT " <> compileExpressionWithOptionalParenthese b -- 'IS (NOT NULL)' => 'IS NOT NULL'
 compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
+compileExpression (InArrayExpression values) = "(" <> intercalate ", " (map compileExpression values) <> ")"
 compileExpression (NotExpression a) = "NOT " <> compileExpressionWithOptionalParenthese a
 compileExpression (AndExpression a b) = compileExpressionWithOptionalParenthese a <> " AND " <> compileExpressionWithOptionalParenthese b
 compileExpression (OrExpression a b) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b
@@ -161,6 +164,7 @@ compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpress
 compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(InArrayExpression values) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 compareStatement (CreateEnumType {}) _ = LT

@@ -168,6 +168,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
+        toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
         toDropStatement otherwise = Nothing
 
 

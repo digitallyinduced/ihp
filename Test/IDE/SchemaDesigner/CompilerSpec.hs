@@ -998,6 +998,17 @@ tests = do
                     } ]
             compileSql statements `shouldBe` sql
 
+        it "should compile 'CREATE EVENT TRIGGER ..' statements" do
+            let sql = "CREATE EVENT TRIGGER trigger_update_schema ON ddl_command_end WHEN TAG IN ('CREATE TABLE', 'ALTER TABLE', 'DROP TABLE') EXECUTE FUNCTION update_tables_and_columns();\n"
+            let statements = [ CreateEventTrigger
+                    { name = "trigger_update_schema"
+                    , eventOn = "ddl_command_end"
+                    , whenCondition =  Just (InExpression (VarExpression "TAG") (InArrayExpression [TextExpression "CREATE TABLE", TextExpression "ALTER TABLE", TextExpression "DROP TABLE"]))
+                    , functionName = "update_tables_and_columns"
+                    , arguments = []
+                    } ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'BEGIN;' statements" do
             let sql = "BEGIN;\n"
             let statements = [ Begin ]

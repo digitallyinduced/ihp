@@ -464,7 +464,7 @@ table = [
             , binary "||" ConcatenationExpression
 
             , binary "IS" IsExpression
-            , binary "IN" InExpression
+            , inExpr
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
             , typeCast
@@ -488,6 +488,11 @@ table = [
             char '.'
             name <- identifier
             pure $ \expr -> DotExpression expr name
+        
+        inExpr = Postfix do
+            lexeme "IN"
+            right <- try inArrayExpression <|> expression
+            pure $ \expr -> InExpression expr right
 
 -- | Parses a SQL expression
 --
@@ -548,7 +553,10 @@ selectExpr = do
 
     whereClause Nothing <|> explicitAs <|> implicitAs
 
-
+inArrayExpression :: Parser Expression
+inArrayExpression = do
+    values <- between (char '(') (char ')') (expression `sepBy` (char ',' >> space))
+    pure (InArrayExpression values)
 
 
 
@@ -630,6 +638,38 @@ createFunction = do
 
 createTrigger = do
     lexeme "CREATE"
+    createEventTrigger <|> createTrigger'
+
+createEventTrigger = do
+    lexeme "EVENT"
+    lexeme "TRIGGER"
+
+    name <- qualifiedIdentifier
+    lexeme "ON"
+    eventOn <- identifier
+
+    whenCondition <- optional do
+        lexeme "WHEN"
+        expression
+
+    lexeme "EXECUTE"
+    (lexeme "FUNCTION") <|> (lexeme "PROCEDURE")
+
+    (CallExpression functionName arguments) <- callExpr
+
+    char ';'
+
+    pure CreateEventTrigger
+        { name
+        , eventOn
+        , whenCondition
+        , functionName
+        , arguments
+        }
+
+
+
+createTrigger' = do
     lexeme "TRIGGER"
 
     name <- qualifiedIdentifier
@@ -875,12 +915,24 @@ dropPolicy = do
 
 dropTrigger = do
     lexeme "DROP"
+
+    dropEventTrigger <|> dropTrigger'
+
+dropTrigger' = do
     lexeme "TRIGGER"
     name <- qualifiedIdentifier
     lexeme "ON"
     tableName <- qualifiedIdentifier
     char ';'
     pure DropTrigger { name, tableName }
+
+
+dropEventTrigger = do
+    lexeme "EVENT"
+    lexeme "TRIGGER"
+    name <- qualifiedIdentifier
+    char ';'
+    pure DropEventTrigger { name }
 
 createSequence = do
     lexeme "CREATE"
