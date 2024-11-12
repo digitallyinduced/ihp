@@ -225,6 +225,7 @@ data PostgresType
     | PTSVector
     | PArray PostgresType
     | PTrigger
+    | PEventTrigger
     | PCustomType Text
     deriving (Eq, Show)
 

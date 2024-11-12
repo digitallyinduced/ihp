@@ -272,6 +272,7 @@ sqlType = choice $ map optionalArray
         , inet
         , tsvector
         , trigger
+        , eventTrigger
         , singleChar
         , customType
         ]
@@ -429,6 +430,10 @@ sqlType = choice $ map optionalArray
                 trigger = do
                     try (symbol' "TRIGGER")
                     pure PTrigger
+                
+                eventTrigger = do
+                    try (symbol' "EVENT_TRIGGER")
+                    pure PEventTrigger
 
                 customType = do
                     optional do

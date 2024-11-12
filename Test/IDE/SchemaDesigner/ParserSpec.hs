@@ -802,6 +802,21 @@ $$;
                     , language = "plpgsql"
                     }
 
+        it "should parse CREATE FUNCTION statements that returns an event_trigger" do
+            let sql = cs [plain|
+                CREATE FUNCTION public.a() RETURNS event_trigger
+                    LANGUAGE plpgsql
+                    AS $$ BEGIN SELECT 1; END; $$;
+            |]
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "a"
+                    , functionArguments = []
+                    , functionBody = " BEGIN SELECT 1; END; "
+                    , orReplace = False
+                    , returns = PEventTrigger
+                    , language = "plpgsql"
+                    }
+
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =

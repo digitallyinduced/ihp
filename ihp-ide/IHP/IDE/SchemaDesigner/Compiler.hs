@@ -201,6 +201,7 @@ compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType PTrigger = "TRIGGER"
+compilePostgresType PEventTrigger = "EVENT_TRIGGER"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: Text -> Text
