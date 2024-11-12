@@ -98,12 +98,19 @@ createNotificationFunction table = [i|
             WHEN duplicate_function THEN
             null;
         
-        CREATE UNLOGGED TABLE IF NOT EXISTS large_pg_notifications (
-            id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-            payload TEXT DEFAULT null,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+        IF NOT EXISTS (
+            SELECT FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = 'large_pg_notifications'
+              AND n.nspname = 'public'
+        ) THEN
+            CREATE UNLOGGED TABLE large_pg_notifications (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                payload TEXT DEFAULT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+            );
+            CREATE INDEX large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+        END IF;
     END; $$
 |]
 
