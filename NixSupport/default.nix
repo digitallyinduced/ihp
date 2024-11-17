@@ -23,6 +23,9 @@ let
         (otherDeps pkgs)
     ];
 
+    ihpLibWithMakefile = filter { root = ihp; include = ["lib/IHP/Makefile.dist"]; name = "ihpLibWithMakefile"; };
+    ihpLibWithMakefileAndStatic = filter { root = ihp; include = ["lib/IHP/Makefile.dist" "lib/IHP/static"]; name = "ihpLibWithMakefileAndStatic"; };
+
     schemaObjectFiles =
         let
             self = projectPath;
@@ -33,18 +36,19 @@ let
                     mkdir -p build/Generated
                     build-generated-code
 
-                    export IHP=${ihp}/lib/IHP
+                    export IHP=${ihpLibWithMakefile}/lib/IHP
                     ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
 
                     cp -r build $out
                 '';
-                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; };
+                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; name = "schemaObjectFiles-source"; };
                 nativeBuildInputs =
                     [ (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
                     ]
                 ;
                 dontInstall = true;
                 dontFixup = false;
+                disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
             };
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
@@ -59,8 +63,8 @@ let
 
                 chmod -R +w build/RunProdServer/*
 
-                export IHP_LIB=${ihp}/lib/IHP
-                export IHP=${ihp}/lib/IHP
+                export IHP_LIB=${ihpLibWithMakefile}/lib/IHP
+                export IHP=${ihpLibWithMakefile}/lib/IHP
 
                 mkdir -p build/bin build/RunUnoptimizedProdServer
 
@@ -114,10 +118,11 @@ let
                     done
             '';
             dontFixup = true;
-            src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; };
+            src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
             buildInputs = [allHaskellPackages];
-            nativeBuildInputs = [ pkgs.makeWrapper ];
+            nativeBuildInputs = [ pkgs.makeWrapper schemaObjectFiles];
             enableParallelBuilding = true;
+            disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
         };
 in
     pkgs.stdenv.mkDerivation {
@@ -134,8 +139,8 @@ in
             # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
             export HOME=/tmp
 
-            export IHP_LIB=${ihp}/lib/IHP
-            export IHP=${ihp}/lib/IHP
+            export IHP_LIB=${ihpLibWithMakefileAndStatic}/lib/IHP
+            export IHP=${ihpLibWithMakefileAndStatic}/lib/IHP
 
             make -j static/app.css static/app.js
 
@@ -148,11 +153,11 @@ in
             mkdir -p $out/bin $out/lib
 
             INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihpLibWithMakefileAndStatic}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
-                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihpLibWithMakefileAndStatic}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
@@ -168,13 +173,15 @@ in
         '';
         dontFixup = true;
         src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
-        buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
+        buildInputs = builtins.concatLists [ allNativePackages ];
         nativeBuildInputs = builtins.concatLists [
             [ pkgs.makeWrapper
-            pkgs.cacert # Needed for npm install to work from within the IHP build process
+              pkgs.cacert # Needed for npm install to work from within the IHP build process
+              [allHaskellPackages] 
             ]
         ];
         shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
         enableParallelBuilding = true;
         impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
+        disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
     }
