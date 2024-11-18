@@ -5,7 +5,7 @@ Module: IHP.HSX.QQ
 Description: Defines the @[hsx||]@ syntax
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.HSX.QQ (hsx) where
+module IHP.HSX.QQ (hsx, uncheckedHsx, customHsx) where
 
 import           Prelude
 import Data.Text (Text)
@@ -27,20 +27,40 @@ import Data.List (foldl')
 import IHP.HSX.Attribute
 import qualified Text.Blaze.Html5.Attributes as Attributes
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Set as Set
 
 hsx :: QuasiQuoter
-hsx = QuasiQuoter {
-        quoteExp = quoteHsxExpression,
-        quotePat = error "quotePat: not defined",
-        quoteDec = error "quoteDec: not defined",
-        quoteType = error "quoteType: not defined"
-    }
+hsx = customHsx 
+        (HsxSettings 
+            { checkMarkup = True
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+        )
 
-quoteHsxExpression :: String -> TH.ExpQ
-quoteHsxExpression code = do
+uncheckedHsx :: QuasiQuoter
+uncheckedHsx = customHsx
+        (HsxSettings 
+            { checkMarkup = False
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+        )
+
+customHsx :: HsxSettings -> QuasiQuoter
+customHsx settings = 
+    QuasiQuoter 
+        { quoteExp = quoteHsxExpression settings
+        , quotePat = error "quotePat: not defined"
+        , quoteDec = error "quoteDec: not defined"
+        , quoteType = error "quoteType: not defined"
+        }
+
+quoteHsxExpression :: HsxSettings -> String -> TH.ExpQ
+quoteHsxExpression settings code = do
         hsxPosition <- findHSXPosition
         extensions <- TH.extsEnabled
-        expression <- case parseHsx hsxPosition extensions (cs code) of
+        expression <- case parseHsx settings hsxPosition extensions (cs code) of
                 Left error   -> fail (Megaparsec.errorBundlePretty error)
                 Right result -> pure result
         compileToHaskell expression

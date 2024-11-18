@@ -67,7 +67,7 @@ cd blog
 Start the development server by running the following in the `blog` directory:
 
 ```bash
-./start
+devenv up
 ```
 
 Your application is starting now. The development server will automatically launch the built-in IDE.

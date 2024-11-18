@@ -64,8 +64,12 @@ data Statement
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
     | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | CREATE EVENT TRIGGER ..;
+    | CreateEventTrigger { name :: !Text, eventOn :: !Text, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | DROP TRIGGER .. ON ..;
     | DropTrigger { name :: !Text, tableName :: !Text }
+    -- | DROP EVENT TRIGGER ..;
+    | DropEventTrigger { name :: !Text }
     -- | BEGIN;
     | Begin
     -- | COMMIT;
@@ -165,6 +169,8 @@ data Expression =
     | IsExpression Expression Expression
     -- | a IN b
     | InExpression Expression Expression
+    -- | ('a', 'b')
+    | InArrayExpression [Expression]
     -- | NOT a
     | NotExpression Expression
     -- | EXISTS a
@@ -225,6 +231,7 @@ data PostgresType
     | PTSVector
     | PArray PostgresType
     | PTrigger
+    | PEventTrigger
     | PCustomType Text
     deriving (Eq, Show)
 

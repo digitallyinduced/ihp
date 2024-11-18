@@ -130,20 +130,20 @@ tests = do
 
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
+                    instance CanCreate Generated.ActualTypes.User where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
                             sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
-                    instance CanUpdate User where
+                    instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                         updateRecordDiscardResult model = do
@@ -161,7 +161,7 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
-                    instance CanUpdate User where
+                    instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
                         updateRecordDiscardResult model = do
@@ -188,11 +188,11 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User' ) where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
@@ -201,40 +201,40 @@ tests = do
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
 
-                    instance FromRow User where
+                    instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
                             ids <- field
                             electricityUnitPrice <- field
-                            let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
 
                     type instance GetModelName (User' ) = "User"
 
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
+                    instance CanCreate Generated.ActualTypes.User where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
                             sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
-                    instance CanUpdate User where
+                    instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
                         updateRecordDiscardResult model = do
                             sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
-                    instance Record User where
+                    instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
-                        newRecord = User def def 0.17  def
+                        newRecord = Generated.ActualTypes.User def def 0.17  def
 
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
@@ -263,11 +263,11 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User' ) where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
@@ -276,40 +276,40 @@ tests = do
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
 
-                    instance FromRow User where
+                    instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
                             ids <- field
                             electricityUnitPrice <- field
-                            let theRecord = User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
 
                     type instance GetModelName (User' ) = "User"
 
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
+                    instance CanCreate Generated.ActualTypes.User where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
                             sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
-                    instance CanUpdate User where
+                    instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
                         updateRecordDiscardResult model = do
                             sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
-                    instance Record User where
+                    instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
-                        newRecord = User def def 0  def
+                        newRecord = Generated.ActualTypes.User def def 0  def
 
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
@@ -338,11 +338,11 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = User
+                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User' ) where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
@@ -351,39 +351,39 @@ tests = do
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
-                    instance InputValue User where inputValue = IHP.ModelSupport.recordToInputValue
+                    instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
 
-                    instance FromRow User where
+                    instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
                             ts <- field
-                            let theRecord = User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
 
                     type instance GetModelName (User' ) = "User"
 
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
+                    instance CanCreate Generated.ActualTypes.User where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
                             sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
 
-                    instance CanUpdate User where
+                    instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                         updateRecordDiscardResult model = do
                             sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
-                    instance Record User where
+                    instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
-                        newRecord = User def def  def
+                        newRecord = Generated.ActualTypes.User def def  def
 
 
                     instance QueryBuilder.FilterPrimaryKey "users" where
@@ -419,11 +419,11 @@ tests = do
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
-                    type instance GetModelByTableName "landing_pages" = LandingPage
+                    type instance GetModelByTableName "landing_pages" = Generated.ActualTypes.LandingPage
 
                     instance Default (Id' "landing_pages") where def = Id def
 
-                    instance () => Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
+                    instance () => IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
                         tableName = "landing_pages"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
@@ -432,38 +432,38 @@ tests = do
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
-                    instance InputValue LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
+                    instance InputValue Generated.ActualTypes.LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
 
 
-                    instance FromRow LandingPage where
+                    instance FromRow Generated.ActualTypes.LandingPage where
                         fromRow = do
                             id <- field
-                            let theRecord = LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
-                    instance CanCreate LandingPage where
-                        create :: (?modelContext :: ModelContext) => LandingPage -> IO LandingPage
+                    instance CanCreate Generated.ActualTypes.LandingPage where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                         create model = do
                             sqlQuerySingleRow "INSERT INTO landing_pages (id) VALUES (?) RETURNING id" (Only (fieldWithDefault #id model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => LandingPage -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO landing_pages (id) VALUES (?)" (Only (fieldWithDefault #id model))
 
-                    instance CanUpdate LandingPage where
+                    instance CanUpdate Generated.ActualTypes.LandingPage where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
                         updateRecordDiscardResult model = do
                             sqlExecDiscardResult "UPDATE landing_pages SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
-                    instance Record LandingPage where
+                    instance Record Generated.ActualTypes.LandingPage where
                         {-# INLINE newRecord #-}
-                        newRecord = LandingPage def def def def
+                        newRecord = Generated.ActualTypes.LandingPage def def def def
 
 
                     instance QueryBuilder.FilterPrimaryKey "landing_pages" where
@@ -485,14 +485,14 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
-                    instance CanCreate User where
-                        create :: (?modelContext :: ModelContext) => User -> IO User
+                    instance CanCreate Generated.ActualTypes.User where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
                             sqlQuerySingleRow "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[]) RETURNING id, keywords" ((model.id, model.keywords))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO users (id, keywords) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: TEXT[])") models)) <> " RETURNING id, keywords") (List.concat $ List.map (\model -> [toField (model.id), toField (model.keywords)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => User -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[])" ((model.id, model.keywords))
                     |]
@@ -516,20 +516,20 @@ tests = do
         
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
-                    instance CanCreate Thing where
-                        create :: (?modelContext :: ModelContext) => Thing -> IO Thing
+                    instance CanCreate Generated.ActualTypes.Thing where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Thing -> IO Generated.ActualTypes.Thing
                         create model = do
                             sqlQuerySingleRow "INSERT INTO things (thing_arbitrary_ident) VALUES (?) RETURNING thing_arbitrary_ident" (Only (fieldWithDefault #thingArbitraryIdent model))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO things (thing_arbitrary_ident) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING thing_arbitrary_ident") (List.concat $ List.map (\model -> [toField (fieldWithDefault #thingArbitraryIdent model)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Thing -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.Thing -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO things (thing_arbitrary_ident) VALUES (?)" (Only (fieldWithDefault #thingArbitraryIdent model))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
-                    instance CanUpdate Thing where
+                    instance CanUpdate Generated.ActualTypes.Thing where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ? RETURNING thing_arbitrary_ident" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
                         updateRecordDiscardResult model = do
@@ -537,15 +537,15 @@ tests = do
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
-                    instance FromRow Thing where
+                    instance FromRow Generated.ActualTypes.Thing where
                         fromRow = do
                             thingArbitraryIdent <- field
-                            let theRecord = Thing thingArbitraryIdent (QueryBuilder.filterWhere (#thingRef, thingArbitraryIdent) (QueryBuilder.query @Other)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.Thing thingArbitraryIdent (QueryBuilder.filterWhere (#thingRef, thingArbitraryIdent) (QueryBuilder.query @Other)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "() => Table" compileOutput `shouldBe` [trimming|
-                    instance () => Table (Thing' others) where
+                getInstanceDecl "() => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance () => IHP.ModelSupport.Table (Thing' others) where
                         tableName = "things"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
@@ -585,20 +585,20 @@ tests = do
         
             it "should compile CanCreate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
-                    instance CanCreate BitPartRef where
-                        create :: (?modelContext :: ModelContext) => BitPartRef -> IO BitPartRef
+                    instance CanCreate Generated.ActualTypes.BitPartRef where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.BitPartRef -> IO Generated.ActualTypes.BitPartRef
                         create model = do
                             sqlQuerySingleRow "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?) RETURNING bit_ref, part_ref" ((model.bitRef, model.partRef))
                         createMany [] = pure []
                         createMany models = do
                             sqlQuery (Query $ "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?)") models)) <> " RETURNING bit_ref, part_ref") (List.concat $ List.map (\model -> [toField (model.bitRef), toField (model.partRef)]) models)
-                        createRecordDiscardResult :: (?modelContext :: ModelContext) => BitPartRef -> IO ()
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.BitPartRef -> IO ()
                         createRecordDiscardResult model = do
                             sqlExecDiscardResult "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?)" ((model.bitRef, model.partRef))
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
-                    instance CanUpdate BitPartRef where
+                    instance CanUpdate Generated.ActualTypes.BitPartRef where
                         updateRecord model = do
                             sqlQuerySingleRow "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?) RETURNING bit_ref, part_ref" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
                         updateRecordDiscardResult model = do
@@ -606,16 +606,16 @@ tests = do
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
-                    instance FromRow BitPartRef where
+                    instance FromRow Generated.ActualTypes.BitPartRef where
                         fromRow = do
                             bitRef <- field
                             partRef <- field
-                            let theRecord = BitPartRef bitRef partRef def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.BitPartRef bitRef partRef def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "(ToField bitRef, ToField partRef) => Table" compileOutput `shouldBe` [trimming|
-                    instance (ToField bitRef, ToField partRef) => Table (BitPartRef' bitRef partRef) where
+                getInstanceDecl "(ToField bitRef, ToField partRef) => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance (ToField bitRef, ToField partRef) => IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
                         tableName = "bit_part_refs"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
@@ -627,10 +627,10 @@ tests = do
                 let (Just statement) = find (isNamedTable "parts") statements
                 let compileOutput = compileStatementPreview statements statement |> Text.strip
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
-                    instance FromRow Part where
+                    instance FromRow Generated.ActualTypes.Part where
                         fromRow = do
                             partArbitraryIdent <- field
-                            let theRecord = Part partArbitraryIdent (QueryBuilder.filterWhere (#partRef, partArbitraryIdent) (QueryBuilder.query @BitPartRef)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.Part partArbitraryIdent (QueryBuilder.filterWhere (#partRef, partArbitraryIdent) (QueryBuilder.query @BitPartRef)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
