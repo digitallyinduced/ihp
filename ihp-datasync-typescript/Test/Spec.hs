@@ -383,28 +383,6 @@ tests = do
                         }
                         function ThinBackend(props: ThinBackendProps): JSX.Element;
                     }
-
-                    declare module 'ihp-datasync/react18' {
-                        import { TableName, QueryBuilder } from 'ihp-datasync';
-
-                        /**
-                         * React hook for querying the database and streaming results in real-time.
-                         *
-                         * Suspends while the data is being fetched from the server.
-                         * 
-                         * @example
-                         * function TasksList() {
-                         *      const tasks = useQuery(query('tasks').orderBy('createdAt'))
-                         *      
-                         *      return <div>
-                         *          {tasks.map(task => <div>{task.title}</div>)}
-                         *      </div>
-                         * }
-                         * 
-                         * @param {QueryBuilder<table, result>} queryBuilder A database query
-                         */
-                        function useQuery<table extends TableName, result>(queryBuilder: QueryBuilder<table, result>): Array<result>;
-                    }
                 |]
                 
                 (generateTypeScriptTypeDefinitions schema) `shouldBe` expected
