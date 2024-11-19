@@ -73,6 +73,20 @@ migrate
 
 A good value for `MINIMUM_REVISION` is typically the unix timestamp of the time when the database was initially created.
 
+
+### IHP_MIGRATIONS_DIR
+
+In production when running the migrations binary it is sometimes convenient to have all your Migrations in a non-standard place:
+e.g. if you need to push migrations onto production server without rebuilding the application. There is an Environment variable
+`IHP_MIGRATION_DIR` to accomplish this.
+
+```
+IHP_MIGRATION_DIR=path/to/my/migration/dir
+```
+
+This can be set in the environment attribute set of your IHP app flake.
+
+
 ## Common Issues
 
 ### ALTER TYPE ... ADD cannot run inside a transaction block
