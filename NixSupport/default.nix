@@ -25,6 +25,7 @@ let
 
     ihpLibWithMakefile = filter { root = ihp; include = ["lib/IHP/Makefile.dist"]; name = "ihpLibWithMakefile"; };
     ihpLibWithMakefileAndStatic = filter { root = ihp; include = ["lib/IHP/Makefile.dist" "lib/IHP/static"]; name = "ihpLibWithMakefileAndStatic"; };
+    splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
 
     schemaObjectFiles =
         let
@@ -37,7 +38,7 @@ let
                     build-generated-code
 
                     export IHP=${ihpLibWithMakefile}/lib/IHP
-                    ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
+                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
 
                     cp -r build $out
                 '';
@@ -68,8 +69,8 @@ let
 
                 mkdir -p build/bin build/RunUnoptimizedProdServer
 
-                echo ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
-                ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
+                echo ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
+                ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
 
                 # Build job runner if there are any jobs
                 if find -type d -iwholename \*/Job|grep .; then
@@ -81,7 +82,7 @@ let
                     echo "import Main ()" >> build/RunJobs.hs
                     echo "main :: IO ()" >> build/RunJobs.hs
                     echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> build/RunJobs.hs
-                    ghc -O${if optimized then optimizationLevel else "0"} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
+                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
                 fi;
 
                 # Build all scripts if there are any
@@ -117,7 +118,6 @@ let
                         mv "build/bin/Script/$script_basename" "$out/bin/$script_basename";
                     done
             '';
-            dontFixup = true;
             src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
             buildInputs = [allHaskellPackages];
             nativeBuildInputs = [ pkgs.makeWrapper schemaObjectFiles];
@@ -171,7 +171,6 @@ in
 
             runHook postInstall
         '';
-        dontFixup = true;
         src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
         buildInputs = builtins.concatLists [ allNativePackages ];
         nativeBuildInputs = builtins.concatLists [
