@@ -17,6 +17,10 @@
   </a>
 
   <img src="https://api.scarf.sh/v2/packages/digitallyinduced/4b7241ee-9679-43fa-9b27-b5595b775c30/downloads-badge"/>
+  
+  <a href="https://gurubase.io/g/ihp" target="_blank">
+    <img src="https://img.shields.io/badge/Gurubase-Ask%20IHP%20Guru-006BFF"/>
+  </a>
 </p>
 
 <p align="center">
