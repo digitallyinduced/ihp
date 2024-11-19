@@ -41,7 +41,7 @@ createNotificationFunction :: RLS.TableWithRLS -> PG.Query
 createNotificationFunction table = [i|
     DO $$
     BEGIN
-            CREATE FUNCTION #{functionName}() RETURNS TRIGGER AS $BODY$
+            CREATE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
                 DECLARE
                     payload TEXT;
                     large_pg_notification_id UUID;
@@ -86,24 +86,31 @@ createNotificationFunction table = [i|
                     RETURN new;
                 END;
             $BODY$ language plpgsql;
-            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
-            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
-            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
+            DROP TRIGGER IF EXISTS "#{insertTriggerName}" ON "#{tableName}";
+            DROP TRIGGER IF EXISTS "#{updateTriggerName}" ON "#{tableName}";
+            DROP TRIGGER IF EXISTS "#{deleteTriggerName}" ON "#{tableName}";
 
 
-            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
-            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
-            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE #{functionName}();
+            CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+            CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+            CREATE TRIGGER "#{deleteTriggerName}" AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
         EXCEPTION
             WHEN duplicate_function THEN
             null;
         
-        CREATE UNLOGGED TABLE IF NOT EXISTS large_pg_notifications (
-            id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-            payload TEXT DEFAULT null,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+        IF NOT EXISTS (
+            SELECT FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = 'large_pg_notifications'
+              AND n.nspname = 'public'
+        ) THEN
+            CREATE UNLOGGED TABLE large_pg_notifications (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                payload TEXT DEFAULT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+            );
+            CREATE INDEX large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+        END IF;
     END; $$
 |]
 

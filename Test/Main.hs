@@ -27,8 +27,6 @@ import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
 import qualified Test.IDE.CodeGeneration.MailGenerator
 import qualified Test.IDE.CodeGeneration.JobGenerator
-import qualified Test.HSX.QQSpec
-import qualified Test.HSX.ParserSpec
 import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
@@ -46,6 +44,7 @@ import qualified Test.RouterSupportSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
+import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.FileStorage.MimeTypesSpec
 import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
@@ -64,10 +63,8 @@ main = hspec do
     Test.IDE.CodeGeneration.ViewGenerator.tests
     Test.IDE.CodeGeneration.MailGenerator.tests
     Test.IDE.CodeGeneration.JobGenerator.tests
-    Test.HSX.QQSpec.tests
     Test.NameSupportSpec.tests
     Test.HaskellSupportSpec.tests
-    Test.HSX.ParserSpec.tests
     Test.View.CSSFrameworkSpec.tests
     Test.View.FormSpec.tests
     Test.Controller.ContextSpec.tests
@@ -82,6 +79,7 @@ main = hspec do
     Test.ViewSupportSpec.tests
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
+    Test.FileStorage.ControllerFunctionsSpec.tests
     Test.FileStorage.MimeTypesSpec.tests
     Test.DataSync.DynamicQueryCompiler.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests

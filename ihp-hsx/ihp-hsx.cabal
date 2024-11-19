@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.3.0
+version:             1.4.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -89,3 +89,56 @@ library
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
         , IHP.HSX.Attribute
+
+test-suite ihp-hsx-tests
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      Test
+    main-is:             Main.hs
+    other-modules:
+        IHP.HSX.ParserSpec
+        IHP.HSX.QQSpec
+    default-language:    Haskell2010
+    build-depends:
+          base >= 4.17.0 && < 4.20
+        , ihp-hsx
+        , hspec
+        , text >= 2.0.1 && < 2.2
+        , bytestring >= 0.11.3 && < 0.13
+        , containers >= 0.6.6 && < 0.7
+        , blaze-markup
+        , megaparsec
+        , template-haskell
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , Rank2Types
+        , NamedFieldPuns
+        , TypeSynonymInstances
+        , FlexibleInstances
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , FlexibleContexts
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , ScopedTypeVariables
+        , RecordWildCards
+        , TypeApplications
+        , DataKinds
+        , InstanceSigs
+        , DeriveGeneric
+        , MultiParamTypeClasses
+        , TypeOperators
+        , DeriveDataTypeable
+        , DefaultSignatures
+        , BangPatterns
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , StandaloneDeriving
+        , TemplateHaskell
+        , OverloadedRecordDot

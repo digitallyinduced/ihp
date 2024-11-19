@@ -354,7 +354,7 @@ compileInputValueInstance :: CreateTable -> Text
 compileInputValueInstance table =
         "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
     where
-        modelName = tableNameToModelName table.name
+        modelName = qualifiedConstructorNameFromTableName table.name
 
 -- | Returns all the type arguments of the data structure for an entity
 dataTypeArguments :: (?schema :: Schema) => CreateTable -> [Text]
@@ -542,18 +542,30 @@ columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypeca
         columnPlaceholderNeedsTypecast Column { columnType = PArray {} } = True
         columnPlaceholderNeedsTypecast _ = False
 
+qualifiedConstructorNameFromTableName :: Text -> Text
+qualifiedConstructorNameFromTableName unqualifiedName = "Generated.ActualTypes." <> (tableNameToModelName unqualifiedName)
+
 compileCreate :: CreateTable -> Text
 compileCreate table@(CreateTable { name, columns }) =
     let
         writableColumns = onlyWritableColumns columns
-        modelName = tableNameToModelName name
+        modelName = qualifiedConstructorNameFromTableName name
         columnNames = commaSep (map (.name) writableColumns)
         values = commaSep (map columnPlaceholder writableColumns)
 
         toBinding column@(Column { name }) =
-            if hasExplicitOrImplicitDefault column
-                then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
-                else "model." <> columnNameToFieldName name
+                if hasExplicitOrImplicitDefault column && not isArrayColumn
+                    then "fieldWithDefault #" <> columnNameToFieldName name <> " model"
+                    else "model." <> columnNameToFieldName name
+            where
+                -- We cannot use DEFAULT with array columns as postgres will throw an error:
+                --
+                -- > DEFAULT is not allowed in this context
+                --
+                -- To walk around this error, we explicitly specify an empty array.
+                isArrayColumn = case column.columnType of
+                    PArray _ -> True
+                    _        -> False
 
 
         bindings :: [Text]
@@ -591,7 +603,7 @@ onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNoth
 compileUpdate :: CreateTable -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
-        modelName = tableNameToModelName name
+        modelName = qualifiedConstructorNameFromTableName name
         writableColumns = onlyWritableColumns columns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
@@ -642,7 +654,7 @@ instance FromRow #{modelName} where
 
 |]
     where
-        modelName = tableNameToModelName name
+        modelName = qualifiedConstructorNameFromTableName name
         columnNames = map (columnNameToFieldName . (.name)) columns
         columnBinding columnName = columnName <> " <- field"
 
@@ -721,9 +733,12 @@ instance FromRow #{modelName} where
 
 compileBuild :: (?schema :: Schema) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =
-        "instance Record " <> tableNameToModelName name <> " where\n"
+    let
+        constructor = qualifiedConstructorNameFromTableName name
+    in
+        "instance Record " <> constructor <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> tableNameToModelName name <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
+        <> "    newRecord = " <> constructor <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
 
 
 compileDefaultIdInstance :: CreateTable -> Text
@@ -762,7 +777,7 @@ toDefaultValueExpr _ = "def"
 compileHasTableNameInstance :: (?schema :: Schema) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
     "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
-    <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
+    <> "type instance GetModelByTableName " <> tshow name <> " = Generated.ActualTypes." <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"
@@ -807,7 +822,7 @@ instance #{instanceHead} where
 |]
     where
         instanceHead :: Text
-        instanceHead = instanceConstraints <> " => Table (" <> compileTypePattern table <> ")"
+        instanceHead = instanceConstraints <> " => IHP.ModelSupport.Table (" <> compileTypePattern table <> ")"
             where
                 instanceConstraints =
                     table

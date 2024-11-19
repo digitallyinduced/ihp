@@ -2,7 +2,8 @@ name: "Tests + Compile"
 on:
   pull_request:
     branches: [master]
-
+  push:
+    branches: 'master'
 jobs:
   tests:
     runs-on: ARM64

@@ -52,6 +52,14 @@ ihpFlake:
                     ];
                 };
 
+                appName = lib.mkOption {
+                    description = '' 
+                        The derivation name.
+                    '';
+                    type = lib.types.str;
+                    default = "app";
+                };
+
                 projectPath = lib.mkOption {
                     description = ''
                         Path to the IHP project. You likely want to set this to `./.`.
@@ -131,14 +139,14 @@ ihpFlake:
                     haskellDeps = cfg.haskellPackages;
                     otherDeps = p: cfg.packages;
                     projectPath = cfg.projectPath;
-                    # Dev tools are not needed in the release build
-                    includeDevTools = false;
                     # Set optimized = true to get more optimized binaries, but slower build times
                     optimized = true;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
+                    appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -146,12 +154,13 @@ ihpFlake:
                     haskellDeps = cfg.haskellPackages;
                     otherDeps = p: cfg.packages;
                     projectPath = cfg.projectPath;
-                    includeDevTools = false;
                     optimized = false;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
+                    appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
@@ -173,10 +182,12 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
+                    nativeBuildInputs = [ihp.ihp-ide];
                     installPhase = ''
                         mkdir $out
                         cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
                     '';
+                    allowedReferences = [];
                 };
 
 
@@ -192,9 +203,21 @@ ihpFlake:
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.postgresql_13 pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ++ [(let cfg = config.devenv.shells.default.services.postgres; in
+                        if cfg.extensions != null
+                        then
+                          if builtins.hasAttr "withPackages" cfg.package
+                          then cfg.package.withPackages cfg.extensions
+                          else
+                            builtins.throw ''
+                              Cannot add extensions to the PostgreSQL package.
+                              `services.postgres.package` is missing the `withPackages` attribute. Did you already add extensions to the package?
+                            ''
+                        else cfg.package
+                    )]
                     ;
 
                 /*
@@ -227,6 +250,7 @@ ihpFlake:
                 # As the devenv postgres uses a different location for the socket
                 # this would break lots of known commands such as `make db`
                 services.postgres.enable = false;
+                services.postgres.package = pkgs.postgresql_13;
                 services.postgres.initialDatabases = [
                     {
                     name = "app";

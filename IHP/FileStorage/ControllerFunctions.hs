@@ -96,23 +96,23 @@ storeFileWithOptions fileInfo options = do
 
     let fileName = options.fileName |> fromMaybe objectId
 
-    let directory = options.directory
-    let objectPath = directory <> "/" <> UUID.toText fileName
+    let objectPath = options.directory <> "/" <> UUID.toText fileName
     let preprocess = options.preprocess
 
     fileInfo <- preprocess fileInfo
 
     url <- case storage of
-        StaticDirStorage -> do
-            let destPath :: Text = "static/" <> objectPath
-            Directory.createDirectoryIfMissing True (cs $ "static/" <> directory)
+        StaticDirStorage { directory } -> do
+            let destPath :: Text = directory <> objectPath
+            Directory.createDirectoryIfMissing True (cs $ directory <> options.directory)
 
             fileInfo
                 |> (.fileContent)
                 |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = ?context.frameworkConfig
-            pure $ frameworkConfig.baseUrl <> "/" <> objectPath
+            -- Prefix with a slash so it can be used in URLs, even if the baseUrl is empty.
+            pure $ "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> (.fileContent)
@@ -224,9 +224,15 @@ createTemporaryDownloadUrlFromPathWithExpiredAt :: (?context :: context, ConfigP
 createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
     publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
     case storage of
-        StaticDirStorage -> do
+        StaticDirStorage {} -> do
             let frameworkConfig = ?context.frameworkConfig
-            let url = frameworkConfig.baseUrl <> "/" <> objectPath
+            let urlSchemes = ["http://", "https://"]
+
+            let url = if any (`isPrefixOf` objectPath) urlSchemes
+                    -- BC, before we saved only the relative path of a file, we saved the full URL. So use it as is.
+                    then objectPath
+                    -- We have the relative path (prefixed with slash), so add the baseUrl.
+                    else frameworkConfig.baseUrl <> objectPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
@@ -391,8 +397,8 @@ uploadToStorage field record = uploadToStorageWithOptions def field record
 removeFileFromStorage :: (?context :: context, ConfigProvider context) => StoredFile -> IO (Either MinioErr ())
 removeFileFromStorage StoredFile { path, url } = do
     case storage of
-        StaticDirStorage -> do
-            let fullPath :: String = cs $ "static/" <> path
+        StaticDirStorage { directory } -> do
+            let fullPath :: String = cs $ directory <> path
             Directory.removeFile fullPath
             pure $ Right ()
         S3Storage { connectInfo, bucket} -> do
@@ -408,5 +414,5 @@ storage = ?context.frameworkConfig.appConfig
 -- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
 storagePrefix :: (?context :: ControllerContext) => Text
 storagePrefix = case storage of
-    StaticDirStorage -> "static/"
+    StaticDirStorage { directory } -> directory
     _ -> ""

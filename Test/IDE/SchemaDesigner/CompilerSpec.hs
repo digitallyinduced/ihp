@@ -753,6 +753,19 @@ tests = do
 
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS EVENT_TRIGGER .." do
+            let sql = cs [plain|CREATE OR REPLACE FUNCTION a() RETURNS EVENT_TRIGGER AS $$$$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "a"
+                    , functionArguments = []
+                    , functionBody = ""
+                    , orReplace = True
+                    , returns = PEventTrigger
+                    , language = "plpgsql"
+                    }
+
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE FUNCTION ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
             let statement = CreateFunction
@@ -982,6 +995,17 @@ tests = do
                     , whenCondition = Nothing
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
+                    } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE EVENT TRIGGER ..' statements" do
+            let sql = "CREATE EVENT TRIGGER trigger_update_schema ON ddl_command_end WHEN TAG IN ('CREATE TABLE', 'ALTER TABLE', 'DROP TABLE') EXECUTE FUNCTION update_tables_and_columns();\n"
+            let statements = [ CreateEventTrigger
+                    { name = "trigger_update_schema"
+                    , eventOn = "ddl_command_end"
+                    , whenCondition =  Just (InExpression (VarExpression "TAG") (InArrayExpression [TextExpression "CREATE TABLE", TextExpression "ALTER TABLE", TextExpression "DROP TABLE"]))
+                    , functionName = "update_tables_and_columns"
+                    , arguments = []
                     } ]
             compileSql statements `shouldBe` sql
 

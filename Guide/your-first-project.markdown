@@ -20,7 +20,7 @@ The first time you set up IHP, this command might take 10 - 15 minutes to instal
 
 If you don't already use cachix, you will be prompted to install it. You don't need it, but it is highly recommended, as it reduces build time dramatically. Learn more about cachix [here](https://cachix.org/).
 
-While the build is running, take a look at ["What Is Nix"](https://engineering.shopify.com/blogs/engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
+While the build is running, take a look at ["What Is Nix"](https://shopify.engineering/what-is-nix) by Shopify to get a general understanding of how Nix works.
 
 In case some errors appear now or in later steps:
 
@@ -67,7 +67,7 @@ cd blog
 Start the development server by running the following in the `blog` directory:
 
 ```bash
-./start
+devenv up
 ```
 
 Your application is starting now. The development server will automatically launch the built-in IDE.

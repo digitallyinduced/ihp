@@ -21,6 +21,12 @@ data ManagedProcess = ManagedProcess
     , processHandle :: !ProcessHandle
     } deriving (Show)
 
+procDirenvAware :: (?context :: Context) => FilePath -> [String] -> Process.CreateProcess
+procDirenvAware command args =
+    if ?context.wrapWithDirenv
+        then Process.proc "direnv" (["exec", ".", command] <> args)
+        else Process.proc command args
+
 createManagedProcess :: CreateProcess -> IO ManagedProcess
 createManagedProcess config = do
     process <- Process.createProcess config
@@ -128,6 +134,7 @@ data Context = Context
     , ghciInChan :: !(Queue.InChan OutputLine) -- ^ Output of the app ghci is written here
     , ghciOutChan :: !(Queue.OutChan OutputLine) -- ^ Output of the app ghci is consumed here
     , liveReloadClients :: !(IORef (Map UUID Websocket.Connection))
+    , wrapWithDirenv :: !Bool
     }
 
 dispatch :: (?context :: Context) => Action -> IO ()

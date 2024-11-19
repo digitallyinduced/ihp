@@ -1,15 +1,18 @@
 {-|
-Module: Test.HSX.QQSpec
+Module: IHP.HSX.QQSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.HSX.QQSpec where
+module IHP.HSX.QQSpec where
 
 import Test.Hspec
-import IHP.Prelude
+import Prelude
 import IHP.HSX.QQ
 import qualified Text.Blaze.Renderer.Text as Blaze
 import Text.Blaze (preEscapedTextValue)
+import Data.Text
+import IHP.HSX.CustomHsxCases
 
+tests :: SpecWith ()
 tests = do
     describe "HSX" do
         it "should work with static html" do
@@ -188,6 +191,21 @@ tests = do
             -- See https://github.com/digitallyinduced/ihp/issues/1717
 
             [hsx|<!DOCTYPE html><html lang="en"><body>hello</body></html>|] `shouldBeHtml` "<!DOCTYPE HTML>\n<html lang=\"en\"><body>hello</body></html>"
+
+    describe "customHsx" do
+        it "should allow specified custom tags" do
+            [myTagsOnlyHsx|<mycustomtag>hello</mycustomtag>|] `shouldBeHtml` "<mycustomtag>hello</mycustomtag>"
+            [myTagsOnlyHsx|<anothercustomtag>world</anothercustomtag>|] `shouldBeHtml` "<anothercustomtag>world</anothercustomtag>"
+
+        it "should allow specified custom attributes" do
+            [myAttrsOnlyHsx|<div my-custom-attr="hello">test</div>|] `shouldBeHtml` "<div my-custom-attr=\"hello\">test</div>"
+            [myAttrsOnlyHsx|<div anothercustomattr="world">test</div>|] `shouldBeHtml` "<div anothercustomattr=\"world\">test</div>"
+
+        it "should allow combining custom tags and attributes" do
+            [myCustomHsx|<mycustomtag my-custom-attr="hello">test</mycustomtag>|] `shouldBeHtml` "<mycustomtag my-custom-attr=\"hello\">test</mycustomtag>"
+
+        it "should work with regular HTML tags and attributes too" do
+           [myCustomHsx|<div class="hello" my-custom-attr="test">world</div>|] `shouldBeHtml` "<div class=\"hello\" my-custom-attr=\"test\">world</div>"
 
 data Project = Project { name :: Text }
 
