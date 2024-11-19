@@ -13,63 +13,70 @@ with lib;
             type = types.str;
             default = "https://${config.services.ihp.domain}";
         };
-        
+
         migrations = mkOption {
             type = types.path;
         };
-        
+
         schema = mkOption {
             type = types.path;
         };
-        
+
         fixtures = mkOption {
             type = types.path;
         };
-        
+
         httpsEnabled = mkOption {
             type = types.bool;
             default = true;
         };
-        
+
         databaseName = mkOption {
             type = types.str;
             default = "app";
         };
-        
+
         databaseUser = mkOption {
             type = types.str;
             default = "ihp";
         };
-        
+
         databaseUrl = mkOption {
             type = types.str;
         };
-        
+
         # https://ihp.digitallyinduced.com/Guide/database-migrations.html#skipping-old-migrations
         minimumRevision = mkOption {
             type = types.int;
             default = 0;
         };
-        
+
+        # https://ihp.digitallyinduced.com/Guide/database-migrations.html#ihp-migrations-dir
+        ihpMigrationDir = mkOption {
+            type = types.str;
+            default = "Application/Migration/";
+        };
+
+
         ihpEnv = mkOption {
             type = types.str;
             default = "Production";
         };
-        
+
         appPort = mkOption {
             type = types.int;
             default = 8000;
         };
-        
+
         requestLoggerIPAddrSource = mkOption {
             type = types.str;
             default = "FromHeader";
         };
-        
+
         sessionSecret = mkOption {
             type = types.str;
         };
-        
+
         additionalEnvVars = mkOption {
             type = types.attrs;
             default = {};
@@ -79,7 +86,7 @@ with lib;
             type = types.package;
             default = if config.services.ihp.optimized then self.packages."${pkgs.system}".optimized-prod-server else self.packages."${pkgs.system}".default;
         };
-        
+
         optimized = mkOption {
             type = types.bool;
             default = false;
@@ -91,4 +98,3 @@ with lib;
         };
     };
 }
-
