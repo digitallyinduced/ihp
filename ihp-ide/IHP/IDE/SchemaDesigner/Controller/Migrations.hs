@@ -111,7 +111,7 @@ instance Controller MigrationsController where
 readSqlStatements :: SchemaMigration.Migration -> IO Text
 readSqlStatements migration = do
     migrationFilePath <- (SchemaMigration.migrationPath migration)
-    pure Text.readFile (migrationFilePath)
+    Text.readFile (cs migrationFilePath)
 
 findRecentMigrations :: IO [SchemaMigration.Migration]
 findRecentMigrations = take 20 . reverse <$> SchemaMigration.findAllMigrations
