@@ -99,7 +99,8 @@ findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revis
 -- The result is sorted so that the oldest revision is first.
 findAllMigrations :: IO [Migration]
 findAllMigrations = do
-    directoryFiles <- Directory.listDirectory "Application/Migration"
+    migrationDir <- detectMigrationDir
+    directoryFiles <- Directory.listDirectory (cs migrationDir)
     directoryFiles
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
@@ -128,5 +129,10 @@ pathToMigration fileName = case revision of
 
 migrationPath :: Migration -> IO Text
 migrationPath Migration { migrationFile } = do
-    migrationDir <- envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
+    migrationDir <- detectMigrationDir
     pure (migrationDir <> migrationFile)
+
+detectMigrationDir :: IO Text
+detectMigrationDir =
+    envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
+
