@@ -86,7 +86,7 @@ instance Controller MigrationsController where
 
     action DeleteMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
-        path <- cs $ SchemaMigration.migrationPath migration
+        path <- cs <$> SchemaMigration.migrationPath migration
 
         Directory.removeFile path
 
