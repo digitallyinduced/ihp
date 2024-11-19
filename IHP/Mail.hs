@@ -54,7 +54,7 @@ sendWithMailServer SES { .. } mail = do
     manager <- Network.HTTP.Client.newManager Network.HTTP.Client.TLS.tlsManagerSettings
     let ses = Mailer.SES {
             Mailer.sesFrom = cs $ addressEmail (mailFrom mail),
-            Mailer.sesTo = map (cs . addressEmail) (mailTo mail),
+            Mailer.sesTo = map (cs . addressEmail) ((mailTo mail) <> (mailCc mail) <> (mailBcc mail)),
             Mailer.sesAccessKey = accessKey,
             Mailer.sesSecretKey = secretKey,
             Mailer.sesSessionToken = Nothing,
