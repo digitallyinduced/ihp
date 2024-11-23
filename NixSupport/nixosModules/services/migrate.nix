@@ -2,27 +2,15 @@
 let cfg = config.services.ihp;
 in
 {
-    systemd.services.migrate =
-        let migrateApp = pkgs.stdenv.mkDerivation {
-                name = "migrate-app";
-                src = cfg.migrations;
-                buildPhase = ''
-                    mkdir -p $out/Application/Migration
-                    find "$src" -mindepth 1 -type f -exec cp {} $out/Application/Migration \;
-                '';
-            };
-        in {
-            serviceConfig = {
-                Type = "oneshot";
-            };
-            script = ''
-                cd ${migrateApp}
-                ${ihp.apps."${pkgs.system}".migrate.program}
-            '';
-            environment = {
-                DATABASE_URL = cfg.databaseUrl;
-                MINIMUM_REVISION = "${toString cfg.minimumRevision}";
-                IHP_MIGRATION_DIR = cfg.ihpMigrationDir;
-            };
+    systemd.services.migrate = {
+        serviceConfig = {
+            Type = "oneshot";
+            ExecStart = ihp.apps."${pkgs.system}".migrate.program;
+        };
+        environment = {
+            DATABASE_URL = cfg.databaseUrl;
+            MINIMUM_REVISION = "${toString cfg.minimumRevision}";
+            IHP_MIGRATION_DIR = cfg.migrations;
+        };
     };
 }
