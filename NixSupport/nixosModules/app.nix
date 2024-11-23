@@ -9,6 +9,7 @@ in
         ihp.nixosModules.services_app
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
+        ihp.nixosModules.services_appKeygen
     ];
 
     # Pin the nixpkgs to the IHP nixpkgs

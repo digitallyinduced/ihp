@@ -110,11 +110,17 @@ initSessionMiddleware FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
+    hasSessionSecretFileEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET_FILE"
     doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
     store <- clientsessionStore <$>
-            if hasSessionSecretEnvVar || not doesConfigDirectoryExist
-                then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
-                else ClientSession.getKey path
+            if hasSessionSecretFileEnvVar
+                then do
+                    path <- EnvVar.env "IHP_SESSION_SECRET_FILE"
+                    ClientSession.getKey path
+                else
+                    if hasSessionSecretEnvVar || not doesConfigDirectoryExist
+                        then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
+                        else ClientSession.getKey path
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVaultKey
     pure sessionMiddleware
 
