@@ -12,6 +12,7 @@ import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
 import qualified Data.Char as Char
 import IHP.Log.Types
+import IHP.EnvVar
 
 data Migration = Migration
     { revision :: Int
@@ -37,7 +38,9 @@ migrate options = do
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
 runMigration :: (?modelContext :: ModelContext) => Migration -> IO ()
 runMigration migration@Migration { revision, migrationFile } = do
-    migrationSql <- Text.readFile (cs $ migrationPath migration)
+    -- | User can specify migrations directory as environment variable (defaults to /Application/Migrations/...)
+    migrationFilePath <- migrationPath migration
+    migrationSql <- Text.readFile (cs migrationFilePath)
 
     let fullSql = [trimming|
         BEGIN;
@@ -96,7 +99,8 @@ findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revis
 -- The result is sorted so that the oldest revision is first.
 findAllMigrations :: IO [Migration]
 findAllMigrations = do
-    directoryFiles <- Directory.listDirectory "Application/Migration"
+    migrationDir <- detectMigrationDir
+    directoryFiles <- Directory.listDirectory (cs migrationDir)
     directoryFiles
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
@@ -123,5 +127,12 @@ pathToMigration fileName = case revision of
                 |> fmap textToInt
                 |> join
 
-migrationPath :: Migration -> Text
-migrationPath Migration { migrationFile } = "Application/Migration/" <> migrationFile
+migrationPath :: Migration -> IO Text
+migrationPath Migration { migrationFile } = do
+    migrationDir <- detectMigrationDir
+    pure (migrationDir <> migrationFile)
+
+detectMigrationDir :: IO Text
+detectMigrationDir =
+    envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
+
