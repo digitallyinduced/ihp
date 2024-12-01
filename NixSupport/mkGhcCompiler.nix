@@ -39,9 +39,6 @@ let
   ihpDoJailbreakPackages = ["microlens-th"];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
-  ghc = if pkgs.stdenv.isDarwin
-    then ghcCompiler.ghc.overrideAttrs (oldAttrs: { patches = [ ./ghc-12264.patch ./scav-bco.patch ] ++ (oldAttrs.patches or []); })
-    else ghcCompiler.ghc;
   overrides = composeExtensionsList [
     generatedOverrides
 
