@@ -46,7 +46,7 @@ instance Job EmailCustomersJob where
 
 IHP watches the job table in the database for any new records and automatically runs the job asynchronously when a new job is added. There are two ways to run a job:
 
-1. Run immediately:
+1. Run immediately (as soon as a job worker is available):
 
 ```haskell
 newRecord @EmailCustomersJob |> create
