@@ -60,7 +60,7 @@ newRecord @EmailCustomersJob
     |> create
 ```
 
-The `runAt` field determines when the job should be executed. If not set, the job runs immediately. When set, IHP polls for scheduled jobs approximately every minute and executes any jobs whose runAt time has passed.
+The `runAt` field determines when the job should be executed. If not set, the job runs immediately. When set, IHP polls for scheduled jobs approximately every minute and executes any jobs whose `runAt` time has passed.
 
 This can be done in a controller action or in a script as will be shown below.
 
