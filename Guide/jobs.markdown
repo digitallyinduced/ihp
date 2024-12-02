@@ -54,9 +54,11 @@ newRecord @EmailCustomersJob |> create
 2. Schedule for future execution:
 
 ```haskell
+import Data.Time.Clock (addUTCTime, getCurrentTime, nominalDay)
+
 now <- getCurrentTime
 newRecord @EmailCustomersJob 
-    |> set #runAt (addUTCTime 86400 now)  -- Schedule 24 hours in the future
+    |> set #runAt (addUTCTime nominalDay now)  -- Schedule 24 hours in the future
     |> create
 ```
 
