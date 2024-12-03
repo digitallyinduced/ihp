@@ -90,6 +90,7 @@ common shared-properties
             , minio-hs
             , temporary
             , conduit-extra
+            , html-conduit
             , wai-cors
             , lens
             , random
@@ -240,6 +241,8 @@ library
         , IHP.LibDir
         , IHP.Test.Mocking
         , IHP.Test.Database
+        , IHP.Test.TransversingCSS
+        , IHP.Test.CssQuery
         , IHP.Version
         , Paths_ihp
         , IHP.Job.Queue
