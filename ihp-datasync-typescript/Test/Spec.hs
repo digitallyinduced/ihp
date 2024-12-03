@@ -349,6 +349,8 @@ tests = do
                          */
                         function useQuery<table extends TableName, result>(queryBuilder: QueryBuilder<table, result>, options?: DataSubscriptionOptions): Array<result> | null;
 
+                        function useCount<table extends TableName>(queryBuilder: QueryBuilder<table, any>): number | null;
+
                         /**
                          * A version of `useQuery` when you only want to fetch a single record.
                          * 

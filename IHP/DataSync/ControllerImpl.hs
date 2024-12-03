@@ -187,6 +187,49 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                     MVar.takeMVar close
 
+            handleMessage CreateCountSubscription { query, requestId } = do
+                ensureBelowSubscriptionsLimit
+
+                tableNameRLS <- ensureRLSEnabled query.table
+
+                subscriptionId <- UUID.nextRandom
+
+                -- Allocate the close handle as early as possible
+                -- to make DeleteDataSubscription calls succeed even when the CountSubscription is
+                -- not fully set up yet
+                close <- MVar.newEmptyMVar
+                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+
+                let (theQuery, theParams) = compileQueryWithRenamer (renamer query.table) query
+
+                let countQuery = "SELECT COUNT(*) FROM (" <> theQuery <> ") AS _inner"
+
+                let
+                    unpackResult :: [(Only Int)] -> Int
+                    unpackResult [(Only value)] = value
+                    unpackResult otherwise = error "DataSync.unpackResult: Expected INT, but got something else"
+
+                count <- unpackResult <$> sqlQueryWithRLS countQuery theParams
+                countRef <- newIORef count
+
+                installTableChangeTriggers tableNameRLS
+
+                let
+                    callback :: ChangeNotifications.ChangeNotification -> IO ()
+                    callback _ = do
+                        newCount <- unpackResult <$> sqlQueryWithRLS countQuery theParams
+                        lastCount <- readIORef countRef
+
+                        when (newCount /= count) (sendJSON DidChangeCount { subscriptionId, count = newCount })
+
+                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
+
+                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                    sendJSON DidCreateCountSubscription { subscriptionId, requestId, count }
+
+                    MVar.takeMVar close
+
             handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
                 case HashMap.lookup subscriptionId subscriptions of
