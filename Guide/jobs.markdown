@@ -44,11 +44,25 @@ instance Job EmailCustomersJob where
 
 ### Running the job
 
-IHP watches the job table in the database for any new records and automatically runs the job asynchronously when a new job is added. So to run a job, simply create a new record:
+IHP watches the job table in the database for any new records and automatically runs the job asynchronously when a new job is added. There are two ways to run a job:
+
+1. Run immediately (as soon as a job worker is available):
 
 ```haskell
 newRecord @EmailCustomersJob |> create
 ```
+2. Schedule for future execution:
+
+```haskell
+import Data.Time.Clock (addUTCTime, getCurrentTime, nominalDay)
+
+now <- getCurrentTime
+newRecord @EmailCustomersJob 
+    |> set #runAt (addUTCTime nominalDay now)  -- Schedule 24 hours in the future
+    |> create
+```
+
+The `runAt` field determines when the job should be executed. If not set, the job runs immediately. When set, IHP polls for scheduled jobs approximately every minute and executes any jobs whose `runAt` time has passed.
 
 This can be done in a controller action or in a script as will be shown below.
 
