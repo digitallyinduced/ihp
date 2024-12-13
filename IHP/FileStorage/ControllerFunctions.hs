@@ -40,7 +40,7 @@ import qualified System.Directory as Directory
 import qualified Control.Exception as Exception
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
-import IHP.FileStorage.MimeTypes
+import qualified Network.Mime as Mime
 
 -- | Uploads a file to a directory in the storage
 --
@@ -179,7 +179,7 @@ storeFileFromUrl url options = do
 --
 storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromPath path options = do
-    let fileContentType = path |> guessMimeType |> cs
+    let fileContentType = Mime.defaultMimeLookup (cs path)
 
     fileContent <- LBS.readFile (cs path)
     let file = Wai.FileInfo
