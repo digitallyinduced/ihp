@@ -173,7 +173,7 @@ defaultPaginationOptions =
 --
 -- __Example:__
 --
--- > (users, pagination) <- paginatedSqlQuery "SELECT id, firstname, lastname FROM users" ()
+-- > (users, pagination) <- paginatedSqlQuery @User "SELECT id, firstname, lastname FROM users" []
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
@@ -193,10 +193,10 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 --
 -- __Example:__
 --
--- > (users, pagination) <- paginatedSqlQueryWithOptions
+-- > (users, pagination) <- paginatedSqlQueryWithOptions @User
 -- >     (defaultPaginationOptions |> set #maxItems 10)
 -- >     "SELECT id, firstname, lastname FROM users"
--- >     ()
+-- >     []
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
