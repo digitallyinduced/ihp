@@ -15,18 +15,12 @@ module IHP.Pagination.ControllerFunctions
 import IHP.Prelude
 import IHP.Controller.Context
 import IHP.Controller.Param ( paramOrDefault, paramOrNothing )
-
-import IHP.Pagination.Types
-    ( Options(..), Pagination(..) )
-
-import IHP.QueryBuilder
-    ( HasQueryBuilder, filterWhereILike, limit, offset )
+import IHP.Pagination.Types ( Options(..), Pagination(..) )
+import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
-
 import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
 
-import Database.PostgreSQL.Simple.ToField (toField, Action)
-import Database.PostgreSQL.Simple.Types (Query(Query))
+import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
 
 -- | Paginate a query, with the following default options:
 --
@@ -173,18 +167,18 @@ defaultPaginationOptions =
 --
 -- __Example:__
 --
--- > (users, pagination) <- paginatedSqlQuery @User "SELECT id, firstname, lastname FROM users" []
+-- > (users, pagination) <- paginatedSqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQuery
-  :: forall model
-   . ( FromRow model
+  :: ( FromRow model
+     , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      )
-  => ByteString -> [Action] -> IO ([model], Pagination)
+  => Query -> parameters -> IO ([model], Pagination)
 paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 
 -- | Runs a raw sql query and adds pagination to it.
@@ -193,23 +187,23 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 --
 -- __Example:__
 --
--- > (users, pagination) <- paginatedSqlQueryWithOptions @User
+-- > (users, pagination) <- paginatedSqlQueryWithOptions
 -- >     (defaultPaginationOptions |> set #maxItems 10)
 -- >     "SELECT id, firstname, lastname FROM users"
--- >     []
+-- >     ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQueryWithOptions
-  :: forall model
-   . ( FromRow model
+  :: ( FromRow model
+     , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      )
-  => Options -> ByteString -> [Action] -> IO ([model], Pagination)
+  => Options -> Query -> parameters -> IO ([model], Pagination)
 paginatedSqlQueryWithOptions options sql placeholders = do
-    count :: Int <- sqlQueryScalar (Query $ "SELECT count(subquery.*) FROM (" <> sql <> ") as subquery") placeholders
+    count :: Int <- sqlQueryScalar ("SELECT count(subquery.*) FROM (" <> sql <> ") as subquery") placeholders
 
     let pageSize = pageSize' options
         pagination = Pagination
@@ -220,8 +214,8 @@ paginatedSqlQueryWithOptions options sql placeholders = do
             }
 
     results :: [model] <- sqlQuery
-        (Query $ "SELECT subquery.* FROM (" <> sql <> ") as subquery LIMIT ? OFFSET ?")
-        (placeholders ++ map toField [pageSize, offset' pageSize page])
+        ("SELECT subquery.* FROM (" <> sql <> ") as subquery LIMIT ? OFFSET ?")
+        (placeholders :. Only pageSize :. Only (offset' pageSize page))
 
     pure (results, pagination)
 
