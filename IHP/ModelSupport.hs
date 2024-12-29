@@ -673,7 +673,7 @@ logQuery query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
+        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double |> round
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
