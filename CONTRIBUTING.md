@@ -82,7 +82,7 @@ use `make console` to load your application together with the framework located 
 
 ```
 ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
+:l ihp/ihp-ide/exe/IHP/IDE/DevServer.hs
 main
 ```
 
@@ -95,7 +95,7 @@ You can enable additional debug logging for the development server by setting th
 ```
 export DEBUG=1
 ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
+:l ihp/ihp-ide/exe/IHP/IDE/DevServer.hs
 main
 ```
 
