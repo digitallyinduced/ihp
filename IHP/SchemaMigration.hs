@@ -56,19 +56,17 @@ runMigration migration@Migration { revision, migrationFile } = do
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
     -- Hide this query from the log
-    let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
+    withoutQueryLogging do
+        -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
+        -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
+        -- https://github.com/digitallyinduced/ihp/issues/818
+        maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
+        let schemaMigrationTableExists = isJust maybeTableName
 
-    -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
-    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
-    -- https://github.com/digitallyinduced/ihp/issues/818
-    maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
-    let schemaMigrationTableExists = isJust maybeTableName
-
-    unless schemaMigrationTableExists do
-        let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-        _ <- sqlExec ddl ()
-        pure ()
+        unless schemaMigrationTableExists do
+            let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
+            _ <- sqlExec ddl ()
+            pure ()
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]

@@ -1145,3 +1145,19 @@ copyRecord existingRecord =
         existingRecord
             |> set #id def
             |> set #meta meta
+
+-- | Runs sql queries without logging them
+--
+-- Example:
+--
+-- > users <- withoutQueryLogging (sqlQuery "SELECT * FROM users" ())
+--
+withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => result) -> result
+withoutQueryLogging callback =
+    let
+        modelContext = ?modelContext
+        nullLogger = modelContext.logger { write = \_ -> pure ()}
+    in
+        let ?modelContext = modelContext { logger = nullLogger }
+        in
+            callback
