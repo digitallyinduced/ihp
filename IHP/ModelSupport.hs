@@ -352,8 +352,8 @@ textToId text = case parsePrimaryKey (cs text) of
 
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => PG.Connection -> IO a -> Query -> q -> IO a
-measureTimeIfLogging connection queryAction theQuery theParameters = do
+measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => Text -> PG.Connection -> IO a -> Query -> q -> IO a
+measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = do
     let currentLogLevel = ?modelContext.logger.level
     if currentLogLevel == Debug
         then do
@@ -361,7 +361,7 @@ measureTimeIfLogging connection queryAction theQuery theParameters = do
             queryAction `finally` do
                 end <- getCurrentTime
                 let theTime = end `diffUTCTime` start
-                logQuery connection theQuery theParameters theTime
+                logQuery logPrefix connection theQuery theParameters theTime
         else queryAction
 
 -- | Runs a raw sql query
@@ -379,7 +379,7 @@ measureTimeIfLogging connection queryAction theQuery theParameters = do
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
     withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlQuery #-}
 
 
@@ -412,7 +412,7 @@ sqlQuerySingleRow theQuery theParameters = do
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
     withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "💾" connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlExec #-}
 
 -- | Runs a sql statement (like a CREATE statement), but doesn't return any result
@@ -650,8 +650,8 @@ primaryKeyConditionColumnSelector =
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
 primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
-logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
-logQuery connection query parameters time = do
+logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Text -> PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
+logQuery logPrefix connection query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
@@ -663,7 +663,7 @@ logQuery connection query parameters time = do
                 Nothing -> ""
 
         formatted <- PG.formatQuery connection query parameters
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> cs formatted <> rlsInfo)
+        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> tshow queryTimeInMs <> "ms)")
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
