@@ -404,7 +404,7 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
                 Just value -> [hsx|default: {compileExpression value} |]
                 Nothing -> mempty
         renderForeignKey = case findForeignKey statements tableName name of
-            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable, onDelete = onDeleteConstraint } } -> [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable} class="d-block nounderline">FOREIGN KEY: {referenceTable} (On Delete: {tshow onDeleteConstraint})</a>|]
+            Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable, onDelete = onDeleteConstraint } } -> [hsx|<a href={EditForeignKeyAction tableName name constraintName referenceTable} class="d-block nounderline">FOREIGN KEY: {referenceTable} (On Delete: {maybe "" tshow onDeleteConstraint})</a>|]
             _ -> mempty
         foreignKeyOption = case findForeignKey statements tableName name of
             Just addConstraint@AddConstraint { constraint = ForeignKeyConstraint { name = Just constraintName, referenceTable } } ->
