@@ -686,7 +686,7 @@ logQuery query parameters time = do
             showAction (PG.EscapeByteA byteString) = cs byteString
             showAction (PG.EscapeIdentifier byteString) = cs byteString
             showAction (PG.Many actions) = concatMap showAction actions
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " [" <> (intercalate ", " $ map showAction $ PG.toRow parameters) <> "]" <> rlsInfo)
+        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> cs query.fromQuery <> " [" <> (intercalate ", " $ map showAction $ PG.toRow parameters) <> "]" <> rlsInfo)
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
