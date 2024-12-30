@@ -20,13 +20,13 @@ This guide will help you understand the best-practices of building hybrid applic
 
 To access the JavaScript ecosystem we need to add NodeJS to our project. You should also follow this step if you have NodeJS already installed on your system. Installing the NodeJS version via nix allows all people working on your project to get the exact NodeJS version you're using.
 
-For that open your projects `default.nix` and add `nodejs` to `otherDeps`:
+For that open your projects `flake.nix` and add `nodejs` to `packages`:
 
 ```nix
-        otherDeps = p: with p; [
-            # Native dependencies, e.g. imagemagick
-            nodejs
-        ];
+                    packages = with pkgs; [
+                        # Native dependencies, e.g. imagemagick
+                        nodejs
+                    ];
 ```
 
 Now you need to rebuild your local dev environment:
@@ -490,7 +490,7 @@ function TodoItem({ todo }) {
             id={todoIdAttr}
             type="checkbox"
             checked={todo.isCompleted}
-            onChange={() => updateRecordById('todos', todo.id, { isCompleted: !todo.isCompleted })}
+            onChange={() => updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })}
             className="mr-2"
         />
         <label className="form-check-label" htmlFor={todoIdAttr}>{todo.title}</label>
@@ -498,7 +498,7 @@ function TodoItem({ todo }) {
 }
 ```
 
-This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecordById('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similiar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
+This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similiar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
 
 Now we need to use this new `TodoItem` component inside our `TodoList`. Change the `render()` function of the `TodoList` to this:
 
@@ -531,7 +531,7 @@ function TodoItem({ todo }) {
     return <div className="form-group form-check">
         <!-- .. -->
 
-        <button className="btn btn-link text-danger" onClick={() => deleteRecordById('todos', todo.id) }>Delete</button>
+        <button className="btn btn-link text-danger" onClick={() => deleteRecord('todos', todo.id) }>Delete</button>
     </div>
 }
 ````
@@ -586,7 +586,7 @@ This will run a `SELECT * FROM todos` query and put a list of `Todo` structures.
 
 #### Realtime Queries
 
-To keep the result set in sync with the actual database state, use `fetchAndRefresh`:
+To keep the result set in sync with the actual database state, use `subscribe`:
 
 
 ```javascript
@@ -594,10 +594,10 @@ function callback(todos) {
     console.log('todos did change', todos);
 }
 
-const todos = await query('todos').fetchAndRefresh(callback);
+const todos = await query('todos').subscribe(callback);
 ```
 
-The `fetchAndRefresh` function is using a websocket to be notified about any changes to the selected data set. [It's using IHP's `DataSubscription` API.](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/vendor/ihp-datasync.js) For more fine grained control you can use the `DataSubscription` API directly instead of relying on `fetchAndRefresh`.
+The `subscribe` function is using a websocket to be notified about any changes to the selected data set. [It's using IHP's `DataSubscription` API.](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/DataSync/ihp-datasync.js) For more fine grained control you can use the `DataSubscription` API directly instead of relying on `subscribe`.
 
 #### Filtering
 
@@ -838,24 +838,24 @@ const todos = await createRecord('todos', [ todoA, todoB ]);
 
 ### Update Record By ID
 
-The function `updateRecordById` runs an `UPDATE` query for a specific record:
+The function `updateRecord` runs an `UPDATE` query for a specific record:
 
 ```javascript
-updateRecordById(table, id, patch)
+updateRecord(table, id, patch)
 
 // Example:
-const todo = await updateRecordById('todos', '66cc037e-5729-435c-b507-a17492fe44f4', { isCompleted: false });
+const todo = await updateRecord('todos', '66cc037e-5729-435c-b507-a17492fe44f4', { isCompleted: false });
 ```
 
 ### Delete Record By ID
 
-Use `deleteRecordById` to run a simple `DELETE` query:
+Use `deleteRecord` to run a simple `DELETE` query:
 
 ```javascript
 deleteRecordById(table, id)
 
 // Example:
-await deleteRecordById('todos', '66cc037e-5729-435c-b507-a17492fe44f4');
+await deleteRecord('todos', '66cc037e-5729-435c-b507-a17492fe44f4');
 ```
 
 This will execute:
