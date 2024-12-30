@@ -378,11 +378,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1719994518,
-        "narHash": "sha256-pQMhCCHyQGRzdfAkdJ4cIWiw+JNuWsTX7f0ZYSyz0VY=",
+        "lastModified": 1727826117,
+        "narHash": "sha256-K5ZLCyfO/Zj9mPFldf3iwS6oZStJcU4tSpiXTMYaaL0=",
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "9227223f6d922fee3c7b190b2cc238a99527bbb7",
+        "rev": "3d04084d54bedc3d6b8b736c70ef449225c361b1",
         "type": "github"
       },
       "original": {
@@ -726,11 +726,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1714870368,
-        "narHash": "sha256-40eI5uHSTrKgHX6qJz4muP3MVjg2Zhxt3fIktqsx7GU=",
+        "lastModified": 1723099683,
+        "narHash": "sha256-x9s9jLdbW6RCIF0zU/MSc1yOIX2dI/X+wKVKsTn6qMM=",
         "owner": "digitallyinduced",
         "repo": "ihp-boilerplate",
-        "rev": "68eb3debd8e353653391214a658deafa6f72d91c",
+        "rev": "bb89c616788160fca842c377994bcca4ef2c660d",
         "type": "github"
       },
       "original": {
@@ -1542,17 +1542,17 @@
     },
     "nixpkgs_7": {
       "locked": {
-        "lastModified": 1714864423,
-        "narHash": "sha256-Wx3Y6arRJD1pd3c8SnD7dfW7KWuCr/r248P/5XLaMdM=",
+        "lastModified": 1735561296,
+        "narHash": "sha256-WnsX2qe3IVMKh3bZVKy9EpvXf4OG0YyxoHueM4Yxf/o=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "54b4bb956f9891b872904abdb632cea85a033ff2",
+        "rev": "3a08f5ea2c51f9ccf9e94c5ce6753d75aa542790",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
+        "ref": "haskell-updates",
         "repo": "nixpkgs",
-        "rev": "54b4bb956f9891b872904abdb632cea85a033ff2",
         "type": "github"
       }
     },
