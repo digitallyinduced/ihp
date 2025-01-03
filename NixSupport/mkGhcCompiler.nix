@@ -54,5 +54,7 @@ in ghcCompiler.override {
     manualOverrides
 
     (self: super: { websockets = super.websockets_0_13_0_0; })
+    (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
+
   ];
 }
