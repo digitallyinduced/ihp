@@ -784,7 +784,7 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
 webSocketAppWithCustomPath path = do
         Attoparsec.char '/'
         string path
-        pure (startWebSocketAppAndFailOnHTTP @webSocketApp)
+        pure (startWebSocketAppAndFailOnHTTP (WS.initialState @webSocketApp))
 {-# INLINABLE webSocketAppWithCustomPath #-}
 
 webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
@@ -800,7 +800,8 @@ webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
 webSocketAppWithCustomPathAndHTTPFallback path = do
         Attoparsec.char '/'
         string path
-        pure (startWebSocketApp @webSocketApp (runActionWithNewContext (WS.initialState @webSocketApp)))
+        let action = WS.initialState @webSocketApp
+        pure (startWebSocketApp action (runActionWithNewContext action))
 {-# INLINABLE webSocketAppWithCustomPathAndHTTPFallback #-}
 
 
