@@ -20,15 +20,15 @@ library
     default-language: Haskell2010
     build-depends:
           base >= 4.17.0 && < 4.20
-        , blaze-html >= 0.9.1 && < 0.10
-        , bytestring >= 0.11.3 && < 0.13
+        , blaze-html
+        , bytestring
         , template-haskell >= 2.19.0 && < 2.22
-        , text >= 2.0.1 && < 2.2
-        , containers >= 0.6.6 && < 0.7
-        , blaze-markup >= 0.8.2 && < 0.9
+        , text
+        , containers
+        , blaze-markup
         , ghc >= 9.4.4 && < 9.9
-        , megaparsec >= 9.2.2 && < 9.7
-        , string-conversions >= 0.4.0 && < 0.5
+        , megaparsec
+        , string-conversions
         , unordered-containers
     default-extensions:
         OverloadedStrings
@@ -102,9 +102,9 @@ test-suite ihp-hsx-tests
           base >= 4.17.0 && < 4.20
         , ihp-hsx
         , hspec
-        , text >= 2.0.1 && < 2.2
-        , bytestring >= 0.11.3 && < 0.13
-        , containers >= 0.6.6 && < 0.7
+        , text
+        , bytestring
+        , containers
         , blaze-markup
         , megaparsec
         , template-haskell
