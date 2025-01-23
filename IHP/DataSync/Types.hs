@@ -10,6 +10,7 @@ import Control.Concurrent.MVar as MVar
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int, transactionId :: !(Maybe UUID) }
     | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
+    | CreateCountSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
     | DeleteDataSubscription { subscriptionId :: !UUID, requestId :: !Int }
     | CreateRecordMessage { table :: !Text, record :: !(HashMap Text Value), requestId :: !Int, transactionId :: !(Maybe UUID) }
     | CreateRecordsMessage { table :: !Text, records :: ![HashMap Text Value], requestId :: !Int, transactionId :: !(Maybe UUID) }
@@ -31,10 +32,12 @@ data DataSyncResponse
     | DataSyncError { requestId :: !Int, errorMessage :: !Text }
     | FailedToDecodeMessageError { errorMessage :: !Text }
     | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: !UUID, result :: ![[Field]] }
+    | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !UUID, count :: !Int }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !UUID }
     | DidInsert { subscriptionId :: !UUID, record :: ![Field] }
     | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !Value }
     | DidDelete { subscriptionId :: !UUID, id :: !UUID }
+    | DidChangeCount { subscriptionId :: !UUID, count :: !Int }
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'
     | DidCreateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'CreateRecordsMessage'
     | DidUpdateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'UpdateRecordMessage'

@@ -352,8 +352,8 @@ textToId text = case parsePrimaryKey (cs text) of
 
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => IO a -> Query -> q -> IO a
-measureTimeIfLogging queryAction theQuery theParameters = do
+measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => Text -> PG.Connection -> IO a -> Query -> q -> IO a
+measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = do
     let currentLogLevel = ?modelContext.logger.level
     if currentLogLevel == Debug
         then do
@@ -361,7 +361,7 @@ measureTimeIfLogging queryAction theQuery theParameters = do
             queryAction `finally` do
                 end <- getCurrentTime
                 let theTime = end `diffUTCTime` start
-                logQuery theQuery theParameters theTime
+                logQuery logPrefix connection theQuery theParameters theTime
         else queryAction
 
 -- | Runs a raw sql query
@@ -378,12 +378,8 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 --
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (PG.query connection) theQuery theParameters
-        )
-        theQuery
-        theParameters
+    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlQuery #-}
 
 
@@ -415,12 +411,8 @@ sqlQuerySingleRow theQuery theParameters = do
 -- > sqlExec "CREATE TABLE users ()" ()
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (PG.execute connection) theQuery theParameters
-        )
-        theQuery
-        theParameters
+    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "💾" connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlExec #-}
 
 -- | Runs a sql statement (like a CREATE statement), but doesn't return any result
@@ -473,12 +465,7 @@ withDatabaseConnection block =
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
-    result <- measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.query connection theQuery theParameters
-        )
-        theQuery
-        theParameters
+    result <- sqlQuery theQuery theParameters
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
@@ -493,12 +480,7 @@ sqlQueryScalar theQuery theParameters = do
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
-    result <- measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.query connection theQuery theParameters
-        )
-        theQuery
-        theParameters
+    result <- sqlQuery theQuery theParameters
     pure case result of
         [] -> Nothing
         [PG.Only result] -> Just result
@@ -668,25 +650,20 @@ primaryKeyConditionColumnSelector =
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
 primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
-logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
-logQuery query parameters time = do
+logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Text -> PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
+logQuery logPrefix connection query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
+        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double |> round
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
                 Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
                 Nothing -> ""
-        let
-            -- We don't use the normal 'show' here as it adds lots of noise like 'Escape' or 'Plain' to the output
-            showAction (PG.Plain builder) = cs (Builder.toLazyByteString builder)
-            showAction (PG.Escape byteString) = cs byteString
-            showAction (PG.EscapeByteA byteString) = cs byteString
-            showAction (PG.EscapeIdentifier byteString) = cs byteString
-            showAction (PG.Many actions) = concatMap showAction actions
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " [" <> (intercalate ", " $ map showAction $ PG.toRow parameters) <> "]" <> rlsInfo)
+
+        formatted <- PG.formatQuery connection query parameters
+        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> tshow queryTimeInMs <> "ms)")
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
@@ -1145,3 +1122,19 @@ copyRecord existingRecord =
         existingRecord
             |> set #id def
             |> set #meta meta
+
+-- | Runs sql queries without logging them
+--
+-- Example:
+--
+-- > users <- withoutQueryLogging (sqlQuery "SELECT * FROM users" ())
+--
+withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => result) -> result
+withoutQueryLogging callback =
+    let
+        modelContext = ?modelContext
+        nullLogger = modelContext.logger { write = \_ -> pure ()}
+    in
+        let ?modelContext = modelContext { logger = nullLogger }
+        in
+            callback

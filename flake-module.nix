@@ -239,7 +239,7 @@ ihpFlake:
                     ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
-                processes.devServer.exec = "start";
+                processes.ihp.exec = "start";
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP

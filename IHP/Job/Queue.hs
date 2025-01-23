@@ -46,10 +46,10 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
     let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
     let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
 
-    result :: [PG.Only (Id job)] <- sqlQuery query params
+    result :: [PG.Only (Id job)] <- withoutQueryLogging (sqlQuery query params)
     case result of
         [] -> pure Nothing
-        [PG.Only id] -> Just <$> fetch id
+        [PG.Only id] -> Just <$> withoutQueryLogging (fetch id)
         otherwise -> error (show otherwise)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
@@ -71,7 +71,7 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
 watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
 watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
-    sqlExec (createNotificationTrigger tableNameBS) ()
+    withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
@@ -92,7 +92,8 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
     Async.asyncBound do
         forever do
-            count :: Int <- sqlQueryScalar query params
+            -- We don't log the queries to the console as it's filling up the log entries with noise
+            count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
 
             -- For every job we send one signal to the job workers
             -- This way we use full concurrency when we find multiple jobs

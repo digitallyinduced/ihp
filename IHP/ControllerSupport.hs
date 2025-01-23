@@ -139,8 +139,8 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> Network.Wai.Application
-startWebSocketApp onHTTP request respond = do
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp initialState onHTTP request respond = do
     let ?modelContext = ?applicationContext.modelContext
     requestContext <- createRequestContext ?applicationContext request respond
     let ?requestContext = requestContext
@@ -156,7 +156,7 @@ startWebSocketApp onHTTP request respond = do
             try (initContext @application) >>= \case
                 Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> tshow exception
                 Right context -> do
-                    WebSockets.startWSApp @webSocketApp connection
+                    WebSockets.startWSApp initialState connection
 
     let connectionOptions = WebSockets.connectionOptions @webSocketApp
 
@@ -166,8 +166,8 @@ startWebSocketApp onHTTP request respond = do
             Just response -> respond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => Network.Wai.Application
-startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
+startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
         respond = ?context.respond
 

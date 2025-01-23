@@ -101,6 +101,7 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-postgresql-simple-extra
+            , mime-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -261,7 +262,6 @@ library
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
         , IHP.FileStorage.Preprocessor.ImageMagick
-        , IHP.FileStorage.MimeTypes
         , IHP.Pagination.ControllerFunctions
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types

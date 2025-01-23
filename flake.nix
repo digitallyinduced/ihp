@@ -2,7 +2,7 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=54b4bb956f9891b872904abdb632cea85a033ff2";
+        nixpkgs.url = "github:NixOS/nixpkgs/haskell-updates";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
@@ -12,7 +12,7 @@
         flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
         # used for setting up development environments
-        devenv.url = "github:cachix/devenv?rev=6e318854efa95c5e67a1152547f838754e8f0306";
+        devenv.url = "github:cachix/devenv/v1.3.1";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
         # TODO use a corresponding release branch
