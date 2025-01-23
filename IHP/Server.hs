@@ -3,6 +3,7 @@
 module IHP.Server (run, application) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.Warp.Systemd as Systemd
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Session (withSession)
@@ -31,6 +32,7 @@ import qualified System.IO as IO
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
+import qualified Network.Wreq as Wreq
 
 import IHP.Controller.NotFound (handleNotFound)
 
@@ -57,8 +59,10 @@ run configBuilder = do
                 let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
                 let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
+                useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
+
                 withBackgroundWorkers pgListener frameworkConfig
-                    . runServer frameworkConfig
+                    . runServer frameworkConfig useSystemd
                     . customMiddleware
                     . corsMiddleware
                     . methodOverridePost
@@ -128,18 +132,30 @@ application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
-runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Application -> IO ()
-runServer config@FrameworkConfig { environment = Env.Development, appPort } = Warp.runSettings $
+runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Bool -> Application -> IO ()
+runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = Warp.runSettings $
                 Warp.defaultSettings
                     |> Warp.setBeforeMainLoop (do
                             ByteString.putStrLn "Server started"
                             IO.hFlush IO.stdout
                         )
                     |> Warp.setPort appPort
-runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } = Warp.runSettings $
-                Warp.defaultSettings
-                    |> Warp.setPort appPort
-                    |> Warp.setOnException exceptionTracker.onException
+runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } useSystemd =
+    let
+        warpSettings =  Warp.defaultSettings
+            |> Warp.setPort appPort
+            |> Warp.setOnException exceptionTracker.onException
+        heartbeatCheck = do
+                response <- Wreq.get ("https://127.0.0.1:" <> cs (show appPort) <> "/")
+                pure ()
+        systemdSettings = Systemd.defaultSystemdSettings
+            |> Systemd.setRequireSocketActivation True
+            |> Systemd.setHeartbeatInterval (Just 15)
+            |> Systemd.setHeartbeatCheck heartbeatCheck
+    in
+        if useSystemd
+            then Systemd.runSystemdWarp systemdSettings warpSettings
+            else Warp.runSettings warpSettings
 
 withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do

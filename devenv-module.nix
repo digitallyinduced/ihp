@@ -32,6 +32,7 @@ that is defined in flake-module.nix
                         directory
                         string-conversions
                         warp
+                        warp-systemd
                         wai
                         mtl
                         blaze-html

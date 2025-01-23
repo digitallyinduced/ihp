@@ -8,6 +8,7 @@
 , directory
 , string-conversions
 , warp
+, warp-systemd
 , wai
 , mtl
 , blaze-markup
@@ -78,6 +79,7 @@ mkDerivation {
     directory
     string-conversions
     warp
+    warp-systemd
     wai
     mtl
     blaze-html
