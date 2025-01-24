@@ -8,6 +8,7 @@ import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Session (withSession)
 import Network.Wai.Session.ClientSession (clientsessionStore)
+import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ApplicationContext
@@ -33,6 +34,7 @@ import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
+import qualified Data.Function as Function
 
 import IHP.Controller.NotFound (handleNotFound)
 
@@ -63,6 +65,7 @@ run configBuilder = do
 
                 withBackgroundWorkers pgListener frameworkConfig
                     . runServer frameworkConfig useSystemd
+                    . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
                     . customMiddleware
                     . corsMiddleware
                     . methodOverridePost
@@ -146,11 +149,11 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setPort appPort
             |> Warp.setOnException exceptionTracker.onException
         heartbeatCheck = do
-                response <- Wreq.get ("https://127.0.0.1:" <> cs (show appPort) <> "/")
+                response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/")
                 pure ()
         systemdSettings = Systemd.defaultSystemdSettings
             |> Systemd.setRequireSocketActivation True
-            |> Systemd.setHeartbeatInterval (Just 15)
+            |> Systemd.setHeartbeatInterval (Just 30)
             |> Systemd.setHeartbeatCheck heartbeatCheck
     in
         if useSystemd

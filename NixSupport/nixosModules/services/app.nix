@@ -14,7 +14,7 @@ in
             WorkingDirectory = "${cfg.package}/lib";
             ExecStart = "${cfg.package}/bin/RunProdServer";
             KillSignal = "SIGINT";
-            WatchdogSec = "15";
+            WatchdogSec = "60";
         };
         environment =
             let
