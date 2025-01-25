@@ -149,7 +149,7 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setPort appPort
             |> Warp.setOnException exceptionTracker.onException
         heartbeatCheck = do
-                response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/")
+                response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
                 pure ()
         systemdSettings = Systemd.defaultSystemdSettings
             |> Systemd.setRequireSocketActivation True
