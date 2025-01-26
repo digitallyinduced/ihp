@@ -129,10 +129,10 @@ package flags have changed, resetting and loading new packages...
 Loaded GHCi configuration from /home/amitaibu/Sites/Haskell/ihp/blog/.ghci
 ```
 
-Another way of executing the tests, that we'll use on CI, is to use the `runghc` command, while running `devenv up` on another tab:
+Another way of executing the tests, that we'll use on [CI](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.github/workflows/test.yml), is to use the `runghc` command, while running `devenv up` on another tab:
 
 ```
-nix-shell --run "runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs"
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
 ```
 
 ## Setting the Current User During Testing
