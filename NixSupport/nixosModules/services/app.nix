@@ -6,7 +6,7 @@ in
     systemd.services.app = {
         description = "IHP App";
         enable = true;
-        after = [ "network.target" ];
+        after = [ "network.target" "app.socket" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
             Type = "notify";
@@ -15,6 +15,7 @@ in
             ExecStart = "${cfg.package}/bin/RunProdServer";
             KillSignal = "SIGINT";
             WatchdogSec = "60";
+            Sockets = "app.socket";
         };
         environment =
             let
