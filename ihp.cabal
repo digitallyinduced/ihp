@@ -25,6 +25,7 @@ common shared-properties
             , directory
             , string-conversions
             , warp
+            , warp-systemd
             , wai
             , mtl
             , blaze-html

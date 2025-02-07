@@ -32,6 +32,7 @@ import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import IHP.ApplicationContext
 import IHP.Controller.NotFound (handleNotFound)
+import qualified IHP.Log as Log
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -93,8 +94,13 @@ displayException exception action additionalInfo = do
 -- In production mode nothing is specific is communicated about the exception
 genericHandler :: (Show controller, ?context :: ControllerContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
-    let devErrorMessage = [hsx|An exception was raised while running the action {tshow controller}{additionalInfo}|]
-    let devTitle = [hsx|{Exception.displayException exception}|]
+    let errorMessageText = "An exception was raised while running the action " <> tshow controller <> additionalInfo
+    let errorMessageTitle = Exception.displayException exception
+    
+    let devErrorMessage = [hsx|{errorMessageText}|]
+    let devTitle = [hsx|{errorMessageTitle}|]
+
+    Log.error (errorMessageText <> ": " <> cs errorMessageTitle)
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]

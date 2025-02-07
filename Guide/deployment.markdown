@@ -878,3 +878,25 @@ The maximum number of subscriptions per websocket connection in IHP DataSync. De
 #### `IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION`
 
 The maximum number of database transactions per websocket connection in IHP DataSync. Defaults to `10`.
+
+## `systemd` Integration
+
+The `deploy-to-nixos` tool now includes systemd integration to improve reliability and reduce downtime for IHP applications. These features are enabled by default when using `ihp.nixosModules.app`.
+
+Key Features:
+
+1. **Systemd Watchdog**:
+
+   - The app sends a heartbeat to systemd every 30 seconds via localhost.
+   - If the app becomes unresponsive, systemd restarts it after 60 seconds.
+
+2. **Socket Activation**:
+
+   - Systemd queues incoming HTTP requests during app startup or restarts.
+   - This eliminates downtime and ensures uninterrupted service.
+
+3. **Automatic Configuration**:
+
+   - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
+
+

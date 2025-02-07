@@ -10,7 +10,7 @@ in
         environment = {
             DATABASE_URL = cfg.databaseUrl;
             MINIMUM_REVISION = "${toString cfg.minimumRevision}";
-            IHP_MIGRATION_DIR = cfg.migrations;
+            IHP_MIGRATION_DIR = "${cfg.migrations}/";
         };
     };
 }
