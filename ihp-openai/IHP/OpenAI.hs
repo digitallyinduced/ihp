@@ -18,6 +18,25 @@ import qualified Control.Exception as Exception
 import Control.Applicative ((<|>))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Maybe as Maybe
+import qualified Network.URI as URI
+import qualified Data.Text.Encoding as Text
+import qualified System.IO.Streams.Attoparsec as Streams
+import Data.Aeson.Parser (json')
+
+data Config
+    = Config
+    { baseUrl :: !Text
+    , secretKey :: !Text
+    }
+
+defaultConfig :: Text -> Config
+defaultConfig secretKey = Config { secretKey, baseUrl = openAIBaseUrl }
+
+openAIBaseUrl :: Text
+openAIBaseUrl = "https://api.openai.com/v1"
+
+googleBaseUrl :: Text
+googleBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 data CompletionRequest = CompletionRequest
     { messages :: ![Message]
@@ -70,16 +89,16 @@ data Property
 
 instance ToJSON CompletionRequest where
     toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat, tools } =
-        object
-            [ "model" .= model
-            , "messages" .= messages
-            , "max_tokens" .= maxTokens
-            , "stream" .= stream
-            , "temperature" .= temperature
-            , "presence_penalty" .= presencePenalty
-            , "frequency_penalty" .= frequencePenalty
-            , "response_format" .= responseFormat
-            , "tools" .= emptyListToNothing tools
+        object $ Maybe.catMaybes
+            [ Just ("model" .= model)
+            , Just ("messages" .= messages)
+            , ("max_tokens" .=) <$> maxTokens
+            , Just ("stream" .= stream)
+            , ("temperature" .=) <$> temperature
+            , ("presence_penalty" .=) <$> presencePenalty
+            , ("frequency_penalty" .=) <$> frequencePenalty
+            , ("response_format" .=) <$> responseFormat
+            , ("tools" .=) <$> emptyListToNothing tools
             ]
 
 instance ToJSON Role where
@@ -199,8 +218,8 @@ instance FromJSON Choice where
         pure Choice { text = content }
 
 
-streamCompletion :: ByteString -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
-streamCompletion secretKey completionRequest' onStart callback = do
+streamCompletion :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
+streamCompletion config completionRequest' onStart callback = do
         let completionRequest = enableStream completionRequest'
         completionRequestRef <- newIORef completionRequest
         result <- Retry.retrying retryPolicyDefault shouldRetry (action completionRequestRef)
@@ -215,7 +234,7 @@ streamCompletion secretKey completionRequest' onStart callback = do
         action completionRequestRef retryStatus = do
             completionRequest <- readIORef completionRequestRef
             let onStart' = if retryStatus.rsIterNumber == 0 then onStart else pure ()
-            Exception.try (streamCompletionWithoutRetry secretKey completionRequest onStart' (wrappedCallback completionRequestRef))
+            Exception.try (streamCompletionWithoutRetry config completionRequest onStart' (wrappedCallback completionRequestRef))
 
         wrappedCallback completionRequestRef completionChunk = do
             let text = mconcat $ Maybe.mapMaybe (\choiceDelta -> choiceDelta.delta.content) completionChunk.choices
@@ -230,19 +249,23 @@ streamCompletion secretKey completionRequest' onStart callback = do
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
 
-streamCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO (Either Text [CompletionChunk])
-streamCompletionWithoutRetry secretKey completionRequest' onStart callback = do
+streamCompletionWithoutRetry :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO (Either Text [CompletionChunk])
+streamCompletionWithoutRetry Config { .. } completionRequest' onStart callback = do
     let completionRequest = enableStream completionRequest'
     modifyContextSSL (\context -> do
             SSL.contextSetVerificationMode context SSL.VerifyNone
             pure context
         )
+    let
+        endpoint = "/chat/completions"
+        url :: Text = baseUrl <> endpoint
+        basePath :: ByteString = Text.encodeUtf8 (Text.pack (Maybe.fromMaybe (error "invalid OpenAI baseUrl") ((.uriPath) <$> URI.parseURI (Text.unpack url))))
     withOpenSSL do
-        withConnection (establishConnection "https://api.openai.com/v1/chat/completions") \connection -> do
+        withConnection (establishConnection (Text.encodeUtf8 url)) \connection -> do
             let q = buildRequest1 do
-                    http POST "/v1/chat/completions"
+                    http POST basePath
                     setContentType "application/json"
-                    Network.Http.Client.setHeader "Authorization" ("Bearer " <> secretKey)
+                    Network.Http.Client.setHeader "Authorization" ("Bearer " <> (Text.encodeUtf8 secretKey))
             sendRequest connection q (jsonBody completionRequest)
             onStart
             receiveResponse connection handler
@@ -315,8 +338,8 @@ parseResponseChunk ParserState { curBuffer, emptyLineFound, chunks } input
                     , state = ParserState { curBuffer = curBuffer <> input, emptyLineFound = False, chunks = chunks } }
 
 
-fetchCompletion :: ByteString -> CompletionRequest -> IO Text
-fetchCompletion secretKey completionRequest = do
+fetchCompletion :: Config -> CompletionRequest -> IO Text
+fetchCompletion config completionRequest = do
         result <- Retry.retrying retryPolicyDefault shouldRetry action
         case result of
             Left (e :: SomeException) -> Exception.throwIO e
@@ -327,22 +350,26 @@ fetchCompletion secretKey completionRequest = do
     where
         shouldRetry retryStatus (Left _) = pure True
         shouldRetry retryStatus (Right _) = pure False
-        action retryStatus = Exception.try (fetchCompletionWithoutRetry secretKey completionRequest)
+        action retryStatus = Exception.try (fetchCompletionWithoutRetry config completionRequest)
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
 
-fetchCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO CompletionResult
-fetchCompletionWithoutRetry secretKey completionRequest = do
+fetchCompletionWithoutRetry :: Config -> CompletionRequest -> IO CompletionResult
+fetchCompletionWithoutRetry Config { .. } completionRequest = do
+        let
+            endpoint = "/chat/completions"
+            url :: Text = baseUrl <> endpoint
+            basePath :: ByteString = Text.encodeUtf8 (Text.pack (Maybe.fromMaybe (error "invalid OpenAI baseUrl") ((.uriPath) <$> URI.parseURI (Text.unpack url))))
         modifyContextSSL (\context -> do
                 SSL.contextSetVerificationMode context SSL.VerifyNone
                 pure context
             )
         withOpenSSL do
-            withConnection (establishConnection "https://api.openai.com/v1/chat/completions") \connection -> do
+            withConnection (establishConnection (Text.encodeUtf8 url)) \connection -> do
                     let q = buildRequest1 do
-                                http POST "/v1/chat/completions"
+                                http POST basePath
                                 setContentType "application/json"
-                                Network.Http.Client.setHeader "Authorization" ("Bearer " <> secretKey)
+                                Network.Http.Client.setHeader "Authorization" ("Bearer " <> Text.encodeUtf8 secretKey)
 
                     sendRequest connection q (jsonBody completionRequest)
                     receiveResponse connection jsonHandler
