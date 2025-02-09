@@ -10,7 +10,7 @@ import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ScriptSupport
 import qualified IHP.Job.Queue as Queue
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
@@ -176,9 +176,11 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
                                 let ?job = job
                                 let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                                resultOrException <- Exception.try (Timeout.timeout timeout (perform job))
+                                resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
                                 case resultOrException of
-                                    Left exception -> Queue.jobDidFail job exception
+                                    Left exception -> do
+                                        Queue.jobDidFail job exception
+                                        when (Exception.isAsyncException exception) (Exception.throwIO exception)
                                     Right Nothing -> Queue.jobDidTimeout job
                                     Right (Just _) -> Queue.jobDidSucceed job
 
