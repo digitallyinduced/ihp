@@ -2,7 +2,7 @@
 module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson

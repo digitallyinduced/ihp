@@ -9,7 +9,7 @@ import ClassyPrelude
 import qualified Network.Socket as Socket
 import qualified UnliftIO.Exception as Exception
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
-import GHC.IO.Exception (IOException(..))
+import GHC.IO.Exception.Safe (IOException(..))
 import IHP.FrameworkConfig (defaultPort)
 
 -- | Port configuration used for starting the different app services
