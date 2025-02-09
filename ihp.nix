@@ -64,6 +64,7 @@
 , with-utf8
 , ihp-hsx
 , ihp-postgresql-simple-extra
+, safe-exceptions
 , nix-gitignore
 , filter
 }:
@@ -135,6 +136,7 @@ mkDerivation {
     with-utf8
     ihp-hsx
     ihp-postgresql-simple-extra
+    safe-exceptions
   ];
   license = lib.licenses.mit;
   enableLibraryForGhci = true;
