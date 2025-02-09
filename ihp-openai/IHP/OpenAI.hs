@@ -14,7 +14,7 @@ import OpenSSL
 import qualified OpenSSL.Session as SSL
 import qualified Data.Text as Text
 import qualified Control.Retry as Retry
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import Control.Applicative ((<|>))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Maybe as Maybe

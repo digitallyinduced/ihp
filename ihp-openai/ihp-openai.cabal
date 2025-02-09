@@ -29,6 +29,7 @@ library
         , HsOpenSSL
         , network-uri
         , attoparsec-aeson
+        , safe-exceptions
     default-extensions:
         OverloadedStrings
           FlexibleContexts
