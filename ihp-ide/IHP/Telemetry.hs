@@ -10,7 +10,7 @@ import IHP.Prelude
 import qualified IHP.Version as Version
 import qualified System.Info as System
 import qualified Network.Wreq as Wreq
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Crypto.Hash.SHA512 as SHA512
 import qualified System.Directory as Directory
 import qualified Data.ByteString.Base16 as Base16

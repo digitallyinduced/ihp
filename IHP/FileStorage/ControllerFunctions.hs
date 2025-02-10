@@ -37,7 +37,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.TMap as TMap
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory as Directory
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
 import qualified Network.Mime as Mime

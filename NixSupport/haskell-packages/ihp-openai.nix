@@ -1,6 +1,6 @@
 { mkDerivation, lib, base
 , text, http-streams, retry, io-streams, bytestring, aeson, HsOpenSSL
-, hspec, neat-interpolation
+, hspec, neat-interpolation, safe-exceptions
 }:
 mkDerivation {
   pname = "ihp-openai";
@@ -9,7 +9,7 @@ mkDerivation {
   isLibrary = true;
   isExecutable = false;
   libraryHaskellDepends = [
-    base text http-streams retry io-streams bytestring aeson HsOpenSSL
+    base text http-streams retry io-streams bytestring aeson HsOpenSSL safe-exceptions
   ];
   testHaskellDepends = [
     base text http-streams retry io-streams bytestring aeson HsOpenSSL hspec neat-interpolation

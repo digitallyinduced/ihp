@@ -16,7 +16,7 @@ import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import qualified Network.URI as URI
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 
 -- async (notifyOutput (standardOutput, errorOutput) clients)

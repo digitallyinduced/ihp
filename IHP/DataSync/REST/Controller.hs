@@ -9,7 +9,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Vector as Vector
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types

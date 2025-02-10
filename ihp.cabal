@@ -103,6 +103,7 @@ common shared-properties
             , ihp-hsx
             , ihp-postgresql-simple-extra
             , mime-types
+            , safe-exceptions
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

@@ -16,7 +16,7 @@ import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
 import IHP.Log.Types
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified System.Directory as Directory
 import qualified Database.PostgreSQL.Simple as PG
 
