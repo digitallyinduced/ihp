@@ -44,6 +44,7 @@
 :set -XDeepSubsumption
 :set -XOverloadedRecordDot
 :set -Werror=missing-fields
+:set -Werror=incomplete-patterns
 :set -fwarn-incomplete-patterns
 :set -Wno-ambiguous-fields
 :set -O0
