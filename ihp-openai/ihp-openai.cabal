@@ -52,6 +52,7 @@ library
         -Wmissing-fields
         -Winaccessible-code
         -Wmissed-specialisations
+        -Werror=incomplete-patterns
         -fexpose-all-unfoldings
     hs-source-dirs: .
     exposed-modules:
