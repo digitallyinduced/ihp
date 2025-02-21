@@ -26,25 +26,18 @@ renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html =
-        -- The seq is required to force evaluation of `maybeEvaluatedBuilder` before returning the IO action. See below for details
-        maybeEvaluatedBuilder `seq` (respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] maybeEvaluatedBuilder)
+        -- The seq is required to force evaluation of `evaluatedBuilder` before returning the IO action. See below for details
+        evaluatedBuilder `seq` (respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] evaluatedBuilder)
     where
         builder = Blaze.renderHtmlBuilder html
         builderAsByteString = ByteString.toLazyByteString builder
 
-        -- In dev mode we force the full evaluation of the blaze html expressions to catch
+        -- We force the full evaluation of the blaze html expressions to catch
         -- any runtime errors with the IHP error middleware. Without this full evaluation
         -- certain thunks might only cause an error when warp is building the response string.
         -- But then it's already too late to catch the exception and the user will only get
         -- the default warp error message instead of our nice IHP error message design.
-        --
-        -- In production we only evaluate lazy as it improves performance and these kind of
-        -- errors are unlikely to happen in production
-        --
-        -- See https://github.com/digitallyinduced/ihp/issues/1028
-        maybeEvaluatedBuilder = if FrameworkConfig.isDevelopment
-            then (Data.ByteString.Lazy.length builderAsByteString) `seq` (ByteString.lazyByteString builderAsByteString)
-            else builder
+        evaluatedBuilder = Data.ByteString.Lazy.length builderAsByteString `seq` ByteString.lazyByteString builderAsByteString
 {-# INLINABLE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
