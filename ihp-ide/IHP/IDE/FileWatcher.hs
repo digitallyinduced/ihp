@@ -10,11 +10,11 @@ import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import IHP.IDE.Types
 import qualified Data.List as List
-import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
+import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified Control.Debounce as Debounce
 
-runFileWatcher :: (?context :: Context) => IO ()
-runFileWatcher = do
+runFileWatcher :: (?context :: Context) => LiveReloadNotificationServer.State -> IO ()
+runFileWatcher liveReloadClients = do
     dispatchHaskellFileChanged <- Debounce.mkDebounce Debounce.defaultDebounceSettings
              { Debounce.debounceAction = dispatch HaskellFileChanged
              , Debounce.debounceFreq = 50000 -- 50ms
@@ -27,7 +27,7 @@ runFileWatcher = do
              }
     let
         handleFileChangeDebounced :: FS.Event -> IO ()
-        handleFileChangeDebounced = handleFileChange dispatchHaskellFileChanged dispatchSchemaChanged
+        handleFileChangeDebounced = handleFileChange liveReloadClients dispatchHaskellFileChanged dispatchSchemaChanged
     FS.withManagerConf fileWatcherConfig \manager -> do
         state <- newFileWatcherState
         watchRootDirectoryFiles handleFileChangeDebounced manager state
@@ -84,15 +84,15 @@ isDirectoryWatchable path =
 fileWatcherConfig :: FS.WatchConfig
 fileWatcherConfig = FS.defaultConfig
 
-handleFileChange :: (?context :: Context) => IO () -> IO () -> FS.Event -> IO ()
-handleFileChange dispatchHaskellFileChanged dispatchSchemaChanged event = do
+handleFileChange :: LiveReloadNotificationServer.State -> IO () -> IO () -> FS.Event -> IO ()
+handleFileChange liveReloadClients dispatchHaskellFileChanged dispatchSchemaChanged event = do
     let filePath = event.eventPath
     if isHaskellFile filePath
         then dispatchHaskellFileChanged
         else if isSchemaSQL filePath
             then dispatchSchemaChanged
             else if isAssetFile filePath
-                then notifyAssetChange
+                then LiveReloadNotificationServer.notifyAssetChange liveReloadClients
                 else mempty
                   
 handleRootFileChange :: (FS.Event -> IO ()) -> FS.WatchManager -> FileWatcherState -> FS.Event -> IO ()                 

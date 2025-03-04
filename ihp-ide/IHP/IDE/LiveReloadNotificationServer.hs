@@ -1,4 +1,4 @@
-module IHP.IDE.LiveReloadNotificationServer (app, notifyHaskellChange, notifyAssetChange) where
+module IHP.IDE.LiveReloadNotificationServer (app, notifyHaskellChange, notifyAssetChange, State) where
 
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
@@ -8,15 +8,16 @@ import qualified Control.Exception as Exception
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Map as Map
 
-notifyHaskellChange :: (?context :: Context) => IO ()
-notifyHaskellChange = broadcast "reload"
+type State = IORef (Map UUID Websocket.Connection)
 
-notifyAssetChange :: (?context :: Context) => IO ()
-notifyAssetChange = broadcast "reload_assets"
+notifyHaskellChange :: State -> IO ()
+notifyHaskellChange clients = broadcast "reload" clients
 
-broadcast :: (?context :: Context) => ByteString -> IO ()
-broadcast message = do
-    let clients = ?context.liveReloadClients
+notifyAssetChange :: State -> IO ()
+notifyAssetChange clients = broadcast "reload_assets" clients
+
+broadcast :: ByteString -> State -> IO ()
+broadcast message clients = do
     clients' <- readIORef clients
     
     let removeClient connectionId = modifyIORef clients (Map.delete connectionId)
@@ -26,10 +27,8 @@ broadcast message = do
     forConcurrently connections sendMessage
     pure ()
 
-app :: (?context :: Context) => Websocket.ServerApp
-app pendingConnection = do
-    let clients = ?context.liveReloadClients
-    
+app :: State -> Websocket.ServerApp
+app clients pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
     connectionId <- UUID.nextRandom
 

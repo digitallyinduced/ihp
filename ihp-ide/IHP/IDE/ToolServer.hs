@@ -49,15 +49,15 @@ import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 
-runToolServer :: (?context :: Context) => IO ()
-runToolServer = do
+runToolServer :: (?context :: Context) => _ -> IO ()
+runToolServer liveReloadClients = do
     let port = ?context.portConfig.toolServerPort |> fromIntegral
     let isDebugMode = ?context.isDebugMode
 
-    startToolServer' port isDebugMode
+    startToolServer' port isDebugMode liveReloadClients
 
-startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
-startToolServer' port isDebugMode = do
+startToolServer' :: (?context :: Context) => Int -> Bool -> _ -> IO ()
+startToolServer' port isDebugMode liveReloadClients = do
 
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
@@ -94,7 +94,7 @@ startToolServer' port isDebugMode = do
                 logMiddleware $ methodOverridePost $ sessionMiddleware
                     $ Websocket.websocketsOr
                         Websocket.defaultConnectionOptions
-                        LiveReloadNotificationServer.app
+                        (LiveReloadNotificationServer.app liveReloadClients)
                         application
 
 initStaticApp :: IO Wai.Application

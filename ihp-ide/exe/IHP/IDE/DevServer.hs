@@ -62,7 +62,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     logger <- Log.newLogger def
     (ghciInChan, ghciOutChan) <- Queue.newChan
     liveReloadClients <- newIORef mempty
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, liveReloadClients, wrapWithDirenv }
+    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients }
 
     -- Print IHP Version when in debug mode
     when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -80,10 +80,10 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
         _ <- runConcurrently $ (,,,,,)
             <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
-            <*> Concurrently runToolServer
+            <*> Concurrently (runToolServer liveReloadClients)
             <*> Concurrently consumeGhciOutput
             <*> Concurrently Telemetry.reportTelemetry
-            <*> Concurrently runFileWatcher
+            <*> Concurrently (runFileWatcher liveReloadClients)
             <*> Concurrently (
                     forever do
                         appState <- readIORef appStateRef
@@ -142,12 +142,12 @@ handleAction state@(AppState { appGHCIState, statusServerState }) (AppModulesLoa
                 RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
                 AppGHCINotStarted {} -> error "Modules cannot be loaded when ghci not in started state"
 
-    notifyHaskellChange
+    notifyHaskellChange ?context.liveReloadClients
 
     pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
 
 handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
-    notifyHaskellChange
+    notifyHaskellChange ?context.liveReloadClients
     case appGHCIState of
         AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
         RunningAppGHCI { } -> pure state
