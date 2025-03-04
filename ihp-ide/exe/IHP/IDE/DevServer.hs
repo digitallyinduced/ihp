@@ -76,7 +76,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     withBuiltinOrDevenvPostgres \postgresStandardOutput postgresErrorOutput -> do
         start
 
-        withToolServer do
+        concurrently_ runToolServer do
             withAsync consumeGhciOutput \_ -> do
                 withFileWatcher do
                     async Telemetry.reportTelemetry

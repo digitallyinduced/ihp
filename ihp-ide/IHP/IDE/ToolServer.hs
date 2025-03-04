@@ -1,4 +1,4 @@
-module IHP.IDE.ToolServer (withToolServer) where
+module IHP.IDE.ToolServer (runToolServer) where
 
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -49,14 +49,12 @@ import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 
-withToolServer :: (?context :: Context) => IO () -> IO ()
-withToolServer inner = withAsyncBound async (\_ -> inner)
-    where
-        async = do
-            let port = ?context.portConfig.toolServerPort |> fromIntegral
-            let isDebugMode = ?context.isDebugMode
+runToolServer :: (?context :: Context) => IO ()
+runToolServer = do
+    let port = ?context.portConfig.toolServerPort |> fromIntegral
+    let isDebugMode = ?context.isDebugMode
 
-            startToolServer' port isDebugMode
+    startToolServer' port isDebugMode
 
 startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
 startToolServer' port isDebugMode = do
