@@ -77,13 +77,13 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
         start
 
-        _ <- runConcurrently $ (,,,)
+        _ <- runConcurrently $ (,,,,)
             <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
             <*> Concurrently runToolServer
             <*> Concurrently consumeGhciOutput
+            <*> Concurrently Telemetry.reportTelemetry
             <*> Concurrently (
                     withFileWatcher do
-                        async Telemetry.reportTelemetry
                         forever do
                             appState <- readIORef appStateRef
                             action <- takeMVar actionVar
