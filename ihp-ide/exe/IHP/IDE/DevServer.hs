@@ -31,6 +31,7 @@ import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
 import qualified System.Environment as Env
 import qualified System.Directory as Directory
+import qualified Control.Exception.Safe as Exception
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
@@ -333,15 +334,17 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = ((do
         ))
 
 tryCompileSchema :: (?context :: Context) => IO ()
-tryCompileSchema =
-    (do
+tryCompileSchema = do
+    result <- Exception.tryAny do
         SchemaCompiler.compile
         state <- readIORef ?context.appStateRef
         writeIORef state.lastSchemaCompilerError Nothing
-    ) `catch` (\(exception :: SomeException) -> do
+    
+    case result of
+        Left exception -> do
             Log.error (tshow exception)
             receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             state <- readIORef ?context.appStateRef
             writeIORef state.lastSchemaCompilerError (Just exception)
-        )
+        Right _ -> pure ()
