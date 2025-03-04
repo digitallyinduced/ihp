@@ -43,47 +43,47 @@ dedicatedProcessMainLoop jobWorkers = do
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
     -- run independent of the system being very busy.
-    pgListener <- PGListener.init ?modelContext
-    stopSignal <- Concurrent.newEmptyMVar
-    waitForExitSignal <- installSignalHandlers
+    PGListener.withPGListener ?modelContext \pgListener -> do
+        stopSignal <- Concurrent.newEmptyMVar
+        waitForExitSignal <- installSignalHandlers
 
-    let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-    
-    processes <- jobWorkers
-        |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
+        let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+        
+        processes <- jobWorkers
+            |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
 
-    waitForExitSignal
-
-    Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
-
-    -- Stop subscriptions and poller already
-    -- This will stop all producers for the queue MVar
-    forEach processes \JobWorkerProcess { poller, subscription, action } -> do
-        PGListener.unsubscribe subscription pgListener
-        Async.cancel poller
-        Concurrent.putMVar action Stop
-
-    PGListener.stop pgListener
-
-    -- While waiting for all jobs to complete, we also wait for another exit signal
-    -- If the user sends two exit signals, we just kill all processes
-    async do
         waitForExitSignal
 
-        Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
-        
+        Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
+
+        -- Stop subscriptions and poller already
+        -- This will stop all producers for the queue MVar
+        forEach processes \JobWorkerProcess { poller, subscription, action } -> do
+            PGListener.unsubscribe subscription pgListener
+            Async.cancel poller
+            Concurrent.putMVar action Stop
+
+        PGListener.stop pgListener
+
+        -- While waiting for all jobs to complete, we also wait for another exit signal
+        -- If the user sends two exit signals, we just kill all processes
+        async do
+            waitForExitSignal
+
+            Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
+            
+            forEach processes \JobWorkerProcess { runners } -> do
+                forEach runners Async.cancel
+
+            Concurrent.throwTo threadId Exit.ExitSuccess
+
+            pure ()
+
+        -- Wait for all runners to complete
         forEach processes \JobWorkerProcess { runners } -> do
-            forEach runners Async.cancel
+            forEach runners Async.wait
 
         Concurrent.throwTo threadId Exit.ExitSuccess
-
-        pure ()
-
-    -- Wait for all runners to complete
-    forEach processes \JobWorkerProcess { runners } -> do
-        forEach runners Async.wait
-
-    Concurrent.throwTo threadId Exit.ExitSuccess
 
 devServerMainLoop :: (?modelContext :: ModelContext) => FrameworkConfig -> PGListener.PGListener -> [JobWorker] -> IO ()
 devServerMainLoop frameworkConfig pgListener jobWorkers = do

@@ -46,10 +46,9 @@ run configBuilder = do
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
         modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
-        let withPGListener = Exception.bracket (PGListener.init modelContext) PGListener.stop
 
         withInitalizers frameworkConfig modelContext do
-            withPGListener \pgListener -> do
+            PGListener.withPGListener modelContext \pgListener -> do
                 autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
                 let ?modelContext = modelContext

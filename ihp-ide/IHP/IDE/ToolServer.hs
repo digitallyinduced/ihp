@@ -74,29 +74,30 @@ startToolServer' port isDebugMode = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
     let modelContext = notConnectedModelContext undefined
-    pgListener <- PGListener.init modelContext
-    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-    staticApp <- initStaticApp
+    
+    PGListener.withPGListener modelContext \pgListener -> do
+        autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+        staticApp <- initStaticApp
 
-    let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
-    let toolServerApplication = ToolServerApplication { devServerContext = ?context }
-    let application :: Wai.Application = \request respond -> do
-            let ?applicationContext = applicationContext
-            frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
+        let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
+        let toolServerApplication = ToolServerApplication { devServerContext = ?context }
+        let application :: Wai.Application = \request respond -> do
+                let ?applicationContext = applicationContext
+                frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
-    let warpSettings = Warp.defaultSettings
-            |> Warp.setPort port
-            |> Warp.setBeforeMainLoop openAppUrl
+        let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
+        let warpSettings = Warp.defaultSettings
+                |> Warp.setPort port
+                |> Warp.setBeforeMainLoop openAppUrl
 
-    let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
+        let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
-    Warp.runSettings warpSettings $
-            logMiddleware $ methodOverridePost $ sessionMiddleware
-                $ Websocket.websocketsOr
-                    Websocket.defaultConnectionOptions
-                    LiveReloadNotificationServer.app
-                    application
+        Warp.runSettings warpSettings $
+                logMiddleware $ methodOverridePost $ sessionMiddleware
+                    $ Websocket.websocketsOr
+                        Websocket.defaultConnectionOptions
+                        LiveReloadNotificationServer.app
+                        application
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
