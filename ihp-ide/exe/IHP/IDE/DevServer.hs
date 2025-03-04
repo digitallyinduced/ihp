@@ -76,18 +76,23 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     databaseNeedsMigrationVar <- (.databaseNeedsMigration) <$> readIORef appStateRef
     withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
         start
-        async (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
 
-        concurrently_ runToolServer do
-            withAsync consumeGhciOutput \_ -> do
-                withFileWatcher do
-                    async Telemetry.reportTelemetry
-                    forever do
-                        appState <- readIORef appStateRef
-                        action <- takeMVar actionVar
-                        when isDebugMode (Log.debug $ tshow action)
-                        nextAppState <- handleAction appState action
-                        writeIORef appStateRef nextAppState
+        _ <- runConcurrently $ (,,)
+            <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
+            <*> Concurrently runToolServer
+            <*> Concurrently (
+                    withAsync consumeGhciOutput \_ -> do
+                        withFileWatcher do
+                            async Telemetry.reportTelemetry
+                            forever do
+                                appState <- readIORef appStateRef
+                                action <- takeMVar actionVar
+                                when isDebugMode (Log.debug $ tshow action)
+                                nextAppState <- handleAction appState action
+                                writeIORef appStateRef nextAppState
+                )
+
+        pure ()
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
