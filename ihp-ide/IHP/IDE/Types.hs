@@ -50,7 +50,6 @@ data Action =
     | AppModulesLoaded { success :: !Bool }
     | AppStarted
     | HaskellFileChanged
-    | SchemaChanged
     | UpdateStatusServerState !StatusServerState
     | PauseApp
     deriving (Show)

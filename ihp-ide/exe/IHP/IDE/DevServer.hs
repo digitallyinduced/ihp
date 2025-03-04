@@ -85,7 +85,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             <*> Concurrently (runToolServer liveReloadClients)
             <*> Concurrently consumeGhciOutput
             <*> Concurrently Telemetry.reportTelemetry
-            <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients))
+            <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigrationVar databaseIsReady))
             <*> Concurrently (
                     forever do
                         appState <- readIORef appStateRef
@@ -97,10 +97,10 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
         pure ()
 
-fileWatcherParams liveReloadClients =
+fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady =
     FileWatcherParams
         { onHaskellFileChanged = dispatch HaskellFileChanged
-        , onSchemaChanged = dispatch SchemaChanged
+        , onSchemaChanged = concurrently_ tryCompileSchema (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
 
@@ -188,14 +188,6 @@ handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileCha
                 RunningAppGHCI { .. } -> AppGHCILoading { .. }
                 AppGHCINotStarted -> AppGHCINotStarted
     pure state { appGHCIState = appGHCIState' }
-
-handleAction state SchemaChanged = do
-    async tryCompileSchema
-
-    databaseIsReady <- newMVar () -- TODO: remove
-    async (updateDatabaseIsOutdated state.databaseNeedsMigration databaseIsReady)
-
-    pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
     case appGHCIState of
