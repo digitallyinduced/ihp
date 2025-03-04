@@ -46,8 +46,7 @@ sendGhciCommand ManagedProcess { inputHandle } command = do
 data OutputLine = StandardOutput !ByteString | ErrorOutput !ByteString deriving (Show, Eq)
 
 data Action =
-    UpdatePostgresState PostgresState
-    | UpdateAppGHCIState AppGHCIState
+    UpdateAppGHCIState AppGHCIState
     | AppModulesLoaded { success :: !Bool }
     | AppStarted
     | HaskellFileChanged
@@ -55,18 +54,6 @@ data Action =
     | UpdateStatusServerState !StatusServerState
     | PauseApp
     deriving (Show)
-
-data PostgresState
-    = PostgresNotStarted
-    | StartingPostgres
-    | PostgresReady
-    | PostgresStarted { standardOutput :: !(IORef ByteString.Builder), errorOutput :: !(IORef ByteString.Builder) }
-
-instance Show PostgresState where
-    show PostgresNotStarted = "NotStarted"
-    show StartingPostgres = "Starting"
-    show PostgresStarted { } = "Started"
-    show PostgresReady { } = "Ready"
 
 data AppGHCIState
     = AppGHCINotStarted
@@ -106,23 +93,27 @@ instance Show ProcessHandle where show _ = "(..)"
 instance Show (Async ()) where show _ = "(..)"
 
 data AppState = AppState
-    { postgresState :: !PostgresState
-    , appGHCIState :: !AppGHCIState
+    { appGHCIState :: !AppGHCIState
     , statusServerState :: !StatusServerState
     , databaseNeedsMigration :: !(IORef Bool)
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
-    } deriving (Show)
+    , postgresStandardOutput :: (MVar ByteString.Builder)
+    , postgresErrorOutput :: (MVar ByteString.Builder)
+    }
 
 emptyAppState :: IO AppState
 emptyAppState = do
     databaseNeedsMigration <- newIORef False
     lastSchemaCompilerError <- newIORef Nothing
+    postgresStandardOutput <- newEmptyMVar
+    postgresErrorOutput <- newEmptyMVar
     pure AppState
-        { postgresState = PostgresNotStarted
-        , appGHCIState = AppGHCINotStarted
+        { appGHCIState = AppGHCINotStarted
         , statusServerState = StatusServerNotStarted
         , databaseNeedsMigration
         , lastSchemaCompilerError
+        , postgresStandardOutput
+        , postgresErrorOutput
         }
 
 data Context = Context

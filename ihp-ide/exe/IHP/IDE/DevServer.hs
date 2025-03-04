@@ -73,8 +73,10 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             throwTo threadId ExitSuccess
     installHandler sigINT (Catch catchHandler) Nothing
 
-    withBuiltinOrDevenvPostgres \postgresStandardOutput postgresErrorOutput -> do
+    databaseNeedsMigrationVar <- (.databaseNeedsMigration) <$> readIORef appStateRef
+    withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
         start
+        async (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
 
         concurrently_ runToolServer do
             withAsync consumeGhciOutput \_ -> do
@@ -82,7 +84,6 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                     async Telemetry.reportTelemetry
                     forever do
                         appState <- readIORef appStateRef
-                        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
                         action <- takeMVar actionVar
                         when isDebugMode (Log.debug $ tshow action)
                         nextAppState <- handleAction appState action
@@ -90,28 +91,11 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state@(AppState { appGHCIState }) (UpdatePostgresState postgresState) =
-    case postgresState of
-        PostgresReady -> onPostgresReady
-        PostgresStarted {} -> onPostgresReady
-        otherwise -> pure state { postgresState }
-    where
-      onPostgresReady = do
-        async (updateDatabaseIsOutdated state)
-
-        -- If the app is already running before the postgres started up correctly,
-        -- we need to trigger a restart, otherwise e.g. background jobs will not start correctly
-        case appGHCIState of
-            AppGHCIModulesLoaded { .. } -> do
-                sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
-                sendGhciCommand process ":r"
-                pure state { appGHCIState = AppGHCILoading { .. }, postgresState }
-            otherwise -> pure state { postgresState }
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
 handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
 handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
 handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = True }) = do
+handleAction state@(AppState { appGHCIState, statusServerState }) (AppModulesLoaded { success = True }) = do
     case appGHCIState of
         AppGHCILoading { .. } -> do
             let appGHCIState' = AppGHCIModulesLoaded { .. }
@@ -127,12 +111,10 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
                             pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
 
             hasSchemaCompilerError <- isJust <$> readIORef state.lastSchemaCompilerError
-            case postgresState of
-                PostgresStarted {} | not hasSchemaCompilerError -> startApp
-                PostgresReady | not hasSchemaCompilerError -> startApp
-                _ -> do
-                    when ?context.isDebugMode (Log.debug ("AppModulesLoaded but db not in PostgresStarted state, therefore not starting app yet" :: Text))
-                    pure state { appGHCIState = appGHCIState' }
+
+            if hasSchemaCompilerError
+                then pure state { appGHCIState = appGHCIState' }
+                else startApp
 
         RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
         AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
@@ -140,7 +122,7 @@ handleAction state@(AppState { appGHCIState, statusServerState, postgresState })
             -- You can trigger this case by running: $ while true; do touch test.hs; done;
             when ?context.isDebugMode (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
             pure state
-handleAction state@(AppState { appGHCIState, statusServerState, postgresState }) (AppModulesLoaded { success = False }) = do
+handleAction state@(AppState { appGHCIState, statusServerState }) (AppModulesLoaded { success = False }) = do
     statusServerState' <- case statusServerState of
         s@(StatusServerPaused { .. }) -> do
             async $ continueStatusServer s
@@ -195,7 +177,10 @@ handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileCha
 
 handleAction state SchemaChanged = do
     async tryCompileSchema
-    async (updateDatabaseIsOutdated state)
+
+    databaseIsReady <- newMVar () -- TODO: remove
+    async (updateDatabaseIsOutdated state.databaseNeedsMigration databaseIsReady)
+
     pure state
 
 handleAction state@(AppState { appGHCIState }) PauseApp =
@@ -333,8 +318,8 @@ checkDatabaseIsOutdated = do
     diff <- MigrationGenerator.diffAppDatabase True databaseUrl
     pure (not (isEmpty diff))
 
-updateDatabaseIsOutdated state = ((do
-            let databaseNeedsMigrationRef = state.databaseNeedsMigration
+updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = ((do
+            readMVar databaseIsReady
             databaseNeedsMigration <- checkDatabaseIsOutdated
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
         ) `catch` (\(exception :: SomeException) -> do

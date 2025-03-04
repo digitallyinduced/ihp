@@ -7,13 +7,14 @@ import qualified System.Directory as Directory
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar
 import GHC.IO.Handle
 
 import qualified IHP.Log as Log
 import qualified IHP.LibDir as LibDir
 import qualified IHP.EnvVar as EnvVar
 
-withPostgres :: (?context :: Context) => (IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
+withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
     currentDir <- Directory.getCurrentDirectory
     ensureNoOtherPostgresIsRunning
@@ -23,13 +24,12 @@ withPostgres callback = do
     Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         standardOutput <- newIORef mempty
         errorOutput <- newIORef mempty
-
-        let databaseIsReady = dispatch (UpdatePostgresState (PostgresStarted { .. }))
+        databaseIsReady <- newEmptyMVar
 
         redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
         redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
 
-        callback standardOutput errorOutput
+        callback databaseIsReady standardOutput errorOutput
 
 postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
 postgresProcessParams workingDirectory =
@@ -41,8 +41,8 @@ postgresProcessParams workingDirectory =
         , Process.std_err = Process.CreatePipe
         }
 
-handleDatabaseReady :: IO () -> ByteString -> IO ()
-handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) onReady
+handleDatabaseReady :: MVar () -> ByteString -> IO ()
+handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) (putMVar onReady ())
 
 handleOutdatedDatabase :: (?context :: Context) => ByteString -> IO ()
 handleOutdatedDatabase line =
@@ -122,13 +122,13 @@ waitPostgres = do
     threadDelay 1000000
     (_, stdout, _) <- Process.readProcessWithExitCode "pg_ctl" ["status"] ""
     if "server is running" `isInfixOf` (cs stdout)
-    then dispatch (UpdatePostgresState PostgresReady)
+    then pure ()
     else do
         when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
         waitPostgres
 
 
-withBuiltinOrDevenvPostgres :: (?context :: Context) => (IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
+withBuiltinOrDevenvPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withBuiltinOrDevenvPostgres callback = do
     useDevenv <- EnvVar.envOrDefault "IHP_DEVENV" False
     if useDevenv
@@ -138,7 +138,8 @@ withBuiltinOrDevenvPostgres callback = do
         -- For devenv postgres we don't have access to the postgres logs
         standardOutput <- newIORef mempty
         errorOutput <- newIORef mempty
+        databaseIsReady <- newMVar ()
 
-        callback standardOutput errorOutput
+        callback databaseIsReady standardOutput errorOutput
     else do
         withPostgres callback
