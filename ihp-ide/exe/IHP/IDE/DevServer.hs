@@ -74,6 +74,8 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             throwTo threadId ExitSuccess
     installHandler sigINT (Catch catchHandler) Nothing
 
+
+
     databaseNeedsMigrationVar <- (.databaseNeedsMigration) <$> readIORef appStateRef
     withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
         start
@@ -83,7 +85,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             <*> Concurrently (runToolServer liveReloadClients)
             <*> Concurrently consumeGhciOutput
             <*> Concurrently Telemetry.reportTelemetry
-            <*> Concurrently (runFileWatcher liveReloadClients)
+            <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients))
             <*> Concurrently (
                     forever do
                         appState <- readIORef appStateRef
@@ -95,6 +97,12 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
         pure ()
 
+fileWatcherParams liveReloadClients =
+    FileWatcherParams
+        { onHaskellFileChanged = dispatch HaskellFileChanged
+        , onSchemaChanged = dispatch SchemaChanged
+        , onAssetChanged = notifyAssetChange liveReloadClients
+        }
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
 handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
