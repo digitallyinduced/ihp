@@ -324,14 +324,15 @@ checkDatabaseIsOutdated = do
     diff <- MigrationGenerator.diffAppDatabase True databaseUrl
     pure (not (isEmpty diff))
 
-updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = ((do
+updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
+    result <- Exception.tryAny do
             readMVar databaseIsReady
             databaseNeedsMigration <- checkDatabaseIsOutdated
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
-        ) `catch` (\(exception :: SomeException) -> do
-            Log.error (tshow exception)
-            receiveAppOutput (ErrorOutput (cs $ tshow exception))
-        ))
+
+    case result of
+        Left exception -> Log.error (tshow exception)
+        Right _ -> pure ()
 
 tryCompileSchema :: (?context :: Context) => IO ()
 tryCompileSchema = do
