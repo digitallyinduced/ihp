@@ -14,6 +14,7 @@ module IHP.PGListener
 , PGListener (..)
 , init
 , stop
+, withPGListener
 , subscribe
 , subscribeJSON
 , unsubscribe
@@ -94,6 +95,10 @@ init modelContext = do
 stop :: PGListener -> IO ()
 stop PGListener { notifyLoopAsync } = do
     cancel notifyLoopAsync
+
+withPGListener :: ModelContext -> (PGListener -> IO a) -> IO a
+withPGListener modelContext =
+    Exception.bracket (init modelContext) stop
 
 -- | After you subscribed to a channel, the provided callback will be called whenever there's a new
 -- notification on the channel.
