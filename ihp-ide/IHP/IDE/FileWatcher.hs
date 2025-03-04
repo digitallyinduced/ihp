@@ -1,4 +1,4 @@
-module IHP.IDE.FileWatcher (withFileWatcher) where
+module IHP.IDE.FileWatcher (runFileWatcher) where
 
 import IHP.Prelude
 import Control.Exception
@@ -13,37 +13,34 @@ import qualified Data.List as List
 import IHP.IDE.LiveReloadNotificationServer (notifyAssetChange)
 import qualified Control.Debounce as Debounce
 
-withFileWatcher :: (?context :: Context) => IO () -> IO ()
-withFileWatcher inner =
-        withAsync callback \_ -> inner
-    where
-        callback = do
-            dispatchHaskellFileChanged <- Debounce.mkDebounce Debounce.defaultDebounceSettings
-                     { Debounce.debounceAction = dispatch HaskellFileChanged
-                     , Debounce.debounceFreq = 50000 -- 50ms
-                     , Debounce.debounceEdge = Debounce.leadingEdge
-                     }
-            dispatchSchemaChanged <- Debounce.mkDebounce Debounce.defaultDebounceSettings
-                     { Debounce.debounceAction = dispatch SchemaChanged
-                     , Debounce.debounceFreq = 50000 -- 50ms
-                     , Debounce.debounceEdge = Debounce.leadingEdge
-                     }
-            let
-                handleFileChangeDebounced :: FS.Event -> IO ()
-                handleFileChangeDebounced = handleFileChange dispatchHaskellFileChanged dispatchSchemaChanged
-            FS.withManagerConf fileWatcherConfig \manager -> do
-                state <- newFileWatcherState
-                watchRootDirectoryFiles handleFileChangeDebounced manager state
-                watchSubDirectories handleFileChangeDebounced manager state
-                forever (threadDelay maxBound) `finally` FS.stopManager manager
+runFileWatcher :: (?context :: Context) => IO ()
+runFileWatcher = do
+    dispatchHaskellFileChanged <- Debounce.mkDebounce Debounce.defaultDebounceSettings
+             { Debounce.debounceAction = dispatch HaskellFileChanged
+             , Debounce.debounceFreq = 50000 -- 50ms
+             , Debounce.debounceEdge = Debounce.leadingEdge
+             }
+    dispatchSchemaChanged <- Debounce.mkDebounce Debounce.defaultDebounceSettings
+             { Debounce.debounceAction = dispatch SchemaChanged
+             , Debounce.debounceFreq = 50000 -- 50ms
+             , Debounce.debounceEdge = Debounce.leadingEdge
+             }
+    let
+        handleFileChangeDebounced :: FS.Event -> IO ()
+        handleFileChangeDebounced = handleFileChange dispatchHaskellFileChanged dispatchSchemaChanged
+    FS.withManagerConf fileWatcherConfig \manager -> do
+        state <- newFileWatcherState
+        watchRootDirectoryFiles handleFileChangeDebounced manager state
+        watchSubDirectories handleFileChangeDebounced manager state
+        forever (threadDelay maxBound) `finally` FS.stopManager manager
 
-        watchRootDirectoryFiles handleFileChange manager state = 
-                FS.watchDir manager "." shouldActOnRootFileChange (handleRootFileChange handleFileChange manager state)
-        
-        watchSubDirectories handleFileChange manager state = do
-                directories <- listWatchableDirectories
-                forM_ directories \directory -> do
-                    startWatchingSubDirectory handleFileChange manager state directory
+watchRootDirectoryFiles handleFileChange manager state = 
+        FS.watchDir manager "." shouldActOnRootFileChange (handleRootFileChange handleFileChange manager state)
+
+watchSubDirectories handleFileChange manager state = do
+        directories <- listWatchableDirectories
+        forM_ directories \directory -> do
+            startWatchingSubDirectory handleFileChange manager state directory
 
 type WatchedDirectories = Map FilePath FS.StopListening
 
