@@ -60,7 +60,7 @@ data PostgresState
     = PostgresNotStarted
     | StartingPostgres
     | PostgresReady
-    | PostgresStarted { process :: !ManagedProcess, standardOutput :: !(IORef ByteString.Builder), errorOutput :: !(IORef ByteString.Builder) }
+    | PostgresStarted { standardOutput :: !(IORef ByteString.Builder), errorOutput :: !(IORef ByteString.Builder) }
 
 instance Show PostgresState where
     show PostgresNotStarted = "NotStarted"

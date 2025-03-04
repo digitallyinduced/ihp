@@ -73,19 +73,20 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             throwTo threadId ExitSuccess
     installHandler sigINT (Catch catchHandler) Nothing
 
-    start
+    withBuiltinOrDevenvPostgres \postgresStandardOutput postgresErrorOutput -> do
+        start
 
-    withToolServer do
-        withAsync consumeGhciOutput \_ -> do
-            withFileWatcher do
-                async Telemetry.reportTelemetry
-                forever do
-                    appState <- readIORef appStateRef
-                    when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
-                    action <- takeMVar actionVar
-                    when isDebugMode (Log.debug $ tshow action)
-                    nextAppState <- handleAction appState action
-                    writeIORef appStateRef nextAppState
+        withToolServer do
+            withAsync consumeGhciOutput \_ -> do
+                withFileWatcher do
+                    async Telemetry.reportTelemetry
+                    forever do
+                        appState <- readIORef appStateRef
+                        when isDebugMode (Log.debug $ " ===> " <> (tshow appState))
+                        action <- takeMVar actionVar
+                        when isDebugMode (Log.debug $ tshow action)
+                        nextAppState <- handleAction appState action
+                        writeIORef appStateRef nextAppState
 
 
 handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
@@ -208,7 +209,6 @@ start :: (?context :: Context) => IO ()
 start = do
     async startStatusServer
     async startAppGHCI
-    async startOrWaitPostgres
     pure ()
 
 stop :: (?context :: Context) => AppState -> IO ()
@@ -216,20 +216,11 @@ stop AppState { .. } = do
     useDevenv <- isUsingDevenv
     when ?context.isDebugMode (Log.debug ("Stop called" :: Text))
     stopAppGHCI appGHCIState
-    when (not useDevenv) $ stopPostgres postgresState
     stopStatusServer statusServerState
 
 isUsingDevenv :: IO Bool
 isUsingDevenv = EnvVar.envOrDefault "IHP_DEVENV" False
 
-startOrWaitPostgres :: (?context :: Context) => IO ()
-startOrWaitPostgres = do
-    useDevenv <- isUsingDevenv
-    if useDevenv
-    then waitPostgres
-    else do
-        startPostgres
-        pure ()
 
 startGHCI :: (?context :: Context) => IO ManagedProcess
 startGHCI = do

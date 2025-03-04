@@ -1,4 +1,4 @@
-module IHP.IDE.Postgres (startPostgres, stopPostgres, waitPostgres) where
+module IHP.IDE.Postgres (withPostgres, withBuiltinOrDevenvPostgres) where
 
 import IHP.IDE.Types
 import IHP.Prelude
@@ -11,53 +11,50 @@ import GHC.IO.Handle
 
 import qualified IHP.Log as Log
 import qualified IHP.LibDir as LibDir
+import qualified IHP.EnvVar as EnvVar
 
-startPostgres :: (?context :: Context) => IO ManagedProcess
-startPostgres = do
+withPostgres :: (?context :: Context) => (IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
+withPostgres callback = do
     currentDir <- Directory.getCurrentDirectory
     ensureNoOtherPostgresIsRunning
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
-    let args = ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="]
-    let params = (procDirenvAware "postgres" args)
-                { Process.std_in = Process.CreatePipe
-                , Process.std_out = Process.CreatePipe
-                , Process.std_err = Process.CreatePipe
-                }
-    process <- createManagedProcess params
 
+    Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
+        standardOutput <- newIORef mempty
+        errorOutput <- newIORef mempty
 
-    let ManagedProcess { outputHandle, errorHandle } = process
+        let databaseIsReady = dispatch (UpdatePostgresState (PostgresStarted { .. }))
 
-    let isDebugMode = ?context.isDebugMode
+        redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
+        redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
 
-    let handleOutdatedDatabase line =
-            -- Always log fatal errors to the output:
-            -- 2021-09-04 12:18:08.888 CEST [55794] FATAL:  database files are incompatible with server
-            --
-            -- If we're in debug mode, log all output
-            if "FATAL" `ByteString.isInfixOf` line
-                then if "database files are incompatible with server" `ByteString.isInfixOf` line
-                    then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run 'devenv up' again." :: Text)
-                    else Log.error line
-                else when isDebugMode (Log.debug line)
+        callback standardOutput errorOutput
 
-    let handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) onReady
+postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
+postgresProcessParams workingDirectory =
+    let
+        args = ["-D", "build/db/state", "-k", workingDirectory <> "/build/db", "-c", "listen_addresses="]
+    in (procDirenvAware "postgres" args)
+        { Process.std_in = Process.CreatePipe
+        , Process.std_out = Process.CreatePipe
+        , Process.std_err = Process.CreatePipe
+        }
 
+handleDatabaseReady :: IO () -> ByteString -> IO ()
+handleDatabaseReady onReady line = when ("database system is ready to accept connections" `ByteString.isInfixOf` line) onReady
 
-    standardOutput <- newIORef mempty
-    errorOutput <- newIORef mempty
-
-    let databaseIsReady = dispatch (UpdatePostgresState (PostgresStarted { .. }))
-
-    redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
-    redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
-
-    pure process
-
-stopPostgres :: PostgresState -> IO ()
-stopPostgres PostgresStarted { .. } = cleanupManagedProcess process
-stopPostgres _ = pure ()
+handleOutdatedDatabase :: (?context :: Context) => ByteString -> IO ()
+handleOutdatedDatabase line =
+        -- Always log fatal errors to the output:
+        -- 2021-09-04 12:18:08.888 CEST [55794] FATAL:  database files are incompatible with server
+        --
+        -- If we're in debug mode, log all output
+        if "FATAL" `ByteString.isInfixOf` line
+            then if "database files are incompatible with server" `ByteString.isInfixOf` line
+                then Log.error ("The current database state has been created with a different postgres server. Likely you just upgraded the IHP version. Delete your local dev database with 'rm -rf build/db'. You can use 'make dumpdb' to save your database state to Fixtures.sql, otherwise all changes in your local db will be lost. After that run 'devenv up' again." :: Text)
+                else Log.error line
+            else when ?context.isDebugMode (Log.debug line)
 
 redirectHandleToVariable :: IORef ByteString.Builder -> Handle -> (ByteString -> IO ()) -> IO (Async ())
 redirectHandleToVariable !ref !handle !onLine = do
@@ -130,3 +127,18 @@ waitPostgres = do
         when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
         waitPostgres
 
+
+withBuiltinOrDevenvPostgres :: (?context :: Context) => (IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
+withBuiltinOrDevenvPostgres callback = do
+    useDevenv <- EnvVar.envOrDefault "IHP_DEVENV" False
+    if useDevenv
+    then do
+        waitPostgres
+
+        -- For devenv postgres we don't have access to the postgres logs
+        standardOutput <- newIORef mempty
+        errorOutput <- newIORef mempty
+
+        callback standardOutput errorOutput
+    else do
+        withPostgres callback
