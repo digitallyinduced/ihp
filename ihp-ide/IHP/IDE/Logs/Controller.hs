@@ -11,27 +11,18 @@ import qualified Control.Concurrent.MVar as MVar
 
 instance Controller LogsController where
     action AppLogsAction = do
-        currentDevServerState <- readDevServerState
-        let statusServerState = currentDevServerState.statusServerState
+        toolServerApp <- fromContext @ToolServerApplication
 
-        (standardOutput, errorOutput) <- case statusServerState of
-                DevServer.StatusServerNotStarted -> pure ("", "")
-                DevServer.StatusServerStarted { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
-                    pure (std, err)
-                DevServer.StatusServerPaused { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
-                    pure (std, err)
+        standardOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appStandardOutput
+        errorOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appErrorOutput
 
         render LogsView { .. }
 
     action PostgresLogsAction = do
-        currentDevServerState <- readDevServerState
+        toolServerApp <- fromContext @ToolServerApplication
 
-        standardOutput <- cs . ByteString.toLazyByteString <$> MVar.readMVar currentDevServerState.postgresStandardOutput
-        errorOutput <- cs . ByteString.toLazyByteString <$> MVar.readMVar currentDevServerState.postgresErrorOutput
+        standardOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresStandardOutput
+        errorOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresErrorOutput
 
         render LogsView { .. }
 
@@ -42,6 +33,3 @@ instance Controller LogsController where
         openEditor path line col
 
         renderPlain ""
-
-readDevServerState :: (?context :: ControllerContext) => IO DevServer.AppState
-readDevServerState = ((.appStateRef) <$> theDevServerContext) >>= readIORef

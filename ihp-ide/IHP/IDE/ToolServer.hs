@@ -49,15 +49,15 @@ import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 
-runToolServer :: (?context :: Context) => _ -> IO ()
-runToolServer liveReloadClients = do
+runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
+runToolServer toolServerApplication liveReloadClients = do
     let port = ?context.portConfig.toolServerPort |> fromIntegral
     let isDebugMode = ?context.isDebugMode
 
-    startToolServer' port isDebugMode liveReloadClients
+    startToolServer' toolServerApplication port isDebugMode liveReloadClients
 
-startToolServer' :: (?context :: Context) => Int -> Bool -> _ -> IO ()
-startToolServer' port isDebugMode liveReloadClients = do
+startToolServer' :: (?context :: Context) => ToolServerApplication -> Int -> Bool -> _ -> IO ()
+startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
 
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
@@ -78,7 +78,6 @@ startToolServer' port isDebugMode liveReloadClients = do
         staticApp <- initStaticApp
 
         let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
-        let toolServerApplication = ToolServerApplication { devServerContext = ?context }
         let application :: Wai.Application = \request respond -> do
                 let ?applicationContext = applicationContext
                 frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
@@ -144,7 +143,8 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         availableApps <- AvailableApps <$> findApplications
         webControllers <- WebControllers <$> findWebControllers
 
-        let defaultAppUrl = "http://localhost:" <> tshow Helper.appPort
+        appPort <- Helper.theAppPort
+        let defaultAppUrl = "http://localhost:" <> tshow appPort
         appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
 
         putContext availableApps
@@ -158,6 +158,5 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
 
 readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
 readDatabaseNeedsMigration = do
-    context <- theDevServerContext
-    state <- readIORef (context.appStateRef)
-    readIORef (state.databaseNeedsMigration)
+    context <- fromContext @ToolServerApplication
+    readIORef context.databaseNeedsMigration

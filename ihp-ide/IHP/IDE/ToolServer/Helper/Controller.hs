@@ -4,12 +4,12 @@ Description: Provides helpers for controllers of the ToolServer
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.IDE.ToolServer.Helper.Controller
-( appPort
+( theAppPort
 , openEditor
 , findWebControllers
 , findControllers
 , findApplications
-, theDevServerContext
+, theToolServerApplication
 , clearDatabaseNeedsMigration
 , markDatabaseNeedsMigration
 ) where
@@ -31,8 +31,10 @@ import System.Directory
 import qualified Data.Text.IO as IO
 
 -- | Returns the port used by the running app. Usually returns @8000@.
-appPort :: (?context :: ControllerContext) => Socket.PortNumber
-appPort = (unsafePerformIO (fromContext @ToolServerApplication)).devServerContext.portConfig.appPort
+theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber
+theAppPort = do
+    toolServerApplication <- fromContext @ToolServerApplication
+    pure toolServerApplication.appPort
 
 openEditor :: Text -> Int -> Int -> IO ()
 openEditor path line col = do
@@ -81,19 +83,15 @@ findApplications = do
         where
             removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
-theDevServerContext :: (?context :: ControllerContext) => IO Context
-theDevServerContext = (.devServerContext) <$> (fromContext @ToolServerApplication)
+theToolServerApplication :: (?context :: ControllerContext) => IO ToolServerApplication
+theToolServerApplication = fromContext @ToolServerApplication
 
 clearDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
 clearDatabaseNeedsMigration = do
-    context <- theDevServerContext
-    state <- readIORef (context.appStateRef)
-    writeIORef (state.databaseNeedsMigration) False
-    pure ()
+    toolServerApp <- theToolServerApplication
+    writeIORef toolServerApp.databaseNeedsMigration False
 
 markDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
 markDatabaseNeedsMigration = do
-    context <- theDevServerContext
-    state <- readIORef (context.appStateRef)
-    writeIORef (state.databaseNeedsMigration) True
-    pure ()
+    toolServerApp <- theToolServerApplication
+    writeIORef toolServerApp.databaseNeedsMigration True

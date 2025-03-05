@@ -1,4 +1,4 @@
-module Main (main, mainInParentDirectory) where
+module Main (main, mainInParentDirectory, mainInAppDirectory) where
 
 import ClassyPrelude
 import qualified System.Process as Process
@@ -14,6 +14,7 @@ import IHP.IDE.StatusServer
 import IHP.IDE.LiveReloadNotificationServer
 import IHP.IDE.PortConfig
 import IHP.IDE.ToolServer
+import IHP.IDE.ToolServer.Types
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified IHP.EnvVar as EnvVar
 import Data.String.Conversions (cs)
@@ -50,8 +51,7 @@ main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
 mainWithOptions wrapWithDirenv = withUtf8 do
-    actionVar <- newEmptyMVar
-    appStateRef <- emptyAppState >>= newIORef
+    databaseNeedsMigration <- newIORef False
     portConfig <- findAvailablePortConfig
     ensureUserIsNotRoot
 
@@ -59,178 +59,74 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- Like: $ DEBUG=1 devenv up
     isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
-    logger <- Log.newLogger def
-    (ghciInChan, ghciOutChan) <- Queue.newChan
-    liveReloadClients <- newIORef mempty
-    let ?context = Context { actionVar, portConfig, appStateRef, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients }
+    bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
+        (ghciInChan, ghciOutChan) <- Queue.newChan
+        liveReloadClients <- newIORef mempty
+        lastSchemaCompilerError <- newIORef Nothing
+        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError }
 
-    -- Print IHP Version when in debug mode
-    when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+        -- Print IHP Version when in debug mode
+        when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
-    threadId <- myThreadId
-    let catchHandler = do
-            state <- readIORef appStateRef
-            stop state
-            throwTo threadId ExitSuccess
-    installHandler sigINT (Catch catchHandler) Nothing
+        ghciIsLoadingVar <- newIORef False
+
+        withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
+            withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
+                withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients \inputHandle outputHandle errorHandle processHandle reloadGhciVar -> do
+                    -- Compile Schema before loading the app
+                    tryCompileSchema reloadGhciVar startStatusServer
+                    
+                    let toolServerApplication = ToolServerApplication
+                            { postgresStandardOutput
+                            , postgresErrorOutput
+                            , appStandardOutput = statusServerStandardOutput
+                            , appErrorOutput = statusServerErrorOutput
+                            , appPort = portConfig.appPort
+                            , databaseNeedsMigration
+                            }
 
 
+                    void $ runConcurrently $ (,,,,)
+                        <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
+                        <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
+                        <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
+                        <*> Concurrently Telemetry.reportTelemetry
+                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer))
 
-    databaseNeedsMigrationVar <- (.databaseNeedsMigration) <$> readIORef appStateRef
-    withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
-        start
+            pure ()
 
-        _ <- runConcurrently $ (,,,,,)
-            <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigrationVar databaseIsReady)
-            <*> Concurrently (runToolServer liveReloadClients)
-            <*> Concurrently consumeGhciOutput
-            <*> Concurrently Telemetry.reportTelemetry
-            <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigrationVar databaseIsReady))
-            <*> Concurrently (
-                    forever do
-                        appState <- readIORef appStateRef
-                        action <- takeMVar actionVar
-                        when isDebugMode (Log.debug $ tshow action)
-                        nextAppState <- handleAction appState action
-                        writeIORef appStateRef nextAppState
-                )
-
-        pure ()
-
-fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady =
+fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer =
     FileWatcherParams
-        { onHaskellFileChanged = dispatch HaskellFileChanged
-        , onSchemaChanged = concurrently_ tryCompileSchema (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
+        { onHaskellFileChanged = putMVar reloadGhciVar ()
+        , onSchemaChanged = concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
-
-handleAction :: (?context :: Context) => AppState -> Action -> IO AppState
-handleAction state (UpdateAppGHCIState appGHCIState) = pure state { appGHCIState }
-handleAction state@(AppState { statusServerState = StatusServerNotStarted }) (UpdateStatusServerState statusServerState) = pure state { statusServerState }
-handleAction state@(AppState { statusServerState = StatusServerStarted { } }) (UpdateStatusServerState StatusServerNotStarted) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state@(AppState { statusServerState = StatusServerPaused { } }) (UpdateStatusServerState statusServerState) = pure state { statusServerState = StatusServerNotStarted }
-handleAction state@(AppState { appGHCIState, statusServerState }) (AppModulesLoaded { success = True }) = do
-    case appGHCIState of
-        AppGHCILoading { .. } -> do
-            let appGHCIState' = AppGHCIModulesLoaded { .. }
-            let startApp = do
-                            stopStatusServer statusServerState
-                            startLoadedApp appGHCIState
-
-
-                            let statusServerState' = case statusServerState of
-                                    StatusServerStarted { .. } -> StatusServerPaused { .. }
-                                    _ -> statusServerState
-
-                            pure state { appGHCIState = appGHCIState', statusServerState = statusServerState' }
-
-            hasSchemaCompilerError <- isJust <$> readIORef state.lastSchemaCompilerError
-
-            if hasSchemaCompilerError
-                then pure state { appGHCIState = appGHCIState' }
-                else startApp
-
-        RunningAppGHCI { } -> pure state -- Do nothing as app is already in running state
-        AppGHCINotStarted -> error "Unreachable AppGHCINotStarted"
-        AppGHCIModulesLoaded { } -> do
-            -- You can trigger this case by running: $ while true; do touch test.hs; done;
-            when ?context.isDebugMode (Log.debug ("AppGHCIModulesLoaded triggered multiple times. This happens when multiple file change events are detected. Skipping app start as the app is already starting from a previous file change event" :: Text))
-            pure state
-handleAction state@(AppState { appGHCIState, statusServerState }) (AppModulesLoaded { success = False }) = do
-    statusServerState' <- case statusServerState of
-        s@(StatusServerPaused { .. }) -> do
-            async $ continueStatusServer s
-            pure StatusServerStarted { .. }
-        o -> pure o
-
-    let newAppGHCIState =
-            case appGHCIState of
-                AppGHCILoading { .. } -> AppGHCIModulesLoaded { .. }
-                AppGHCIModulesLoaded { .. } -> AppGHCIModulesLoaded { .. }
-                RunningAppGHCI { .. } -> AppGHCIModulesLoaded { .. }
-                AppGHCINotStarted {} -> error "Modules cannot be loaded when ghci not in started state"
-
-    notifyHaskellChange ?context.liveReloadClients
-
-    pure state { statusServerState = statusServerState', appGHCIState = newAppGHCIState }
-
-handleAction state@(AppState { statusServerState, appGHCIState }) AppStarted = do
-    notifyHaskellChange ?context.liveReloadClients
-    case appGHCIState of
-        AppGHCIModulesLoaded { .. } -> pure state { appGHCIState = RunningAppGHCI { .. } }
-        RunningAppGHCI { } -> pure state
-        otherwise -> pure state
-
-handleAction state@(AppState { appGHCIState, statusServerState }) HaskellFileChanged = do
-    case appGHCIState of
-        AppGHCIModulesLoaded { .. } -> do
-            -- The app might already have been triggered
-            -- but the the "Server started" message might not have been received yet
-            sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
-            sendGhciCommand process ":r"
-        RunningAppGHCI { .. } -> do
-            sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
-            sendGhciCommand process ":r"
-        AppGHCILoading { .. } -> sendGhciCommand process ":r"
-        AppGHCINotStarted -> pure ()
-
-    clearStatusServer statusServerState
-
-    lastSchemaCompilerError <- readIORef state.lastSchemaCompilerError
-    case lastSchemaCompilerError of
-        Just exception -> receiveAppOutput (ErrorOutput (cs $ displayException exception))
-        Nothing -> pure ()
-
-    let appGHCIState' =
-            case appGHCIState of
-                AppGHCILoading { .. } -> AppGHCILoading { .. }
-                AppGHCIModulesLoaded { .. } -> AppGHCILoading { .. }
-                RunningAppGHCI { .. } -> AppGHCILoading { .. }
-                AppGHCINotStarted -> AppGHCINotStarted
-    pure state { appGHCIState = appGHCIState' }
-
-handleAction state@(AppState { appGHCIState }) PauseApp =
-    case appGHCIState of
-        RunningAppGHCI { .. } -> do
-            pauseAppGHCI appGHCIState
-            pure state { appGHCIState = AppGHCIModulesLoaded { .. } }
-        otherwise -> do Log.info ("Could not pause app as it's not in running state" <> tshow otherwise); pure state
-
-start :: (?context :: Context) => IO ()
-start = do
-    async startStatusServer
-    async startAppGHCI
-    pure ()
-
-stop :: (?context :: Context) => AppState -> IO ()
-stop AppState { .. } = do
-    useDevenv <- isUsingDevenv
-    when ?context.isDebugMode (Log.debug ("Stop called" :: Text))
-    stopAppGHCI appGHCIState
-    stopStatusServer statusServerState
 
 isUsingDevenv :: IO Bool
 isUsingDevenv = EnvVar.envOrDefault "IHP_DEVENV" False
 
+ghciArguments :: [String]
+ghciArguments =
+    [ "-threaded"
+    , "-fomit-interface-pragmas"
+    , "-j"
+    , "-O0"
+    , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
+    , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
+    , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
+    , "+RTS", "-A128m", "-n2m", "-H2m", "--nonmoving-gc", "-N"
+    ]
 
-startGHCI :: (?context :: Context) => IO ManagedProcess
-startGHCI = do
-    let args =
-            [ "-threaded"
-            , "-fomit-interface-pragmas"
-            , "-j"
-            , "-O0"
-            , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
-            , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
-            , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
-            , "+RTS", "-A128m", "-n2m", "-H2m", "--nonmoving-gc", "-N"
-            ]
-
-    createManagedProcess (procDirenvAware "ghci" args)
+withGHCI :: (?context :: Context) => (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
+withGHCI callback = do
+    let params = (procDirenvAware "ghci" ghciArguments)
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
+            , Process.create_group = True
             }
+
+    Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> callback input output error processHandle
 
 -- | Exit with an error if running as the root user
 --
@@ -247,76 +143,90 @@ ensureUserIsNotRoot = do
         ByteString.hPutStrLn stderr "Cannot be run as root: The IHP dev server cannot be run with the root user because we cannot start the postgres server with a root user.\n\nPlease run this with a normal user.\nIf you need help, join the IHP Slack: https://ihp.digitallyinduced.com/Slack"
         exitFailure
 
-startAppGHCI :: (?context :: Context) => IO ()
-startAppGHCI = do
+initGHCICommands = 
+    [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
+     ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
+    , "import qualified ClassyPrelude"
+    ]
+
+type WithAppGHCICallback a = Handle -> Handle -> Handle -> Process.ProcessHandle -> MVar () -> IO a
+withAppGHCI :: (?context :: Context) => IORef Bool -> MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> WithAppGHCICallback a -> IO a
+withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients callback = do
     let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
-
-    process <- startGHCI
-
-    let ManagedProcess { outputHandle, errorHandle } = process
-
     libDirectory <- LibDir.findLibDirectory
 
-    let loadAppCommands =
-            [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
-             ":set prompt \"\"" -- Disable the prompt as this caused output such as '[38;5;208mIHP>[m Ser[v3e8r; 5s;t2a0r8tmedI' instead of 'Server started'
-            , "import qualified ClassyPrelude"
-            ]
+    reloadGhciVar :: MVar () <- newEmptyMVar
+    isRunningVar <- newIORef False
 
-    async $ forever $ ByteString.hGetLine outputHandle >>= \line -> do
-                unless isDebugMode (Log.info line)
-                if "Server started" `isInfixOf` line
-                    then dispatch AppStarted
-                    else if "Failed," `isInfixOf` line
+    let processReloadSignal inputHandle = forever do
+            takeMVar reloadGhciVar
+            isRunning <- readIORef isRunningVar
+            writeIORef ghciIsLoadingVar True
+            when isRunning (sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app")
+            writeIORef isRunningVar False
+            sendGhciCommand inputHandle ":r"
+            clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
+            notifyHaskellChange ?context.liveReloadClients
+
+    
+    withGHCI \inputHandle outputHandle errorHandle processHandle -> do
+        (result, _, _, _) <- runConcurrently $ (,,,)
+                <$> Concurrently ((do
+                        sendGhciCommands inputHandle initGHCICommands
+                        callback inputHandle outputHandle errorHandle processHandle reloadGhciVar
+                    ) :: IO _)
+                <*> Concurrently ((processReloadSignal inputHandle) :: IO _)
+                <*> Concurrently ((forever (ByteString.hGetLine outputHandle >>= handleAppOutputLine ghciIsLoadingVar isRunningVar startStatusServer stopStatusServer inputHandle)) :: IO _)
+                <*> Concurrently ((forever (ByteString.hGetLine errorHandle >>= handleAppErrorLine ghciIsLoadingVar inputHandle)) :: IO _)
+
+        pure result
+            
+
+handleAppOutputLine :: (?context :: Context) => IORef Bool -> IORef Bool -> MVar () -> MVar () -> Handle -> ByteString -> IO ()
+handleAppOutputLine ghciIsLoadingVar isRunningVar startStatusServer stopStatusServer inputHandle line = do
+    unless ?context.isDebugMode (Log.info line)
+    putStrLn (cs line)
+    if "Server started" `isInfixOf` line
+        then notifyHaskellChange ?context.liveReloadClients
+        else if "Failed," `isInfixOf` line
+                then do
+                    _ <- tryPutMVar startStatusServer ()
+                    notifyHaskellChange ?context.liveReloadClients
+                    writeIORef ghciIsLoadingVar False
+                else if "modules loaded." `isInfixOf` line
+                    then do
+                        writeIORef ghciIsLoadingVar False
+                        hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
+                        if hasSchemaCompilerError
                             then do
-                                dispatch AppModulesLoaded { success = False }
-                            else if "modules loaded." `isInfixOf` line
-                                then do
-                                    dispatch AppModulesLoaded { success = True }
-                                else receiveAppOutput (StandardOutput line)
-
-    async $ forever $ ByteString.hGetLine errorHandle >>= \line -> do
-        unless isDebugMode (Log.info line)
-        if "cannot find object file for module" `isInfixOf` line
-            then do
-                forEach loadAppCommands (sendGhciCommand process)
-                receiveAppOutput (ErrorOutput "Linking Issue: Reloading Main")
-            else receiveAppOutput (ErrorOutput line)
+                                _ <- putMVar startStatusServer ()
+                                pure ()
+                            else do
+                                _ <- tryPutMVar stopStatusServer ()
+                                writeIORef isRunningVar True
+                                sendGhciCommands inputHandle
+                                    [ "ClassyPrelude.uninterruptibleCancel app"
+                                    , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
+                                    ]
 
 
-    -- Compile Schema before loading the app
-    tryCompileSchema
 
-    forEach loadAppCommands (sendGhciCommand process)
+                    else receiveAppOutput (StandardOutput line)
 
-    dispatch (UpdateAppGHCIState (AppGHCILoading { .. }))
+handleAppErrorLine ghciIsLoadingVar inputHandle line = do
+    unless ?context.isDebugMode (Log.info line)
+    if "cannot find object file for module" `isInfixOf` line
+        then do
+            writeIORef ghciIsLoadingVar False
+            sendGhciCommands inputHandle initGHCICommands
+            receiveAppOutput (ErrorOutput "Linking Issue: Reloading Main")
+        else receiveAppOutput (ErrorOutput line)
 
 receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
 receiveAppOutput line = Queue.writeChan ?context.ghciInChan line
-
-startLoadedApp :: (?context :: Context) => AppGHCIState -> IO ()
-startLoadedApp (AppGHCIModulesLoaded { .. }) = do
-    let commands =
-            [ "ClassyPrelude.uninterruptibleCancel app"
-            , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-            ]
-    forEach commands (sendGhciCommand process)
-startLoadedApp (RunningAppGHCI { .. }) = error "Cannot start app as it's already in running statstate"
-startLoadedApp (AppGHCILoading { .. }) = sendGhciCommand process "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-startLoadedApp _ = when ?context.isDebugMode (Log.debug ("startLoadedApp: App not running" :: Text))
-
-
-stopAppGHCI :: AppGHCIState -> IO ()
-stopAppGHCI RunningAppGHCI { process } = cleanupManagedProcess process
-stopAppGHCI AppGHCIModulesLoaded { process } = cleanupManagedProcess process
-stopAppGHCI _ = pure ()
-
-pauseAppGHCI :: (?context :: Context) => AppGHCIState -> IO ()
-pauseAppGHCI RunningAppGHCI { process } = sendGhciCommand process "ClassyPrelude.uninterruptibleCancel app"
-pauseAppGHCI _ = pure ()
 
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do
@@ -324,6 +234,7 @@ checkDatabaseIsOutdated = do
     diff <- MigrationGenerator.diffAppDatabase True databaseUrl
     pure (not (isEmpty diff))
 
+updateDatabaseIsOutdated :: (?context :: Context) => IORef Bool -> MVar () -> IO ()
 updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
     result <- Exception.tryAny do
             readMVar databaseIsReady
@@ -334,18 +245,19 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
         Left exception -> Log.error (tshow exception)
         Right _ -> pure ()
 
-tryCompileSchema :: (?context :: Context) => IO ()
-tryCompileSchema = do
-    result <- Exception.tryAny do
-        SchemaCompiler.compile
-        state <- readIORef ?context.appStateRef
-        writeIORef state.lastSchemaCompilerError Nothing
+tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
+tryCompileSchema reloadGhciVar startStatusServer = do
+    result <- Exception.tryAny SchemaCompiler.compile
     
     case result of
         Left exception -> do
             Log.error (tshow exception)
             receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
-            state <- readIORef ?context.appStateRef
-            writeIORef state.lastSchemaCompilerError (Just exception)
-        Right _ -> pure ()
+            writeIORef ?context.lastSchemaCompilerError (Just exception)
+            putMVar reloadGhciVar ()
+            putMVar startStatusServer ()
+
+        Right _ -> do
+            writeIORef ?context.lastSchemaCompilerError Nothing
+            putMVar reloadGhciVar ()
