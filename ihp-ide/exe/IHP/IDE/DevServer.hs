@@ -235,8 +235,9 @@ withRunningApp :: (?context :: Context) => Handle -> Handle -> Handle -> (Output
 withRunningApp inputHandle outputHandle errorHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
+    serverStopped :: MVar () <- newEmptyMVar
     let readHandle handle logLine = race_
-                (readMVar serverStarted)
+                (readMVar serverStopped)
                 (forever do
                     line <- ByteString.hGetLine handle
                     modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
@@ -247,7 +248,9 @@ withRunningApp inputHandle outputHandle errorHandle logLine callback = do
                 )
 
     let startApp = sendGhciCommand inputHandle "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-    let stopApp = sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app"
+    let stopApp = do
+            sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app"
+            putMVar serverStopped ()
 
     (result, _, _) <- runConcurrently $ (,,)
         <$> Concurrently (Exception.bracket_ startApp stopApp (do takeMVar serverStarted; callback))
