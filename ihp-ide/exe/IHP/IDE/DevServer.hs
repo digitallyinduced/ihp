@@ -293,7 +293,11 @@ refresh inputHandle outputHandle errorHandle logOutput = do
     pure result
 
 receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
-receiveAppOutput line = Queue.writeChan ?context.ghciInChan line
+receiveAppOutput line = do
+    Queue.writeChan ?context.ghciInChan line
+    case line of
+        StandardOutput output -> Log.info output
+        ErrorOutput output -> Log.error output
 
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do
