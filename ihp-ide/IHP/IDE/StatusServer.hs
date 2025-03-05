@@ -1,4 +1,4 @@
-module IHP.IDE.StatusServer (startStatusServer, stopStatusServer, clearStatusServer, continueStatusServer, consumeGhciOutput) where
+module IHP.IDE.StatusServer (withStatusServer, consumeGhciOutput, clearStatusServer, Clients) where
 
 import IHP.ViewPrelude hiding (catch)
 import qualified Network.Wai as Wai
@@ -18,66 +18,64 @@ import IHP.IDE.ToolServer.Routes ()
 import qualified Network.URI as URI
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
+import Control.Concurrent.MVar
 
--- async (notifyOutput (standardOutput, errorOutput) clients)
+type Clients = IORef [(Websocket.Connection, Concurrent.MVar ())]
 
-startStatusServer :: (?context :: Context) => IO ()
-startStatusServer = do
-        standardOutput <- newIORef []
-        errorOutput <- newIORef []
-        clients <- newIORef []
-        serverRef <- async (pure ()) >>= newIORef
+withStatusServer :: (?context :: Context) => IORef Bool -> (MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> IO a) -> IO a
+withStatusServer ghciIsLoadingVar callback = do
+    standardOutput <- newIORef []
+    errorOutput <- newIORef []
+    clients <- newIORef []
 
-        continueStatusServer StatusServerPaused { .. }
+    startMVar :: MVar () <- newMVar ()
+    stopMVar :: MVar () <- newEmptyMVar
 
-        let serverStarted = StatusServerStarted { serverRef, clients, standardOutput, errorOutput }
+    (a, _) <- concurrently (callback startMVar stopMVar standardOutput errorOutput clients) (runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar stopMVar)
+    pure a
 
-        dispatch (UpdateStatusServerState serverStarted)
+runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar stopMVar = do
 
-continueStatusServer :: (?context :: Context) => StatusServerState -> IO ()
-continueStatusServer statusServerState@(StatusServerPaused { .. }) = do
+    let port = ?context.portConfig.appPort |> fromIntegral
 
-        let warpApp = Websocket.websocketsOr
-                Websocket.defaultConnectionOptions
-                (app clients statusServerState)
-                (statusServerApp (standardOutput, errorOutput))
+    forever do
+        _ <- takeMVar startMVar
 
-        let port = ?context.portConfig.appPort |> fromIntegral
+        race_
+            (Warp.run port (waiApp ghciIsLoadingVar clients standardOutput errorOutput))
+            (takeMVar stopMVar)
 
-        server <- async $ Warp.run port warpApp
 
-        writeIORef serverRef server
-    where
-        statusServerApp :: (IORef [ByteString], IORef [ByteString]) -> Wai.Application
-        statusServerApp (standardOutput, errorOutput) req respond = do
-            isCompiling <- getCompilingStatus
-            currentStandardOutput <- readIORef standardOutput
-            currentErrorOutput <- readIORef errorOutput
-            let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling)
-            let responseHeaders = [(HTTP.hContentType, "text/html")]
-            respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
-stopStatusServer :: StatusServerState -> IO ()
-stopStatusServer StatusServerStarted { serverRef } = do
-    async $ readIORef serverRef >>= uninterruptibleCancel
-    pure ()
-stopStatusServer _ = putStrLn "StatusServer: Cannot stop as not running"
+waiApp :: (?context :: Context) => IORef Bool -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IORef [ByteString] -> IORef [ByteString] -> Wai.Application
+waiApp ghciIsLoadingVar clients standardOutput errorOutput = do
+    Websocket.websocketsOr
+        Websocket.defaultConnectionOptions
+        (wsApp ghciIsLoadingVar clients standardOutput errorOutput)
+        (httpApp ghciIsLoadingVar standardOutput errorOutput)
 
-clearStatusServer :: (?context :: Context) => StatusServerState -> IO ()
-clearStatusServer StatusServerStarted { .. } = do
+httpApp :: (?context :: Context) => IORef Bool -> IORef [ByteString] -> IORef [ByteString] -> Wai.Application
+httpApp ghciIsLoadingVar standardOutput errorOutput req respond = do
+    isCompiling <- readIORef ghciIsLoadingVar
+    currentStandardOutput <- readIORef standardOutput
+    currentErrorOutput <- readIORef errorOutput
+    lastSchemaCompilerError <- readIORef ?context.lastSchemaCompilerError
+    let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling lastSchemaCompilerError)
+    let responseHeaders = [(HTTP.hContentType, "text/html")]
+    respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
+
+clearStatusServer :: _ => IORef [ByteString] -> IORef [ByteString] -> Clients -> IO ()
+clearStatusServer standardOutput errorOutput clients = do
     writeIORef standardOutput []
     writeIORef errorOutput []
+
+
     async (notifyOutput clients)
     pure ()
-clearStatusServer StatusServerPaused { .. } = do
-    writeIORef standardOutput []
-    writeIORef errorOutput []
-clearStatusServer StatusServerNotStarted = pure ()
 
-consumeGhciOutput :: (?context :: Context) => IO ()
-consumeGhciOutput = forever do
+consumeGhciOutput :: (?context :: Context) => IORef [ByteString] -> IORef [ByteString] -> Clients -> IO ()
+consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients = forever do
     line <- Queue.readChan ?context.ghciOutChan
-    appState <- readIORef ?context.appStateRef
 
     let shouldIgnoreLine = (line == ErrorOutput "Warning: -debug, -threaded and -ticky are ignored by GHCi")
     unless shouldIgnoreLine do
@@ -86,13 +84,8 @@ consumeGhciOutput = forever do
                     StandardOutput line -> modifyIORef' standardOutput (line:)
                     ErrorOutput line -> modifyIORef' errorOutput (line:)
 
-        case appState.statusServerState of
-            StatusServerStarted { clients, standardOutput, errorOutput } -> do
-                writeOutputLine standardOutput errorOutput
-                notifyOutput clients
-            StatusServerPaused { standardOutput, errorOutput } -> do
-                writeOutputLine standardOutput errorOutput
-            otherwise -> pure ()
+        writeOutputLine statusServerStandardOutput statusServerErrorOutput
+        notifyOutput statusServerClients
 
 
 notifyOutput :: IORef [(Websocket.Connection, Concurrent.MVar ())] -> IO ()
@@ -106,8 +99,8 @@ notifyOutput stateRef = do
 
 data CompilerError = CompilerError { errorMessage :: [ByteString], isWarning :: Bool } deriving (Show)
 
-renderErrorView :: (?context :: Context) => [ByteString] -> [ByteString] -> Bool -> Html5.Html
-renderErrorView standardOutput errorOutput isCompiling = [hsx|
+renderErrorView :: (?context :: Context) => [ByteString] -> [ByteString] -> Bool -> Maybe SomeException -> Html5.Html
+renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError = [hsx|
         <html lang="en">
             <head>
                 <meta charset="utf-8"/>
@@ -190,6 +183,10 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
         </html>
     |]
         where
+            errorOutput =
+                case lastSchemaCompilerError of
+                    Just lastSchemaCompilerError -> [cs (displayException lastSchemaCompilerError)]
+                    Nothing -> errorOutput'
             errorContainer = [hsx|
                 <div id="ihp-error-container">
                     <h1 style="margin-bottom: 2rem; margin-top: 20%; font-size: 1rem; font-weight: 400; border-bottom: 1px solid white; padding-bottom: 0.25rem; border-color: hsla(196, 13%, 60%, 1); color: hsla(196, 13%, 80%, 1)">{inner}</h1>
@@ -263,8 +260,8 @@ renderErrorView standardOutput errorOutput isCompiling = [hsx|
 
             toolServerPort = ?context.portConfig.toolServerPort
 
-app :: (?context :: Context) => IORef [(Websocket.Connection, Concurrent.MVar ())] -> StatusServerState -> Websocket.ServerApp
-app stateRef statusServerState pendingConnection = do
+wsApp :: (?context :: Context) => IORef Bool -> Clients -> _ -> _ -> Websocket.ServerApp
+wsApp ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
     didChangeMVar <- Concurrent.newEmptyMVar
 
@@ -277,11 +274,12 @@ app stateRef statusServerState pendingConnection = do
             -- Debounce
             Concurrent.threadDelay 100000 -- 100ms
 
-            isCompiling <- getCompilingStatus
-            standardOutput' <- readIORef (statusServerState.standardOutput)
-            errorOutput' <- readIORef (statusServerState.errorOutput)
+            isCompiling <- readIORef ghciIsLoadingVar
+            standardOutput' <- readIORef standardOutput
+            errorOutput' <- readIORef errorOutput
+            lastSchemaCompilerError <- readIORef ?context.lastSchemaCompilerError
 
-            let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling
+            let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling lastSchemaCompilerError
             let html = Blaze.renderHtml errorContainer
 
             result <- Exception.try (Websocket.sendTextData connection html)
@@ -308,12 +306,3 @@ modelContextTroubleshooting lines =
             </div>
         |]
         False -> Nothing
-
-
-getCompilingStatus :: (?context :: Context) => IO Bool
-getCompilingStatus = do
-    devServerState <- readIORef ?context.appStateRef
-
-    pure case (devServerState.appGHCIState) of
-            AppGHCILoading { } -> True
-            _ -> False

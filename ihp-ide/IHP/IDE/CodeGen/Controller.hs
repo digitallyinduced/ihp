@@ -165,7 +165,9 @@ instance Controller CodeGenController where
         let name = param "name"
         case name |> Inflector.toCamelCased True of
             Left error -> renderPlain "Failed to transform name to camel case"
-            Right indexActionName-> redirectToUrl ("http://localhost:" <> tshow appPort <> "/" <> indexActionName)
+            Right indexActionName-> do
+                appPort <- theAppPort
+                redirectToUrl ("http://localhost:" <> tshow appPort <> "/" <> indexActionName)
 
 
 executePlan :: [GeneratorAction] -> IO ()

@@ -2,8 +2,18 @@ module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
 import qualified IHP.IDE.Types as DevServer
+import Control.Concurrent.MVar
+import qualified Data.ByteString.Builder as ByteString
+import Network.Socket (PortNumber)
 
-data ToolServerApplication = ToolServerApplication { devServerContext :: DevServer.Context }
+data ToolServerApplication = ToolServerApplication
+        { postgresStandardOutput :: !(IORef ByteString.Builder)
+        , postgresErrorOutput :: !(IORef ByteString.Builder)
+        , appStandardOutput :: !(IORef [ByteString])
+        , appErrorOutput :: !(IORef [ByteString])
+        , appPort :: !PortNumber
+        , databaseNeedsMigration :: !(IORef Bool)
+        }
 
 data SchemaController
     = PushToDbAction

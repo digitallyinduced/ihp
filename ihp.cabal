@@ -104,6 +104,7 @@ common shared-properties
             , ihp-postgresql-simple-extra
             , mime-types
             , safe-exceptions
+            , resourcet
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

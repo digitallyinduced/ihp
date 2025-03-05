@@ -15,6 +15,7 @@ import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified IHP.PGListener as PGListener
 import qualified Control.Concurrent as Concurrent
+import Control.Monad.Trans.Resource
 
 data BackoffStrategy
     = LinearBackoff { delayInSeconds :: !Int }
@@ -57,7 +58,7 @@ data JobWorkerArgs = JobWorkerArgs
     , pgListener :: PGListener.PGListener
     }
 
-newtype JobWorker = JobWorker (JobWorkerArgs -> IO JobWorkerProcess)
+newtype JobWorker = JobWorker (JobWorkerArgs -> ResourceT IO JobWorkerProcess)
 
 -- | Mapping for @JOB_STATUS@. The DDL statement for this can be found in IHPSchema.sql:
 --
@@ -73,9 +74,9 @@ data JobStatus
 
 data JobWorkerProcess
     = JobWorkerProcess
-    { runners :: [Async ()]
+    { runners :: [(ReleaseKey, Async ())]
     , subscription :: PGListener.Subscription
-    , poller :: Async ()
+    , pollerReleaseKey :: ReleaseKey
     , action :: Concurrent.MVar JobWorkerProcessMessage
     }
 

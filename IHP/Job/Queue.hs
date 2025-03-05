@@ -20,6 +20,7 @@ import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
 import qualified IHP.Log as Log
+import Control.Monad.Trans.Resource
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -68,13 +69,13 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
-    withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
+    liftIO $ withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
-    subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
+    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
 
     pure (subscription, poller)
 
@@ -86,26 +87,28 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " LIMIT 1")
     let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
-    Async.asyncBound do
-        forever do
-            -- We don't log the queries to the console as it's filling up the log entries with noise
-            count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
+    let handler = do
+            forever do
+                -- We don't log the queries to the console as it's filling up the log entries with noise
+                count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
 
-            -- For every job we send one signal to the job workers
-            -- This way we use full concurrency when we find multiple jobs
-            -- that haven't been picked up by the PGListener
-            forEach [1..count] \_ -> do
-                Concurrent.putMVar onNewJob JobAvailable
+                -- For every job we send one signal to the job workers
+                -- This way we use full concurrency when we find multiple jobs
+                -- that haven't been picked up by the PGListener
+                forEach [1..count] \_ -> do
+                    Concurrent.putMVar onNewJob JobAvailable
 
-            -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
-            jitter <- Random.randomRIO (0, 2000000)
-            let pollIntervalWithJitter = pollInterval + jitter
+                -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
+                jitter <- Random.randomRIO (0, 2000000)
+                let pollIntervalWithJitter = pollInterval + jitter
 
-            Concurrent.threadDelay pollIntervalWithJitter
+                Concurrent.threadDelay pollIntervalWithJitter
+
+    fst <$> allocate (Async.async handler) Async.cancel
 
 createNotificationTrigger :: ByteString -> PG.Query
 createNotificationTrigger tableName = PG.Query $ ""
