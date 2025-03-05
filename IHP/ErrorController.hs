@@ -326,16 +326,16 @@ handleRouterException exception request respond =
     let ?context = ?applicationContext
     in case fromException exception of
         Just Router.NoConstructorMatched { expectedType, value, field } -> do
+            let routingError =  if ?context.frameworkConfig.environment == Environment.Development
+                then [hsx|<p>Routing failed with: {tshow exception}</p>|]
+                else ""
+
             let errorMessage = [hsx|
                     { routingError }
 
                     <h2>Possible Solutions</h2>
                     <p>You can pass this parameter by appending <code>&{field}=someValue</code> to the URL.</p>
                 |]
-
-            let routingError =  if ?context.frameworkConfig.environment == Environment.Development
-                then [hsx|<p>Routing failed with: {tshow exception}</p>|]
-                else ""
 
             let title = case value of
                     Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
