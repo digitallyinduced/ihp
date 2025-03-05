@@ -153,6 +153,8 @@ initGHCICommands =
     , "import qualified ClassyPrelude"
     ]
 
+data GHCIState = Loading | Loaded | Running | TypeError
+
 type WithAppGHCICallback a = Handle -> Handle -> Handle -> Process.ProcessHandle -> MVar () -> IO a
 withAppGHCI :: (?context :: Context) => IORef Bool -> MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> WithAppGHCICallback a -> IO a
 withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients callback = do
@@ -165,60 +167,93 @@ withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStan
     reloadGhciVar :: MVar () <- newEmptyMVar
     isRunningVar <- newIORef False
 
+    serverStartedVar :: MVar () <- newEmptyMVar
+    failedToCompileVar :: MVar () <- newEmptyMVar
+    modulesLoadedVar :: MVar () <- newEmptyMVar
+
     let processReloadSignal inputHandle = forever do
             takeMVar reloadGhciVar
             isRunning <- readIORef isRunningVar
             writeIORef ghciIsLoadingVar True
+            
+            -- Stop app
             when isRunning (sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app")
             writeIORef isRunningVar False
+
+            -- Trigger reload
             sendGhciCommand inputHandle ":r"
+
+            -- Clear logs in web ui
             clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
+
+            -- reload app
             notifyHaskellChange ?context.liveReloadClients
+
+    let processServerStartedSignal = forever do
+            takeMVar serverStartedVar
+            notifyHaskellChange ?context.liveReloadClients
+
+    let processFailedToCompileSignal = forever do
+            takeMVar failedToCompileVar
+
+
+            putStrLn "!!!!!!!!!!! FAILED TO COMPILE DETECTED"
+
+            _ <- tryPutMVar startStatusServer ()
+            notifyHaskellChange ?context.liveReloadClients
+            writeIORef ghciIsLoadingVar False
+
+    let processModulesLoadedSignal inputHandle = forever do
+            takeMVar modulesLoadedVar
+            writeIORef ghciIsLoadingVar False
+            hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
+            if hasSchemaCompilerError
+                then do
+                    _ <- tryPutMVar startStatusServer ()
+                    pure ()
+                else do
+                    _ <- tryPutMVar stopStatusServer ()
+                    writeIORef isRunningVar True
+                    sendGhciCommands inputHandle
+                        [ "ClassyPrelude.uninterruptibleCancel app"
+                        , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
+                        ]
 
     
     withGHCI \inputHandle outputHandle errorHandle processHandle -> do
-        (result, _, _, _) <- runConcurrently $ (,,,)
+        let readStandardOutput :: IO () = forever
+                (handleAppOutputLine
+                    (putMVar serverStartedVar ())
+                    (putMVar failedToCompileVar ())
+                    (putMVar modulesLoadedVar ())
+                    (\line -> receiveAppOutput (StandardOutput line))
+                outputHandle)
+        (result, _, _, _, _, _, _) <- runConcurrently $ (,,,,,,)
                 <$> Concurrently ((do
                         sendGhciCommands inputHandle initGHCICommands
                         callback inputHandle outputHandle errorHandle processHandle reloadGhciVar
                     ) :: IO _)
-                <*> Concurrently ((processReloadSignal inputHandle) :: IO _)
-                <*> Concurrently ((forever (ByteString.hGetLine outputHandle >>= handleAppOutputLine ghciIsLoadingVar isRunningVar startStatusServer stopStatusServer inputHandle)) :: IO _)
+                <*> Concurrently (processReloadSignal inputHandle)
+                <*> Concurrently readStandardOutput
                 <*> Concurrently ((forever (ByteString.hGetLine errorHandle >>= handleAppErrorLine ghciIsLoadingVar inputHandle)) :: IO _)
+                <*> Concurrently processServerStartedSignal
+                <*> Concurrently processFailedToCompileSignal
+                <*> Concurrently (processModulesLoadedSignal inputHandle)
 
         pure result
-            
 
-handleAppOutputLine :: (?context :: Context) => IORef Bool -> IORef Bool -> MVar () -> MVar () -> Handle -> ByteString -> IO ()
-handleAppOutputLine ghciIsLoadingVar isRunningVar startStatusServer stopStatusServer inputHandle line = do
+
+
+handleAppOutputLine :: (?context :: Context) => IO () -> IO () -> IO () -> (ByteString -> IO ()) -> Handle -> IO ()
+handleAppOutputLine serverStarted failedToCompile modulesLoaded other handle = do
+    line <- ByteString.hGetLine handle
     unless ?context.isDebugMode (Log.info line)
-    putStrLn (cs line)
-    if "Server started" `isInfixOf` line
-        then notifyHaskellChange ?context.liveReloadClients
-        else if "Failed," `isInfixOf` line
-                then do
-                    _ <- tryPutMVar startStatusServer ()
-                    notifyHaskellChange ?context.liveReloadClients
-                    writeIORef ghciIsLoadingVar False
-                else if "modules loaded." `isInfixOf` line
-                    then do
-                        writeIORef ghciIsLoadingVar False
-                        hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
-                        if hasSchemaCompilerError
-                            then do
-                                _ <- putMVar startStatusServer ()
-                                pure ()
-                            else do
-                                _ <- tryPutMVar stopStatusServer ()
-                                writeIORef isRunningVar True
-                                sendGhciCommands inputHandle
-                                    [ "ClassyPrelude.uninterruptibleCancel app"
-                                    , "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
-                                    ]
 
-
-
-                    else receiveAppOutput (StandardOutput line)
+    case line of
+        line | "Server started" `isInfixOf` line -> serverStarted
+        line | "Failed," `isInfixOf` line -> failedToCompile
+        line | "modules loaded." `isInfixOf` line -> modulesLoaded
+        _ -> other line
 
 handleAppErrorLine ghciIsLoadingVar inputHandle line = do
     unless ?context.isDebugMode (Log.info line)
