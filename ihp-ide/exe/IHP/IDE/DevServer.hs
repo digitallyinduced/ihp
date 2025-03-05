@@ -4,7 +4,7 @@ import ClassyPrelude
 import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
-import Control.Concurrent (myThreadId)
+import Control.Concurrent (myThreadId, threadDelay)
 import System.Exit
 import System.Posix.Signals
 
@@ -33,6 +33,7 @@ import IHP.IDE.FileWatcher
 import qualified System.Environment as Env
 import qualified System.Directory as Directory
 import qualified Control.Exception.Safe as Exception
+import qualified Data.ByteString.Builder as ByteString
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
@@ -73,29 +74,30 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
         ghciIsLoadingVar <- newIORef False
+        reloadGhciVar :: MVar () <- newEmptyMVar
 
         withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
             withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
-                withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients \inputHandle outputHandle errorHandle processHandle reloadGhciVar -> do
-                    -- Compile Schema before loading the app
-                    tryCompileSchema reloadGhciVar startStatusServer
-                    
-                    let toolServerApplication = ToolServerApplication
-                            { postgresStandardOutput
-                            , postgresErrorOutput
-                            , appStandardOutput = statusServerStandardOutput
-                            , appErrorOutput = statusServerErrorOutput
-                            , appPort = portConfig.appPort
-                            , databaseNeedsMigration
-                            }
+                -- Compile Schema before loading the app
+                tryCompileSchema reloadGhciVar startStatusServer
+                
+                let toolServerApplication = ToolServerApplication
+                        { postgresStandardOutput
+                        , postgresErrorOutput
+                        , appStandardOutput = statusServerStandardOutput
+                        , appErrorOutput = statusServerErrorOutput
+                        , appPort = portConfig.appPort
+                        , databaseNeedsMigration
+                        }
 
 
-                    void $ runConcurrently $ (,,,,)
+                void $ runConcurrently $ (,,,,,,)
                         <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
                         <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
                         <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
                         <*> Concurrently Telemetry.reportTelemetry
                         <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer))
+                        <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
             pure ()
 
@@ -153,116 +155,142 @@ initGHCICommands =
     , "import qualified ClassyPrelude"
     ]
 
-
-data GHCISignal = ServerStarted | FailedToCompile | ModulesLoaded
-
-type WithAppGHCICallback a = Handle -> Handle -> Handle -> Process.ProcessHandle -> MVar () -> IO a
-withAppGHCI :: (?context :: Context) => IORef Bool -> MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> WithAppGHCICallback a -> IO a
-withAppGHCI ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients callback = do
+runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
+runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
     let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
     libDirectory <- LibDir.findLibDirectory
 
-    reloadGhciVar :: MVar () <- newEmptyMVar
-    isRunningVar <- newMVar False
+    let withoutStatusServer callback = Exception.bracket_ (putMVar stopStatusServer ()) (putMVar startStatusServer ()) callback
 
-    ghciSignal :: MVar GHCISignal <- newEmptyMVar
-    isLoadingVar :: MVar Bool <- newMVar True
-
-    let processReloadSignal inputHandle = forever do
-            takeMVar reloadGhciVar
-            isLoading <- readMVar isLoadingVar
-
-            if not isLoading
-                then do
-                    writeIORef ghciIsLoadingVar True
-                    sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app"
-
-                    -- Trigger reload
-                    modifyMVar_ isLoadingVar \isLoading -> do
-                        if isLoading
-                            then pure isLoading
-                            else do
-                                sendGhciCommand inputHandle ":r"
-                                pure True
-
-                    -- Clear logs in web ui
-                    clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
-
-                    -- reload app
-                    notifyHaskellChange ?context.liveReloadClients
-                else pure ()
-
-    let processGhciSignal inputHandle = forever do
-            signal <- takeMVar ghciSignal
-            case signal of
-                ServerStarted -> notifyHaskellChange ?context.liveReloadClients
-                FailedToCompile -> do
-                    -- Status server could already be up
-                    _ <- tryPutMVar startStatusServer ()
-                    notifyHaskellChange ?context.liveReloadClients
-                    writeIORef ghciIsLoadingVar False
-                    modifyMVar_ isLoadingVar (const (pure False))
-
-                ModulesLoaded -> do
-                    writeIORef ghciIsLoadingVar False
-                    hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
-                    if hasSchemaCompilerError
-                        then do
-                            _ <- tryPutMVar startStatusServer ()
-                            pure ()
-                        else do
-                            _ <- tryPutMVar stopStatusServer ()
-
-                            sendGhciCommand inputHandle "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
+    let processResult inputHandle outputHandle errorHandle result = do
+            hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
+            -- This branch blocks until .hs file change happens
+            case result of
+                Left failed -> takeMVar reloadGhciVar
+                Right _ | hasSchemaCompilerError -> takeMVar reloadGhciVar
+                Right loaded -> do
+                    withoutStatusServer do
+                        withRunningApp inputHandle outputHandle errorHandle do
+                            takeMVar reloadGhciVar
 
 
+                    pure ()
+            
 
-                    modifyMVar_ isLoadingVar (const (pure False))
+            writeIORef ghciIsLoadingVar True
+            
+            -- Clear logs in web ui
+            clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
+
+            result <- refresh inputHandle outputHandle errorHandle receiveAppOutput
+            
+            -- reload app
+            notifyHaskellChange ?context.liveReloadClients
+
+            processResult inputHandle outputHandle errorHandle result
 
     
     withGHCI \inputHandle outputHandle errorHandle processHandle -> do
-        let readStandardOutput :: IO () = forever
-                (handleAppOutputLine
-                    (putMVar ghciSignal ServerStarted)
-                    (putMVar ghciSignal FailedToCompile)
-                    (putMVar ghciSignal ModulesLoaded)
-                    (\line -> receiveAppOutput (StandardOutput line))
-                outputHandle)
-        (result, _, _, _, _) <- runConcurrently $ (,,,,)
-                <$> Concurrently ((do
-                        sendGhciCommands inputHandle initGHCICommands
-                        callback inputHandle outputHandle errorHandle processHandle reloadGhciVar
-                    ) :: IO _)
-                <*> Concurrently (processReloadSignal inputHandle)
-                <*> Concurrently readStandardOutput
-                <*> Concurrently ((forever (ByteString.hGetLine errorHandle >>= handleAppErrorLine ghciIsLoadingVar inputHandle)) :: IO _)
-                <*> Concurrently (processGhciSignal inputHandle)
+        writeIORef ghciIsLoadingVar True
+        withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
+            processResult inputHandle outputHandle errorHandle result
 
-        pure result
+withLoadedApp :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> ((Either LByteString LByteString) -> IO a) -> IO a
+withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
+    outputVar :: MVar ByteString.Builder <- newMVar ""
+    resultVar :: MVar Bool <- newEmptyMVar
+    let readHandle handle logLine = race_ (readMVar resultVar) $ forever do
+            line <- ByteString.hGetLine handle
+            modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
+            logLine line
+            case line of
+                line | "Failed," `isInfixOf` line -> putMVar resultVar False
+                line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
+                _ -> pure ()
 
-
-handleAppOutputLine :: (?context :: Context) => IO () -> IO () -> IO () -> (ByteString -> IO ()) -> Handle -> IO ()
-handleAppOutputLine serverStarted failedToCompile modulesLoaded other handle = do
-    line <- ByteString.hGetLine handle
-    unless ?context.isDebugMode (Log.info line)
-
-    case line of
-        line | "Server started" `isInfixOf` line -> serverStarted
-        line | "Failed," `isInfixOf` line -> failedToCompile
-        line | "modules loaded." `isInfixOf` line -> modulesLoaded
-        _ -> other line
-
-handleAppErrorLine ghciIsLoadingVar inputHandle line = do
-    unless ?context.isDebugMode (Log.info line)
-    if "cannot find object file for module" `isInfixOf` line
-        then do
-            writeIORef ghciIsLoadingVar False
+    let main = do
             sendGhciCommands inputHandle initGHCICommands
-            receiveAppOutput (ErrorOutput "Linking Issue: Reloading Main")
-        else receiveAppOutput (ErrorOutput line)
+
+            result <- takeMVar resultVar
+            output <- takeMVar outputVar
+
+            let resultArg = if result
+                    then Right (ByteString.toLazyByteString output)
+                    else Left (ByteString.toLazyByteString output)
+
+            callback resultArg
+
+
+    (result, _, _) <- runConcurrently $ (,,)
+        <$> Concurrently main
+        <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
+        <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
+
+    pure result
+
+withRunningApp :: (?context :: Context) => Handle -> Handle -> Handle -> (IO a) -> IO a
+withRunningApp inputHandle outputHandle errorHandle callback = do
+    outputVar :: MVar ByteString.Builder <- newMVar ""
+    serverStarted :: MVar () <- newEmptyMVar
+    let readHandle handle = race_
+                (readMVar serverStarted)
+                (forever do
+                    line <- ByteString.hGetLine handle
+                    modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
+                    case line of
+                        line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
+                        _ -> pure ()
+                )
+
+    let startApp = sendGhciCommand inputHandle "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
+    let stopApp = sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app"
+
+    (result, _, _) <- runConcurrently $ (,,)
+        <$> Concurrently (Exception.bracket_ startApp stopApp (do takeMVar serverStarted; callback))
+        <*> Concurrently (readHandle outputHandle)
+        <*> Concurrently (readHandle errorHandle)
+
+    pure result
+
+
+refresh :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> IO (Either LByteString LByteString)
+refresh inputHandle outputHandle errorHandle logOutput = do
+    outputVar :: MVar ByteString.Builder <- newMVar ""
+    resultVar :: MVar Bool <- newEmptyMVar
+    let readHandle handle logLine = race_
+                (readMVar resultVar)
+                (forever do
+                    line <- ByteString.hGetLine handle
+                    modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
+                    logLine line
+                    case line of
+                        line | "Failed," `isInfixOf` line -> putMVar resultVar False
+                        line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
+                        line | "cannot find object file for module" `isInfixOf` line -> do
+                            -- https://gitlab.haskell.org/ghc/ghc/-/issues/11596
+                            sendGhciCommand inputHandle ":l"
+                        _ -> pure ()
+                )
+
+    let main = do
+            sendGhciCommand inputHandle ":r"
+
+            result <- takeMVar resultVar
+            output <- takeMVar outputVar
+
+            pure if result
+                    then Right (ByteString.toLazyByteString output)
+                    else Left (ByteString.toLazyByteString output)
+
+    (result, _, _) <- runConcurrently $ (,,)
+        <$> Concurrently main
+        <*> Concurrently (readHandle outputHandle (\line -> logOutput (StandardOutput line)))
+        <*> Concurrently (readHandle errorHandle (\line -> logOutput (ErrorOutput line)))
+
+    pure result
 
 receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
 receiveAppOutput line = Queue.writeChan ?context.ghciInChan line
@@ -298,4 +326,7 @@ tryCompileSchema reloadGhciVar startStatusServer = do
             putMVar startStatusServer ()
 
         Right _ -> do
+            previouslyHadSchemaError <- isJust <$> readIORef ?context.lastSchemaCompilerError
             writeIORef ?context.lastSchemaCompilerError Nothing
+
+            when previouslyHadSchemaError (putMVar reloadGhciVar ())
