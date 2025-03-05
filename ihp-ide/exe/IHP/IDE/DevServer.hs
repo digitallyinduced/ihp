@@ -173,7 +173,7 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
                 Right _ | hasSchemaCompilerError -> takeMVar reloadGhciVar
                 Right loaded -> do
                     withoutStatusServer do
-                        withRunningApp inputHandle outputHandle errorHandle do
+                        withRunningApp inputHandle outputHandle errorHandle receiveAppOutput do
                             takeMVar reloadGhciVar
 
 
@@ -231,15 +231,16 @@ withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
 
     pure result
 
-withRunningApp :: (?context :: Context) => Handle -> Handle -> Handle -> (IO a) -> IO a
-withRunningApp inputHandle outputHandle errorHandle callback = do
+withRunningApp :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> (IO a) -> IO a
+withRunningApp inputHandle outputHandle errorHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
-    let readHandle handle = race_
+    let readHandle handle logLine = race_
                 (readMVar serverStarted)
                 (forever do
                     line <- ByteString.hGetLine handle
                     modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
+                    logLine line
                     case line of
                         line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
                         _ -> pure ()
@@ -250,8 +251,8 @@ withRunningApp inputHandle outputHandle errorHandle callback = do
 
     (result, _, _) <- runConcurrently $ (,,)
         <$> Concurrently (Exception.bracket_ startApp stopApp (do takeMVar serverStarted; callback))
-        <*> Concurrently (readHandle outputHandle)
-        <*> Concurrently (readHandle errorHandle)
+        <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
+        <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
 
     pure result
 
@@ -294,10 +295,10 @@ refresh inputHandle outputHandle errorHandle logOutput = do
 
 receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
 receiveAppOutput line = do
-    Queue.writeChan ?context.ghciInChan line
     case line of
-        StandardOutput output -> Log.info output
-        ErrorOutput output -> Log.error output
+        StandardOutput output -> ByteString.putStrLn output
+        ErrorOutput output -> ByteString.putStrLn output
+    Queue.writeChan ?context.ghciInChan line
 
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do
