@@ -1,4 +1,4 @@
-module Main (main, mainInParentDirectory, mainInAppDirectory) where
+module Main (main, mainInParentDirectory, mainInProjectDirectory) where
 
 import ClassyPrelude
 import qualified System.Process as Process
@@ -37,7 +37,11 @@ import qualified Control.Exception.Safe as Exception
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
     cwd <- Directory.getCurrentDirectory
-    let projectDir = cwd <> "/../"
+    mainInProjectDirectory (cwd <> "/../")
+
+mainInProjectDirectory :: FilePath -> IO ()
+mainInProjectDirectory projectDir = do
+    cwd <- Directory.getCurrentDirectory
     Directory.setCurrentDirectory projectDir
 
     Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
