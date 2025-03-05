@@ -321,7 +321,7 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
                 in Just (handleNotFound ?context.request ?context.respond)
         Nothing -> Nothing
 
-handleRouterException :: (?applicationContext :: ApplicationContext, ?context :: ControllerContext) => SomeException -> Application
+handleRouterException :: (?applicationContext :: ApplicationContext) => SomeException -> Application
 handleRouterException exception request respond =
     let ?context = ?applicationContext
     in case fromException exception of
