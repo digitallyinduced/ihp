@@ -89,32 +89,31 @@ initDatabase = do
                 , "UTF8"
             ]
 
-    process <- createManagedProcess (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
+    let params = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
                 { Process.std_in = Process.CreatePipe
                 , Process.std_out = Process.CreatePipe
                 , Process.std_err = Process.CreatePipe
                 }
 
-    waitUntilReady process do
-        Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
+    Process.withCreateProcess params \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
+        waitUntilReady errorHandle do
+            Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
 
-        ihpLib <- LibDir.findLibDirectory
-        let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
-        importSql (cs ihpLib <> "/IHPSchema.sql")
-        importSql "Application/Schema.sql"
-        importSql "Application/Fixtures.sql"
+            ihpLib <- LibDir.findLibDirectory
+            let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
+            importSql (cs ihpLib <> "/IHPSchema.sql")
+            importSql "Application/Schema.sql"
+            importSql "Application/Fixtures.sql"
 
-        let ManagedProcess { processHandle } = process
-        Process.terminateProcess processHandle
-        _ <- Process.waitForProcess processHandle
-        pure ()
+            Process.terminateProcess processHandle
+            _ <- Process.waitForProcess processHandle
+            pure ()
 
-waitUntilReady process callback = do
-    let ManagedProcess { errorHandle } = process
-    line <- ByteString.hGetLine errorHandle
+waitUntilReady handle callback = do
+    line <- ByteString.hGetLine handle
     if "database system is ready to accept connections" `ByteString.isInfixOf` line
         then callback
-        else waitUntilReady process callback
+        else waitUntilReady handle callback
 
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do

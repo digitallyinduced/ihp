@@ -14,28 +14,11 @@ import qualified IHP.Log as Log
 import qualified Data.ByteString.Builder as ByteString
 import qualified Control.Concurrent.Chan.Unagi as Queue
 
-data ManagedProcess = ManagedProcess
-    { inputHandle :: !Handle
-    , outputHandle :: !Handle
-    , errorHandle :: !Handle
-    , processHandle :: !ProcessHandle
-    }
-
 procDirenvAware :: (?context :: Context) => FilePath -> [String] -> Process.CreateProcess
 procDirenvAware command args =
     if ?context.wrapWithDirenv
         then Process.proc "direnv" (["exec", ".", command] <> args)
         else Process.proc command args
-
-createManagedProcess :: CreateProcess -> IO ManagedProcess
-createManagedProcess config = do
-    process <- Process.createProcess config
-    case process of
-        (Just inputHandle, Just outputHandle, Just errorHandle, processHandle) -> pure ManagedProcess { .. }
-        _ -> error "createManagedProcess: Some pipes could not be created"
-
-cleanupManagedProcess :: ManagedProcess -> IO ()
-cleanupManagedProcess (ManagedProcess { .. }) = Process.cleanupProcess (Just inputHandle, Just outputHandle, Just errorHandle, processHandle)
 
 sendGhciCommand :: (?context :: Context) => Handle -> ByteString -> IO ()
 sendGhciCommand inputHandle command = do
