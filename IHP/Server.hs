@@ -73,12 +73,12 @@ run configBuilder = do
 
 {-# INLINABLE run #-}
 
-withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO a -> IO a
+withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO () -> IO ()
 withBackgroundWorkers pgListener frameworkConfig app = do
     let jobWorkers = Job.workers RootApplication
     let isDevelopment = frameworkConfig.environment == Env.Development
     if isDevelopment && not (isEmpty jobWorkers)
-            then withAsync (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) (const app)
+            then race_ (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) app
             else app
 
 -- | Returns a WAI app that servers files stored in the app's @static/@ directory and IHP's own @static/@  directory
