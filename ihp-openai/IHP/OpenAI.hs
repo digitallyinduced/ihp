@@ -48,6 +48,7 @@ data CompletionRequest = CompletionRequest
     , stream :: !Bool
     , responseFormat :: !(Maybe ResponseFormat)
     , tools :: ![Tool]
+    , reasoningEffort :: !(Maybe Text)
     } deriving (Eq, Show)
 
 data Message = Message
@@ -88,7 +89,7 @@ data Property
     deriving (Eq, Show)
 
 instance ToJSON CompletionRequest where
-    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat, tools } =
+    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat, tools, reasoningEffort } =
         object $ Maybe.catMaybes
             [ Just ("model" .= model)
             , Just ("messages" .= messages)
@@ -99,6 +100,7 @@ instance ToJSON CompletionRequest where
             , ("frequency_penalty" .=) <$> frequencePenalty
             , ("response_format" .=) <$> responseFormat
             , ("tools" .=) <$> emptyListToNothing tools
+            , ("reasoning_effort" .=) <$> reasoningEffort
             ]
 
 instance ToJSON Role where
@@ -184,6 +186,7 @@ newCompletionRequest = CompletionRequest
     , stream = False
     , responseFormat = Nothing
     , tools = []
+    , reasoningEffort = Nothing
     }
 
 data CompletionResult
