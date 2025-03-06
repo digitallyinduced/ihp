@@ -394,7 +394,7 @@ instance FromJSON CompletionChunk where
         <*> v .: "choices"
         <*> v .: "created"
         <*> v .: "model"
-        <*> v .: "system_fingerprint"
+        <*> v .:? "system_fingerprint"
 
 data CompletionChunkChoice
      = CompletionChunkChoice { delta :: !Delta }
