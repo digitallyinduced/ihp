@@ -124,7 +124,8 @@ createNotificationFunction table = [i|
 
 installTableChangeTriggers :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO ()
 installTableChangeTriggers tableNameRLS = do
-    sqlExec (createNotificationFunction tableNameRLS) ()
+    withoutQueryLogging -- This spams the log way to much
+        (sqlExec (createNotificationFunction tableNameRLS) ())
     pure ()
 
 makeCachedInstallTableChangeTriggers :: (?modelContext :: ModelContext) => IO (RLS.TableWithRLS -> IO ())
