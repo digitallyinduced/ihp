@@ -2,6 +2,7 @@ module IHP.IDE.PortConfig
 ( PortConfig (..)
 , defaultAppPort
 , findAvailablePortConfig
+, isPortAvailable
 )
 where
 

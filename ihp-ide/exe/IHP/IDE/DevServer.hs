@@ -34,6 +34,7 @@ import qualified System.Environment as Env
 import qualified System.Directory as Directory
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
+import qualified Network.Socket as Socket
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
@@ -165,7 +166,7 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
 
     let withoutStatusServer callback = Exception.bracket_ (putMVar stopStatusServer ()) (putMVar startStatusServer ()) callback
 
-    let processResult inputHandle outputHandle errorHandle result = do
+    let processResult inputHandle outputHandle errorHandle processHandle result = do
             hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
             -- This branch blocks until .hs file change happens
             case result of
@@ -173,7 +174,7 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
                 Right _ | hasSchemaCompilerError -> takeMVar reloadGhciVar
                 Right loaded -> do
                     withoutStatusServer do
-                        withRunningApp inputHandle outputHandle errorHandle receiveAppOutput do
+                        withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
                             takeMVar reloadGhciVar
 
 
@@ -190,13 +191,13 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
             -- reload app
             notifyHaskellChange ?context.liveReloadClients
 
-            processResult inputHandle outputHandle errorHandle result
+            processResult inputHandle outputHandle errorHandle processHandle result
 
     
     withGHCI \inputHandle outputHandle errorHandle processHandle -> do
         writeIORef ghciIsLoadingVar True
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
-            processResult inputHandle outputHandle errorHandle result
+            processResult inputHandle outputHandle errorHandle processHandle result
 
 withLoadedApp :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> ((Either LByteString LByteString) -> IO a) -> IO a
 withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
@@ -231,8 +232,8 @@ withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
 
     pure result
 
-withRunningApp :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> (IO a) -> IO a
-withRunningApp inputHandle outputHandle errorHandle logLine callback = do
+withRunningApp :: (?context :: Context) => Socket.PortNumber -> Handle -> Handle -> Handle -> Process.ProcessHandle -> (OutputLine -> IO ()) -> (IO a) -> IO a
+withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
     serverStopped :: MVar () <- newEmptyMVar
@@ -247,9 +248,11 @@ withRunningApp inputHandle outputHandle errorHandle logLine callback = do
                         _ -> pure ()
                 )
 
-    let startApp = sendGhciCommand inputHandle "app <- ClassyPrelude.async (main `catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e))"
+    let startApp = do
+            sendGhciCommand inputHandle ":main"
     let stopApp = do
-            sendGhciCommand inputHandle "ClassyPrelude.uninterruptibleCancel app"
+            Process.interruptProcessGroupOf processHandle
+            waitForPortAvailable appPort
             putMVar serverStopped ()
 
     (result, _, _) <- runConcurrently $ (,,)
@@ -259,6 +262,13 @@ withRunningApp inputHandle outputHandle errorHandle logLine callback = do
 
     pure result
 
+waitForPortAvailable :: Socket.PortNumber -> IO ()
+waitForPortAvailable port = do
+    isAvailable <- isPortAvailable port
+    unless isAvailable do
+        putStrLn "waitForPortAvailable: wait"
+        threadDelay 100000
+        waitForPortAvailable port
 
 refresh :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> IO (Either LByteString LByteString)
 refresh inputHandle outputHandle errorHandle logOutput = do
