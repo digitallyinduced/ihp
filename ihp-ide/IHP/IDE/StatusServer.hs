@@ -22,14 +22,14 @@ import Control.Concurrent.MVar
 
 type Clients = IORef [(Websocket.Connection, Concurrent.MVar ())]
 
-withStatusServer :: (?context :: Context) => IORef Bool -> (MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> IO a) -> IO a
+withStatusServer :: (?context :: Context) => IORef Bool -> (MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> IO a) -> IO a
 withStatusServer ghciIsLoadingVar callback = do
     standardOutput <- newIORef []
     errorOutput <- newIORef []
     clients <- newIORef []
 
     startMVar :: MVar () <- newMVar ()
-    stopMVar :: MVar () <- newEmptyMVar
+    stopMVar :: MVar (MVar ()) <- newEmptyMVar
 
     (a, _) <- concurrently (callback startMVar stopMVar standardOutput errorOutput clients) (runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar stopMVar)
     pure a
@@ -43,7 +43,10 @@ runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar st
 
         race_
             (Warp.run port (waiApp ghciIsLoadingVar clients standardOutput errorOutput))
-            (takeMVar stopMVar)
+            (readMVar stopMVar)
+
+        isStoppedVar <- takeMVar stopMVar
+        putMVar isStoppedVar ()
 
 
 

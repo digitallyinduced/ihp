@@ -156,7 +156,7 @@ initGHCICommands =
     , "import qualified ClassyPrelude"
     ]
 
-runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar () -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
+runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
 runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
     let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
@@ -164,7 +164,10 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
     Env.setEnv "PORT" (show appPort)
     libDirectory <- LibDir.findLibDirectory
 
-    let withoutStatusServer callback = Exception.bracket_ (putMVar stopStatusServer ()) (putMVar startStatusServer ()) callback
+    let withoutStatusServer callback = Exception.bracket_
+            (do isStoppedVar <- newEmptyMVar; putMVar stopStatusServer isStoppedVar; takeMVar isStoppedVar)
+            (putMVar startStatusServer ())
+            callback
 
     let processResult inputHandle outputHandle errorHandle processHandle result = do
             hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
