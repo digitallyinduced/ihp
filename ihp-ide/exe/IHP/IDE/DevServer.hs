@@ -44,13 +44,21 @@ mainInParentDirectory = do
 mainInProjectDirectory :: FilePath -> IO ()
 mainInProjectDirectory projectDir = do
     cwd <- Directory.getCurrentDirectory
-    Directory.setCurrentDirectory projectDir
 
-    Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
-    Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
-    Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
+    withCurrentWorkingDirectory projectDir do
+        Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
+        Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
+        Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
 
-    mainWithOptions True
+        mainWithOptions True
+
+withCurrentWorkingDirectory :: FilePath -> IO result -> IO result
+withCurrentWorkingDirectory workingDirectory callback = do
+    cwd <- Directory.getCurrentDirectory
+    Exception.bracket_
+        (Directory.setCurrentDirectory workingDirectory)
+        (Directory.setCurrentDirectory cwd)
+        callback
 
 main :: IO ()
 main = mainWithOptions False
