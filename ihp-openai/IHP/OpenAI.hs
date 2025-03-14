@@ -52,12 +52,15 @@ data CompletionRequest = CompletionRequest
     , parallelToolCalls :: !(Maybe Bool)
     } deriving (Eq, Show)
 
+data CacheControl = Ephemeral deriving (Eq, Show)
+
 data Message = Message
     { role :: !Role
     , content :: !Text
     , name :: !(Maybe Text)
     , toolCallId :: !(Maybe Text)
     , toolCalls :: ![ToolCall]
+    , cacheControl :: !(Maybe CacheControl)
     } deriving (Eq, Show)
 
 data Role
@@ -112,9 +115,19 @@ instance ToJSON Role where
     toJSON ToolRole = toJSON ("tool" :: Text)
 
 instance ToJSON Message where
-    toJSON Message { role, content, name, toolCallId, toolCalls } = object $ Maybe.catMaybes
+    toJSON Message { role, content, name, toolCallId, toolCalls, cacheControl } = object $ Maybe.catMaybes
         [ Just ("role" .= role)
-        , Just ("content" .= content)
+        , Just ("content" .=
+            case cacheControl of
+                Just cacheControl -> toJSON [
+                        object
+                            [ "type" .= ("text" :: Text)
+                            , "text" .= Just content
+                            , "cache_control" .= cacheControl
+                            ]
+                    ]
+                Nothing -> toJSON content
+            )
         , ("name" .=) <$> name
         , ("tool_call_id" .=) <$> toolCallId
         , if null toolCalls then Nothing else Just ("tool_calls" .= toolCalls)
@@ -166,16 +179,16 @@ instance ToJSON JsonSchema where
             ]        
 
 userMessage :: Text -> Message
-userMessage content = Message { role = UserRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+userMessage content = Message { role = UserRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 systemMessage :: Text -> Message
-systemMessage content = Message { role = SystemRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+systemMessage content = Message { role = SystemRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 assistantMessage :: Text -> Message
-assistantMessage content = Message { role = AssistantRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+assistantMessage content = Message { role = AssistantRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 toolMessage :: Text -> Message
-toolMessage content = Message { role = ToolRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+toolMessage content = Message { role = ToolRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest
@@ -461,3 +474,7 @@ instance ToJSON ToolCall where
 emptyListToNothing :: [value] -> Maybe [value]
 emptyListToNothing [] = Nothing
 emptyListToNothing values = Just values
+
+instance ToJSON CacheControl where
+    toJSON Ephemeral = object
+        [ "type" .= ("ephemeral" :: Text) ]
