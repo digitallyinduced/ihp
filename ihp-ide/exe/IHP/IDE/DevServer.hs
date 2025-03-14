@@ -260,9 +260,11 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
                 )
 
     let startApp = do
-            sendGhciCommand inputHandle ":main"
+            sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
+            sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e)))"
     let stopApp = do
-            Process.interruptProcessGroupOf processHandle
+            sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
+            sendGhciCommand inputHandle "ClassyPrelude.cancel app"
             waitForPortAvailable appPort
             putMVar serverStopped ()
 
