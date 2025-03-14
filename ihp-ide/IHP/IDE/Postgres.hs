@@ -9,6 +9,7 @@ import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
 import GHC.IO.Handle
+import qualified Control.Exception.Safe as Exception
 
 import qualified IHP.Log as Log
 import qualified IHP.LibDir as LibDir
@@ -22,14 +23,25 @@ withPostgres callback = do
     when shouldInit initDatabase
 
     Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
-        standardOutput <- newIORef mempty
-        errorOutput <- newIORef mempty
-        databaseIsReady <- newEmptyMVar
+        let main = do
+                standardOutput <- newIORef mempty
+                errorOutput <- newIORef mempty
+                databaseIsReady <- newEmptyMVar
 
-        redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
-        redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
+                redirectHandleToVariable standardOutput outputHandle handleOutdatedDatabase
+                redirectHandleToVariable errorOutput errorHandle (handleOutdatedDatabase >> handleDatabaseReady databaseIsReady)
 
-        callback databaseIsReady standardOutput errorOutput
+                callback databaseIsReady standardOutput errorOutput
+
+        Exception.finally main (softStopPostgres processHandle)
+
+softStopPostgres :: Process.ProcessHandle -> IO ()
+softStopPostgres processHandle = do
+    let interruptAndWait = Process.interruptProcessGroupOf processHandle >> Process.waitForProcess processHandle
+    let waitAndKill = threadDelay 1000000 >> pure ()
+    race_
+        interruptAndWait
+        waitAndKill
 
 postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
 postgresProcessParams workingDirectory =
@@ -39,6 +51,7 @@ postgresProcessParams workingDirectory =
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
         , Process.std_err = Process.CreatePipe
+        , Process.create_group = True
         }
 
 handleDatabaseReady :: MVar () -> ByteString -> IO ()
