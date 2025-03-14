@@ -402,6 +402,7 @@ data CompletionChunk = CompletionChunk
     , created :: Int
     , model :: !Text
     , systemFingerprint :: !(Maybe Text)
+    , usage :: (Maybe Usage)
     } deriving (Eq, Show)
 
 instance FromJSON CompletionChunk where
@@ -411,6 +412,7 @@ instance FromJSON CompletionChunk where
         <*> v .: "created"
         <*> v .: "model"
         <*> v .:? "system_fingerprint"
+        <*> v .:? "usage"
 
 data CompletionChunkChoice
      = CompletionChunkChoice { delta :: !Delta }
@@ -478,3 +480,15 @@ emptyListToNothing values = Just values
 instance ToJSON CacheControl where
     toJSON Ephemeral = object
         [ "type" .= ("ephemeral" :: Text) ]
+
+data Usage = Usage
+    { promptTokens :: !Int
+    , completionTokens :: !Int
+    , totalTokens :: !Int
+    } deriving (Eq, Show)
+
+instance FromJSON Usage where
+    parseJSON = withObject "Usage" $ \v -> Usage
+        <$> v .: "prompt_tokens"
+        <*> v .: "completion_tokens"
+        <*> v .: "total_tokens"
