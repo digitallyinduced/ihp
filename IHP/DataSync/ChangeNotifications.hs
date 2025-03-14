@@ -60,7 +60,7 @@ createNotificationFunction table = [i|
                           'UPDATE', NEW.id::text,
                           'CHANGESET', changeset
                         )::text;
-                        IF LENGTH(payload) > 7800 THEN
+                        IF octet_length(payload) > 7800 THEN
                             INSERT INTO large_pg_notifications (payload) VALUES (changeset) RETURNING id INTO large_pg_notification_id;
                             payload := json_build_object(
                                 'UPDATE', NEW.id::text,
