@@ -13,7 +13,7 @@ jobs:
     - uses: cachix/install-nix-action@v30
       with:
         nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/d899609c2a22bbd345d2ed200c6ebc08a772ccc9.tar.gz
-    - uses: cachix/cachix-action@v15
+    - uses: cachix/cachix-action@v16
       with:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
