@@ -59,18 +59,18 @@ withIHPApp application configBuilder hspecAction = do
         withTestDatabase \testDatabase -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (testDatabase.url) logger
 
-            pgListener <- PGListener.init modelContext
-            autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-            let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-            let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
+            PGListener.withPGListener modelContext \pgListener -> do
+                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+                let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+                let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
-            let requestContext = RequestContext
-                 { request = defaultRequest {vault = sessionVault}
-                 , requestBody = FormBody [] []
-                 , respond = const (pure ResponseReceived)
-                 , frameworkConfig = frameworkConfig }
+                let requestContext = RequestContext
+                     { request = defaultRequest {vault = sessionVault}
+                     , requestBody = FormBody [] []
+                     , respond = const (pure ResponseReceived)
+                     , frameworkConfig = frameworkConfig }
 
-            (hspecAction MockContext { .. })
+                (hspecAction MockContext { .. })
 
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)

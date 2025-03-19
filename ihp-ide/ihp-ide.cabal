@@ -69,6 +69,7 @@ common shared-properties
             , base16-bytestring
             , cryptohash
             , http-types
+            , safe-exceptions
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

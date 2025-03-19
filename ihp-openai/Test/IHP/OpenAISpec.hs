@@ -69,6 +69,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -84,6 +85,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -99,6 +101,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -114,6 +117,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -129,6 +133,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -144,6 +149,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -159,6 +165,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -174,6 +181,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -189,6 +197,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -204,6 +213,7 @@ tests = do
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             ]
                         }
@@ -231,6 +241,7 @@ tests = do
                         , created = 1715277101
                         , model = "gpt-4-turbo-2024-04-09"
                         , systemFingerprint = Just "fp_294de9593d"
+                        , usage = Nothing
                         }
                 let result = ParserResult
                         { chunk = Just chunk
@@ -300,6 +311,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -322,6 +334,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -344,6 +357,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -366,6 +380,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -388,6 +403,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -410,6 +426,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -432,6 +449,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -454,6 +472,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -476,6 +495,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -498,6 +518,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -520,6 +541,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -542,6 +564,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -564,6 +587,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -579,6 +603,7 @@ tests = do
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           ]
                       }

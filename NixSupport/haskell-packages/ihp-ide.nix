@@ -65,6 +65,7 @@
 , ihp-hsx
 , ihp-postgresql-simple-extra
 , ihp
+, safe-exceptions
 , makeWrapper
 }:
 mkDerivation {
@@ -136,6 +137,7 @@ mkDerivation {
     ihp-hsx
     ihp-postgresql-simple-extra
     ihp
+    safe-exceptions
   ];
   buildDepends = [ makeWrapper ];
   license = lib.licenses.mit;

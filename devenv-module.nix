@@ -91,6 +91,13 @@ that is defined in flake-module.nix
                         hspec
                         ihp-hsx
                         ihp-postgresql-simple-extra
+
+
+                        http-streams
+                        HsOpenSSL
+                        http-streams
+                        io-streams
+                        network-uri
                     ]);
 
             scripts.tests.exec = ''

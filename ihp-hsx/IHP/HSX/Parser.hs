@@ -412,6 +412,7 @@ attributes = Set.fromList
         , "kind"
         , "html"
         , "sse-connect", "sse-swap"
+        , "muted", "onkeypress"
         ]
 
 parents :: Set Text

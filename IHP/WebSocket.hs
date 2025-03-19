@@ -23,7 +23,7 @@ import IHP.ApplicationContext
 import IHP.Controller.RequestContext
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 

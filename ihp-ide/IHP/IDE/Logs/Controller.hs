@@ -7,35 +7,22 @@ import IHP.IDE.Logs.View.Logs
 import qualified IHP.IDE.Types as DevServer
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
+import qualified Control.Concurrent.MVar as MVar
 
 instance Controller LogsController where
     action AppLogsAction = do
-        currentDevServerState <- readDevServerState
-        let statusServerState = currentDevServerState.statusServerState
+        toolServerApp <- fromContext @ToolServerApplication
 
-        (standardOutput, errorOutput) <- case statusServerState of
-                DevServer.StatusServerNotStarted -> pure ("", "")
-                DevServer.StatusServerStarted { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
-                    pure (std, err)
-                DevServer.StatusServerPaused { standardOutput, errorOutput } -> do
-                    std <- cs . ByteString.unlines . reverse <$> readIORef standardOutput
-                    err <- cs . ByteString.unlines . reverse <$> readIORef errorOutput
-                    pure (std, err)
+        standardOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appStandardOutput
+        errorOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appErrorOutput
 
         render LogsView { .. }
 
     action PostgresLogsAction = do
-        currentDevServerState <- readDevServerState
-        let postgresState = currentDevServerState.postgresState
+        toolServerApp <- fromContext @ToolServerApplication
 
-        (standardOutput, errorOutput) <- case postgresState of
-                DevServer.PostgresStarted { standardOutput, errorOutput } -> do
-                    err <- cs . ByteString.toLazyByteString <$> readIORef errorOutput
-                    std <- cs . ByteString.toLazyByteString <$> readIORef standardOutput
-                    pure (std, err)
-                _ -> pure ("", "")
+        standardOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresStandardOutput
+        errorOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresErrorOutput
 
         render LogsView { .. }
 
@@ -46,6 +33,3 @@ instance Controller LogsController where
         openEditor path line col
 
         renderPlain ""
-
-readDevServerState :: (?context :: ControllerContext) => IO DevServer.AppState
-readDevServerState = ((.appStateRef) <$> theDevServerContext) >>= readIORef

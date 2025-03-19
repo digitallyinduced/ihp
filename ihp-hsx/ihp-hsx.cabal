@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.4.0
+version:             1.4.1
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -97,6 +97,7 @@ test-suite ihp-hsx-tests
     other-modules:
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
+        IHP.HSX.CustomHsxCases
     default-language:    Haskell2010
     build-depends:
           base >= 4.17.0 && < 4.20

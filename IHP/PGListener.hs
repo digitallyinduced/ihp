@@ -14,6 +14,7 @@ module IHP.PGListener
 , PGListener (..)
 , init
 , stop
+, withPGListener
 , subscribe
 , subscribeJSON
 , unsubscribe
@@ -33,7 +34,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.Aeson as Aeson
 import qualified IHP.Log as Log
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
 
@@ -94,6 +95,10 @@ init modelContext = do
 stop :: PGListener -> IO ()
 stop PGListener { notifyLoopAsync } = do
     cancel notifyLoopAsync
+
+withPGListener :: ModelContext -> (PGListener -> IO a) -> IO a
+withPGListener modelContext =
+    Exception.bracket (init modelContext) stop
 
 -- | After you subscribed to a channel, the provided callback will be called whenever there's a new
 -- notification on the channel.
@@ -236,22 +241,19 @@ notifyLoop listeningToVar listenToVar subscriptions = do
     let maxDelay = 60 * 1000 * 1000
     -- This outer loop restarts the listeners if the database connection dies (e.g. due to a timeout)
     let retryLoop delay isFirstError = do
-            result <- Exception.try innerLoop
+            result <- Exception.tryAny innerLoop
             case result of
-                Left (error :: SomeException) -> do
-                    case fromException error of
-                        Just (error :: AsyncCancelled) -> throw error
-                        notification -> do
-                            let ?context = ?modelContext -- Log onto the modelContext logger
-                            if isFirstError then do
-                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
-                                retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries 
-                            else do
-                                let increasedDelay = delay * 2 -- Double current delay
-                                let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                                Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
-                                Control.Concurrent.threadDelay delay -- Sleep for the current delay
-                                retryLoop nextDelay False -- Retry with longer interval
+                Left error -> do
+                    let ?context = ?modelContext -- Log onto the modelContext logger
+                    if isFirstError then do
+                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
+                        retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries 
+                    else do
+                        let increasedDelay = delay * 2 -- Double current delay
+                        let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
+                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
+                        Control.Concurrent.threadDelay delay -- Sleep for the current delay
+                        retryLoop nextDelay False -- Retry with longer interval
                 Right _ -> 
                     retryLoop initialDelay True -- If all went well, re-run with no sleeping and reset current delay to the initial value
     retryLoop initialDelay True

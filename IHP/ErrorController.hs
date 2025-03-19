@@ -96,7 +96,7 @@ genericHandler :: (Show controller, ?context :: ControllerContext) => Exception.
 genericHandler exception controller additionalInfo = do
     let errorMessageText = "An exception was raised while running the action " <> tshow controller <> additionalInfo
     let errorMessageTitle = Exception.displayException exception
-    
+
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
 
@@ -326,12 +326,17 @@ handleRouterException exception request respond =
     let ?context = ?applicationContext
     in case fromException exception of
         Just Router.NoConstructorMatched { expectedType, value, field } -> do
+            let routingError =  if ?context.frameworkConfig.environment == Environment.Development
+                then [hsx|<p>Routing failed with: {tshow exception}</p>|]
+                else ""
+
             let errorMessage = [hsx|
-                    <p>Routing failed with: {tshow exception}</p>
+                    { routingError }
 
                     <h2>Possible Solutions</h2>
                     <p>You can pass this parameter by appending <code>&{field}=someValue</code> to the URL.</p>
                 |]
+
             let title = case value of
                     Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
                     Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]

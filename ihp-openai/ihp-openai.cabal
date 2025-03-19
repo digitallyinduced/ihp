@@ -27,6 +27,9 @@ library
         , bytestring
         , aeson
         , HsOpenSSL
+        , network-uri
+        , attoparsec-aeson
+        , safe-exceptions
     default-extensions:
         OverloadedStrings
           FlexibleContexts
@@ -38,6 +41,7 @@ library
         , BlockArguments
         , DisambiguateRecordFields
         , DuplicateRecordFields
+        , RecordWildCards
     ghc-options:
         -fstatic-argument-transformation
         -funbox-strict-fields

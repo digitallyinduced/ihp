@@ -36,7 +36,7 @@ module IHP.Prelude
 , module Data.IORef
 , module Data.Time.Format
 , null
-, module Control.Exception
+, module Control.Exception.Safe
 , module Control.Monad.Fail
 , module Control.Concurrent.Async
 , module NeatInterpolation
@@ -72,7 +72,7 @@ import Data.TMap (TMap)
 import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
-import Control.Exception (throw, throwIO, catch)
+import Control.Exception.Safe (throw, throwIO, catch)
 import Control.Monad.Fail (fail)
 import Control.Concurrent.Async
 import NeatInterpolation (trimming)

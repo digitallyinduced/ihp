@@ -14,10 +14,29 @@ import OpenSSL
 import qualified OpenSSL.Session as SSL
 import qualified Data.Text as Text
 import qualified Control.Retry as Retry
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import Control.Applicative ((<|>))
 import qualified Data.Aeson.Key as Key
 import qualified Data.Maybe as Maybe
+import qualified Network.URI as URI
+import qualified Data.Text.Encoding as Text
+import qualified System.IO.Streams.Attoparsec as Streams
+import Data.Aeson.Parser (json')
+
+data Config
+    = Config
+    { baseUrl :: !Text
+    , secretKey :: !Text
+    }
+
+defaultConfig :: Text -> Config
+defaultConfig secretKey = Config { secretKey, baseUrl = openAIBaseUrl }
+
+openAIBaseUrl :: Text
+openAIBaseUrl = "https://api.openai.com/v1"
+
+googleBaseUrl :: Text
+googleBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 data CompletionRequest = CompletionRequest
     { messages :: ![Message]
@@ -29,7 +48,11 @@ data CompletionRequest = CompletionRequest
     , stream :: !Bool
     , responseFormat :: !(Maybe ResponseFormat)
     , tools :: ![Tool]
+    , reasoningEffort :: !(Maybe Text)
+    , parallelToolCalls :: !(Maybe Bool)
     } deriving (Eq, Show)
+
+data CacheControl = Ephemeral deriving (Eq, Show)
 
 data Message = Message
     { role :: !Role
@@ -37,6 +60,7 @@ data Message = Message
     , name :: !(Maybe Text)
     , toolCallId :: !(Maybe Text)
     , toolCalls :: ![ToolCall]
+    , cacheControl :: !(Maybe CacheControl)
     } deriving (Eq, Show)
 
 data Role
@@ -69,17 +93,19 @@ data Property
     deriving (Eq, Show)
 
 instance ToJSON CompletionRequest where
-    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat, tools } =
-        object
-            [ "model" .= model
-            , "messages" .= messages
-            , "max_tokens" .= maxTokens
-            , "stream" .= stream
-            , "temperature" .= temperature
-            , "presence_penalty" .= presencePenalty
-            , "frequency_penalty" .= frequencePenalty
-            , "response_format" .= responseFormat
-            , "tools" .= emptyListToNothing tools
+    toJSON CompletionRequest { model, messages, maxTokens, temperature, presencePenalty, frequencePenalty, stream, responseFormat, tools, reasoningEffort, parallelToolCalls } =
+        object $ Maybe.catMaybes
+            [ Just ("model" .= model)
+            , Just ("messages" .= messages)
+            , ("max_tokens" .=) <$> maxTokens
+            , Just ("stream" .= stream)
+            , ("temperature" .=) <$> temperature
+            , ("presence_penalty" .=) <$> presencePenalty
+            , ("frequency_penalty" .=) <$> frequencePenalty
+            , ("response_format" .=) <$> responseFormat
+            , ("tools" .=) <$> emptyListToNothing tools
+            , ("reasoning_effort" .=) <$> reasoningEffort
+            , ("parallel_tool_calls" .=) <$> parallelToolCalls
             ]
 
 instance ToJSON Role where
@@ -89,9 +115,19 @@ instance ToJSON Role where
     toJSON ToolRole = toJSON ("tool" :: Text)
 
 instance ToJSON Message where
-    toJSON Message { role, content, name, toolCallId, toolCalls } = object $ Maybe.catMaybes
+    toJSON Message { role, content, name, toolCallId, toolCalls, cacheControl } = object $ Maybe.catMaybes
         [ Just ("role" .= role)
-        , Just ("content" .= content)
+        , Just ("content" .=
+            case cacheControl of
+                Just cacheControl -> toJSON [
+                        object
+                            [ "type" .= ("text" :: Text)
+                            , "text" .= Just content
+                            , "cache_control" .= cacheControl
+                            ]
+                    ]
+                Nothing -> toJSON content
+            )
         , ("name" .=) <$> name
         , ("tool_call_id" .=) <$> toolCallId
         , if null toolCalls then Nothing else Just ("tool_calls" .= toolCalls)
@@ -143,16 +179,16 @@ instance ToJSON JsonSchema where
             ]        
 
 userMessage :: Text -> Message
-userMessage content = Message { role = UserRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+userMessage content = Message { role = UserRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 systemMessage :: Text -> Message
-systemMessage content = Message { role = SystemRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+systemMessage content = Message { role = SystemRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 assistantMessage :: Text -> Message
-assistantMessage content = Message { role = AssistantRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+assistantMessage content = Message { role = AssistantRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 toolMessage :: Text -> Message
-toolMessage content = Message { role = ToolRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [] }
+toolMessage content = Message { role = ToolRole, content, name = Nothing, toolCallId = Nothing, toolCalls = [], cacheControl = Nothing }
 
 newCompletionRequest :: CompletionRequest
 newCompletionRequest = CompletionRequest
@@ -165,6 +201,8 @@ newCompletionRequest = CompletionRequest
     , stream = False
     , responseFormat = Nothing
     , tools = []
+    , reasoningEffort = Nothing
+    , parallelToolCalls = Nothing
     }
 
 data CompletionResult
@@ -199,8 +237,8 @@ instance FromJSON Choice where
         pure Choice { text = content }
 
 
-streamCompletion :: ByteString -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
-streamCompletion secretKey completionRequest' onStart callback = do
+streamCompletion :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
+streamCompletion config completionRequest' onStart callback = do
         let completionRequest = enableStream completionRequest'
         completionRequestRef <- newIORef completionRequest
         result <- Retry.retrying retryPolicyDefault shouldRetry (action completionRequestRef)
@@ -215,7 +253,7 @@ streamCompletion secretKey completionRequest' onStart callback = do
         action completionRequestRef retryStatus = do
             completionRequest <- readIORef completionRequestRef
             let onStart' = if retryStatus.rsIterNumber == 0 then onStart else pure ()
-            Exception.try (streamCompletionWithoutRetry secretKey completionRequest onStart' (wrappedCallback completionRequestRef))
+            Exception.try (streamCompletionWithoutRetry config completionRequest onStart' (wrappedCallback completionRequestRef))
 
         wrappedCallback completionRequestRef completionChunk = do
             let text = mconcat $ Maybe.mapMaybe (\choiceDelta -> choiceDelta.delta.content) completionChunk.choices
@@ -230,19 +268,23 @@ streamCompletion secretKey completionRequest' onStart callback = do
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
 
-streamCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO (Either Text [CompletionChunk])
-streamCompletionWithoutRetry secretKey completionRequest' onStart callback = do
+streamCompletionWithoutRetry :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO (Either Text [CompletionChunk])
+streamCompletionWithoutRetry Config { .. } completionRequest' onStart callback = do
     let completionRequest = enableStream completionRequest'
     modifyContextSSL (\context -> do
             SSL.contextSetVerificationMode context SSL.VerifyNone
             pure context
         )
+    let
+        endpoint = "/chat/completions"
+        url :: Text = baseUrl <> endpoint
+        basePath :: ByteString = Text.encodeUtf8 (Text.pack (Maybe.fromMaybe (error "invalid OpenAI baseUrl") ((.uriPath) <$> URI.parseURI (Text.unpack url))))
     withOpenSSL do
-        withConnection (establishConnection "https://api.openai.com/v1/chat/completions") \connection -> do
+        withConnection (establishConnection (Text.encodeUtf8 url)) \connection -> do
             let q = buildRequest1 do
-                    http POST "/v1/chat/completions"
+                    http POST basePath
                     setContentType "application/json"
-                    Network.Http.Client.setHeader "Authorization" ("Bearer " <> secretKey)
+                    Network.Http.Client.setHeader "Authorization" ("Bearer " <> (Text.encodeUtf8 secretKey))
             sendRequest connection q (jsonBody completionRequest)
             onStart
             receiveResponse connection handler
@@ -315,8 +357,8 @@ parseResponseChunk ParserState { curBuffer, emptyLineFound, chunks } input
                     , state = ParserState { curBuffer = curBuffer <> input, emptyLineFound = False, chunks = chunks } }
 
 
-fetchCompletion :: ByteString -> CompletionRequest -> IO Text
-fetchCompletion secretKey completionRequest = do
+fetchCompletion :: Config -> CompletionRequest -> IO Text
+fetchCompletion config completionRequest = do
         result <- Retry.retrying retryPolicyDefault shouldRetry action
         case result of
             Left (e :: SomeException) -> Exception.throwIO e
@@ -327,22 +369,26 @@ fetchCompletion secretKey completionRequest = do
     where
         shouldRetry retryStatus (Left _) = pure True
         shouldRetry retryStatus (Right _) = pure False
-        action retryStatus = Exception.try (fetchCompletionWithoutRetry secretKey completionRequest)
+        action retryStatus = Exception.try (fetchCompletionWithoutRetry config completionRequest)
 
         retryPolicyDefault = Retry.constantDelay 50000 <> Retry.limitRetries 10
 
-fetchCompletionWithoutRetry :: ByteString -> CompletionRequest -> IO CompletionResult
-fetchCompletionWithoutRetry secretKey completionRequest = do
+fetchCompletionWithoutRetry :: Config -> CompletionRequest -> IO CompletionResult
+fetchCompletionWithoutRetry Config { .. } completionRequest = do
+        let
+            endpoint = "/chat/completions"
+            url :: Text = baseUrl <> endpoint
+            basePath :: ByteString = Text.encodeUtf8 (Text.pack (Maybe.fromMaybe (error "invalid OpenAI baseUrl") ((.uriPath) <$> URI.parseURI (Text.unpack url))))
         modifyContextSSL (\context -> do
                 SSL.contextSetVerificationMode context SSL.VerifyNone
                 pure context
             )
         withOpenSSL do
-            withConnection (establishConnection "https://api.openai.com/v1/chat/completions") \connection -> do
+            withConnection (establishConnection (Text.encodeUtf8 url)) \connection -> do
                     let q = buildRequest1 do
-                                http POST "/v1/chat/completions"
+                                http POST basePath
                                 setContentType "application/json"
-                                Network.Http.Client.setHeader "Authorization" ("Bearer " <> secretKey)
+                                Network.Http.Client.setHeader "Authorization" ("Bearer " <> Text.encodeUtf8 secretKey)
 
                     sendRequest connection q (jsonBody completionRequest)
                     receiveResponse connection jsonHandler
@@ -356,6 +402,7 @@ data CompletionChunk = CompletionChunk
     , created :: Int
     , model :: !Text
     , systemFingerprint :: !(Maybe Text)
+    , usage :: (Maybe Usage)
     } deriving (Eq, Show)
 
 instance FromJSON CompletionChunk where
@@ -364,7 +411,8 @@ instance FromJSON CompletionChunk where
         <*> v .: "choices"
         <*> v .: "created"
         <*> v .: "model"
-        <*> v .: "system_fingerprint"
+        <*> v .:? "system_fingerprint"
+        <*> v .:? "usage"
 
 data CompletionChunkChoice
      = CompletionChunkChoice { delta :: !Delta }
@@ -428,3 +476,19 @@ instance ToJSON ToolCall where
 emptyListToNothing :: [value] -> Maybe [value]
 emptyListToNothing [] = Nothing
 emptyListToNothing values = Just values
+
+instance ToJSON CacheControl where
+    toJSON Ephemeral = object
+        [ "type" .= ("ephemeral" :: Text) ]
+
+data Usage = Usage
+    { promptTokens :: !Int
+    , completionTokens :: !Int
+    , totalTokens :: !Int
+    } deriving (Eq, Show)
+
+instance FromJSON Usage where
+    parseJSON = withObject "Usage" $ \v -> Usage
+        <$> v .: "prompt_tokens"
+        <*> v .: "completion_tokens"
+        <*> v .: "total_tokens"
