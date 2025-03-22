@@ -110,6 +110,21 @@ library
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
 
+library ihp-hsx-lucid
+    import: common-extensions, common-flags, common-depends
+    build-depends:
+        ihp-hsx-core
+        , lucid2
+    default-language: Haskell2010
+    hs-source-dirs: lucid2
+    exposed-modules:
+        IHP.HSX.Lucid2.QQ
+        , IHP.HSX.Lucid2.Attribute
+    reexported-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
+
 test-suite ihp-hsx-tests
     type:                exitcode-stdio-1.0
     hs-source-dirs:      Test
@@ -118,10 +133,13 @@ test-suite ihp-hsx-tests
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
         IHP.HSX.CustomHsxCases
+        IHP.HSX.Lucid2.QQSpec
+        IHP.HSX.Lucid2.CustomHsxCases
     default-language:    Haskell2010
     build-depends:
           base >= 4.17.0 && < 4.20
         , ihp-hsx
+        , ihp-hsx-lucid
         , hspec
         , text
         , bytestring
@@ -129,6 +147,7 @@ test-suite ihp-hsx-tests
         , blaze-markup
         , megaparsec
         , template-haskell
+        , lucid2
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
