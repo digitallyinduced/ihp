@@ -3,14 +3,18 @@
 
 {-|
 Module: IHP.HSX.Lucid2.QQ
-Description: Defines the @[hsx||]@ syntax
-Copyright: (c) digitally induced GmbH, 2022
+Description: Defines the @[hsx||]@ and @[hsxM||]@ syntax
+Copyright: (c) digitally induced GmbH, 2025
 -}
 module IHP.HSX.Lucid2.QQ
   ( hsx
   , uncheckedHsx
   , customHsx
   , quoteHsxExpression
+  , hsxM
+  , uncheckedHsxM
+  , customHsxM
+  , quoteHsxExpressionM
   ) where
 
 import           Prelude
@@ -18,6 +22,7 @@ import Data.Foldable (Foldable(..))
 import Data.Text (Text)
 import           IHP.HSX.Parser
 import           IHP.HSX.Lucid2.Attribute
+import qualified IHP.HSX.Lucid2.ToHtml as M
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
@@ -120,4 +125,85 @@ toLucidAttributes (SpreadAttributes expression) =
 
 spreadAttributes :: (LucidAttributeValue lav) => [(Text, lav)] -> Attributes
 spreadAttributes = foldMap' (uncurry buildAttribute)
-{-# INLINE spreadAttributes #-}
+
+
+
+-- Monad Version
+hsxM :: QuasiQuoter
+hsxM = customHsxM
+        (HsxSettings
+            { checkMarkup = True
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+        )
+
+uncheckedHsxM :: QuasiQuoter
+uncheckedHsxM = customHsxM
+        (HsxSettings
+            { checkMarkup = False
+            , additionalTagNames = Set.empty
+            , additionalAttributeNames = Set.empty
+            }
+        )
+
+customHsxM :: HsxSettings -> QuasiQuoter
+customHsxM settings =
+    QuasiQuoter
+        { quoteExp = quoteHsxExpressionM settings
+        , quotePat = error "quotePat: not defined"
+        , quoteDec = error "quoteDec: not defined"
+        , quoteType = error "quoteType: not defined"
+        }
+
+quoteHsxExpressionM :: HsxSettings -> String -> TH.ExpQ
+quoteHsxExpressionM settings code = do
+        hsxPosition <- findHSXPosition
+        extensions <- TH.extsEnabled
+        expression <- case parseHsx settings hsxPosition extensions (cs code) of
+                Left error   -> fail (Megaparsec.errorBundlePretty error)
+                Right result -> pure result
+        [| M.unHtmlType $(compileToHaskellM expression) |]
+    where
+
+        findHSXPosition = do
+            loc <- TH.location
+            let (line, col) = TH.loc_start loc
+            pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
+
+compileToHaskellM :: Node -> TH.ExpQ
+compileToHaskellM (Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True) = [| M.Lucid2Html doctype_ |]
+compileToHaskellM (Node name attributes children isLeaf) =
+    let
+        renderedChildren = TH.listE $ map compileToHaskellM children
+        listAttributes = TH.listE $ map toLucidAttributes attributes
+    in
+        if isLeaf
+            then
+                let
+                    element = nodeToLucidLeafM name
+                in
+                    [| $element $listAttributes |]
+            else
+                let
+                    element = nodeToLucidElementM name
+                in [| $element $listAttributes (M.sequenceChildren $renderedChildren) |]
+compileToHaskellM (Children children) =
+    let
+        renderedChildren = TH.listE $ map compileToHaskellM children
+    in [| (M.sequenceChildren $(renderedChildren)) |]
+
+compileToHaskellM (TextNode value) = [| M.toHtmlRaw value |]
+compileToHaskellM (PreEscapedTextNode value) = [| M.toHtmlRaw value |]
+compileToHaskellM (SplicedNode expression) = [| M.toHtml $(pure expression) |]
+compileToHaskellM (CommentNode value) =
+  [| M.sequenceChildren [M.toHtmlRaw @_ @Text "<!--", M.toHtmlRaw value, M.toHtmlRaw @_ @Text "-->"] |]
+compileToHaskellM NoRenderCommentNode = [| M.Lucid2Html (pure ()) |]
+
+nodeToLucidElementM :: Text -> TH.Q TH.Exp
+nodeToLucidElementM name =
+    [| M.makeElement $(TH.lift name) |]
+
+nodeToLucidLeafM :: Text -> TH.Q TH.Exp
+nodeToLucidLeafM name =
+    [| M.makeElementNoEnd $(TH.lift name) |]

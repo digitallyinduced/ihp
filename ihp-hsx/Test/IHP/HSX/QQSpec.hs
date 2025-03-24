@@ -6,6 +6,7 @@ module IHP.HSX.QQSpec where
 
 import Test.Hspec
 import Prelude
+import Control.Monad.State.Strict (State, get, put, evalState)
 import qualified IHP.HSX.QQ as Blaze
 import qualified IHP.HSX.Lucid2.QQ as Lucid2
 import qualified IHP.HSX.Lucid2.Attribute as Lucid2
@@ -15,7 +16,7 @@ import Text.Blaze (preEscapedTextValue)
 import Data.Text
 import qualified Data.Text.Lazy as TL
 import IHP.HSX.CustomHsxCases
-import qualified "lucid2" Lucid.Base as Lucid2 (Html, renderText)
+import qualified "lucid2" Lucid.Base as Lucid2 (Html, HtmlT, renderText, renderTextT)
 
 tests :: SpecWith ()
 tests = do
@@ -205,6 +206,22 @@ tests = do
             [Blaze.hsx|<!DOCTYPE html><html lang="en"><body>hello</body></html>|] `shouldBeBlazeHtml` "<!DOCTYPE HTML>\n<html lang=\"en\"><body>hello</body></html>"
             [Lucid2.hsx|<!DOCTYPE html><html lang="en"><body>hello</body></html>|] `shouldBeLucid2Html` "<!DOCTYPE HTML><html lang=\"en\"><body>hello</body></html>"
 
+        it "should support non-Identity effects for Lucid2" do
+            let increment :: State Int String = do
+                  x <- get
+                  put $! (x + 1)
+                  pure $! show x
+                monadFragment :: Lucid2.HtmlT (State Int) ()
+                monadFragment = [Lucid2.hsxM|<div>{increment}</div><div>{increment}</div><div>{increment}</div>|]
+                textFragment :: TL.Text
+                textFragment = evalState (Lucid2.renderTextT monadFragment) 1
+                insertMonadFragment :: Lucid2.HtmlT (State Int) ()
+                insertMonadFragment = [Lucid2.hsxM|<div>{monadFragment}</div><div>{monadFragment}</div>|]
+                doubleTextFragment :: TL.Text
+                doubleTextFragment = evalState (Lucid2.renderTextT insertMonadFragment) 1
+            textFragment `shouldBe` "<div>1</div><div>2</div><div>3</div>"
+            doubleTextFragment `shouldBe` "<div><div>1</div><div>2</div><div>3</div></div><div><div>4</div><div>5</div><div>6</div></div>"
+
     describe "customHsx" do
         it "should allow specified custom tags" do
             [myTagsOnlyHsx|<mycustomtag>hello</mycustomtag>|] `shouldBeSameHtml` "<mycustomtag>hello</mycustomtag>"
@@ -233,6 +250,7 @@ shouldBeSameHtml :: HasCallStack => AllBackends -> TL.Text -> Expectation
 shouldBeSameHtml MkAllBackends {..} expectedHtml = do
   Blaze.renderMarkup blazeMarkup `shouldBe` expectedHtml
   Lucid2.renderText lucid2Html `shouldBe` expectedHtml
+  Lucid2.renderText lucid2HtmlM `shouldBe` expectedHtml
 
 shouldBeBlazeHtml :: HasCallStack => Blaze.Markup -> TL.Text -> Expectation
 shouldBeBlazeHtml blazeMarkup expectedHtml =
