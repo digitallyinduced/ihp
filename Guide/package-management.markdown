@@ -282,6 +282,8 @@ mkDerivation {
 
 Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any Haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
 
+Ensure you add this new nix package to git `git add Config/nix/haskell-packages`
+
 Go back to your project directory and run `nix flake update`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
 
 This step might fail with an error like `Encountered missing or private dependencies`:
