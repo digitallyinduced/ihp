@@ -47,7 +47,7 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
             withFrameworkConfig \frameworkConfig -> do
                 context <- createControllerContext frameworkConfig
                 let ?context = context
-                let objectPath = "/static/test.txt"
+                let objectPath = "static/test.txt"
                 temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
 
                 temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"

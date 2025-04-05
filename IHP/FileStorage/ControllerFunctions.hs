@@ -231,8 +231,8 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
             let url = if any (`isPrefixOf` objectPath) urlSchemes
                     -- BC, before we saved only the relative path of a file, we saved the full URL. So use it as is.
                     then objectPath
-                    -- We have the relative path (prefixed with slash), so add the baseUrl.
-                    else frameworkConfig.baseUrl <> objectPath
+                    -- We have the relative path (without with slash prefix), so add the baseUrl.
+                    else frameworkConfig.baseUrl <> "/" <> objectPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
