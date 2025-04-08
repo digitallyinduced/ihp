@@ -52,6 +52,15 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
                 temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"
 
+        it "returns baseUrl concatenated with objectPath without double slash when objectPath starts with '/'" $ do
+            withFrameworkConfig \frameworkConfig -> do
+                context <- createControllerContext frameworkConfig
+                let ?context = context
+                let objectPath = "/static/test.txt"
+                temporaryDownloadUrl <- createTemporaryDownloadUrlFromPath objectPath
+
+                temporaryDownloadUrl.url `shouldBe` "http://localhost:8000/static/test.txt"
+
         it "returns the objectPath when objectPath starts with 'http://' or 'https://'" $ do
             withFrameworkConfig \frameworkConfig -> do
                 context <- createControllerContext frameworkConfig
