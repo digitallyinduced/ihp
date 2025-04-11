@@ -586,41 +586,30 @@ filterWhereIn (name, value) queryBuilderProvider =
 -- >     |> fetch
 -- > -- SELECT * FROM users WHERE LOWER(email) IN ('user1@example.com', 'user2@example.com')
 --
-filterWhereInCaseInsensitive ::
-    forall name table model value queryBuilderProvider (joinRegister :: Type).
-    ( KnownSymbol table
-    , KnownSymbol name
-    , ToField value
-    , HasField name model value
-    , model ~ GetModelByTableName table
-    , HasQueryBuilder queryBuilderProvider joinRegister
-    , EqOrIsOperator value
-    , Table model
-    ) =>
-    (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereInCaseInsensitive :: forall name table model value queryBuilderProvider (joinRegister :: Type). ( KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
-    case head nullValues of
-        Nothing -> injectQueryBuilder whereInQuery
-        Just nullValue ->
-            let
-                isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
-            in
-                case head nonNullValues of
-                    Just _ ->
-                        injectQueryBuilder $ UnionQueryBuilder
-                            (injectQueryBuilder whereInQuery)
-                            (injectQueryBuilder isNullValueExpr)
-                    Nothing -> injectQueryBuilder isNullValueExpr
-  where
-    (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereInQuery
+            Just nullValue ->
+                let
+                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
+                in
+                    case head nonNullValues of
+                        Just _ ->
+                            injectQueryBuilder $ UnionQueryBuilder
+                                (injectQueryBuilder whereInQuery)
+                                (injectQueryBuilder isNullValueExpr)
+                        Nothing -> injectQueryBuilder isNullValueExpr
+    where
+        (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-    lowerValues = map Text.toLower nonNullValues
+        lowerValues = map Text.toLower nonNullValues
 
-    whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
 
-    lowerColumnName = "LOWER(" <> columnName <> ")"
-    columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
-    queryBuilder = getQueryBuilder queryBuilderProvider
+        lowerColumnName = "LOWER(" <> columnName <> ")"
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
 
 {-# INLINE filterWhereInCaseInsensitive #-}
 
