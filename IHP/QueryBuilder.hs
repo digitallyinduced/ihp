@@ -25,6 +25,7 @@ module IHP.QueryBuilder
 , filterWhereCaseInsensitive
 , filterWhereNot
 , filterWhereIn
+, filterWhereInCaseInsensitive
 , filterWhereIdIn
 , filterWhereNotIn
 , filterWhereLike
@@ -575,6 +576,53 @@ filterWhereIn (name, value) queryBuilderProvider =
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
+
+-- Like 'filterWhereIn', but case insensitive.
+--
+-- __Example:__ Only show users where @email@ is @User1@example.com@ or @User2@example.com@.
+--
+-- > users <- query @User
+-- >     |> filterWhereInCaseInsensitive (#email, ['User1@example.com', 'User2@example.com'])
+-- >     |> fetch
+-- > -- SELECT * FROM users WHERE LOWER(email) IN ('user1@example.com', 'user2@example.com')
+--
+filterWhereInCaseInsensitive ::
+    forall name table model value queryBuilderProvider (joinRegister :: Type).
+    ( KnownSymbol table
+    , KnownSymbol name
+    , ToField value
+    , HasField name model value
+    , model ~ GetModelByTableName table
+    , HasQueryBuilder queryBuilderProvider joinRegister
+    , EqOrIsOperator value
+    , Table model
+    ) =>
+    (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
+    case head nullValues of
+        Nothing -> injectQueryBuilder whereInQuery
+        Just nullValue ->
+            let
+                isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
+            in
+                case head nonNullValues of
+                    Just _ ->
+                        injectQueryBuilder $ UnionQueryBuilder
+                            (injectQueryBuilder whereInQuery)
+                            (injectQueryBuilder isNullValueExpr)
+                    Nothing -> injectQueryBuilder isNullValueExpr
+  where
+    (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+    lowerValues = map Text.toLower nonNullValues
+
+    whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
+
+    lowerColumnName = "LOWER(" <> columnName <> ")"
+    columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+    queryBuilder = getQueryBuilder queryBuilderProvider
+
+{-# INLINE filterWhereInCaseInsensitive #-}
 
 -- | Like 'filterWhereIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
 -- 
