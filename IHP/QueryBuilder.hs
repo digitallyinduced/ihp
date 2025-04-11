@@ -79,6 +79,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
+import Data.Text (toLower)
 import qualified GHC.Generics
 
 class DefaultScope table where
@@ -603,7 +604,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
     where
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        lowerValues = map Text.toLower nonNullValues
+        lowerValues = map toLower nonNullValues
 
         whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
 
