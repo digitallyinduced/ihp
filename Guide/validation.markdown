@@ -223,7 +223,7 @@ The `sub_categories` table has a `category_id` field to determine which category
 
 So when creating a new post, you want to validate that its `sub_category_id` is for a `sub_category` record that includes a `category_id` that matches the post’s `category_id`.
 
-Since the validation will require querying the database, add a type signature to the `buildPost` function specifying that it requires the `?modelContext` to be available and specify that the return value will be `IO Post` rather than `Post`.
+Since the validation will require querying the database, add a type signature to the `buildPost` function specifying that it requires the Model Context and Controller Context to be available and specify that the return value will be `IO Post` rather than `Post`.
 
 ``` 
 buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
