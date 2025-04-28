@@ -213,6 +213,57 @@ Then just call it like:
 user |> validateField #age isAge`
 ```
 
+### Creating a custom validator that uses IO
+
+Example scenario: you have 3 tables: `posts`, `categories`, and `sub_categories`.
+
+The `posts` table has the fields `category_id` and `sub_category_id` (which reference the `categories` and `sub_categories` tables).
+
+The `sub_categories` table has a `category_id` field to determine which category a sub-category belongs to.
+
+So when creating a new post, you want to validate that its `sub_category_id` is for a `sub_category` record that includes a `category_id` that matches the post’s `category_id`.
+
+Since the validation will require querying the database, add a type signature to the `buildPost` function specifying that it requires the `?modelContext` to be available and specify that the return value will be `IO Post` rather than `Post`.
+
+``` 
+buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
+buildPost post = post
+    |> fill @'["title","categoryId", "subCategoryId"]
+```
+
+Next, add the custom validator:
+
+```
+buildPost :: (?modelContext :: ModelContext) => Post -> IO Post
+buildPost post = post
+    |> fill @'["title","categoryId", "subCategoryId"]
+    -- Add the following custom validator.
+    |> (\post -> validateFieldIO #subCategoryId (belongsToCategory post) post) 
+        where
+            
+            belongsToCategory :: (?modelContext :: ModelContext) => Post -> Id SubCategory -> IO ValidatorResult
+            belongsToCategory post subCategoryId = do
+                let categoryId = post.categoryId
+                subCategory <- fetch subCategoryId
+                if subCategory.categoryId == categoryId
+                    then pure $ Success
+                    else pure $ Failure "Subcategory does not belong to the selected category"
+```
+
+Finally, in your controller, wherever you use the `buildPost` function, since it is now inside IO, use the >>= (bind) operator rather than |> (pipe) operator after it. 
+
+```
+ post
+    |> buildPost
+    >>= ifValid \case -- Changed |> to >>=
+        Left post -> do
+            render NewView { .. } 
+        Right post -> do
+            post <- post |> createRecord
+            setSuccessMessage "Post created"
+            redirectTo PostsAction
+```
+
 ### Checking If A Record Is Valid
 
 Use [`ifValid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:ifValid) to check for validity of a record:
