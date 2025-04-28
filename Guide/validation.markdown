@@ -234,7 +234,7 @@ buildPost post = post
 Next, add the custom validator:
 
 ```
-buildPost :: (?modelContext :: ModelContext) => Post -> IO Post
+buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
 buildPost post = post
     |> fill @'["title","categoryId", "subCategoryId"]
     -- Add the following custom validator.
