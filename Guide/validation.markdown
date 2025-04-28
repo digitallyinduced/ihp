@@ -215,44 +215,33 @@ user |> validateField #age isAge`
 
 ### Creating a custom validator that uses IO
 
-Example scenario: you have 3 tables: `posts`, `categories`, and `sub_categories`.
+Modify the `buildPost` function like:
 
-The `posts` table has the fields `category_id` and `sub_category_id` (which reference the `categories` and `sub_categories` tables).
-
-The `sub_categories` table has a `category_id` field to determine which category a sub-category belongs to.
-
-So when creating a new post, you want to validate that its `sub_category_id` is for a `sub_category` record that includes a `category_id` that matches the post’s `category_id`.
-
-Since the validation will require querying the database, add a type signature to the `buildPost` function specifying that it requires the Model Context and Controller Context to be available and specify that the return value will be `IO Post` rather than `Post`.
-
-``` 
+```haskell
+-- Add type signature specifying that it requires the Model Context and Controller Context
+-- to be available and that the function’s return value will be IO Post rather than Post.
 buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
 buildPost post = post
-    |> fill @'["title","categoryId", "subCategoryId"]
+    |> fill @'["title", "body"]
+    -- Add custom validator. The below example checks if the post’s title is unique.
+    |> (\post -> validateFieldIO #title (titleIsUnique post) post) 
+        where   
+            titleIsUnique :: (?modelContext :: ModelContext) => Post -> Text -> IO ValidatorResult
+            titleIsUnique post title = do
+                exists <-
+                    query @Post
+                        |> filterWhere (#title, post.title)
+                        |> filterWhereNot (#id, post.id)
+                        |> fetchExists
+        
+                if exists
+                    then pure $ Failure "Title is not unique"
+                    else pure Success
 ```
 
-Next, add the custom validator:
+In your controller, wherever you use the `buildPost` function, since it is now inside IO, use the `>>=` (bind) operator rather than `|>` (pipe) operator after it. 
 
-```
-buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
-buildPost post = post
-    |> fill @'["title","categoryId", "subCategoryId"]
-    -- Add the following custom validator.
-    |> (\post -> validateFieldIO #subCategoryId (belongsToCategory post) post) 
-        where
-            
-            belongsToCategory :: (?modelContext :: ModelContext) => Post -> Id SubCategory -> IO ValidatorResult
-            belongsToCategory post subCategoryId = do
-                let categoryId = post.categoryId
-                subCategory <- fetch subCategoryId
-                if subCategory.categoryId == categoryId
-                    then pure $ Success
-                    else pure $ Failure "Subcategory does not belong to the selected category"
-```
-
-Finally, in your controller, wherever you use the `buildPost` function, since it is now inside IO, use the >>= (bind) operator rather than |> (pipe) operator after it. 
-
-```
+```haskell
  post
     |> buildPost
     >>= ifValid \case -- Changed |> to >>=
