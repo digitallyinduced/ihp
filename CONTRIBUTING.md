@@ -84,11 +84,10 @@ Note that it takes around 30 minutes for the IHP GitHub actions to prepare a bin
 
 
 When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
-use `make console` to load your application together with the framework located in `IHP`.
+use `make ghci` to load your application together with the framework located in `IHP`.
 
 ```
-ghci
-:l ihp/ihp-ide/exe/IHP/IDE/DevServer.hs
+:l IHP/ihp-ide/exe/IHP/IDE/DevServer.hs
 main
 ```
 
