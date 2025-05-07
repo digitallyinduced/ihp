@@ -36,7 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [];
-  ihpDoJailbreakPackages = ["microlens-th" "warp-systemd" "bytebuild"];
+  ihpDoJailbreakPackages = [];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
