@@ -52,8 +52,5 @@ in ghcCompiler.override {
     (makeOverrides pkgs.haskell.lib.doJailbreak doJailbreakPackages)
     (makeOverrides pkgs.haskell.lib.dontHaddock dontHaddockPackages)
     manualOverrides
-
-    (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
-
   ];
 }
