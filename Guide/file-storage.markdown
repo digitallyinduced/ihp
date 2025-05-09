@@ -947,6 +947,16 @@ ssh-keygen -t rsa -b 4096 -m PEM -f ./Config/jwtRS256.key
 openssl rsa -in ./Config/jwtRS256.key -pubout -outform PEM -out ./Config/jwtRS256.key.pub
 ```
 
+Add in the `.envrc` file the location of the newly generated files
+
+
+```bash
+export JWT_PRIVATE_KEY_PATH="./Config/jwtRS256.key";
+export JWT_PUBLIC_KEY_PATH="./Config/jwtRS256.key.pub";
+```
+
+**Note:** Upon deploy to AWS, the files and location will be automatically set for you via the `flake.nix` file.
+
 ```haskell
 -- Config/Config.hs
 import Control.Exception (catch)
@@ -961,8 +971,11 @@ config = do
     -- ...
 
     -- Private and public keys to sign and verify image style URLs.
-    privateKeyContent <- liftIO $ readRsaKeyFromFile "./Config/jwtRS256.key"
-    publicKeyContent <- liftIO $ readRsaKeyFromFile "./Config/jwtRS256.key.pub"
+    privateKeyFilePath <- env @FilePath "JWT_PRIVATE_KEY_PATH"
+    publicKeyFilePath <- env @FilePath "JWT_PUBLIC_KEY_PATH"
+
+    privateKeyContent <- liftIO $ readRsaKeyFromFile privateKeyFilePath
+    publicKeyContent <- liftIO $ readRsaKeyFromFile publicKeyFilePath
 
     case (readRsaSecret privateKeyContent, readRsaPublicKey publicKeyContent) of
         (Just privateKey, Just publicKey) -> option $ RsaKeys publicKey privateKey
@@ -971,7 +984,7 @@ config = do
 
 readRsaKeyFromFile :: FilePath -> IO BS.ByteString
 readRsaKeyFromFile path = do
-    catch (BS.readFile path) handleException
+    cControl.Exception.catch (BS.readFile path) handleException
   where
     handleException :: IOError -> IO BS.ByteString
     handleException _ = return BS.empty
