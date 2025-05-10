@@ -420,4 +420,4 @@ storage = ?context.frameworkConfig.appConfig
 storagePrefix :: (?context :: ControllerContext) => Text
 storagePrefix = case storage of
     StaticDirStorage { directory } -> directory
-    _ -> ""
+    S3Storage { baseUrl} -> baseUrl
