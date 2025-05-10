@@ -984,7 +984,7 @@ config = do
 
 readRsaKeyFromFile :: FilePath -> IO BS.ByteString
 readRsaKeyFromFile path = do
-    cControl.Exception.catch (BS.readFile path) handleException
+    Control.Exception.catch (BS.readFile path) handleException
   where
     handleException :: IOError -> IO BS.ByteString
     handleException _ = return BS.empty
