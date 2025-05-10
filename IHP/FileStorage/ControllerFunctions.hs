@@ -183,8 +183,14 @@ storeFileFromPath path options = do
     let fileContentType = Mime.defaultMimeLookup (cs path)
 
     fileContent <- LBS.readFile (cs path)
+
+    -- If fileName was passed (as UUID), use it. Otherwise, keep it empty, and a new random UUID will be generated.
+    let fileName = case options.fileName of
+            Just name -> cs $ UUID.toText name
+            Nothing -> ""
+
     let file = Wai.FileInfo
-            { fileName = ""
+            { fileName = fileName
             , fileContentType
             , fileContent
             }
