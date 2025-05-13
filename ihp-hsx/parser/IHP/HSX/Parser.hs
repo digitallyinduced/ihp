@@ -249,7 +249,16 @@ hsxSplicedValue = do
 
 hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
     where
-        friendlyErrorMessage = show (Text.unpack ("</" <> name <> ">"))
+        friendlyErrorMessage = do
+            pos <- getSourcePos
+            let line = unPos (sourceLine pos)
+            let col = unPos (sourceColumn pos)
+            -- Get surrounding context
+            input <- getInput
+            let before = Text.take (col - 1) input
+            let after = Text.drop col input
+            let context = Text.take 20 before <> ">>>" <> Text.take 20 after
+            show (Text.unpack ("</" <> name <> ">")) <> "\n\nContext: " <> Text.unpack context <> "\n\nSuggestion: Make sure all opening tags have matching closing tags."
         hsxClosingElement' name = do
             _ <- string ("</" <> name)
             space
@@ -305,7 +314,16 @@ hsxElementName = do
                                   && not (Char.isNumber (Text.head name))
     let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
     let checkingMarkup = ?settings.checkMarkup
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) (fail $ "Invalid tag name: " <> cs name)
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) do
+        pos <- getSourcePos
+        let line = unPos (sourceLine pos)
+        let col = unPos (sourceColumn pos)
+        -- Get surrounding context
+        input <- getInput
+        let before = Text.take (col - 1) input
+        let after = Text.drop col input
+        let context = Text.take 20 before <> ">>>" <> Text.take 20 after
+        fail $ "Invalid tag name: " <> cs name <> "\n\nContext: " <> Text.unpack context <> "\n\nSuggestion: Use a valid HTML tag name or add it to the allowed custom tags."
     space
     pure name
 
