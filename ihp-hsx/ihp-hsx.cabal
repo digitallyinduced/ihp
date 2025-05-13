@@ -16,20 +16,7 @@ source-repository head
     type:     git
     location: https://github.com/digitallyinduced/ihp.git
 
-library
-    default-language: Haskell2010
-    build-depends:
-          base >= 4.17.0 && < 4.20
-        , blaze-html
-        , bytestring
-        , template-haskell >= 2.19.0 && < 2.22
-        , text
-        , containers
-        , blaze-markup
-        , ghc >= 9.4.4 && < 9.9
-        , megaparsec
-        , string-conversions
-        , unordered-containers
+common common-extensions
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -64,6 +51,8 @@ library
         , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
+
+common common-flags
     ghc-options:
         -fstatic-argument-transformation
         -funbox-strict-fields
@@ -80,17 +69,66 @@ library
         -fdicts-strict
         -fexpose-all-unfoldings
         -optc-O3
-    hs-source-dirs: .
+
+common common-depends
+    build-depends:
+          base >= 4.17.0 && < 4.20
+        , bytestring
+        , template-haskell >= 2.19.0 && < 2.22
+        , text
+        , containers
+        , megaparsec
+        , string-conversions
+        , unordered-containers
+
+library ihp-hsx-parser
+    import: common-extensions, common-flags, common-depends
+    default-language: Haskell2010
+    build-depends:
+        ghc >= 9.4.4 && < 9.9
+    hs-source-dirs: parser
     exposed-modules:
         IHP.HSX.Parser
-        , IHP.HSX.QQ
-        , IHP.HSX.ToHtml
-        , IHP.HSX.ConvertibleStrings
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
+
+library
+    import: common-extensions, common-flags, common-depends
+    build-depends:
+        ihp-hsx-parser
+        , blaze-html
+        , blaze-markup
+    default-language: Haskell2010
+    hs-source-dirs: blaze
+    exposed-modules:
+        IHP.HSX.QQ
+        , IHP.HSX.ToHtml
+        , IHP.HSX.ConvertibleStrings
         , IHP.HSX.Attribute
+    reexported-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
+
+library ihp-hsx-lucid2
+    import: common-extensions, common-flags, common-depends
+    build-depends:
+        ihp-hsx-parser
+        , lucid2
+        , transformers
+    default-language: Haskell2010
+    hs-source-dirs: lucid2
+    exposed-modules:
+        IHP.HSX.Lucid2.QQ
+        , IHP.HSX.Lucid2.Attribute
+        , IHP.HSX.Lucid2.ToHtml
+    reexported-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
 
 test-suite ihp-hsx-tests
+    import: common-extensions, common-flags, common-depends
     type:                exitcode-stdio-1.0
     hs-source-dirs:      Test
     main-is:             Main.hs
@@ -100,46 +138,11 @@ test-suite ihp-hsx-tests
         IHP.HSX.CustomHsxCases
     default-language:    Haskell2010
     build-depends:
-          base >= 4.17.0 && < 4.20
         , ihp-hsx
+        , ihp-hsx-lucid2
         , hspec
-        , text
-        , bytestring
-        , containers
         , blaze-markup
         , megaparsec
         , template-haskell
-    default-extensions:
-        OverloadedStrings
-        , NoImplicitPrelude
-        , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
-        , DisambiguateRecordFields
-        , DuplicateRecordFields
-        , OverloadedLabels
-        , FlexibleContexts
-        , DataKinds
-        , QuasiQuotes
-        , TypeFamilies
-        , PackageImports
-        , ScopedTypeVariables
-        , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
-        , DefaultSignatures
-        , BangPatterns
-        , FunctionalDependencies
-        , PartialTypeSignatures
-        , BlockArguments
-        , LambdaCase
-        , StandaloneDeriving
-        , TemplateHaskell
-        , OverloadedRecordDot
+        , lucid2
+        , mtl

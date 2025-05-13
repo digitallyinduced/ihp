@@ -5,7 +5,12 @@ Module: IHP.HSX.QQ
 Description: Defines the @[hsx||]@ syntax
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.HSX.QQ (hsx, uncheckedHsx, customHsx) where
+module IHP.HSX.QQ
+  ( hsx
+  , uncheckedHsx
+  , customHsx
+  , quoteHsxExpression
+  ) where
 
 import           Prelude
 import Data.Text (Text)

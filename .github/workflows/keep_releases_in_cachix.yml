@@ -53,3 +53,54 @@ jobs:
           git add .; \
           nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced; \
         fi;
+    - name: Pin IHP Framework in Cachix
+      run: |
+        cd ihp-boilerplate
+        
+        # Extract the IHP version we're working with
+        IHP_VERSION=${{ matrix.version }}
+        IHP_VERSION_CLEAN=${IHP_VERSION#v}
+        
+        # For flake-based projects
+        if test -f flake.nix; then
+          # Build the development shell and capture all dependencies
+          nix develop --impure --profile ./temp-profile --command true
+          
+          # Find IHP-related paths in the profile
+          IHP_PATHS=$(nix path-info -r ./temp-profile | grep -i "ihp-" || true)
+          
+          # Push all found IHP paths to Cachix
+          if [ ! -z "$IHP_PATHS" ]; then
+            echo "$IHP_PATHS" | while read -r path; do
+              echo "Pushing and pinning: $path"
+              cachix push digitallyinduced "$path"
+              
+              # Extract a meaningful name from the path
+              PATH_NAME=$(basename "$path" | sed 's/^[^-]*-//' | cut -d'-' -f1)
+              PIN_NAME="ihp-${PATH_NAME}-${IHP_VERSION_CLEAN}-${{ matrix.os }}"
+              
+              # Pin this path in Cachix
+              cachix pin digitallyinduced "$PIN_NAME" "$path"
+            done
+          else
+            echo "No IHP paths found in the development environment"
+          fi
+        else
+          # For non-flake projects
+          nix-shell --run "true"
+          IHP_PATHS=$(nix-store -q --references $(nix-store -q --deriver $(which RunUnoptimizedProdServer)) | grep -i "ihp-" || true)
+          
+          if [ ! -z "$IHP_PATHS" ]; then
+            echo "$IHP_PATHS" | while read -r path; do
+              echo "Pushing and pinning: $path"
+              cachix push digitallyinduced "$path"
+              
+              # Extract a meaningful name from the path
+              PATH_NAME=$(basename "$path" | sed 's/^[^-]*-//' | cut -d'-' -f1)
+              PIN_NAME="ihp-${PATH_NAME}-${IHP_VERSION_CLEAN}-${{ matrix.os }}"
+              
+              # Pin this path in Cachix
+              cachix pin digitallyinduced "$PIN_NAME" "$path"
+            done
+          fi
+        fi

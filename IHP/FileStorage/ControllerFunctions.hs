@@ -35,6 +35,7 @@ import qualified Network.Wai.Parse as Wai
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.TMap as TMap
+import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory as Directory
 import qualified Control.Exception.Safe as Exception
@@ -228,11 +229,15 @@ createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
             let frameworkConfig = ?context.frameworkConfig
             let urlSchemes = ["http://", "https://"]
 
+            let cleanPath = if "/" `isPrefixOf` objectPath
+                    then Text.drop 1 objectPath
+                    else objectPath
+
             let url = if any (`isPrefixOf` objectPath) urlSchemes
-                    -- BC, before we saved only the relative path of a file, we saved the full URL. So use it as is.
+                    -- Legacy case: full URL saved, use as is.
                     then objectPath
-                    -- We have the relative path (prefixed with slash), so add the baseUrl.
-                    else frameworkConfig.baseUrl <> objectPath
+                    -- Otherwise, construct full URL using baseUrl and cleaned path.
+                    else frameworkConfig.baseUrl <> "/" <> cleanPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do

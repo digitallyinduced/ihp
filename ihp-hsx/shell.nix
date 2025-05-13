@@ -9,6 +9,7 @@ let
         string-conversions
         blaze-html
         blaze-markup
+        lucid2
         text
         bytestring
         basic-prelude

@@ -36,7 +36,7 @@ let
     builtins.listToAttrs (map toPackage names);
 
   ihpDontCheckPackages = [];
-  ihpDoJailbreakPackages = ["microlens-th" "warp-systemd" "bytebuild"];
+  ihpDoJailbreakPackages = [];
   ihpDontHaddockPackages = [];
 in ghcCompiler.override {
   overrides = composeExtensionsList [
@@ -52,8 +52,5 @@ in ghcCompiler.override {
     (makeOverrides pkgs.haskell.lib.doJailbreak doJailbreakPackages)
     (makeOverrides pkgs.haskell.lib.dontHaddock dontHaddockPackages)
     manualOverrides
-
-    (self: super: { haskell-language-server = pkgs.haskell.lib.appendConfigureFlag super.haskell-language-server "--enable-executable-dynamic"; })
-
   ];
 }

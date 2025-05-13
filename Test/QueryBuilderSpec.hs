@@ -191,6 +191,12 @@ tests = do
 
                     (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.category_id IS ?", [Plain "null"])
 
+        describe "filterWhereInCaseInsensitive" do
+            it "should produce a SQL with a WHERE LOWER() condition" do
+                let theQuery = query @Post
+                        |> filterWhereInCaseInsensitive (#title, ["Test" :: Text, "Test 1" :: Text])
+
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE LOWER(posts.title) IN ?", [Many [Plain "(", Escape "test", Plain ",", Escape "test 1", Plain ")"]])
 
         describe "filterWhereIdIn" do
             it "should produce a SQL with a WHERE condition" do
