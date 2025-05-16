@@ -11,7 +11,7 @@ module IHP.HSX.ToHtml where
 import Prelude
 import qualified Text.Blaze.Html5 as Html5
 import qualified Text.Blaze.Internal
-import Data.Text
+import Data.Text (Text)
 import Data.ByteString
 import Data.String.Conversions (cs)
 import IHP.HSX.ConvertibleStrings ()

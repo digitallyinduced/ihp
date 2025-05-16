@@ -77,7 +77,11 @@ toFieldExp = undefined
 toPat :: Pat.Pat GhcPs -> TH.Pat
 toPat (Pat.VarPat _ (unLoc -> name)) = TH.VarP (toName name)
 toPat (TuplePat _ p _) = TH.TupP (map (toPat . unLoc) p)
+#if __GLASGOW_HASKELL__ >= 910
+toPat (ParPat xP lP)  = (toPat . unLoc) lP
+#else
 toPat (ParPat xP _ lP _) = (toPat . unLoc) lP
+#endif
 toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
@@ -110,7 +114,9 @@ toExp (Expr.HsOverLit _ OverLit {ol_val})
 toExp (Expr.HsApp _ e1 e2)
   = TH.AppE (toExp . unLoc $ e1) (toExp . unLoc $ e2)
 
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 910
+toExp (Expr.HsAppType _ e HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
+#elif __GLASGOW_HASKELL__ >= 906
 toExp (Expr.HsAppType _ e _ HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
 #else
 toExp (Expr.HsAppType _ e HsWC {hswc_body}) = TH.AppTypeE (toExp . unLoc $ e) (toType . unLoc $ hswc_body)
@@ -124,7 +130,11 @@ toExp (Expr.NegApp _ e _)
   = TH.AppE (TH.VarE 'negate) (toExp . unLoc $ e)
 
 -- NOTE: for lambda, there is only one match
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 912
+toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc . unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
+#elif __GLASGOW_HASKELL__ >= 910
+toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
+#elif __GLASGOW_HASKELL__ >= 906
 toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
 #else
 toExp (Expr.HsLam _ (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)])) _))
@@ -153,8 +163,12 @@ toExp (Expr.ExplicitTuple _ args boxity) = ctor tupArgs
     tupArgs = fmap ((fmap toExp) . toTupArg) args
 
 -- toExp (Expr.List _ xs)                        = TH.ListE (fmap toExp xs)
-toExp (Expr.HsPar _ _ e _)
-  = TH.ParensE (toExp . unLoc $ e)
+#if __GLASGOW_HASKELL__ >= 910
+toExp (Expr.HsPar _ e) =
+#else
+toExp (Expr.HsPar _ _ e _) =
+#endif
+  TH.ParensE (toExp . unLoc $ e)
 
 toExp (Expr.SectionL _ (unLoc -> a) (unLoc -> b))
   = TH.InfixE (Just . toExp $ a) (toExp b) Nothing
@@ -177,8 +191,13 @@ toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) 
                     value = toExp $ unLoc $ hfbRHS x
                     name =
                         case unLoc (hfbLHS x) of
+#if __GLASGOW_HASKELL__ >= 912
+                            FieldOcc _ (unLoc -> name) -> toName name
+                            XFieldOcc _ -> error "todo"
+#else
                             Unambiguous _ (unLoc -> name) -> toName name
                             Ambiguous _ (unLoc -> name) -> toName name
+#endif
         in
             map f fields
     otherwise -> error "todo"
@@ -203,7 +222,9 @@ toExp (Expr.HsProjection _ locatedFields) =
     extractFieldLabel (DotFieldOcc _ locatedStr) = locatedStr
     extractFieldLabel _ = error "Don't know how to handle XDotFieldOcc constructor..."
   in
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 912
+    TH.ProjectionE (NonEmpty.map (unpackFS . (.field_label) . unLoc . extractFieldLabel) locatedFields)
+#elif __GLASGOW_HASKELL__ >= 906
     TH.ProjectionE (NonEmpty.map (unpackFS . (.field_label) . unLoc . extractFieldLabel . unLoc) locatedFields)
 #else
     TH.ProjectionE (NonEmpty.map (unpackFS . unLoc . extractFieldLabel . unLoc) locatedFields)
@@ -220,7 +241,9 @@ toExp (Expr.HsGetField _ expr locatedField) =
     TH.GetFieldE (toExp (unLoc expr)) (unpackFS . unLoc . extractFieldLabel . unLoc $ locatedField)
 #endif
 
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 912
+toExp (Expr.HsOverLabel _ fastString) = TH.LabelE (unpackFS fastString)
+#elif __GLASGOW_HASKELL__ >= 906
 toExp (Expr.HsOverLabel _ _ fastString) = TH.LabelE (unpackFS fastString)
 #else
 toExp (Expr.HsOverLabel _ fastString) = TH.LabelE (unpackFS fastString)

@@ -19,7 +19,7 @@ module IHP.HSX.Parser
 ) where
 
 import Prelude
-import Data.Text
+import Data.Text (Text)
 import Data.Set
 import Text.Megaparsec
 import Text.Megaparsec.Char
