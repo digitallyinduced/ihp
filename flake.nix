@@ -23,7 +23,7 @@
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
-        { flake-parts-lib, withSystem, ... } : {
+        { self, flake-parts-lib, withSystem, ... } : {
             systems = import inputs.systems;
             imports = [
                 inputs.devenv.flakeModule
@@ -31,6 +31,7 @@
             ];
 
             flake = {
+                overlays.default = import ./NixSupport/overlay.nix { inherit inputs self; };
                 flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
                     path = inputs.ihp-boilerplate;
@@ -52,6 +53,20 @@
                 };
                 nix-ci.impure = true;
             };
+
+            perSystem = { system, ... }: {
+                _module.args.pkgs = import inputs.nixpkgs {
+                    inherit system;
+                    overlays = [
+                        self.overlays.default
+                        (final: prev: {
+                        # ... things you need to patch ...
+                        })
+                    ];
+                    config = { };
+                };
+            };
+
         }
     );
 

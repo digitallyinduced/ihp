@@ -5,18 +5,11 @@ that is defined in flake-module.nix
 */
 { inputs }:
 {
-    perSystem = { nix-filter, pkgs, lib, ... }: let
-        ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
-            inherit pkgs;
-            ghcCompiler = pkgs.haskell.packages.ghc98;
-            ihp = ./.;
-            filter = inputs.nix-filter.lib;
-        };
-    in {
-
+    perSystem = { nix-filter, pkgs, lib, ... }:
+    {
         apps.migrate = {
             type = "app";
-            program = "${ghcCompiler.ihp-migrate}/bin/migrate";
+            program = "${pkgs.ghc.ihp-migrate}/bin/migrate";
         };
 
         devenv.shells.default = {
@@ -25,7 +18,7 @@ that is defined in flake-module.nix
 
             languages.haskell.enable = true;
             languages.haskell.package =
-                    ghcCompiler.ghc.withPackages (p: with p; [
+                    pkgs.ghc.ghc.withPackages (p: with p; [
                         # Copied from ihp.nix
                         base
                         classy-prelude
@@ -119,15 +112,15 @@ that is defined in flake-module.nix
             '';
 
             languages.haskell.stack = null; # Stack is not used in IHP
-            languages.haskell.languageServer = ghcCompiler.haskell-language-server;
+            languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
         };
 
         packages = {
-            default = ghcCompiler.ihp;
-            ide = ghcCompiler.ihp-ide;
-            ssc = ghcCompiler.ihp-ssc;
-            migrate = ghcCompiler.ihp-migrate;
-            datasync-typescript = ghcCompiler.ihp-datasync-typescript;
+            default = pkgs.ghc.ihp;
+            ide = pkgs.ghc.ihp-ide;
+            ssc = pkgs.ghc.ihp-ssc;
+            migrate = pkgs.ghc.ihp-migrate;
+            datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
         };
     };
 }

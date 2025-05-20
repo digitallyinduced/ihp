@@ -122,13 +122,7 @@ ihpFlake:
         perSystem = { self', lib, pkgs, system, config, ... }: let
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
-            ghcCompiler = import "${ihp}/NixSupport/mkGhcCompiler.nix" {
-                inherit pkgs;
-                inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
-                ihp = ihp;
-                haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
-                filter = ihpFlake.inputs.nix-filter.lib;
-            };
+            ghcCompiler = pkgs.ghc;
         in lib.mkIf cfg.enable {
             # release build package
             packages = {
