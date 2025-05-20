@@ -3,10 +3,12 @@ flake-parts module for setting the local IHP devenv shell
 this is different from the devenv environment used by IHP apps!
 that is defined in flake-module.nix
 */
-{ inputs }:
+{ self, inputs }:
 {
-    perSystem = { nix-filter, pkgs, lib, ... }:
+    perSystem = { system, nix-filter, pkgs, lib, ... }:
     {
+        _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
+
         apps.migrate = {
             type = "app";
             program = "${pkgs.ghc.ihp-migrate}/bin/migrate";

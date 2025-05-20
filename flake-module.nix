@@ -124,6 +124,8 @@ ihpFlake:
             ihp = ihpFlake.inputs.self;
             ghcCompiler = pkgs.ghc;
         in lib.mkIf cfg.enable {
+            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+
             # release build package
             packages = {
                 default = self'.packages.unoptimized-prod-server;
@@ -226,7 +228,6 @@ ihpFlake:
                                              then ghcCompiler.ghc.withHoogle
                                              else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
 
-                languages.haskell.languageServer = ghcCompiler.haskell-language-server;
                 languages.haskell.stack = null; # Stack is not used in IHP
 
                 scripts.start.exec = ''
@@ -288,6 +289,8 @@ ihpFlake:
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
                     ssh $1 systemctl start migrate
                 '';
+
+                overlays = [ihp.overlays.default];
             };
         };
 

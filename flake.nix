@@ -27,7 +27,7 @@
             systems = import inputs.systems;
             imports = [
                 inputs.devenv.flakeModule
-                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs; })
+                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs self; })
             ];
 
             flake = {
@@ -53,20 +53,6 @@
                 };
                 nix-ci.impure = true;
             };
-
-            perSystem = { system, ... }: {
-                _module.args.pkgs = import inputs.nixpkgs {
-                    inherit system;
-                    overlays = [
-                        self.overlays.default
-                        (final: prev: {
-                        # ... things you need to patch ...
-                        })
-                    ];
-                    config = { };
-                };
-            };
-
         }
     );
 
