@@ -47,6 +47,10 @@ in ghcCompiler.override {
     (makeOverrides pkgs.haskell.lib.doJailbreak ihpDoJailbreakPackages)
     (makeOverrides pkgs.haskell.lib.dontHaddock ihpDontHaddockPackages)
 
+    (self: super: {
+      fsnotify = super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {};
+    })
+
     # Project specific overrides
     (makeOverrides pkgs.haskell.lib.dontCheck   dontCheckPackages )
     (makeOverrides pkgs.haskell.lib.doJailbreak doJailbreakPackages)
