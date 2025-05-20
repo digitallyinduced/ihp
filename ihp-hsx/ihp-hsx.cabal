@@ -72,9 +72,9 @@ common common-flags
 
 common common-depends
     build-depends:
-          base >= 4.17.0 && < 4.20
+          base >= 4.17.0 && < 4.22
         , bytestring
-        , template-haskell >= 2.19.0 && < 2.22
+        , template-haskell >= 2.19.0 && < 2.24
         , text
         , containers
         , megaparsec
@@ -85,7 +85,7 @@ library ihp-hsx-parser
     import: common-extensions, common-flags, common-depends
     default-language: Haskell2010
     build-depends:
-        ghc >= 9.4.4 && < 9.9
+        ghc >= 9.4.4 && < 9.13
     hs-source-dirs: parser
     exposed-modules:
         IHP.HSX.Parser

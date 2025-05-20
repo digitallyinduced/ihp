@@ -13,7 +13,7 @@ import qualified IHP.HSX.Lucid2.Attribute as Lucid2
 import qualified Text.Blaze.Renderer.Text as Blaze
 import qualified Text.Blaze as Blaze
 import Text.Blaze (preEscapedTextValue)
-import Data.Text
+import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import IHP.HSX.CustomHsxCases
 import qualified "lucid2" Lucid.Base as Lucid2 (Html, HtmlT, renderText, renderTextT)
