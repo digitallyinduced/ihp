@@ -318,6 +318,12 @@ deploy-to-nixos ihp-app
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
 
+### Database connectivity
+
+To easily access to the remote database for debugging purpose, you can use:
+```bash
+make psql-remote env=ihp-app
+```
 
 ### Backward-incompatible database update
 
@@ -335,7 +341,6 @@ Steps to do to start from scratch:
    - `systemctl start app.service`
    - `exit`
  - `rm /tmp/[your-app].sql`
-
 
 ## Deploying with Docker
 
