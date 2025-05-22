@@ -3,6 +3,7 @@
 , string-conversions
 , blaze-html
 , blaze-markup
+, lucid2
 , text
 , bytestring
 , lib
@@ -11,10 +12,12 @@
 , template-haskell
 , haskell-src-meta
 , containers
+, unordered-containers
+, hspec
 }:
 mkDerivation {
   pname = "ihp-hsx";
-  version = "v1.2.0";
+  version = "v1.3.0";
   src = ./../../ihp-hsx;
   isLibrary = true;
   isExecutable = false;
@@ -23,13 +26,16 @@ mkDerivation {
     string-conversions
     blaze-html
     blaze-markup
+    lucid2
     text
     bytestring
     basic-prelude
     megaparsec
     template-haskell
     containers
+    unordered-containers
   ];
+  testHaskellDepends = [ hspec ];
   license = lib.licenses.mit;
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";

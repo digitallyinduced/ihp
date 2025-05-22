@@ -44,11 +44,25 @@ instance Job EmailCustomersJob where
 
 ### Running the job
 
-IHP watches the job table in the database for any new records and automatically runs the job asynchronously when a new job is added. So to run a job, simply create a new record:
+IHP watches the job table in the database for any new records and automatically runs the job asynchronously when a new job is added. There are two ways to run a job:
+
+1. Run immediately (as soon as a job worker is available):
 
 ```haskell
 newRecord @EmailCustomersJob |> create
 ```
+2. Schedule for future execution:
+
+```haskell
+import Data.Time.Clock (addUTCTime, getCurrentTime, nominalDay)
+
+now <- getCurrentTime
+newRecord @EmailCustomersJob 
+    |> set #runAt (addUTCTime nominalDay now)  -- Schedule 24 hours in the future
+    |> create
+```
+
+The `runAt` field determines when the job should be executed. If not set, the job runs immediately. When set, IHP polls for scheduled jobs approximately every minute and executes any jobs whose `runAt` time has passed.
 
 This can be done in a controller action or in a script as will be shown below.
 
@@ -90,6 +104,24 @@ instance Job EmailCustomersJob where
 
     maxAttempts = 3
 ```
+
+#### Backoff Strategy
+
+By default, retries will occur every 30 seconds, until `maxAttempts` is reached. To change the timing so that retries happen every 5 seconds, you can set:
+
+```haskell
+backoffStrategy :: BackoffStrategy
+backoffStrategy = LinearBackoff { delayInSeconds = 5 }
+```
+
+For an increasing delay between retries, you can use the `ExponentialBackoff` strategy. This method increases the wait time exponentially between each attempt. Here's how it works:
+
+```haskell
+backoffStrategy :: BackoffStrategy
+backoffStrategy = ExponentialBackoff { delayInSeconds = 5 }
+```
+
+With `ExponentialBackoff` the delay before the first retry will be 5 seconds. Each subsequent retry will wait longer than the previous one. Thus, the delays will be 5 seconds for the first retry, 25 seconds for the second, 625 seconds for the third, and so on. This strategy is useful for scenarios where you want to gradually reduce the frequency of retries, perhaps to reduce the load on a failing component or to increase the likelihood that intermittent issues will be resolved by the time the next retry occurs.
 
 #### Timeout
 

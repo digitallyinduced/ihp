@@ -23,7 +23,7 @@ import IHP.ApplicationContext
 import IHP.Controller.RequestContext
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 
@@ -60,9 +60,9 @@ class WSApp state where
     connectionOptions :: WebSocket.ConnectionOptions
     connectionOptions = WebSocket.defaultConnectionOptions
 
-startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => Websocket.Connection -> IO ()
-startWSApp connection = do
-    state <- newIORef (initialState @state)
+startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
+startWSApp initialState connection = do
+    state <- newIORef initialState
     let ?state = state
 
     result <- Exception.try ((withPingPong defaultPingPongOptions connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))

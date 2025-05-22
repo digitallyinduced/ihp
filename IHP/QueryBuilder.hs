@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
 {-|
 Module: IHP.QueryBuilder
 Description:  Tool to build simple sql queries
@@ -18,12 +18,15 @@ module IHP.QueryBuilder
 , limit
 , offset
 , queryUnion
+, queryUnionList
 , queryOr
 , DefaultScope (..)
 , filterWhere
 , filterWhereCaseInsensitive
 , filterWhereNot
 , filterWhereIn
+, filterWhereInCaseInsensitive
+, filterWhereIdIn
 , filterWhereNotIn
 , filterWhereLike
 , filterWhereILike
@@ -61,6 +64,9 @@ module IHP.QueryBuilder
 , Condition (..)
 , Join (..)
 , OrderByDirection (..)
+, injectQueryBuilder
+, FilterOperator (..)
+, toEqOrIsOperator
 )
 where
 import IHP.Prelude
@@ -73,6 +79,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
+import Data.Text (toLower)
 import qualified GHC.Generics
 
 class DefaultScope table where
@@ -159,7 +166,8 @@ class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
     getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
-    getQueryIndex _ = Nothing 
+    getQueryIndex _ = Nothing
+    {-# INLINABLE getQueryIndex #-}
 
 -- Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
 newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
@@ -173,22 +181,31 @@ newtype LabeledQueryBuilderWrapper foreignTable indexColumn indexValue table = L
 -- QueryBuilders have query builders and the join register is empty.
 instance HasQueryBuilder QueryBuilder EmptyModelList where
     getQueryBuilder = id
+    {-# INLINE getQueryBuilder #-}
     injectQueryBuilder = id
+    {-# INLINE injectQueryBuilder #-}
 
 -- JoinQueryBuilderWrappers have query builders
 instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
     getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder = JoinQueryBuilderWrapper 
+    {-# INLINABLE injectQueryBuilder #-}
 
 -- NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
 instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
     getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder  = NoJoinQueryBuilderWrapper 
+    {-# INLINABLE injectQueryBuilder #-}
 
 instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
     getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
+    {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder = LabeledQueryBuilderWrapper
+    {-# INLINABLE injectQueryBuilder #-}
     getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
+    {-# INLINABLE getQueryIndex #-}
 
 
 data QueryBuilder (table :: Symbol) =
@@ -535,7 +552,7 @@ filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilde
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: *). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIn (name, value) queryBuilderProvider =
         case head nullValues of
             Nothing -> injectQueryBuilder whereInQuery -- All values non null
@@ -560,6 +577,42 @@ filterWhereIn (name, value) queryBuilderProvider =
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
+
+-- Like 'filterWhereIn', but case insensitive.
+--
+-- __Example:__ Only show users where @email@ is @User1@example.com@ or @User2@example.com@.
+--
+-- > users <- query @User
+-- >     |> filterWhereInCaseInsensitive (#email, ['User1@example.com', 'User2@example.com'])
+-- >     |> fetch
+-- > -- SELECT * FROM users WHERE LOWER(email) IN ('user1@example.com', 'user2@example.com')
+--
+filterWhereInCaseInsensitive :: forall name table model value queryBuilderProvider (joinRegister :: Type). ( KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
+        case head nullValues of
+            Nothing -> injectQueryBuilder whereInQuery
+            Just nullValue ->
+                let
+                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
+                in
+                    case head nonNullValues of
+                        Just _ ->
+                            injectQueryBuilder $ UnionQueryBuilder
+                                (injectQueryBuilder whereInQuery)
+                                (injectQueryBuilder isNullValueExpr)
+                        Nothing -> injectQueryBuilder isNullValueExpr
+    where
+        (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        lowerValues = map toLower nonNullValues
+
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
+
+        lowerColumnName = "LOWER(" <> columnName <> ")"
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+
+{-# INLINE filterWhereInCaseInsensitive #-}
 
 -- | Like 'filterWhereIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
 -- 
@@ -826,6 +879,21 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereCaseInsensitive #-}
 
+
+filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIdIn values queryBuilderProvider =
+    -- We don't need to treat null values differently here, because primary keys imply not-null
+    let
+        pkConditions = map (primaryKeyConditionForId @model) values
+
+        queryBuilder = getQueryBuilder queryBuilderProvider
+
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In pkConditions)), applyLeft = Nothing, applyRight = Nothing}
+     in
+        injectQueryBuilder whereInQuery
+{-# INLINE filterWhereIdIn #-}
+
+
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
 -- >    query @Posts 
 -- > |> innerJoin @Users (#author, #id)
@@ -1000,6 +1068,26 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 
     
 {-# INLINE queryUnion #-}
+
+-- | Like 'queryUnion', but applied on all the elements on the list
+--
+-- >  action ProjectsAction = do
+-- >      let values :: [(ProjectType, Int)] = [(ProjectTypeOngoing, 3), (ProjectTypeNotStarted, 2)]
+-- >
+-- >          valuePairToCondition :: (ProjectType, Int) -> QueryBuilder "projects"
+-- >          valuePairToCondition (projectType, participants) =
+-- >              query @Project
+-- >                  |> filterWhere (#projectType, projectType)
+-- >                  |> filterWhere (#participants, participants)
+-- >
+-- >          theQuery = queryUnionList (map valuePairToCondition values)
+-- >
+-- >      projects <- fetch theQuery
+-- >      render IndexView { .. }
+queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
+queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Plain "id"), applyLeft = Nothing, applyRight = Nothing }
+queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
+queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
 
 
 -- | Adds an @a OR b@ condition

@@ -1,19 +1,21 @@
 { config, pkgs, modulesPath, lib, self, ... }:
 let
     cfg = config.services.ihp;
-    ihpApp = self.packages.x86_64-linux.default;
 in
 {
     systemd.services.app = {
         description = "IHP App";
         enable = true;
-        after = [ "network.target" ];
+        after = [ "network.target" "app.socket" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
-            Type = "simple";
+            Type = "notify";
             Restart = "always";
             WorkingDirectory = "${cfg.package}/lib";
             ExecStart = "${cfg.package}/bin/RunProdServer";
+            KillSignal = "SIGINT";
+            WatchdogSec = "60";
+            Sockets = "app.socket";
         };
         environment =
             let
@@ -24,8 +26,17 @@ in
                     IHP_REQUEST_LOGGER_IP_ADDR_SOURCE = cfg.requestLoggerIPAddrSource;
                     DATABASE_URL = cfg.databaseUrl;
                     IHP_SESSION_SECRET = cfg.sessionSecret;
+                    GHCRTS = cfg.rtsFlags;
+                    IHP_SYSTEMD = "1";
                 };
             in
                 defaultEnv // cfg.additionalEnvVars;
+    };
+    systemd.sockets.app = {
+        wantedBy = [ "sockets.target" ];
+        socketConfig = {
+            ListenStream = "${toString cfg.appPort}";
+            Accept = "no";
+        };
     };
 }

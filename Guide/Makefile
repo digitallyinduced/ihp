@@ -57,11 +57,6 @@ all: $(HTML_FILES) bootstrap.css instantclick.js search.js search.css
 %.html: %.markdown layout.html
 	mmark -i $< -o $@ --template layout.html --ext-skylighting --ext-ghc-highlighter --ext-punctuation --ext-toc 2-6
 
-watch: all
-	@echo "Server is starting at: http://localhost:3000/index.html"
-	@nix-shell -p haskellPackages.wai-app-static --command "warp" &
-	@ls *.markdown layout.html | entr make
-
 clean:
 	rm $(HTML_FILES)
 

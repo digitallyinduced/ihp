@@ -8,6 +8,7 @@
 , directory
 , string-conversions
 , warp
+, warp-systemd
 , wai
 , mtl
 , blaze-markup
@@ -41,7 +42,6 @@
 , cookie
 , process
 , unix
-, fsnotify
 , countable-inflections
 , typerep-map
 , basic-prelude
@@ -64,22 +64,24 @@
 , with-utf8
 , ihp-hsx
 , ihp-postgresql-simple-extra
+, safe-exceptions
 , nix-gitignore
 , filter
+, resourcet
 }:
 mkDerivation {
   pname = "ihp";
-  version = "v1.2.0";
-  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "exe" "LICENSE" "lib"]; };
+  version = "v1.3.0";
+  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "LICENSE" "lib"]; };
   isLibrary = true;
   isExecutable = true;
-  allowInconsistentDependencies = true;
   libraryHaskellDepends = [
     base
     classy-prelude
     directory
     string-conversions
     warp
+    warp-systemd
     wai
     mtl
     blaze-html
@@ -112,7 +114,6 @@ mkDerivation {
     cookie
     process
     unix
-    fsnotify
     countable-inflections
     typerep-map
     basic-prelude
@@ -136,16 +137,17 @@ mkDerivation {
     with-utf8
     ihp-hsx
     ihp-postgresql-simple-extra
+    safe-exceptions
+    resourcet
   ];
   license = lib.licenses.mit;
-  postInstall = ''
-    cp exe/IHP/CLI/run-script $out/bin/run-script
-
-    mkdir -p $out/lib/IHP
-    cp -r lib/IHP/* lib/IHP/.hie-bios $out/lib/IHP
-  '';
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";
+
+  postInstall = ''
+    mkdir -p $out/lib/IHP
+    cp -r lib/IHP/* $out/lib/IHP
+  '';
 
   # For faster builds when hacking on IHP:
   # Uncommenting will build without optimizations

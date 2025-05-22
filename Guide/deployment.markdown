@@ -10,19 +10,180 @@ IHP comes with a standard command called `deploy-to-nixos`. This tool is a littl
 
 AWS EC2 is a good choice for deploying IHP in a professional setup.
 
-### Creating a new EC2 Instance
+### AWS infrastructure preparation
+
+#### Creating infrastructure with Terraform
+
+The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup automatically using [Terraform](https://www.terraform.io/).
+
+1. Install terraform
+2. Setup AWS credentials in `.aws/config` and `.aws/credentials`
+3. Copy the files from the IaC/aws folder from [the branch IaC-aws in ihp-boilerplate](https://github.com/digitallyinduced/ihp-boilerplate/tree/IaC-aws) to you IHP project repo. Run the init command from the IaC/aws folder:
+   ```
+   terraform init
+   ```
+4. Create the file `terraform.tfvars` with the following content:
+   ```
+   prefix = "Project prefix for the resource names"
+   region = "AWS Region to deploy to"
+   az_1 = "Availability Zone 1"
+   az_2 = "Availability Zone 2"
+   key_name = "The key name of the SSH key-pair"
+   db_password = "The password for the RDS database"
+   ```
+   - The two AZs are needed to setup the RDS database.
+   - The SSH key-pair should be created in the AWS web interface.
+5. Run:
+   ```
+   terraform apply
+   ```
+6. Important data like the RDS endpoint and the EC2 instance URL is written to the file `db_info.txt`
+
+Now the NixOS instance and Postgres database is setup and an SSH conncetion can be established to it.
+
+#### Creating a new EC2 Instance
 
 Start a new EC2 instance and use the official NixOS AMI `NixOS-23.05.426.afc48694f2a-x86_64-linux`. You can find the latest NixOS AMI at https://nixos.org/download#nixos-amazon
 
 Example steps:
  - Visit [EC2 creation page](https://eu-west-1.console.aws.amazon.com/ec2/home?region=eu-west-1#LaunchInstances:) in your desired region.
- - Select AMI by name, it will appear under "Community AMIs" after searching by name.
- - Select at least a `t3a.small` instance size to have enough RAM for the compilation
- - Specify a generous root disk volume. By nature NixOS can consume lots of disk space as you trial-and-error your application deployment. As a minimum, we advise 60 GiB
+ - Select AMI by name, it will appear under "Community AMIs" after searching by name (there can be a slight delay before the result appears as it searches in all community AMIs).
+ - Select at least a `t3a.small` instance size to have enough RAM for the compilation. For a real-world application, chances are that you need `t3a.medium` to successfully compile it.
+ - Specify a generous root disk volume. By nature NixOS can consume lots of disk space as you trial-and-error your application deployment. As a minimum, we advise 60 GiB.
  - Under `Network settings`, allow SSH traffic from your IP address only, allow HTTPS and HTTP traffic from the internet. Due to the certificate validation for Let's Encrypt, even if your application does not need to have it, allow HTTP too.
  - Make sure to attach SSH keys to the instance at creation time, that is available locally, so you can SSH to the EC2 instance without password later.
+   - Either before creating the EC2 instance, you import your existing keypair to [EC2 Key Pairs](https://us-east-1.console.aws.amazon.com/ec2/home?region=eu-west-1#ImportKeyPair:), then you should select it at the EC2 creation page.
+   - Or let AWS create one on-the-fly: ![image](https://github.com/digitallyinduced/ihp/assets/114076/317b022a-ad6e-43ae-931d-8710db0b711c) . Afterwards, you will be able to download the private key file, later on it is referred as `ihp-app.pem` in this documentation.
 
-### Connecting to the EC2 Instance
+#### (Optional) Creating an RDS Instance
+
+For production systems, it is advised to use a fully managed PostgreSQL instance, it can be multi-region, fault tolerant, but most of all,
+daily backups happen automatically with configurable retention.
+
+To switch from the local PostgreSQL instance to a managed one (you can do it after or before the initial deployment), you can execute the following steps:
+ - Visit [RDS creation page](https://us-east-1.console.aws.amazon.com/rds/home?region=eu-west-1#launch-dbinstance:) in your desired region.
+ - Select PostgreSQL as the Engine Type.
+ - Select a compatible Engine Version, there are good chances that the very last version will fit.
+ - At Templates, Choose `Free Tier` for any non-live environments, `Production` for the live environment.
+ - (Optional) Choose `Auto generate password` for having a secure master password.
+ - Choose `Connect to an EC2 compute resource` and select your already existing EC2 instance.
+ - Then you can `Create database`. This process is slow, check back in 10 minutes or so afterward. Note down the auto-generated password.
+ - Edit your `flake.nix`, under `flake.nixosConfigurations."ihp-app".services.ihp`, you can specify the database URL like: `databaseUrl = lib.mkForce "postgresql://postgres:YOUR-PASSWORD@YOUR-HOSTNAME.amatonaws.com/postgres";`. You can find the proper hostname after the initialization is complete, on the RDS instance detail page.
+ - `pg_dump --no-owner --no-acl` your existing local database on the EC2 instance directly, and then, you can load it to the newly created instance via `pgsql`. `deploy-to-nixos` won't populate the initial schema at an existing remote database, that's why dumping, `scp d`ing and loading it via `psql` is necessary.
+
+#### (Optional) Creating an S3 bucket
+
+If your application needs to store files, on AWS, those should use an S3 bucket for that.
+
+Infrastructure-side preparation:
+ - Visit the [S3 creation page](https://s3.console.aws.amazon.com/s3/bucket/create?region=eu-west-1) and create a bucket in the same region..If objects should or should not be public, it's up to the application's business requirements. The S3 [ARN](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html) from the S3 details page should be noted down.
+ - Create an new IAM user for the S3 access. Create an [AWS access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html) for that IAM user.
+ - For that user, attach a policy that allows access to the bucket, for example:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": [
+                "YOUR-BUCKET-ARN",
+                "YOUR-BUCKET-ARN/*"
+            ]
+        }
+    ]
+}
+```
+ - See the [Storage guide](https://ihp.digitallyinduced.com/Guide/file-storage.html#s3) on how to use the access key.
+
+ If your application requires so, make the S3 bucket publicly available.
+  - Go to https://s3.console.aws.amazon.com/s3/buckets/YOUR-BUCKET?region=eu-west-1&bucketType=general&tab=permissions (permissions tab of the S3 bucket)
+  - Set `Block all public access` to entirely off.
+  - Set a bucket policy like this:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicReadGetObject",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "YOUR-BUCKET-ARN/*"
+        }
+    ]
+}
+```
+ - Test the access by locating a file in a bucket under Objects and "Copy S3 URI" for it.
+
+#### (Optional) Connecting CloudWatch
+
+For a production system, logging is essential, so you are informed about anomalies before customer complaints, or you are able to provide an evidence for an incident and so on.
+
+Mind the region of your EC2 instance for these steps.
+
+- [Create a CloudWatch log group](https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/create-log-group), note down the ARN.
+- Create a log stream inside the previously created log group, for instance `in`.
+- Create an IAM user with an access key and secret with the following policy:
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"logs:CreateLogStream",
+				"logs:PutLogEvents",
+				"logs:DescribeLogStreams"
+			],
+			"Resource": [
+				"[YOUR-GROUP-ARN]",
+				"[YOUR-GROUP-ARN]:*"
+			]
+		}
+	]
+}
+```
+- Configure the `services.vector` part in your `flake.nix` to activate logging:
+```
+services.vector = {
+    enable = true;
+    journaldAccess = true;
+    settings = {
+        sources.journald = {
+            type = "journald";
+            include_units = ["app.service" "nginx.service" "worker.service"];
+        };
+        transforms.remap_remove_specific_keys = {
+             type = "remap";
+             inputs = ["journald"];
+             source = ''
+                 del(._STREAM_ID)
+                 del(._SYSTEMD_UNIT)
+                 del(._BOOT_ID)
+                 del(.source_type)
+             '';
+        };
+        sinks.out = {
+            auth = {
+                access_key_id = "YOUR-IAM-ACCESS-KEY";
+                secret_access_key = "YOUR-IAM-ACCESS-KEY";
+            };
+            inputs  = ["remap_remove_specific_keys"];
+            type = "aws_cloudwatch_logs";
+            compression = "gzip";
+            encoding.codec = "json";
+            region = "us-east-1";
+            group_name = "tpp-qa";
+            stream_name = "in";
+        };
+    };
+};
+```
+- Review the incoming log entries, adjust remapping accordingly. You might want to remove or transform more entries to make the logs useful for alerts or accountability.
+
+### Connecting to the EC2 / Virtual Machine Instance
 
 After you've created the instance, configure your local SSH settings to point to the instance.
 
@@ -127,6 +288,9 @@ Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flak
 +                            sessionSecret = "xxx";
 +                        };
 +
++                        # Job workers are active by default. Disable them like this:
++                        # systemd.services.worker.enable = pkgs.lib.mkForce false;
++
 +                        # Add swap to avoid running out of memory during builds
 +                        # Useful if your server have less than 4GB memory
 +                        swapDevices = [ { device = "/swapfile"; size = 8192; } ];
@@ -161,6 +325,23 @@ To easily access to the remote database for debugging purpose, you can use:
 make psql-remote env=ihp-app
 ```
 
+### Backward-incompatible database update
+
+If you have a backward-incompatible modification in the schema, you need to
+recreate the database entirely, or you need an upgrade path.
+
+Steps to do to start from scratch:
+ - `make db` locally to have a clean local state.
+ - `make sql_dump > /tmp/[your-app].sql`
+ - `scp /tmp/[your-app].sql [your-app]-[env]:~`
+ - `ssh [your-app]-[env]`
+   - `systemctl stop app.service && (echo "drop database app with (force); create database app;" | psql -U postgres -h [your-db-server-host] -p [your-db-server-port] postgres)`
+   - `cat [your-app] | psql -U postgres -h [your-db-server-host] -p [your-db-server-port] app` # Consult flake.nix for the values in case.
+   - `rm [your-app].sql`
+   - `systemctl start app.service`
+   - `exit`
+ - `rm /tmp/[your-app].sql`
+
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.
@@ -169,40 +350,24 @@ IHP has a first party CLI tool called `ihp-app-to-docker-image` to create Docker
 
 ### Creating a Docker Image
 
-Assuming your project is using IHP Pro or IHP Business, you can use the `ihp-app-to-docker-image` tool to make a docker image:
+To create a Docker image, we first need to install [Podman](https://podman.io/), and then run the following command:
 
 ```bash
-$ ihp-app-to-docker-image
+nix build .#unoptimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
 
-...
-✅ The docker image is at 'docker.tar.gz'
+cat result | podman load
 ```
 
-The command needs to be called from inside the application directory.
-
-This tool will compile your app and output an docker image at `docker.tar.gz`. The docker image is typically around 85MB in size. If your application has many dependencies declated in the `default.nix` it could also be larger.
-
-On macOS the `ihp-app-to-docker-image` tool requires Docker to be up and running. On linux you use the tool without having docker installed.
-
-You can load the `docker.tar.gz` into your running docker instance using `docker load`:
-
-```bash
-$ docker load < docker.tar.gz
-
-8e8f0ea2cd55: Loading layer [==================================================>]  87.73MB/87.73MB
-Loaded image: app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
-```
-
-Running `docker images` you can now see that the image is available:
+Running `podman images` you can now see that the image is available:
 
 ```bash
 $ docker images
 
 REPOSITORY     TAG                                IMAGE ID       CREATED         SIZE
-app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   51 years ago    86.6MB
+app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   54 years ago    86.6MB
 ```
 
-The `CREATED` timestamp is showing `51 years ago` as the image is built using nix. For having a totally reproducable build, the timestamp is set to `Jan 1970, 00:00 UTC`.
+The `CREATED` timestamp is showing over 50 years ago as the image is built using nix. For having a totally reproducible build, the timestamp is set to `Jan 1970, 00:00 UTC`.
 
 ### Starting the App Container
 
@@ -627,19 +792,28 @@ $ ./build/bin/RunProdServer
 
 #### `IHP_SESSION_SECRET`
 
-In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each container start. This means that all your users will have to re-login on each container start.
+In production setup's you want to configure the `IHP_SESSION_SECRET` env variable. It's a private key used to encrypt your session state. If it's not specified, a new one will generated on each app start. This means that all your users will have to re-login on each app start.
 
 **Note on `Config/client_session_key.aes`:** The `IHP_SESSION_SECRET` env variable is an alternative for placing a `Config/client_session_key.aes` inside the your repository. If IHP detects a `Config/` folder, and no `IHP_SESSION_SECRET` is set, it will automatically create a `Config/client_session_key.aes` file. This is designed for persistent sessions in development mode.
 
-When you start an app without specifying the `IHP_SESSION_SECRET` and no `Config/client_session_key.aes` is found, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value:
+When you start an app without specifying the `IHP_SESSION_SECRET` and no `Config/client_session_key.aes` is found, the app will output the randomly generated one. So you can get a new secret key by starting a new container and copying the value.
+
+An easier way is to use the `new-session-secret` CLI command:
 
 ```bash
-$ ./build/bin/RunProdServer
-IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
-Server started
+$ new-session-secret
+1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp
 ```
 
-There we can copy the `IHP_SESSION_SECRET=1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp` value and use it as our secret:
+On macOS you can directly copy this into your clipboard like this:
+
+```bash
+$ new-session-secret | pbcopy
+```
+
+Then you can paste the value where needed.
+
+Now we can use this secret and pass it to the app binary via the `IHP_SESSION_SECRET` env var:
 
 ```bash
 $ export IHP_SESSION_SECRET="1J8jtRW331a0IbHBCHmsFNoesQUNFnuHqY8cB5927KsoV5sYmiq3DMmvsYk5S7EDma9YhqZLZWeTFu2pGOxMT2F/5PnifW/5ffwJjZvZcJh9MKPh3Ez9fmPEyxZBDxVp"
@@ -709,3 +883,25 @@ The maximum number of subscriptions per websocket connection in IHP DataSync. De
 #### `IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION`
 
 The maximum number of database transactions per websocket connection in IHP DataSync. Defaults to `10`.
+
+## `systemd` Integration
+
+The `deploy-to-nixos` tool now includes systemd integration to improve reliability and reduce downtime for IHP applications. These features are enabled by default when using `ihp.nixosModules.app`.
+
+Key Features:
+
+1. **Systemd Watchdog**:
+
+   - The app sends a heartbeat to systemd every 30 seconds via localhost.
+   - If the app becomes unresponsive, systemd restarts it after 60 seconds.
+
+2. **Socket Activation**:
+
+   - Systemd queues incoming HTTP requests during app startup or restarts.
+   - This eliminates downtime and ensures uninterrupted service.
+
+3. **Automatic Configuration**:
+
+   - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
+
+

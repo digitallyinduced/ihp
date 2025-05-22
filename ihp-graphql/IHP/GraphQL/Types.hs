@@ -1,6 +1,6 @@
 module IHP.GraphQL.Types where
 
-import IHP.Prelude
+import IHP.Prelude hiding (Type)
 import qualified Data.HashMap.Strict as HashMap
 
 data GraphQLRequest = GraphQLRequest

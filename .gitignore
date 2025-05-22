@@ -20,3 +20,8 @@ devenv.local.nix
 
 # nix build output links
 result*
+
+.idea
+
+# Test folders
+static/Test.FileStorage.ControllerFunctionsSpec

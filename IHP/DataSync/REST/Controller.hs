@@ -9,7 +9,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Vector as Vector
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
@@ -203,7 +203,7 @@ aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger val
     Left (floating :: Double) -> PG.toField floating
     Right (integer :: Integer) -> PG.toField integer
 aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue (Data.Aeson.Array values) = PG.toField (PG.PGArray (Vector.toList values))
+aesonValueToPostgresValue (Data.Aeson.Array values) = PG.toField (PG.PGArray (map aesonValueToPostgresValue (Vector.toList values)))
 aesonValueToPostgresValue object@(Object values) =
     let
         tryDecodeAsPoint :: Maybe Point

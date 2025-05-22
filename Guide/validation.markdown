@@ -213,6 +213,49 @@ Then just call it like:
 user |> validateField #age isAge`
 ```
 
+### Creating a custom validator that uses IO
+
+Use [`validateFieldIO`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateField.html#v:validateFieldIO) to validate a field based upon a value that is fetched from the database. The below example shows how to validate that a post’s `title` field contains a unique value.
+
+```haskell
+-- In Controller/Posts.hs or Helper/Controller.hs
+-- Add custom validator function that checks if the post’s title is unique.
+titleIsUnique :: (?modelContext :: ModelContext) => Post -> Text -> IO ValidatorResult
+titleIsUnique post title = do
+    exists <-
+        query @Post
+            |> filterWhere (#title, post.title)
+            |> filterWhereNot (#id, post.id)
+            |> fetchExists
+
+    if exists
+        then pure $ Failure "Title is not unique"
+        else pure Success
+
+-- In Controller/Posts.hs
+-- Add type signature to buildPost function, specifying that it requires the Model Context and 
+-- Controller Context to be available and that the function’s return value will be IO Post rather than Post.
+buildPost :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Post -> IO Post
+buildPost post = post
+    |> fill @'["title", "body"]
+    -- Add custom validator.
+    |> (\post -> validateFieldIO #title (titleIsUnique post) post) 
+```
+
+In your controller, wherever you use the `buildPost` function, since it is now inside IO, use the `>>=` (bind) operator rather than `|>` (pipe) operator after it. 
+
+```haskell
+post
+    |> buildPost
+    >>= ifValid \case -- Changed |> to >>=
+        Left post -> do
+            render NewView { .. } 
+        Right post -> do
+            post <- post |> createRecord
+            setSuccessMessage "Post created"
+            redirectTo PostsAction
+```
+
 ### Checking If A Record Is Valid
 
 Use [`ifValid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:ifValid) to check for validity of a record:

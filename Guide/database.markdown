@@ -20,7 +20,7 @@ When the development server is running, you can connect to it via `postgresql://
 
 When the development server is running, you can use your favorite UI tool (e.g. [TablePlus](https://tableplus.com/)) that allows connecting to Postgres. To do that you would need the following credentials:
 
-Database Host: This is the application root + "/build/db". Use this command on terminal form the root of you app and copy the output:
+Database Host: This is the application root + "/build/db". Use this command on terminal from the root of your app and copy the output:
 ```
 echo `pwd`/build/db
 ```
@@ -91,6 +91,10 @@ You can also update the database while keeping its contents.
 **In the command line:** Run `make dumpdb` and after that `make db`.
 
 When dumping the database into the `Fixtures.sql` first and then rebuilding the database with the dump, the contents will be kept when changing the schema.
+
+### Transferring/Backing Up DB
+
+To have the full database dumped in a portable manner, you can do `make sql_dump > /tmp/my_app.sql`, which will generate a full SQL database dump, without owner or ACL information.
 
 ## Haskell Bindings
 
@@ -761,18 +765,10 @@ Similarly as for renaming, deleting a column currently won't work automatically 
 1. Delete your column in the Schema Designer
 2. Delete the column from the database by executing `ALTER TABLE tablename DROP COLUMN colname`
 
-### Alternate Method
-
-There's always more than one way. This is another.
-
-1. Make changes in the Schema Designer
-2. Click `Save DB to Fixtures` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
-3. Edit `Fixtures.sql` to your heart's content.
-4. Click `Push to DB` in the Schema Designer (Use the arrow next to the `Update DB` button to see this option)
 
 ### Migrations In Production
 
-IHP currently has no built-in migration system yet. We're still experimenting with a great way to solve this. Until then, the recommended approach used by digitally induced is to manually migrate your database using DDL statements as shown above.
+See the [Migrations guide](https://ihp.digitallyinduced.com/Guide/database-migrations.html).
 
 
 ## Supported Database Types
@@ -843,4 +839,17 @@ action CreateUserAction = do
         newRecord @User |> createRecord
 
     redirectTo NewSessionAction
+```
+
+## Unique Constraints
+
+It's possible to use the UI to set the unique constraint on a column. However, sometimes you might want to add a unique constraint on multiple columns. This can be done by adding a unique constraint to the `Schema.sql` file. For example, to add a unique constraint on the `email` and `username` columns of the `users` table, you would add the following to the `Schema.sql` file:
+
+```sql
+CREATE TABLE users (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    UNIQUE (email, username)
+);
 ```

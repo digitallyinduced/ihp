@@ -26,6 +26,8 @@ import IHP.EnvVar
 import qualified Prelude
 import qualified GHC.Stack as Stack
 
+import qualified Control.Concurrent as Concurrent
+
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
 newtype BaseUrl = BaseUrl Text
@@ -154,7 +156,11 @@ ihpDefaultConfig = do
             case environment of
                 Development -> 2
                 Production -> 60
-    option $ DBPoolMaxConnections 20
+
+    -- poolMaxResources must not be smaller than numStripes
+    -- https://github.com/digitallyinduced/ihp/issues/1959
+    numCapabilities <- configIO Concurrent.getNumCapabilities
+    option $ DBPoolMaxConnections (max numCapabilities 20)
 
     (AppPort port) <- findOption @AppPort
 
@@ -240,6 +246,7 @@ buildFrameworkConfig appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             (AssetVersion assetVersion) <- findOption @AssetVersion
+            assetBaseUrl <- envOrNothing "IHP_ASSET_BASEURL"
             customMiddleware <- findOption @CustomMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
@@ -400,6 +407,9 @@ data FrameworkConfig = FrameworkConfig
     -- string @"dev"@.
     --
     , assetVersion :: !Text
+
+    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN
+    , assetBaseUrl :: !(Maybe Text)
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware

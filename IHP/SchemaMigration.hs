@@ -12,6 +12,7 @@ import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
 import qualified Data.Char as Char
 import IHP.Log.Types
+import IHP.EnvVar
 
 data Migration = Migration
     { revision :: Int
@@ -37,7 +38,9 @@ migrate options = do
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
 runMigration :: (?modelContext :: ModelContext) => Migration -> IO ()
 runMigration migration@Migration { revision, migrationFile } = do
-    migrationSql <- Text.readFile (cs $ migrationPath migration)
+    -- | User can specify migrations directory as environment variable (defaults to /Application/Migrations/...)
+    migrationFilePath <- migrationPath migration
+    migrationSql <- Text.readFile (cs migrationFilePath)
 
     let fullSql = [trimming|
         BEGIN;
@@ -53,19 +56,17 @@ runMigration migration@Migration { revision, migrationFile } = do
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
     -- Hide this query from the log
-    let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
+    withoutQueryLogging do
+        -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
+        -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
+        -- https://github.com/digitallyinduced/ihp/issues/818
+        maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
+        let schemaMigrationTableExists = isJust maybeTableName
 
-    -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
-    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
-    -- https://github.com/digitallyinduced/ihp/issues/818
-    maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
-    let schemaMigrationTableExists = isJust maybeTableName
-
-    unless schemaMigrationTableExists do
-        let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-        _ <- sqlExec ddl ()
-        pure ()
+        unless schemaMigrationTableExists do
+            let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
+            _ <- sqlExec ddl ()
+            pure ()
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
@@ -96,7 +97,8 @@ findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revis
 -- The result is sorted so that the oldest revision is first.
 findAllMigrations :: IO [Migration]
 findAllMigrations = do
-    directoryFiles <- Directory.listDirectory "Application/Migration"
+    migrationDir <- detectMigrationDir
+    directoryFiles <- Directory.listDirectory (cs migrationDir)
     directoryFiles
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
@@ -123,5 +125,12 @@ pathToMigration fileName = case revision of
                 |> fmap textToInt
                 |> join
 
-migrationPath :: Migration -> Text
-migrationPath Migration { migrationFile } = "Application/Migration/" <> migrationFile
+migrationPath :: Migration -> IO Text
+migrationPath Migration { migrationFile } = do
+    migrationDir <- detectMigrationDir
+    pure (migrationDir <> migrationFile)
+
+detectMigrationDir :: IO Text
+detectMigrationDir =
+    envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
+

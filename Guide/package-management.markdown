@@ -282,6 +282,8 @@ mkDerivation {
 
 Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any Haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
 
+Ensure you add this new nix package to git `git add Config/nix/haskell-packages`, as nix will only pick up files that are part of the git repository. If you forget to add it, Nix may silently ignore your changes, and your build won’t reflect the new package.
+
 Go back to your project directory and run `nix flake update`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
 
 This step might fail with an error like `Encountered missing or private dependencies`:
@@ -371,47 +373,53 @@ After that try to run `devenv up`.
 
 ### Building Postgres With Extensions
 
-**TODO: Fix this for IHP v1.1.0**
-
 For some applications you may want to install custom postgres extension
 libraries and have them available in the nix store.
 
 For example to enable the [postgis](https://postgis.net/) spatial
 and geographic objects in PostgreSQL add
-`postgresExtensions = (p: [ p.postgis ]);` to your project's `default.nix` file as
-an attribute of the `"{ihp}/NixSupport/default.nix"` expression.
+`services.postgres.extensions = extensions: [ extensions.postgis ];` to your project's `flake.nix`:
 
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "c6d40612697bb7905802f23b7753702d33b9e2c1";
+{
+    inputs = {
+        ihp.url = "path:///Users/marc/digitallyinduced/ihp";
+        ihp.inputs.nixpkgs.url = "github:mpscholten/nixpkgs/fix-th-desugar";
+        nixpkgs.follows = "ihp/nixpkgs";
+        flake-parts.follows = "ihp/flake-parts";
+        devenv.follows = "ihp/devenv";
+        systems.follows = "ihp/systems";
     };
-    haskellEnv = import "${ihp}/NixSupport/default.nix" {
-        ihp = ihp;
-        postgresExtensions = (p: [ p.postgis ]);
-        haskellDeps = p: with p; [
-            cabal-install
-            base
-            wai
-            text
-            hlint
-            p.ihp
-            google-oauth2
-        ];
-        otherDeps = p: with p; [
-        ];
-        projectPath = ./.;
-    };
-in
-    haskellEnv
+
+    outputs = inputs@{ ihp, flake-parts, systems, nixpkgs, ... }:
+        flake-parts.lib.mkFlake { inherit inputs; } {
+            systems = import systems;
+            imports = [ ihp.flakeModules.default ];
+
+            perSystem = { pkgs, ... }: {
+                ihp = {
+                    inherit appName;
+                    enable = true;
+                    projectPath = ./.;
+                    packages = with pkgs; [];
+                    haskellPackages = p: with p; [
+                        # ...
+                    ];
+                };
+                devenv.shells.default = {
+                    services.postgres.extensions = extensions: [ extensions.postgis ];
+                };
+            };
+        };
+}
+
 ```
 
 Behind the scenes this will pass a function to the postgres nix expressions `postgresql.withPackages`
 function making the extension in your app's nix store postgres package.
 
-After the install you can run `create extension postgis;` to enable all the features of the
+After the install you can run `CREATE EXTENSION postgis;` to enable all the features of the
 installed extension.
 
 ### Stopping Nix From Running Tests for a Haskell Dependency

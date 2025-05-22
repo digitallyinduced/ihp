@@ -1,0 +1,55 @@
+:set prompt "\ESC[38;5;208m\STXIHP>\ESC[m\STX "
+:set -i.
+:set -iIHP/ihp-hsx
+:set -iIHP/ihp-postgresql-simple-extra
+:set -iConfig
+:set -ibuild
+:set -iIHP
+:set -iIHP/IDE
+:set -threaded
+:set -XOverloadedStrings
+:set -XNoImplicitPrelude
+:set -XImplicitParams
+:set -XRank2Types
+:set -XDisambiguateRecordFields
+:set -XNamedFieldPuns
+:set -XDuplicateRecordFields
+:set -XOverloadedLabels
+:set -XFlexibleContexts
+:set -XTypeSynonymInstances
+:set -XFlexibleInstances
+:set -XQuasiQuotes
+:set -XTypeFamilies
+:set -XPackageImports
+:set -XScopedTypeVariables
+:set -XRecordWildCards
+:set -XTypeApplications
+:set -XDataKinds
+:set -XInstanceSigs
+:set -XDeriveGeneric
+:set -XMultiParamTypeClasses
+:set -XTypeOperators
+:set -XUndecidableInstances
+:set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
+:set -XDeriveDataTypeable
+:set -XLambdaCase
+:set -XDefaultSignatures
+:set -XEmptyDataDeriving
+:set -XBangPatterns
+:set -XBlockArguments
+:set -XMultiWayIf
+:set -XFunctionalDependencies
+:set -package ihp
+:set -fbyte-code
+:set -Wno-partial-type-signatures
+:set -XPartialTypeSignatures
+:set -XStandaloneDeriving
+:set -XDerivingVia
+:set -XTemplateHaskell
+:set -XDeepSubsumption
+:set -XOverloadedRecordDot
+:set -Werror=missing-fields
+:set -fwarn-incomplete-patterns
+:set -package ghc
+:set -fno-warn-ambiguous-fields 
+:l Main.hs

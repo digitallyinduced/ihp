@@ -7,6 +7,7 @@ module IHP.Job.Types
 , Worker (..)
 , JobWorkerProcess (..)
 , JobWorkerProcessMessage (..)
+, BackoffStrategy (..)
 )
 where
 
@@ -14,6 +15,12 @@ import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified IHP.PGListener as PGListener
 import qualified Control.Concurrent as Concurrent
+import Control.Monad.Trans.Resource
+
+data BackoffStrategy
+    = LinearBackoff { delayInSeconds :: !Int }
+    | ExponentialBackoff { delayInSeconds :: !Int }
+    deriving (Eq, Show)
 
 class Job job where
     perform :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => job -> IO ()
@@ -21,7 +28,7 @@ class Job job where
     maxAttempts :: (?job :: job) => Int
     maxAttempts = 10
 
-    timeoutInMicroseconds :: (?job :: job) => Maybe Int
+    timeoutInMicroseconds :: Maybe Int
     timeoutInMicroseconds = Nothing
 
     -- | While jobs are typically fetch using pg_notiy, we have to poll the queue table
@@ -38,6 +45,9 @@ class Job job where
     maxConcurrency :: Int
     maxConcurrency = 16
 
+    backoffStrategy :: BackoffStrategy
+    backoffStrategy = LinearBackoff { delayInSeconds = 30 }
+
 class Worker application where
     workers :: application -> [JobWorker]
 
@@ -48,7 +58,7 @@ data JobWorkerArgs = JobWorkerArgs
     , pgListener :: PGListener.PGListener
     }
 
-newtype JobWorker = JobWorker (JobWorkerArgs -> IO JobWorkerProcess)
+newtype JobWorker = JobWorker (JobWorkerArgs -> ResourceT IO JobWorkerProcess)
 
 -- | Mapping for @JOB_STATUS@. The DDL statement for this can be found in IHPSchema.sql:
 --
@@ -64,9 +74,9 @@ data JobStatus
 
 data JobWorkerProcess
     = JobWorkerProcess
-    { runners :: [Async ()]
+    { runners :: [(ReleaseKey, Async ())]
     , subscription :: PGListener.Subscription
-    , poller :: Async ()
+    , pollerReleaseKey :: ReleaseKey
     , action :: Concurrent.MVar JobWorkerProcessMessage
     }
 

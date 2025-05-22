@@ -13,6 +13,7 @@ module IHP.NameSupport
 , fieldNameToColumnName
 , escapeHaskellKeyword
 , tableNameToControllerName
+, tableNameToViewName
 , enumValueToControllerName
 , toSlug
 , module IHP.NameSupport.Inflections
@@ -66,6 +67,17 @@ tableNameToControllerName tableName = do
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
 {-# INLINABLE tableNameToControllerName #-}
+
+-- | Transforms an underscore table name to a name for a view
+--
+-- >>> tableNameToViewName "users"
+--
+-- >>> tableNameToViewName "projects"
+--
+-- >>> tableNameToViewName "user_projects"
+tableNameToViewName :: Text -> Text
+tableNameToViewName = tableNameToControllerName
+{-# INLINABLE tableNameToViewName #-}
 
 -- | Transforms a enum value to a name for a model
 --

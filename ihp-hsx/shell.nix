@@ -3,12 +3,13 @@ let
         ihp = ./../.;
         haskellPackagesDir = ./../NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc94;
+    ghc = pkgs.haskell.packages.ghc98;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         classy-prelude
         string-conversions
         blaze-html
         blaze-markup
+        lucid2
         text
         bytestring
         basic-prelude

@@ -17,26 +17,24 @@ tests = do
 
         describe "subscribe" do
             it "should add a subscriber" do
-                pgListener <- PGListener.init modelContext
+                PGListener.withPGListener modelContext \pgListener -> do
+                    subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
+                    subscriptionsCount `shouldBe` 0
 
-                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
-                subscriptionsCount `shouldBe` 0
+                    let didInsertRecordCallback notification = pure ()
 
-                let didInsertRecordCallback notification = pure ()
+                    pgListener |> PGListener.subscribe "did_insert_record" didInsertRecordCallback
 
-                pgListener |> PGListener.subscribe "did_insert_record" didInsertRecordCallback
-
-                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
-                subscriptionsCount `shouldBe` 1
+                    subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
+                    subscriptionsCount `shouldBe` 1
 
         describe "unsubscribe" do
             it "remove the subscription" do
-                pgListener <- PGListener.init modelContext
+                PGListener.withPGListener modelContext \pgListener -> do
+                    subscription <- pgListener |> PGListener.subscribe "did_insert_record" (const (pure ()))
+                    pgListener |> PGListener.unsubscribe subscription
 
-                subscription <- pgListener |> PGListener.subscribe "did_insert_record" (const (pure ()))
-                pgListener |> PGListener.unsubscribe subscription
+                    subscriptions <- readIORef pgListener.subscriptions
+                    subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
 
-                subscriptions <- readIORef pgListener.subscriptions
-                subscriptionsCount <- length . concat . HashMap.elems <$> readIORef pgListener.subscriptions
-
-                subscriptionsCount `shouldBe` 0
+                    subscriptionsCount `shouldBe` 0

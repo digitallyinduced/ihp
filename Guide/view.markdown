@@ -181,6 +181,58 @@ Now the `company` variable can be used to read the current user's company across
 
 Use [`theRequest`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:theRequest) to access the current [WAI request](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html).
 
+### Passing JSON to the View
+
+You might need to pass JSON values to the view, so later you could have a JS script to read it. You should use Aeson's `toJSON` function to convert your data to JSON and then pass it to the view. Let's say you have a `Posts` controller and `Post`s records that you want to print in the console.
+
+```haskell
+-- Web/Controller/Posts.hs
+instance Controller PostsController where
+    action PostsAction = do
+        posts <- query @Post |> fetch
+
+        render IndexView { .. }
+
+```
+
+Then in the view, you can access the JSON data like this:
+
+```haskell
+-- Web/View/Posts/Index.hs
+
+module Web.View.Posts.Index where
+import Web.View.Prelude
+
+-- Add Aeson import.
+import Data.Aeson (encode)
+
+data IndexView = IndexView { posts :: [Post] }
+
+instance View IndexView where
+    html IndexView { .. } = [hsx|
+        <div>
+            Open the developer's console to see the posts JSON data.
+        </div>
+        {- Pass the encoded JSON to the JS script -}
+        <script data-posts={encode $ postsToJson posts}>
+            // Parse the encoded JSON, and print to console
+            console.log(JSON.parse(document.currentScript.dataset.posts));
+        </script>
+    |]
+    where
+        postsToJson :: [Post] -> Value
+        postsToJson posts =
+            posts
+                |> fmap (\post -> object
+                    [ "id" .= post.id
+                    , "title" .= post.title
+                    , "body" .= post.body
+                    ])
+                |> toJSON
+```
+
+No you can go to `/Posts`, create a few posts, and see their JSON in the browser's developer console.
+
 ### Highlighting the current active link
 
 Use [`isActiveAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:isActiveAction) to check whether the current request URL matches a given action:

@@ -19,6 +19,8 @@ import IHP.Fetch
 import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
+import qualified IHP.Log as Log
+import Control.Monad.Trans.Resource
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -40,15 +42,15 @@ fetchNextJob :: forall job.
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , Table job
-    ) => UUID -> IO (Maybe job)
-fetchNextJob workerId = do
-    let query = "UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
-    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry)
+    ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
+fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
+    let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
+    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
 
-    result :: [PG.Only (Id job)] <- sqlQuery query params
+    result :: [PG.Only (Id job)] <- withoutQueryLogging (sqlQuery query params)
     case result of
         [] -> pure Nothing
-        [PG.Only id] -> Just <$> fetch id
+        [PG.Only id] -> Just <$> withoutQueryLogging (fetch id)
         otherwise -> error (show otherwise)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
@@ -67,13 +69,13 @@ fetchNextJob workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Concurrent.MVar JobWorkerProcessMessage -> IO (PGListener.Subscription, Async.Async ())
-watchForJob pgListener tableName pollInterval onNewJob = do
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
+watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
-    sqlExec (createNotificationTrigger tableNameBS) ()
+    liftIO $ withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
 
-    poller <- pollForJob tableName pollInterval onNewJob
-    subscription <- pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
+    poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
+    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
 
     pure (subscription, poller)
 
@@ -85,21 +87,28 @@ watchForJob pgListener tableName pollInterval onNewJob = do
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Concurrent.MVar JobWorkerProcessMessage -> IO (Async.Async ())
-pollForJob tableName pollInterval onNewJob = do
-    let query = "SELECT COUNT(*) FROM ? WHERE ((status = ?) OR (status = ? AND updated_at < NOW() + interval '30 seconds')) AND locked_by IS NULL AND run_at <= NOW() LIMIT 1"
-    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry)
-    Async.asyncBound do
-        forever do
-            count :: Int <- sqlQueryScalar query params
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO ReleaseKey
+pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
+    let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " LIMIT 1")
+    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
+    let handler = do
+            forever do
+                -- We don't log the queries to the console as it's filling up the log entries with noise
+                count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
 
-            when (count > 0) (Concurrent.putMVar onNewJob JobAvailable)
+                -- For every job we send one signal to the job workers
+                -- This way we use full concurrency when we find multiple jobs
+                -- that haven't been picked up by the PGListener
+                forEach [1..count] \_ -> do
+                    Concurrent.putMVar onNewJob JobAvailable
 
-            -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
-            jitter <- Random.randomRIO (0, 2000000)
-            let pollIntervalWithJitter = pollInterval + jitter
+                -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
+                jitter <- Random.randomRIO (0, 2000000)
+                let pollIntervalWithJitter = pollInterval + jitter
 
-            Concurrent.threadDelay pollIntervalWithJitter
+                Concurrent.threadDelay pollIntervalWithJitter
+
+    fst <$> allocate (Async.async handler) Async.cancel
 
 createNotificationTrigger :: ByteString -> PG.Query
 createNotificationTrigger tableName = PG.Query $ ""
@@ -123,7 +132,7 @@ channelName :: ByteString -> ByteString
 channelName tableName = "job_available_" <> tableName
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
-jobDidFail :: forall job.
+jobDidFail :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -134,11 +143,13 @@ jobDidFail :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> SomeException -> IO ()
 jobDidFail job exception = do
     updatedAt <- getCurrentTime
 
-    putStrLn ("Failed job with exception: " <> tshow exception)
+    Log.warn ("Failed job with exception: " <> tshow exception)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -152,7 +163,7 @@ jobDidFail job exception = do
 
     pure ()
 
-jobDidTimeout :: forall job.
+jobDidTimeout :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -163,11 +174,13 @@ jobDidTimeout :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> IO ()
 jobDidTimeout job = do
     updatedAt <- getCurrentTime
 
-    putStrLn "Job timed out"
+    Log.warn ("Job timed out" :: Text)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -183,7 +196,7 @@ jobDidTimeout job = do
   
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
-jobDidSucceed :: forall job.
+jobDidSucceed :: forall job context.
     ( job ~ GetModelByTableName (GetTableName job)
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
@@ -194,9 +207,11 @@ jobDidSucceed :: forall job.
     , CanUpdate job
     , Show job
     , ?modelContext :: ModelContext
+    , ?context :: context
+    , HasField "logger" context Log.Logger
     ) => job -> IO ()
 jobDidSucceed job = do
-    putStrLn "Succeeded job"
+    Log.info ("Succeeded job" :: Text)
     updatedAt <- getCurrentTime
     job
         |> set #status JobStatusSucceeded
@@ -244,3 +259,11 @@ instance InputValue JobStatus where
 
 instance IHP.Controller.Param.ParamReader JobStatus where
     readParameter = IHP.Controller.Param.enumParamReader
+
+retryQuery :: BackoffStrategy -> ByteString
+retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"
+retryQuery ExponentialBackoff {} = "updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count)"
+
+timeoutCondition :: Maybe Int -> ByteString
+timeoutCondition (Just timeoutInMicroseconds) = "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((? + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
+timeoutCondition Nothing = "AND (? IS NULL)"

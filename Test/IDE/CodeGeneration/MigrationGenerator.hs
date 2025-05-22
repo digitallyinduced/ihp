@@ -1362,6 +1362,17 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should ignore ar_did_update_.. triggers by IHP.AutoRefresh" do
+                let actualSchema = sql $ cs [plain|
+                    CREATE TRIGGER ar_did_update_plans AFTER UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.notify_did_change_plans();
+                    CREATE TRIGGER ar_did_insert_offices AFTER INSERT ON public.offices FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_offices();
+                    CREATE TRIGGER ar_did_delete_company_profiles AFTER DELETE ON public.company_profiles FOR EACH STATEMENT EXECUTE FUNCTION public.notify_did_change_company_profiles();
+                |]
+                let targetSchema = []
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
             it "should deal with truncated identifiers" do
                 let actualSchema = sql $ cs [plain|
                     CREATE POLICY "Users can manage the prepare_context_jobs if they can see the C" ON public.prepare_context_jobs USING ((EXISTS ( SELECT 1
@@ -1372,6 +1383,17 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
                 let targetSchema = sql $ cs [plain|
                     CREATE POLICY "Users can manage the prepare_context_jobs if they can see the Context" ON prepare_context_jobs USING (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.contexts WHERE contexts.id = prepare_context_jobs.context_id));
+                |]
+                let migration = []
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "should truncate very long constraint names" do
+                let actualSchema = sql $ cs [plain|
+                    ALTER TABLE organization_num_employees_ranges ADD CONSTRAINT organization_num_employees_ranges_ref_prospect_search_request_id FOREIGN KEY (prospect_search_request_id) REFERENCES prospect_search_requests (id) ON DELETE NO ACTION;
+                |]
+                let targetSchema = sql $ cs [plain|
+                    ALTER TABLE organization_num_employees_ranges ADD CONSTRAINT organization_num_employees_ranges_ref_prospect_search_request_i FOREIGN KEY (prospect_search_request_id) REFERENCES prospect_search_requests (id) ON DELETE NO ACTION;
                 |]
                 let migration = []
 

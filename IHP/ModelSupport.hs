@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, TypeInType, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -85,10 +85,8 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
-    numStripes <- GHC.Conc.getNumCapabilities
-    let create = PG.connectPostgreSQL databaseUrl
-    let destroy = PG.close
-    connectionPool <- Pool.createPool create destroy numStripes idleTime maxConnections
+    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
+    connectionPool <- Pool.newPool poolConfig
 
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
@@ -104,9 +102,21 @@ type family GetModelByTableName (tableName :: Symbol) :: Type
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a
     createMany :: (?modelContext :: ModelContext) => [a] -> IO [a]
+    
+    -- | Like 'createRecord' but doesn't return the created record
+    createRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
+    createRecordDiscardResult record = do
+        _ <- createRecord record
+        pure ()
 
 class CanUpdate a where
     updateRecord :: (?modelContext :: ModelContext) => a -> IO a
+
+    -- | Like 'updateRecord' but doesn't return the updated record
+    updateRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
+    updateRecordDiscardResult record = do
+        _ <- updateRecord record
+        pure ()
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -342,8 +352,8 @@ textToId text = case parsePrimaryKey (cs text) of
 
 -- | Measure and log the query time for a given query action if the log level is Debug.
 -- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => IO a -> Query -> q -> IO a
-measureTimeIfLogging queryAction theQuery theParameters = do
+measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => Text -> PG.Connection -> IO a -> Query -> q -> IO a
+measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = do
     let currentLogLevel = ?modelContext.logger.level
     if currentLogLevel == Debug
         then do
@@ -351,7 +361,7 @@ measureTimeIfLogging queryAction theQuery theParameters = do
             queryAction `finally` do
                 end <- getCurrentTime
                 let theTime = end `diffUTCTime` start
-                logQuery theQuery theParameters theTime
+                logQuery logPrefix connection theQuery theParameters theTime
         else queryAction
 
 -- | Runs a raw sql query
@@ -364,15 +374,35 @@ measureTimeIfLogging queryAction theQuery theParameters = do
 --
 -- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
+-- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
+--
 sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (PG.query connection) theQuery theParameters
-        )
-        theQuery
-        theParameters
+    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlQuery #-}
+
+
+-- | Runs a raw sql query, that is expected to return a single result row
+--
+-- Like 'sqlQuery', but useful when you expect only a single row as the result
+--
+-- __Example:__
+--
+-- > user <- sqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
+--
+-- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
+--
+-- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+--
+sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record) => Query -> query -> IO record
+sqlQuerySingleRow theQuery theParameters = do
+    result <- sqlQuery theQuery theParameters
+    case result of
+        [] -> error ("sqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
+        [record] -> pure record
+        otherwise -> error ("sqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+{-# INLINABLE sqlQuerySingleRow #-}
 
 -- | Runs a sql statement (like a CREATE statement)
 --
@@ -381,13 +411,20 @@ sqlQuery theQuery theParameters = do
 -- > sqlExec "CREATE TABLE users ()" ()
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (PG.execute connection) theQuery theParameters
-        )
-        theQuery
-        theParameters
+    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "💾" connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
 {-# INLINABLE sqlExec #-}
+
+-- | Runs a sql statement (like a CREATE statement), but doesn't return any result
+--
+-- __Example:__
+--
+-- > sqlExecDiscardResult "CREATE TABLE users ()" ()
+sqlExecDiscardResult :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO ()
+sqlExecDiscardResult theQuery theParameters = do
+    _ <- sqlExec theQuery theParameters
+    pure ()
+{-# INLINABLE sqlExecDiscardResult #-}
 
 -- | Wraps the query with Row level security boilerplate, if a row level security context was provided
 --
@@ -428,12 +465,7 @@ withDatabaseConnection block =
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
-    result <- measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.query connection theQuery theParameters
-        )
-        theQuery
-        theParameters
+    result <- sqlQuery theQuery theParameters
     pure case result of
         [PG.Only result] -> result
         _ -> error "sqlQueryScalar: Expected a scalar result value"
@@ -448,12 +480,7 @@ sqlQueryScalar theQuery theParameters = do
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
-    result <- measureTimeIfLogging
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            PG.query connection theQuery theParameters
-        )
-        theQuery
-        theParameters
+    result <- sqlQuery theQuery theParameters
     pure case result of
         [] -> Nothing
         [PG.Only result] -> Just result
@@ -566,41 +593,77 @@ class
     --
     columnNames :: [ByteString]
 
-    -- | Returns WHERE conditions to match an entity by it's primary key
+    -- | Returns the list of column names, that are contained in the primary key for a given model
     --
-    -- For tables with a simple primary key this returns a tuple with the id:
+    -- __Example:__
     --
-    -- >>> primaryKeyCondition project
-    -- [("id", "d619f3cf-f355-4614-8a4c-e9ea4f301e39")]
+    -- >>> primaryKeyColumnNames @User
+    -- ["id"]
+    --
+    -- >>> primaryKeyColumnNames @PostTagging
+    -- ["post_id", "tag_id"]
+    --
+    primaryKeyColumnNames :: [ByteString]
+
+    -- | Returns the parameters for a WHERE conditions to match an entity by it's primary key, given the entities id
+    --
+    -- For tables with a simple primary key this simply the id:
+    --
+    -- >>> primaryKeyConditionForId project.id
+    -- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
     --
     -- If the table has a composite primary key, this returns multiple elements:
     --
-    -- >>> primaryKeyCondition postTag
-    -- [("post_id", "0ace9270-568f-4188-b237-3789aa520588"), ("tag_id", "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c")]
-    --
-    primaryKeyCondition :: record -> [(Text, PG.Action)]
-    default primaryKeyCondition :: forall id. (HasField "id" record id, ToField id) => record -> [(Text, PG.Action)]
-    primaryKeyCondition record = [("id", toField record.id)]
+    -- >>> primaryKeyConditionForId postTag.id
+    -- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
+    -- 
+    -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
+    primaryKeyConditionForId :: Id record -> PG.Action
 
-logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Query -> parameters -> NominalDiffTime -> IO ()
-logQuery query parameters time = do
+-- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
+-- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
+-- >>> primaryKeyColumnSelector @PostTag
+-- "(post_tags.post_id, post_tags.tag_id)"
+-- >>> primaryKeyColumnSelector @Post
+-- "post_tags.post_id"
+primaryKeyConditionColumnSelector :: forall record. (Table record) => ByteString
+primaryKeyConditionColumnSelector = 
+    let 
+        qualifyColumnName col = tableNameByteString @record <> "." <> col
+    in
+    case primaryKeyColumnNames @record of
+            [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
+            [s] -> qualifyColumnName s
+            conds -> "(" <> intercalate ", " (map qualifyColumnName conds) <> ")"
+
+-- | Returns WHERE conditions to match an entity by it's primary key
+--
+-- For tables with a simple primary key this returns a tuple with the id:
+--
+-- >>> primaryKeyCondition project
+-- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
+--
+-- If the table has a composite primary key, this returns multiple elements:
+--
+-- >>> primaryKeyCondition postTag
+-- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
+primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
+primaryKeyCondition record = primaryKeyConditionForId @record record.id
+
+logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Text -> PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
+logQuery logPrefix connection query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double
+        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double |> round
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
                 Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
                 Nothing -> ""
-        let
-            -- We don't use the normal 'show' here as it adds lots of noise like 'Escape' or 'Plain' to the output
-            showAction (PG.Plain builder) = cs (Builder.toLazyByteString builder)
-            showAction (PG.Escape byteString) = cs byteString
-            showAction (PG.EscapeByteA byteString) = cs byteString
-            showAction (PG.EscapeIdentifier byteString) = cs byteString
-            showAction (PG.Many actions) = concatMap showAction actions
-        Log.debug ("Query (" <>  tshow queryTimeInMs <> "ms): " <> tshow query <> " [" <> (intercalate ", " $ map showAction $ PG.toRow parameters) <> "]" <> rlsInfo)
+
+        formatted <- PG.formatQuery connection query parameters
+        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> tshow queryTimeInMs <> "ms)")
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
@@ -610,7 +673,8 @@ logQuery query parameters time = do
 -- DELETE FROM projects WHERE id = '..'
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
-deleteRecord :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), GetModelByTableName table ~ record, Show (PrimaryKey table), ToField (PrimaryKey table)) => record -> IO ()
+--
+deleteRecord :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), HasField "id" record (Id record), GetTableName record ~ table, record ~ GetModelByTableName table) => record -> IO ()
 deleteRecord record =
     deleteRecordById @record record.id
 {-# INLINABLE deleteRecord #-}
@@ -621,11 +685,11 @@ deleteRecord record =
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, ToField (PrimaryKey table), Show (PrimaryKey table), record ~ GetModelByTableName table) => Id' table -> IO ()
+deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
 deleteRecordById id = do
-    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id = ?"
-    let theParameters = PG.Only id
-    sqlExec (PG.Query . cs $! theQuery) theParameters
+    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
+    let theParameters = PG.Only $ primaryKeyConditionForId @record id
+    sqlExec (PG.Query $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordById #-}
 
@@ -634,7 +698,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), ToField (PrimaryKey table), record ~ GetModelByTableName table) => [record] -> IO ()
+deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), GetTableName record ~ table, record ~ GetModelByTableName table) => [record] -> IO ()
 deleteRecords records =
     deleteRecordByIds @record (ids records)
 {-# INLINABLE deleteRecords #-}
@@ -645,11 +709,11 @@ deleteRecords records =
 -- >>> delete projectIds
 -- DELETE FROM projects WHERE id IN ('..')
 --
-deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, ToField (PrimaryKey table), record ~ GetModelByTableName table) => [Id' table] -> IO ()
+deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table) => [Id' table] -> IO ()
 deleteRecordByIds ids = do
-    let theQuery = "DELETE FROM " <> tableName @record <> " WHERE id IN ?"
-    let theParameters = (PG.Only (PG.In ids))
-    sqlExec (PG.Query . cs $! theQuery) theParameters
+    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
+    let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
+    sqlExec (PG.Query $! theQuery) theParameters
     pure ()
 {-# INLINABLE deleteRecordByIds #-}
 
@@ -1039,3 +1103,38 @@ onlyWhereReferencesMaybe field referenced records = filter (\record -> get field
 --
 isValid :: forall record. (HasField "meta" record MetaBag) => record -> Bool
 isValid record = isEmpty record.meta.annotations
+
+-- | Copies all the fields (except the 'id' field) into a new record
+--
+-- Example: Duplicate a database record (except the primary key of course)
+--
+-- > project <- fetch projectId
+-- > duplicatedProject <- createRecord (copyRecord project)
+--
+copyRecord :: forall record id. (Table record, SetField "id" record id, Default id, SetField "meta" record MetaBag) => record -> record
+copyRecord existingRecord =
+    let
+        fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
+
+        meta :: MetaBag
+        meta = def { touchedFields = map (IHP.NameSupport.columnNameToFieldName . cs) fieldsExceptId }
+    in
+        existingRecord
+            |> set #id def
+            |> set #meta meta
+
+-- | Runs sql queries without logging them
+--
+-- Example:
+--
+-- > users <- withoutQueryLogging (sqlQuery "SELECT * FROM users" ())
+--
+withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => result) -> result
+withoutQueryLogging callback =
+    let
+        modelContext = ?modelContext
+        nullLogger = modelContext.logger { write = \_ -> pure ()}
+    in
+        let ?modelContext = modelContext { logger = nullLogger }
+        in
+            callback

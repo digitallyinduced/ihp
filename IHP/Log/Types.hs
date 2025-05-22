@@ -69,11 +69,11 @@ show = tshow
 -- logging operations. Users can also access this though the 'LoggingProvider'
 -- class in controller and model actions to perform logic based on the set log level.
 data Logger = Logger {
-    write     :: (FastLogger.FormattedTime -> LogStr) -> IO (),
-    level     :: LogLevel,
-    formatter :: LogFormatter,
-    timeCache :: IO FastLogger.FormattedTime,
-    cleanup   :: IO ()
+    write     :: !((FastLogger.FormattedTime -> LogStr) -> IO ()),
+    level     :: !LogLevel,
+    formatter :: !LogFormatter,
+    timeCache :: !(IO FastLogger.FormattedTime),
+    cleanup   :: !(IO ())
 }
 
 data LogLevel
@@ -145,7 +145,7 @@ data RotateSettings
     --      destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
     --      }
     -- @
-    | SizeRotate Bytes Int
+    | SizeRotate !Bytes !Int
     -- | Log messages to a file rotated on a timed basis.
     -- Expects a time format string as well as a function which compares two formatted time strings
     -- which is used to determine if the file should be rotated.
@@ -168,19 +168,19 @@ data RotateSettings
     --          defaultBufSize
     --        }
     -- @
-    | TimedRotate TimeFormat (FastLogger.FormattedTime -> FastLogger.FormattedTime -> Bool) (FilePath -> IO ())
+    | TimedRotate !TimeFormat (FastLogger.FormattedTime -> FastLogger.FormattedTime -> Bool) (FilePath -> IO ())
 
 -- | Where logged messages will be delivered to.
 data LogDestination
     = None
     -- | Log messages to standard output.
-    | Stdout BufSize
+    | Stdout !BufSize
     -- | Log messages to standard error.
-    | Stderr BufSize
+    | Stderr !BufSize
     -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
-    | File FilePath RotateSettings BufSize
+    | File !FilePath !RotateSettings !BufSize
     -- | Send logged messages to a callback. Flush action called after every log.
-    | Callback (LogStr -> IO ()) (IO ())
+    | Callback !(LogStr -> IO ()) !(IO ())
 
 data LoggerSettings = LoggerSettings {
     level       :: LogLevel,

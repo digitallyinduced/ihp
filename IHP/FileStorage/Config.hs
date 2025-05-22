@@ -94,7 +94,9 @@ initMinioStorage server bucket = do
 -- >     initStaticDirStorage
 --
 initStaticDirStorage :: State.StateT TMap.TMap IO ()
-initStaticDirStorage = option StaticDirStorage
+initStaticDirStorage = do
+    directory <- EnvVar.envOrDefault "IHP_STORAGE_DIR" "static/"
+    option StaticDirStorage { directory }
 
 -- | The Filebase access key and secret key have to be provided using the @FILEBASE_KEY@ and @FILEBASE_SECRET@ env vars.
 --

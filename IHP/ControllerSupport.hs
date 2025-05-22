@@ -29,7 +29,7 @@ module IHP.ControllerSupport
 
 import ClassyPrelude
 import IHP.HaskellSupport
-import Network.Wai (Response, Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -39,7 +39,6 @@ import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
 import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
-import qualified Control.Exception as Exception
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
@@ -66,6 +65,9 @@ class InitControllerContext application where
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
+instance InitControllerContext () where
+    initContext = pure ()
+
 {-# INLINE runAction #-}
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
@@ -84,17 +86,6 @@ runAction controller = do
 
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
-applyContextSetter :: (TypeMap.TMap -> TypeMap.TMap) -> ControllerContext -> IO ControllerContext
-applyContextSetter setter ctx@ControllerContext { customFieldsRef } = do
-    modifyIORef' customFieldsRef (applySetter setter)
-    pure $ ctx { customFieldsRef }
-    where
-        fromSetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap
-        fromSetter f = f TypeMap.empty
-
-        applySetter :: (TypeMap.TMap -> TypeMap.TMap) -> TypeMap.TMap -> TypeMap.TMap
-        applySetter f map = TypeMap.union (fromSetter f) map
-
 {-# INLINE newContextForAction #-}
 newContextForAction
     :: forall application controller
@@ -106,15 +97,14 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => (TypeMap.TMap -> TypeMap.TMap) -> controller -> IO (Either (IO ResponseReceived) ControllerContext)
-newContextForAction contextSetter controller = do
+    => controller -> IO (Either (IO ResponseReceived) ControllerContext)
+newContextForAction controller = do
     let ?modelContext = ?applicationContext.modelContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
     Context.putContext (Context.ActionType (Typeable.typeOf controller))
-    applyContextSetter contextSetter controllerContext
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
@@ -128,7 +118,7 @@ newContextForAction contextSetter controller = do
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
-    contextOrResponse <- newContextForAction (\t -> t) controller
+    contextOrResponse <- newContextForAction controller
     case contextOrResponse of
         Left response -> response
         Right context -> do
@@ -149,12 +139,11 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived -> IO ResponseReceived
-startWebSocketApp onHTTP = do
+startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp initialState onHTTP request respond = do
     let ?modelContext = ?applicationContext.modelContext
-    let ?requestContext = ?context
-    let respond = ?context.respond
-    let request = ?context.request
+    requestContext <- createRequestContext ?applicationContext request respond
+    let ?requestContext = requestContext
 
     let handleConnection pendingConnection = do
             connection <- WebSockets.acceptRequest pendingConnection
@@ -167,7 +156,7 @@ startWebSocketApp onHTTP = do
             try (initContext @application) >>= \case
                 Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> tshow exception
                 Right context -> do
-                    WebSockets.startWSApp @webSocketApp connection
+                    WebSockets.startWSApp initialState connection
 
     let connectionOptions = WebSockets.connectionOptions @webSocketApp
 
@@ -177,8 +166,8 @@ startWebSocketApp onHTTP = do
             Just response -> respond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => IO ResponseReceived
-startWebSocketAppAndFailOnHTTP = startWebSocketApp @webSocketApp @application (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
+startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
         respond = ?context.respond
 
@@ -257,7 +246,7 @@ requestBodyJSON =
 
 {-# INLINE createRequestContext #-}
 createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { session, frameworkConfig } request respond = do
+createRequestContext ApplicationContext { frameworkConfig } request respond = do
     let contentType = lookup hContentType (requestHeaders request)
     requestBody <- case contentType of
         "application/json" -> do
@@ -268,7 +257,7 @@ createRequestContext ApplicationContext { session, frameworkConfig } request res
             (params, files) <- WaiParse.parseRequestBodyEx frameworkConfig.parseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
-    pure RequestContext.RequestContext { request, respond, requestBody, vault = session, frameworkConfig }
+    pure RequestContext.RequestContext { request, respond, requestBody, frameworkConfig }
 
 
 -- | Returns a custom config parameter

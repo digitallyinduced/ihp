@@ -35,12 +35,13 @@ import qualified Network.Wai.Parse as Wai
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.TMap as TMap
+import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory as Directory
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
-import IHP.FileStorage.MimeTypes
+import qualified Network.Mime as Mime
 
 -- | Uploads a file to a directory in the storage
 --
@@ -96,23 +97,23 @@ storeFileWithOptions fileInfo options = do
 
     let fileName = options.fileName |> fromMaybe objectId
 
-    let directory = options.directory
-    let objectPath = directory <> "/" <> UUID.toText fileName
+    let objectPath = options.directory <> "/" <> UUID.toText fileName
     let preprocess = options.preprocess
 
     fileInfo <- preprocess fileInfo
 
     url <- case storage of
-        StaticDirStorage -> do
-            let destPath :: Text = "static/" <> objectPath
-            Directory.createDirectoryIfMissing True (cs $ "static/" <> directory)
+        StaticDirStorage { directory } -> do
+            let destPath :: Text = directory <> objectPath
+            Directory.createDirectoryIfMissing True (cs $ directory <> options.directory)
 
             fileInfo
                 |> (.fileContent)
                 |> LBS.writeFile (cs destPath)
 
             let frameworkConfig = ?context.frameworkConfig
-            pure $ frameworkConfig.baseUrl <> "/" <> objectPath
+            -- Prefix with a slash so it can be used in URLs, even if the baseUrl is empty.
+            pure $ "/" <> objectPath
         S3Storage { connectInfo, bucket, baseUrl } -> do
             let payload = fileInfo
                     |> (.fileContent)
@@ -179,7 +180,7 @@ storeFileFromUrl url options = do
 --
 storeFileFromPath :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromPath path options = do
-    let fileContentType = path |> guessMimeType |> cs
+    let fileContentType = Mime.defaultMimeLookup (cs path)
 
     fileContent <- LBS.readFile (cs path)
     let file = Wai.FileInfo
@@ -224,9 +225,19 @@ createTemporaryDownloadUrlFromPathWithExpiredAt :: (?context :: context, ConfigP
 createTemporaryDownloadUrlFromPathWithExpiredAt validInSeconds objectPath = do
     publicUrlExpiredAt <- addUTCTime (fromIntegral validInSeconds) <$> getCurrentTime
     case storage of
-        StaticDirStorage -> do
+        StaticDirStorage {} -> do
             let frameworkConfig = ?context.frameworkConfig
-            let url = frameworkConfig.baseUrl <> "/" <> objectPath
+            let urlSchemes = ["http://", "https://"]
+
+            let cleanPath = if "/" `isPrefixOf` objectPath
+                    then Text.drop 1 objectPath
+                    else objectPath
+
+            let url = if any (`isPrefixOf` objectPath) urlSchemes
+                    -- Legacy case: full URL saved, use as is.
+                    then objectPath
+                    -- Otherwise, construct full URL using baseUrl and cleaned path.
+                    else frameworkConfig.baseUrl <> "/" <> cleanPath
 
             pure TemporaryDownloadUrl { url = cs url, expiredAt = publicUrlExpiredAt }
         S3Storage { connectInfo, bucket} -> do
@@ -391,8 +402,8 @@ uploadToStorage field record = uploadToStorageWithOptions def field record
 removeFileFromStorage :: (?context :: context, ConfigProvider context) => StoredFile -> IO (Either MinioErr ())
 removeFileFromStorage StoredFile { path, url } = do
     case storage of
-        StaticDirStorage -> do
-            let fullPath :: String = cs $ "static/" <> path
+        StaticDirStorage { directory } -> do
+            let fullPath :: String = cs $ directory <> path
             Directory.removeFile fullPath
             pure $ Right ()
         S3Storage { connectInfo, bucket} -> do
@@ -408,5 +419,5 @@ storage = ?context.frameworkConfig.appConfig
 -- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
 storagePrefix :: (?context :: ControllerContext) => Text
 storagePrefix = case storage of
-    StaticDirStorage -> "static/"
+    StaticDirStorage { directory } -> directory
     _ -> ""

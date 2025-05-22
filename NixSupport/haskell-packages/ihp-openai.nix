@@ -1,14 +1,18 @@
 { mkDerivation, lib, base
 , text, http-streams, retry, io-streams, bytestring, aeson, HsOpenSSL
+, hspec, neat-interpolation, safe-exceptions
 }:
 mkDerivation {
   pname = "ihp-openai";
-  version = "v1.2.0";
+  version = "v1.3.0";
   src = ./../../ihp-openai;
   isLibrary = true;
   isExecutable = false;
   libraryHaskellDepends = [
-    base text http-streams retry io-streams bytestring aeson HsOpenSSL
+    base text http-streams retry io-streams bytestring aeson HsOpenSSL safe-exceptions
+  ];
+  testHaskellDepends = [
+    base text http-streams retry io-streams bytestring aeson HsOpenSSL hspec neat-interpolation
   ];
   enableLibraryForGhci = true;
   homepage = "https://ihp.digitallyinduced.com";

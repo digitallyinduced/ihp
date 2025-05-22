@@ -26,7 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
                     '';
-                    default = pkgs.haskell.packages.ghc94;
+                    default = pkgs.haskell.packages.ghc98;
                 };
 
                 packages = lib.mkOption {
@@ -50,6 +50,14 @@ ihpFlake:
                         p.hlint
                         p.ihp
                     ];
+                };
+
+                appName = lib.mkOption {
+                    description = '' 
+                        The derivation name.
+                    '';
+                    type = lib.types.str;
+                    default = "app";
                 };
 
                 projectPath = lib.mkOption {
@@ -90,6 +98,22 @@ ihpFlake:
                     type = lib.types.listOf (lib.types.str);
                     default = [];
                 };
+
+                rtsFlags = lib.mkOption {
+                    description = ''
+                        GHC RTS Flags used for compiled binaries (unoptimized-prod-server and optimized-prod-server)
+                    '';
+                    type = lib.types.str;
+                    default = "-A96m -N";
+                };
+
+                optimizationLevel = lib.mkOption {
+                    description = ''
+                        With optimizationLevel = 2, will pass -O2 to GHC when compiling optimized-prod-server
+                    '';
+                    type = lib.types.str;
+                    default = "1";
+                };
             };
         }
     );
@@ -98,14 +122,10 @@ ihpFlake:
         perSystem = { self', lib, pkgs, system, config, ... }: let
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
-            ghcCompiler = import "${ihp}/NixSupport/mkGhcCompiler.nix" {
-                inherit pkgs;
-                inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
-                ihp = ihp;
-                haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
-                filter = ihpFlake.inputs.nix-filter.lib;
-            };
+            ghcCompiler = pkgs.ghc;
         in lib.mkIf cfg.enable {
+            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+
             # release build package
             packages = {
                 default = self'.packages.unoptimized-prod-server;
@@ -115,12 +135,14 @@ ihpFlake:
                     haskellDeps = cfg.haskellPackages;
                     otherDeps = p: cfg.packages;
                     projectPath = cfg.projectPath;
-                    # Dev tools are not needed in the release build
-                    includeDevTools = false;
                     # Set optimized = true to get more optimized binaries, but slower build times
                     optimized = true;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
+                    rtsFlags = cfg.rtsFlags;
+                    optimizationLevel = cfg.optimizationLevel;
+                    appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -128,10 +150,13 @@ ihpFlake:
                     haskellDeps = cfg.haskellPackages;
                     otherDeps = p: cfg.packages;
                     projectPath = cfg.projectPath;
-                    includeDevTools = false;
                     optimized = false;
                     ghc = ghcCompiler;
                     pkgs = pkgs;
+                    rtsFlags = cfg.rtsFlags;
+                    optimizationLevel = "0";
+                    appName = cfg.appName;
+                    filter = ihpFlake.inputs.nix-filter.lib;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
@@ -153,17 +178,42 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
+                    nativeBuildInputs = [ihp.ihp-ide];
                     installPhase = ''
                         mkdir $out
-                        cp ${ihp}/lib/IHP/IHPSchema.sql $out/
+                        cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
+                    '';
+                    allowedReferences = [];
+                };
+
+
+                schema = pkgs.stdenv.mkDerivation {
+                    name = "schema";
+                    src = cfg.projectPath;
+                    phases = [ "unpackPhase" "installPhase" ];
+                    installPhase = ''
+                        mkdir $out
+                        cp Application/Schema.sql $out/
                     '';
                 };
             };
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp pkgs.postgresql_13 pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ++ [(let cfg = config.devenv.shells.default.services.postgres; in
+                        if cfg.extensions != null
+                        then
+                          if builtins.hasAttr "withPackages" cfg.package
+                          then cfg.package.withPackages cfg.extensions
+                          else
+                            builtins.throw ''
+                              Cannot add extensions to the PostgreSQL package.
+                              `services.postgres.package` is missing the `withPackages` attribute. Did you already add extensions to the package?
+                            ''
+                        else cfg.package
+                    )]
                     ;
 
                 /*
@@ -178,14 +228,13 @@ ihpFlake:
                                              then ghcCompiler.ghc.withHoogle
                                              else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
 
-                languages.haskell.languageServer = ghcCompiler.haskell-language-server;
                 languages.haskell.stack = null; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    ${ghcCompiler.ihp}/bin/RunDevServer
+                    ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
-                processes.devServer.exec = "start";
+                processes.ihp.exec = "start";
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
@@ -196,6 +245,7 @@ ihpFlake:
                 # As the devenv postgres uses a different location for the socket
                 # this would break lots of known commands such as `make db`
                 services.postgres.enable = false;
+                services.postgres.package = pkgs.postgresql_13;
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
@@ -217,8 +267,8 @@ ihpFlake:
                     }
                 ];
 
-                env.IHP_LIB = "${ihp}/lib/IHP";
-                env.IHP = "${ihp}/lib/IHP"; # Used in the Makefile
+                env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
+                env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
@@ -239,6 +289,8 @@ ihpFlake:
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
                     ssh $1 systemctl start migrate
                 '';
+
+                overlays = [ihp.overlays.default];
             };
         };
 

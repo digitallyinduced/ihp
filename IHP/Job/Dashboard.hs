@@ -109,7 +109,7 @@ class ( job ~ GetModelByTableName (GetTableName job)
 --
 -- Later functions and typeclasses introduce constraints on the types in this list,
 -- so you'll get a compile error if you try and include a type that is not a job.
-class JobsDashboard (jobs :: [*]) where
+class JobsDashboard (jobs :: [Type]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeDashboardSection' on each type.
     makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
 
