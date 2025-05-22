@@ -154,6 +154,13 @@ deploy-to-nixos ihp-app
 
 This will connect to the server via SSH and apply the NixOS configuration to the server.
 
+### Database connectivity
+
+To easily access to the remote database for debugging purpose, you can use:
+```bash
+make psql-remote env=ihp-app
+```
+
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.
