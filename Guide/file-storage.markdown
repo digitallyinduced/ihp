@@ -44,6 +44,10 @@ config = do
 
 ### S3
 
+AWS S3 is a popular cloud storage service that allows you to store and retrieve files. IHP provides a simple way to integrate with S3.
+See MinIo section below to learn how to setup an S3 compatible storage service for your local development. So your application can use the same code for
+both local development and production.
+
 Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 
 ```haskell
@@ -85,6 +89,21 @@ export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
 
 ### Minio
 
+Enable MinIo in your `flake.nix`
+
+```nix
+devenv.shells.default = {
+    # Enable S3 compatibility with MinIO.
+    services.minio = {
+        enable = true;
+        buckets = [ "ihp-bucket" ];
+    };
+
+};
+```
+
+When working locally, the MinIO server is started by the `devenv up` command.
+
 Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 
 ```haskell
@@ -106,10 +125,12 @@ config = do
     option Development
     option (AppHostname "localhost")
 
-    initMinioStorage "https://minio.example.com" "my-bucket-name"
-```
+    -- Local development, we use MinIo.
+    initMinioStorage "http://127.0.0.1:9000" "ihp-bucket"
 
-You need to replace `https://minio.example.com` with your minio server and `my-bucket-name` with the name of your bucket.
+    -- Or if you have a remote Minio server:
+    -- initMinioStorage "https://minio.example.com" "my-bucket-name"
+```
 
 The Minio access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars.
 
@@ -121,9 +142,9 @@ source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cf
 use devenv
 
 # ...
-
-export MINIO_ACCESS_KEY="YOUR KEY"            # <---------
-export MINIO_SECRET_KEY="YOUR SECRET"     # <---------
+# When working locally, these are the default credentials.
+export MINIO_ACCESS_KEY="minioadmin"
+export MINIO_SECRET_KEY="minioadmin"
 ```
 
 ### Filebase
@@ -865,51 +886,110 @@ Then we have our controller logic.
 -- Web/Controller/ImageStyle.hs
 module Web.Controller.ImageStyle where
 
-import Web.Controller.Prelude
-import IHP.ControllerSupport
-import System.Directory (doesFileExist)
+import Control.Exception (SomeException, try)
+import qualified Data.Conduit as C
+import qualified Data.Conduit.Binary as CB
+import Data.Either (isRight)
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID (fromText)
+import IHP.ControllerSupport
+import qualified Network.Minio as Minio
+import System.Directory (doesFileExist)
+import Web.Controller.Prelude
 
 instance Controller ImageStyleController where
-    action RenderImageStyleAction { width, height, originalImagePath } = do
+    action RenderImageStyleAction {width, height, originalImagePath} = do
         let size = show width <> "x" <> show height
+            (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
+            imageStylePathDirectory = originalImageDirectory <> "/imageStyles/" <> size
+            imageStylePath = imageStylePathDirectory <> "/" <> uuid
+            originalImageDirectoryWithoutStoragePrefix = Text.replace storagePrefix "" originalImageDirectory
+            imageStylePathDirectoryWithoutStoragePrefix = Text.replace storagePrefix "" imageStylePathDirectory
+            imageStylePathWithoutStoragePrefix = Text.replace storagePrefix "" imageStylePath
 
-        -- Get the original image directory and UUID from the path.
-        let (originalImageDirectory, uuid) = extractDirectoryAndUUID originalImagePath
+        case storage of
+            StaticDirStorage {} -> do
+                fileExists <- doesFileExist (cs $ storagePrefix <> imageStylePath)
+                if fileExists
+                    then renderFile (cs $ storagePrefix <> imageStylePath) "application/jpg"
+                    else do
+                        let objectPath = cs $ storagePrefix <> originalImageDirectory <> "/" <> uuid
+                        processAndStore uuid objectPath imageStylePathDirectory size (Nothing, Nothing)
+            S3Storage {connectInfo, bucket} -> do
+                let tempFileName = cs uuid
+                    tempFilePath = "/tmp/" <> tempFileName
+                    objectPath = originalImageDirectoryWithoutStoragePrefix <> "/" <> cs uuid
 
-        let imageStylePathDirectory = originalImageDirectory <> "/imageStyles/" <> size
-        let imageStylePath = imageStylePathDirectory <> "/" <> uuid
+                remoteFileExists <-
+                    Minio.runMinio connectInfo
+                        $ Minio.statObject bucket imageStylePathWithoutStoragePrefix Minio.defaultGetObjectOptions
 
-        fileExists <- doesFileExist (cs $ storagePrefix <> imageStylePath)
+                case remoteFileExists of
+                    -- File doesn't exist, so we need to process and store it.
+                    Left _ -> do
+                        -- Download original image into a temp file
+                        downloadResult <-
+                            Minio.runMinio connectInfo
+                                $ do
+                                    response <- Minio.getObject bucket objectPath Minio.defaultGetObjectOptions
+                                    let objectInfo = Minio.gorObjectInfo response
+                                    let metadata = Minio.oiMetadata objectInfo
+                                    let maybeContentDisposition = HM.lookup "Content-Disposition" metadata
+                                    let maybeContentType = HM.lookup "Content-Type" metadata
+                                    -- Write the stream to the temp file
+                                    C.connect (Minio.gorObjectStream response) (CB.sinkFileCautious tempFilePath)
+                                    pure (maybeContentDisposition, maybeContentType)
 
-        if fileExists
-            then do
-                -- Image style found.
-                renderFile (cs $ storagePrefix <> imageStylePath) "application/jpg"
-            else do
-                -- Image style not found, so create it.
-                let options :: StoreFileOptions = def
-                        { directory = imageStylePathDirectory
-                        , preprocess = applyImageMagick "jpg" ["-resize", cs size <> "^", "-gravity", "center", "-extent", cs size, "-quality", "85%", "-strip"]
-                        -- Keep the original filename.
-                        , fileName = UUID.fromText uuid
-                        }
+                        case downloadResult of
+                            Left err ->
+                                error $ "Failed to download original image from S3: " <> show err
+                            Right (maybeContentDisposition, maybeContentType) ->
+                                -- Hand off the local file for resizing + re‐upload
+                                processAndStore uuid tempFilePath imageStylePathDirectoryWithoutStoragePrefix size (maybeContentDisposition, maybeContentType)
+                    Right signedUrl -> do
+                        signedUrl <- createTemporaryDownloadUrlFromPath imageStylePathWithoutStoragePrefix
+                        -- Redirect, to serve the file from S3.
+                        redirectToUrl (cs signedUrl.url)
 
-                storedFile <- storeFileFromPath (cs $ storagePrefix <> originalImageDirectory <> "/" <> uuid) options
+processAndStore :: (?context :: ControllerContext) => Text -> FilePath -> Text -> Text -> (Maybe Text, Maybe Text) -> IO ()
+processAndStore uuid sourcePath imageStylePathDirectory size (maybeContentDisposition, maybeContentType) = do
+    let options :: StoreFileOptions =
+            def
+                { directory = imageStylePathDirectory
+                , preprocess =
+                    applyImageMagick
+                        "jpg"
+                        ["-resize", cs size <> "^", "-gravity", "center", "-extent", cs size, "-quality", "85%", "-strip"]
+                , fileName = UUID.fromText uuid
+                , contentDisposition = \_ -> pure maybeContentDisposition
+                }
+    storedFile <- storeFileFromPath (cs sourcePath) options
 
-                renderFile (cs $ storagePrefix <> storedFile.path) "application/jpg"
+    let contentType = cs $ fromMaybe "application/jpg" maybeContentType
+
+    case storage of
+        StaticDirStorage {} ->
+            -- Render the local file.
+            renderFile (cs $ storagePrefix <> storedFile.path) contentType
+        S3Storage {connectInfo, bucket, baseUrl} -> do
+            signedUrl <- createTemporaryDownloadUrlFromPath storedFile.path
+            -- Redirect, to serve the file from S3.
+            redirectToUrl (cs signedUrl.url)
 
 -- | Extracts the directory and UUID from a path like "pictures/8ed22caa-11ea-4c45-a05e-91a51e72558d"
 extractDirectoryAndUUID :: (?context :: context, ConfigProvider context) => Text -> (Text, Text)
 extractDirectoryAndUUID inputText =
     case reverse parts of
-        uuid : pathSegments -> (Text.intercalate "/" (reverse pathSegments), uuid)
+        rawUuid : pathSegments ->
+            -- Ensure we have only the UUID without any query parameters.
+            let uuid = Text.take 36 rawUuid
+             in (Text.intercalate "/" (reverse pathSegments), uuid)
         _ -> ("", "")
-    where
-        frameworkConfig = ?context.frameworkConfig
-        trimmedText = Text.replace (frameworkConfig.baseUrl <> "/") "" inputText
-        parts = Text.splitOn "/" trimmedText
+  where
+    frameworkConfig = ?context.frameworkConfig
+    trimmedText = Text.replace (frameworkConfig.baseUrl <> "/") "" inputText
+    parts = Text.splitOn "/" trimmedText
 ```
 
 Now, from any `Show` action, we can use the image style. Here we create a 400px x 200px image style for the original image.
@@ -926,21 +1006,19 @@ The above implementation is not secure. Anyone can request any image style of an
 
 Another concern we have is what if somehow the path will get have `../` in it, and the user will be able to traverse the file system. We need to prevent that as well.
 
-We start by adding the `jwt` package to the `default.nix` file, and re-start `./start` to get the package.
+We start by adding the `jwt` package to the `flake.nix` file.
 
 ```nix
-# default.nix
-haskellEnv = import "${ihp}/NixSupport/default.nix" {
-    ihp = ihp;
-    haskellDeps = p: with p; [
-        cabal-install
-        base
-        # ...
-        jwt # <--- ADD THIS
-    ];
+haskellPackages = p: with p; [
+    # Haskell dependencies go here
+    p.ihp
+    cabal-install
+    base
+    # ...
+    jwt # <-- ADD THIS LINE
 ```
 
-Then we need to generate a private and public key pair. We execute from the root of the project the following command (don't add add passphrase):
+Locally we need to generate a private and public key pair. We execute from the root of the project the following command (don't add a passphrase):
 
 ```bash
 ssh-keygen -t rsa -b 4096 -m PEM -f ./Config/jwtRS256.key
@@ -1110,4 +1188,30 @@ where
 
     -- Sign the image URL to prevent tampering.
     signed = signImageUrl imageUrl 400 200
+```
+
+In order for the private and public keys to be available on your server, you should add the following to your `flake.nix`:
+
+```nix
+# ...
+services.ihp = {
+        # ...
+    additionalEnvVars = {
+        # The location of the RSA generated files.
+        # Files are created below, see `systemd.services.app.preStart`.
+        JWT_PRIVATE_KEY_PATH = "/root/jwtRS256.key";
+        JWT_PUBLIC_KEY_PATH = "/root/jwtRS256.key.pub";
+    }
+}
+
+# Create RSA keys for JWT authentication.
+# See for example https://ihp.digitallyinduced.com/Guide/file-storage.html#image-style-implementation
+systemd.services.app.preStart = ''
+        if [ ! -f /root/jwtRS256.key ]; then
+        # Generate the private key
+        ${pkgs.openssl}/bin/openssl genpkey -algorithm RSA -out /root/jwtRS256.key -pkeyopt rsa_keygen_bits:4096
+        # Extract the public key from the private key
+        ${pkgs.openssl}/bin/openssl rsa -pubout -in /root/jwtRS256.key -out /root/jwtRS256.key.pub
+        fi
+    '';
 ```
