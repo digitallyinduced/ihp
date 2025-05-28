@@ -1006,21 +1006,19 @@ The above implementation is not secure. Anyone can request any image style of an
 
 Another concern we have is what if somehow the path will get have `../` in it, and the user will be able to traverse the file system. We need to prevent that as well.
 
-We start by adding the `jwt` package to the `default.nix` file, and re-start `./start` to get the package.
+We start by adding the `jwt` package to the `flake.nix` file.
 
 ```nix
-# default.nix
-haskellEnv = import "${ihp}/NixSupport/default.nix" {
-    ihp = ihp;
-    haskellDeps = p: with p; [
-        cabal-install
-        base
-        # ...
-        jwt # <--- ADD THIS
-    ];
+haskellPackages = p: with p; [
+    # Haskell dependencies go here
+    p.ihp
+    cabal-install
+    base
+    # ...
+    jwt # <-- ADD THIS LINE
 ```
 
-Then we need to generate a private and public key pair. We execute from the root of the project the following command (don't add add passphrase):
+Locally we need to generate a private and public key pair. We execute from the root of the project the following command (don't add a passphrase):
 
 ```bash
 ssh-keygen -t rsa -b 4096 -m PEM -f ./Config/jwtRS256.key
@@ -1190,4 +1188,30 @@ where
 
     -- Sign the image URL to prevent tampering.
     signed = signImageUrl imageUrl 400 200
+```
+
+In order for the private and public keys to be available on your server, you should add the following to your `flake.nix`:
+
+```nix
+# ...
+services.ihp = {
+        # ...
+    additionalEnvVars = {
+        # The location of the RSA generated files.
+        # Files are created below, see `systemd.services.app.preStart`.
+        JWT_PRIVATE_KEY_PATH = "/root/jwtRS256.key";
+        JWT_PUBLIC_KEY_PATH = "/root/jwtRS256.key.pub";
+    }
+}
+
+# Create RSA keys for JWT authentication.
+# See for example https://ihp.digitallyinduced.com/Guide/file-storage.html#image-style-implementation
+systemd.services.app.preStart = ''
+        if [ ! -f /root/jwtRS256.key ]; then
+        # Generate the private key
+        ${pkgs.openssl}/bin/openssl genpkey -algorithm RSA -out /root/jwtRS256.key -pkeyopt rsa_keygen_bits:4096
+        # Extract the public key from the private key
+        ${pkgs.openssl}/bin/openssl rsa -pubout -in /root/jwtRS256.key -out /root/jwtRS256.key.pub
+        fi
+    '';
 ```
