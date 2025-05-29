@@ -34,6 +34,9 @@ import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
+import qualified IHP.HSX.ErrorMessages as ErrorMessages
+import System.IO (putStrLn)
+import System.IO.Unsafe (unsafePerformIO)
 
 data HsxSettings = HsxSettings
     { checkMarkup :: Bool
@@ -70,8 +73,21 @@ parseHsx settings position extensions code =
     let
         ?extensions = extensions
         ?settings = settings
+        result = runParser (setPosition position *> parser) "" code
     in
-        runParser (setPosition position *> parser) "" code
+        case result of
+            Left errBundle ->
+                let
+                    -- Extract line and column from the first error in the bundle
+                    (line, col, errMsg) = case bundleErrors errBundle of
+                        (err:_) -> let pos = errorPos err in (unPos $ sourceLine pos, unPos $ sourceColumn pos, parseErrorTextPretty err)
+                        [] -> (1, 1, show errBundle)
+                    improved = ErrorMessages.improveHSXParseError (Text.unpack code) line col errMsg
+                in
+                    -- TODO: Integrate improved error into Megaparsec's error bundle for IDEs
+                    -- For now, print to console for debugging
+                    unsafePerformIO (putStrLn improved) `seq` Left errBundle
+            Right node -> Right node
 
 type Parser a = (?extensions :: [TH.Extension], ?settings :: HsxSettings) => Parsec Void Text a
 

@@ -24,6 +24,8 @@ import qualified GHC.Types.SrcLoc as SrcLoc
 import GHC.Unit.Module.Warnings
 #endif
 
+import qualified IHP.HSX.ErrorMessages as ErrorMessages
+
 parseHaskellExpression :: SourcePos -> [TH.Extension] -> String -> Either (Int, Int, String) TH.Exp
 parseHaskellExpression sourcePos extensions input =
         case expr of
@@ -47,8 +49,9 @@ parseHaskellExpression sourcePos extensions input =
                         $ getMessages parserState.errors
                     line = SrcLoc.srcLocLine parserState.loc.psRealLoc
                     col = SrcLoc.srcLocCol parserState.loc.psRealLoc
+                    improvedError = ErrorMessages.improveHaskellError input (show line) (show col) error
                 in
-                    Left (line, col, error)
+                    Left (line, col, improvedError)
     where
         expr :: ParseResult (LocatedA (HsExpr GhcPs))
         expr = case Lexer.unP Parser.parseExpression parseState of
