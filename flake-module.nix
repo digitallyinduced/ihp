@@ -178,10 +178,10 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
-                    nativeBuildInputs = [ihp.ihp-ide];
+                    nativeBuildInputs = [ghcCompiler.ihp-ide];
                     installPhase = ''
                         mkdir $out
-                        cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
+                        cp ${ghcCompiler.ihp-ide}/lib/IHP/IHPSchema.sql $out/
                     '';
                     allowedReferences = [];
                 };
