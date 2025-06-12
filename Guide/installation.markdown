@@ -16,12 +16,22 @@ That's why we first need to make sure that you have nix installed. Follow the in
 
 Flakes is an experimental, yet very popular feature of Nix, so the installation steps above would not have enabled this useful feature.
 We also recommend enabling the [lazy-trees](https://determinate.systems/posts/changelog-determinate-nix-352/) features that will result in faster downloads.
-
-To enable Flakes, add the following line to `/etc/nix/nix.custom.conf`:
+Furhermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
 
 ```bash
+USERNAME=$(whoami)
+CONF_FILE="/etc/nix/nix.custom.conf"
+
+sudo sed -i '/^trusted-users/d;/^experimental-features/d;/^lazy-trees/d' "$CONF_FILE"
+
+sudo tee -a "$CONF_FILE" > /dev/null <<EOF
+trusted-users = root $USERNAME
 experimental-features = nix-command flakes
 lazy-trees = true
+EOF
+
+# Restart nix
+sudo systemctl restart nix-daemon.service
 ```
 
 ## 2. Installing IHP
