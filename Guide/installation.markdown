@@ -29,10 +29,8 @@ lazy-trees = true
 You can now install IHP by running:
 
 ```bash
-nix-env --install ihp-new
+nix profile install nixpkgs#ihp-new
 ```
-
-If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages. If you use nix flakes, you likely want to run `nix profile install nixpkgs#ihp-new` instead.
 
 ### GitHub Codespaces / VSCode Devcontainers
 
