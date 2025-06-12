@@ -16,18 +16,26 @@ That's why we first need to make sure that you have nix installed. Follow the in
 
 Flakes is an experimental, yet very popular feature of Nix, so the installation steps above would not have enabled this useful feature.
 We also recommend enabling the [lazy-trees](https://determinate.systems/posts/changelog-determinate-nix-352/) features that will result in faster downloads.
-Furhermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
+Furthermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
 
 ```bash
 USERNAME=$(whoami)
 CONF_FILE="/etc/nix/nix.custom.conf"
 
-sudo sed -i '/^trusted-users/d;/^experimental-features/d;/^lazy-trees/d' "$CONF_FILE"
+sudo sed -i \
+  -e '/^trusted-users/d' \
+  -e '/^experimental-features/d' \
+  -e '/^lazy-trees/d' \
+  -e '/^substituters/d' \
+  -e '/^trusted-public-keys/d' \
+  "$CONF_FILE"
 
 sudo tee -a "$CONF_FILE" > /dev/null <<EOF
 trusted-users = root $USERNAME
 experimental-features = nix-command flakes
 lazy-trees = true
+substituters = https://cache.nixos.org https://devenv.cachix.org
+trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= devenv.cachix.org-1:eYUxnbq1ElU+EKa9WzXjABiNdD8zRRIQlcfRWWZtZHU=
 EOF
 
 # Restart nix
