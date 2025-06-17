@@ -55,6 +55,17 @@ You can now install IHP by running:
 nix profile install nixpkgs#ihp-new
 ```
 
+## 3. Install `direnv`
+
+IHP uses [direnv](https://direnv.net/) to automatically load the environment variables defined in `.env` files. This is very useful for development, as it allows you to set up your environment without having to manually export variables every time you start a new terminal session.
+
+```
+nix profile add nixpkgs#direnv
+```
+
+Next you need to enable `direnv` in your shell. Follow the instructions from the [direnv website](https://direnv.net/docs/hook.html) to do this.
+
+
 ### GitHub Codespaces / VSCode Devcontainers
 
 To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit.
