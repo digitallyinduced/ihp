@@ -19,18 +19,31 @@ We also recommend enabling the [lazy-trees](https://determinate.systems/posts/ch
 Furhermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
 
 ```bash
+# This script:
+# - Backs up ~/.config/nix/nix.conf if it exists
+# - Removes conflicting lines from /etc/nix/nix.custom.conf
+# - Appends proper trusted-users and experimental-features
+# - Restarts the nix-daemon to apply changes
+
 USERNAME=$(whoami)
 CONF_FILE="/etc/nix/nix.custom.conf"
 
+# Backup user-level nix config to avoid conflicts
+if [ -f ~/.config/nix/nix.conf ]; then
+    mv ~/.config/nix/nix.conf ~/.config/nix/nix.conf-bkp
+fi
+
+# Remove old settings from the system config
 sudo sed -i '/^trusted-users/d;/^experimental-features/d;/^lazy-trees/d' "$CONF_FILE"
 
+# Add correct settings
 sudo tee -a "$CONF_FILE" > /dev/null <<EOF
 trusted-users = root $USERNAME
 experimental-features = nix-command flakes
 lazy-trees = true
 EOF
 
-# Restart nix
+# Restart nix to apply the config
 sudo systemctl restart nix-daemon.service
 ```
 
