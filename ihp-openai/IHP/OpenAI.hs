@@ -22,6 +22,7 @@ import qualified Network.URI as URI
 import qualified Data.Text.Encoding as Text
 import qualified System.IO.Streams.Attoparsec as Streams
 import Data.Aeson.Parser (json')
+import Control.Monad
 
 data Config
     = Config
@@ -50,6 +51,7 @@ data CompletionRequest = CompletionRequest
     , tools :: ![Tool]
     , reasoningEffort :: !(Maybe Text)
     , parallelToolCalls :: !(Maybe Bool)
+    , extraHeaders :: [(Text, Text)]
     } deriving (Eq, Show)
 
 data CacheControl = Ephemeral deriving (Eq, Show)
@@ -203,6 +205,7 @@ newCompletionRequest = CompletionRequest
     , tools = []
     , reasoningEffort = Nothing
     , parallelToolCalls = Nothing
+    , extraHeaders = []
     }
 
 data CompletionResult
@@ -236,6 +239,12 @@ instance FromJSON Choice where
         content <- deltaOrMessage .: "content"
         pure Choice { text = content }
 
+data FinishReason
+    = FinishReasonStop
+    | FinishReasonLength
+    | FinishReasonContentFilter
+    | FinishReasonToolCalls
+    deriving (Eq, Show)
 
 streamCompletion :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
 streamCompletion config completionRequest' onStart callback = do
@@ -285,6 +294,7 @@ streamCompletionWithoutRetry Config { .. } completionRequest' onStart callback =
                     http POST basePath
                     setContentType "application/json"
                     Network.Http.Client.setHeader "Authorization" ("Bearer " <> (Text.encodeUtf8 secretKey))
+                    applyExtraHeaders completionRequest.extraHeaders
             sendRequest connection q (jsonBody completionRequest)
             onStart
             receiveResponse connection handler
@@ -389,6 +399,7 @@ fetchCompletionWithoutRetry Config { .. } completionRequest = do
                                 http POST basePath
                                 setContentType "application/json"
                                 Network.Http.Client.setHeader "Authorization" ("Bearer " <> Text.encodeUtf8 secretKey)
+                                applyExtraHeaders completionRequest.extraHeaders
 
                     sendRequest connection q (jsonBody completionRequest)
                     receiveResponse connection jsonHandler
@@ -415,12 +426,13 @@ instance FromJSON CompletionChunk where
         <*> v .:? "usage"
 
 data CompletionChunkChoice
-     = CompletionChunkChoice { delta :: !Delta }
+     = CompletionChunkChoice { delta :: !Delta, finishReason :: !(Maybe FinishReason) }
      deriving (Eq, Show)
 
 instance FromJSON CompletionChunkChoice where
     parseJSON = withObject "CompletionChunkChoice" $ \v -> CompletionChunkChoice
         <$> v .: "delta"
+        <*> v .: "finish_reason"
 
 data Delta
      = Delta
@@ -492,3 +504,15 @@ instance FromJSON Usage where
         <$> v .: "prompt_tokens"
         <*> v .: "completion_tokens"
         <*> v .: "total_tokens"
+
+applyExtraHeaders extraHeaders =
+    forM_ extraHeaders \(key, value) ->
+        Network.Http.Client.setHeader (Text.encodeUtf8 key) (Text.encodeUtf8 value)
+
+
+instance FromJSON FinishReason where
+    parseJSON (String "stop") = pure FinishReasonStop
+    parseJSON (String "length") = pure FinishReasonLength
+    parseJSON (String "content_filter") = pure FinishReasonContentFilter
+    parseJSON (String "tool_calls") = pure FinishReasonToolCalls
+    parseJSON otherwise = fail ("Failed to parse finish_reason: " <> show otherwise)
