@@ -22,6 +22,7 @@ import qualified Network.URI as URI
 import qualified Data.Text.Encoding as Text
 import qualified System.IO.Streams.Attoparsec as Streams
 import Data.Aeson.Parser (json')
+import Control.Monad
 
 data Config
     = Config
@@ -50,6 +51,7 @@ data CompletionRequest = CompletionRequest
     , tools :: ![Tool]
     , reasoningEffort :: !(Maybe Text)
     , parallelToolCalls :: !(Maybe Bool)
+    , extraHeaders :: [(Text, Text)]
     } deriving (Eq, Show)
 
 data CacheControl = Ephemeral deriving (Eq, Show)
@@ -203,6 +205,7 @@ newCompletionRequest = CompletionRequest
     , tools = []
     , reasoningEffort = Nothing
     , parallelToolCalls = Nothing
+    , extraHeaders = []
     }
 
 data CompletionResult
@@ -285,6 +288,7 @@ streamCompletionWithoutRetry Config { .. } completionRequest' onStart callback =
                     http POST basePath
                     setContentType "application/json"
                     Network.Http.Client.setHeader "Authorization" ("Bearer " <> (Text.encodeUtf8 secretKey))
+                    applyExtraHeaders completionRequest.extraHeaders
             sendRequest connection q (jsonBody completionRequest)
             onStart
             receiveResponse connection handler
@@ -389,6 +393,7 @@ fetchCompletionWithoutRetry Config { .. } completionRequest = do
                                 http POST basePath
                                 setContentType "application/json"
                                 Network.Http.Client.setHeader "Authorization" ("Bearer " <> Text.encodeUtf8 secretKey)
+                                applyExtraHeaders completionRequest.extraHeaders
 
                     sendRequest connection q (jsonBody completionRequest)
                     receiveResponse connection jsonHandler
@@ -492,3 +497,7 @@ instance FromJSON Usage where
         <$> v .: "prompt_tokens"
         <*> v .: "completion_tokens"
         <*> v .: "total_tokens"
+
+applyExtraHeaders extraHeaders =
+    forM_ extraHeaders \(key, value) ->
+        Network.Http.Client.setHeader (Text.encodeUtf8 key) (Text.encodeUtf8 value)
