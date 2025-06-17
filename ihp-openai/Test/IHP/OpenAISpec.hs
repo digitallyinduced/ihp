@@ -64,6 +64,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Just AssistantRole
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -80,6 +81,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -96,6 +98,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -112,6 +115,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -128,6 +132,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -144,6 +149,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -160,6 +166,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -176,6 +183,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -192,6 +200,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
@@ -208,6 +217,7 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Just FinishReasonStop
                                         }
                                     ]
                                 , created = 1715593776
@@ -236,6 +246,7 @@ tests = do
                                     , toolCalls = Just [ FunctionCall { index = 0, id = Just "call_cx6RG7DZq3WlIDfXXp9PdtmS", name = Just "get_current_weather", arguments = "" } ]
                                     , role = Just AssistantRole
                                     }
+                                , finishReason = Nothing
                                 }
                             ]
                         , created = 1715277101
@@ -306,6 +317,7 @@ tests = do
                                               ]
                                           , role = Just AssistantRole
                                           }
+                                    , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -329,6 +341,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -352,6 +365,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -375,6 +389,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -398,6 +413,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -421,6 +437,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -444,6 +461,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -467,6 +485,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -490,6 +509,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -513,6 +533,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -536,6 +557,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -559,6 +581,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -582,6 +605,7 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
@@ -598,6 +622,7 @@ tests = do
                                           , toolCalls = Nothing
                                           , role = Nothing
                                           }
+                                      , finishReason = Just FinishReasonToolCalls
                                       }
                                   ]
                               , created = 1715277101

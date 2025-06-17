@@ -239,6 +239,12 @@ instance FromJSON Choice where
         content <- deltaOrMessage .: "content"
         pure Choice { text = content }
 
+data FinishReason
+    = FinishReasonStop
+    | FinishReasonLength
+    | FinishReasonContentFilter
+    | FinishReasonToolCalls
+    deriving (Eq, Show)
 
 streamCompletion :: Config -> CompletionRequest -> IO () -> (CompletionChunk -> IO ()) -> IO [CompletionChunk]
 streamCompletion config completionRequest' onStart callback = do
@@ -420,12 +426,13 @@ instance FromJSON CompletionChunk where
         <*> v .:? "usage"
 
 data CompletionChunkChoice
-     = CompletionChunkChoice { delta :: !Delta }
+     = CompletionChunkChoice { delta :: !Delta, finishReason :: !(Maybe FinishReason) }
      deriving (Eq, Show)
 
 instance FromJSON CompletionChunkChoice where
     parseJSON = withObject "CompletionChunkChoice" $ \v -> CompletionChunkChoice
         <$> v .: "delta"
+        <*> v .: "finish_reason"
 
 data Delta
      = Delta
@@ -501,3 +508,11 @@ instance FromJSON Usage where
 applyExtraHeaders extraHeaders =
     forM_ extraHeaders \(key, value) ->
         Network.Http.Client.setHeader (Text.encodeUtf8 key) (Text.encodeUtf8 value)
+
+
+instance FromJSON FinishReason where
+    parseJSON (String "stop") = pure FinishReasonStop
+    parseJSON (String "length") = pure FinishReasonLength
+    parseJSON (String "content_filter") = pure FinishReasonContentFilter
+    parseJSON (String "tool_calls") = pure FinishReasonToolCalls
+    parseJSON otherwise = fail ("Failed to parse finish_reason: " <> show otherwise)
