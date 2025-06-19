@@ -16,6 +16,12 @@ final: prev: {
             ihp-graphql = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-graphql.nix" {};
             ihp-datasync-typescript = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-datasync-typescript.nix" {};
 
+            # ihp-pro
+            ihp-stripe = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-stripe.nix" {};
+            ihp-sentry = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-sentry.nix" {};
+            ihp-oauth-github = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-oauth-github.nix" {};
+            ihp-oauth-google = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-oauth-google.nix" {};
+
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
         };
     };

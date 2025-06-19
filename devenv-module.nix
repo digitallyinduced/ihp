@@ -123,6 +123,12 @@ that is defined in flake-module.nix
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
+
+            # ihp-pro
+            stripe = pkgs.ghc.ihp-stripe;
+            sentry = pkgs.ghc.ihp-sentry;
+            oauth-github = pkgs.ghc.ihp-oauth-github;
+            oauth-google = pkgs.ghc.ihp-oauth-google;
         };
     };
 }
