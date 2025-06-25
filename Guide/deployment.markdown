@@ -916,9 +916,8 @@ How it works:
 
 1. Install cachix locally:
 
-   ```bash
-   nix profile add --accept-flake-config nixpkgs#cachix
-   ```
+ ```bash
+nix profile add --accept-flake-config nixpkgs#cachix
 
 2. Go to [cachix.org](https://www.cachix.org) and create an account
 3. Create a new cache (choose a unique name for your project)
