@@ -928,10 +928,6 @@ nix profile add --accept-flake-config nixpkgs#cachix
 
 Create a Cachix token at: https://app.cachix.org/cache/YOUR-CACHIX/settings/authtokens
 
-Alternatively, get your Cachix auth token via CLI:
-```bash
-cachix authtoken
-```
 
 ## Add Token to GitHub Repository Secrets
 
