@@ -10,135 +10,63 @@ The framework uses the nix package manager to manage the whole set of dependenci
 
 For example, PostgreSQL and the Haskell compiler are both dependencies of your app, as well as all the Haskell or JavaScript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
 
-That's why we first need to make sure that you have nix installed.
+That's why we first need to make sure that you have nix installed. Follow the installation instructions from https://docs.determinate.systems/
 
-### Mac
+### Enabling Flakes
 
-Run this command in your terminal to install nix on your machine:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-```
-
-We use the Determinate Nix Installer instead of the normal Nix installer here as it works better on macOS, e.g. the normal Nix installer always breaks across macOS updates.
-
-After this restart your terminal.
-
-### Linux
-
-Before installing nix and IHP, you need `curl` and `git` if you don't have them already. If you are unsure, run this:
+Flakes is an experimental, yet very popular feature of Nix, so the installation steps above would not have enabled this useful feature.
+We also recommend enabling the [lazy-trees](https://determinate.systems/posts/changelog-determinate-nix-352/) features that will result in faster downloads.
+Furhermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
 
 ```bash
-sudo apt update
-sudo apt upgrade
-sudo apt install git curl make -y
-```
+# This script:
+# - Backs up ~/.config/nix/nix.conf if it exists
+# - Removes conflicting lines from /etc/nix/nix.custom.conf
+# - Appends proper trusted-users and experimental-features
+# - Restarts the nix-daemon to apply changes
 
-**For NixOS Users:** If you're on NixOS, of course you don't need to install nix anymore :-) Just skip this step.
+USERNAME=$(whoami)
+CONF_FILE="/etc/nix/nix.custom.conf"
 
-Install nix by running the following command in your shell and follow the instructions on the screen:
+# Backup user-level nix config to avoid conflicts
+if [ -f ~/.config/nix/nix.conf ]; then
+    mv ~/.config/nix/nix.conf ~/.config/nix/nix.conf-bkp
+fi
 
-```bash
-curl -L https://nixos.org/nix/install | sh
-```
+# Remove old settings from the system config
+sudo sed -i '/^trusted-users/d;/^experimental-features/d;/^lazy-trees/d' "$CONF_FILE"
 
-Due to Linux not loading the `.profile` file, nix will not be loaded. To fix that, we need to add this line to the rc file of your shell (usually `.bashrc`). Open it, and add this line
-
-```bash
-. ~/.nix-profile/etc/profile.d/nix.sh
-```
-
-There are also other ways to install nix, [take a look at the documentation](https://nixos.org/nix/download.html).
-
-### Windows
-
-Running nix on Windows requires the Windows Subsystem for Linux, which first needs manual activation via **Powershell with Administrator Privileges**:
-
-```bash
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-```
-
-Enabling this Feature needs a restart (even though it won't prompt, and the command-line says /norestart).
-
-To download a Linux Distribution, open the Microsoft Store and search for Ubuntu or Debian. We recommend Ubuntu since it works best with nix on Windows.
-
-Note: You **do not** need a Microsoft account to download. You can simply cancel or close the login forms and the download will continue.
-
-If this is your first time installing WSL and you are encountering problems, rest assured most issues are well-known and solutions can be found online by searching the web for the error messages.
-
-With the Distro downloaded, run it and update it using your package manager. In Ubuntu you would use:
-
-```bash
-sudo apt update
-sudo apt upgrade
-sudo apt install git curl make xdg-utils -y
-```
-
-WSL will add your Windows System Paths in your Linux Subsystem. These tend to generate errors due to spaces and brackets in folder names. Also, due to Linux not loading the `.profile`, we need to add the nix.sh manually. To fix these two issues, just add these lines to the end of your `.bashrc`
-
-```bash
-PATH=$(/usr/bin/printenv PATH | /usr/bin/perl -ne 'print join(":", grep { !/\/mnt\/[a-z]/ } split(/:/));')
-. ~/.nix-profile/etc/profile.d/nix.sh
-```
-
-Now, create a folder for nix:
-
-```bash
-sudo mkdir -p /etc/nix
-```
-
-To make nix usable on Windows, we need to create and add the following lines to the file `/etc/nix/nix.conf` (requires use of sudo again):
-
-```bash
-sandbox = false
-use-sqlite-wal = false
-```
-
-After saving the file, you can now install nix:
-
-```bash
-curl -L https://nixos.org/nix/install | sh
-```
-
-When the installation finishes successfully, you will be prompted to either reload your environment with the given command, or restart your shell.
-
-If in doubt, just close and reopen Ubuntu/Your Distro.
-
-**NOTES FOR WINDOWS USERS**:
-
-###### Windows Firewall
-
-When using Windows, you will be asked if tasks like ghc-iserv or rundevserver should be allowed by the firewall. This is needed to access the devserver interface and the web application itself.
-
-Installing nix for IHP was done using [this guide](https://nathan.gs/2019/04/12/nix-on-windows/).
-
-Note that nix can gradually grow to use several GB of disk space, especially after upgrading IHP. You can always run `nix-collect-garbage` in a `nix-shell` which will delete older/unused files.
-
-### Optional: Enabling Flakes
-
-Flakes is an experimental part of Nix, so the installation steps above would not have enabled this useful feature.
-
-IHP uses Flakes, but only internally and without affecting the rest of your Nix environment. Enabling it for your whole Nix environment is optional, but we believe it's a great feature that's well worth learning and using in your projects!
-
-To enable Flakes, add the following line to `~/.config/nix/nix.conf` (or `/etc/nix/nix.conf` to enable flakes for every user on your machine):
-
-```bash
+# Add correct settings
+sudo tee -a "$CONF_FILE" > /dev/null <<EOF
+trusted-users = root $USERNAME
 experimental-features = nix-command flakes
-```
+lazy-trees = true
+EOF
 
-If you are unsure, we recommend enabling Flakes. For a beginner's guide, see this [NixOS & Flakes Book](https://nixos-and-flakes.thiscute.world/).
+# Restart nix to apply the config
+sudo systemctl restart nix-daemon.service
+```
 
 ## 2. Installing IHP
 
 You can now install IHP by running:
 
 ```bash
-nix-env --install ihp-new
+nix profile install nixpkgs#ihp-new
 ```
 
-If you use Home Manager or NixOS, you can also add `ihp-new` to the list of packages. If you use nix flakes, you likely want to run `nix profile install nixpkgs#ihp-new` instead.
+## 3. Install `direnv`
 
-#### GitHub Codespaces / VSCode Devcontainers
+IHP uses [direnv](https://direnv.net/) to automatically load the environment variables defined in `.env` files. This is very useful for development, as it allows you to set up your environment without having to manually export variables every time you start a new terminal session.
+
+```
+nix profile add nixpkgs#direnv
+```
+
+Next you need to enable `direnv` in your shell. Follow the instructions from the [direnv website](https://direnv.net/docs/hook.html) to do this.
+
+
+### GitHub Codespaces / VSCode Devcontainers
 
 To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit.
 
@@ -146,25 +74,15 @@ To try it out before making your own repo, you can simply start a Codespace from
 
 If you have Docker installed locally, then you can use this configuration to work with [VSCode Devcontainers](https://code.visualstudio.com/docs/devcontainers/containers) as well.
 
-#### GitPod
-
-If you use GitPod for Development in the Cloud, [you can use IHP GitPod Template](https://github.com/gitpod-io/template-ihp/generate).
-
-On first start up, GitPod will automatically generate a new IHP project for you. You just need to call `git add .` and then commit the boilerplate after first start.
-
-If you want to try it out before making your own repo, use this button below:
-
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/gitpod-io/template-ihp)
-
 ## 3. Setting up your editor
 
-Also check this out if your editor is already set up. You might miss a plugin that's recommended for IHP to work well.
+Also, check this out if your editor is already set up. You might miss a plugin that's recommended for IHP to work well.
 
 -   [VS Code](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-visual-studio-code-vscode) **Don't have the direnv extension installed? Read this link**
 -   [Sublime Text](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-sublime-text)
 -   [Emacs](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-emacs)
 -   [Vim / NeoVim](https://ihp.digitallyinduced.com/Guide/editors.html#using-ihp-with-vim-neovim)
 
-It's time to start your first "hello world" project now :)
+It's time to start your first "Hello World" project now!
 
 [Next: Your First Project](https://ihp.digitallyinduced.com/Guide/your-first-project.html)
