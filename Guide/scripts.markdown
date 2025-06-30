@@ -50,6 +50,8 @@ This will fetch all users and then print out "Hello World, Firstname!".
 
 ## Running a script
 
+When running a script locally, ensure the IHP server is running in the background `devenv up`. This is necessary because the script will use the same database connection and other resources as your IHP application.
+
 Scripts are executable by default. You can just run them like a bash script:
 
 ```bash
