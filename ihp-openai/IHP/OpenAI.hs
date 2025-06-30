@@ -313,8 +313,12 @@ streamCompletionWithoutRetry Config { .. } completionRequest' onStart callback =
                     state <- Streams.lines stream >>= Streams.foldM (parseResponseChunk' callback) emptyParserState
                     return (Right state.chunks)
                 else do
-                    x :: ByteString <- Streams.fold mappend mempty stream
-                    return (Left $ "an error happend: " <> Text.pack (show x))
+                    json :: ByteString <- Streams.fold mappend mempty stream
+
+                    case eitherDecodeStrict json of
+                        Right (CompletionError { message }) -> return (Left message)
+                        Right _ -> error "Should never happen"
+                        Left _ -> return (Left $ "an error happend: " <> Text.pack (show json))
 
 
         parseResponseChunk' :: (CompletionChunk -> IO ()) -> ParserState -> ByteString -> IO ParserState
