@@ -100,6 +100,11 @@ postgres: ## Starts the postgresql server
 psql: ## Connects to the running postgresql server
 	@psql -h $$PWD/build/db -d app
 
+psql-remote: ## Connects to the postgresql server of a deployed instance.
+  @DB_URL=$$(nix eval .#nixosConfigurations.$$env.config.services.ihp.databaseUrl --raw); \
+  echo "Connecting to remote database on $$env"; \
+  ssh -t $$env "psql $$DB_URL"; \
+
 db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
 	(echo "drop schema public cascade; create schema public;" | psql -h $${PWD}/build/db -d app) && \
 	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < "$${IHP_LIB}/IHPSchema.sql" && \
