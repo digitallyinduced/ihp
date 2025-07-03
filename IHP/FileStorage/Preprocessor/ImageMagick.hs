@@ -59,7 +59,7 @@ applyImageMagick convertTo otherParams fileInfo = do
             |> LBS.writeFile tempFilePath
 
         let params :: [String] = [tempFilePath] <> otherParams <> [convertedFilePath]
-        Process.callProcess "convert" params
+        Process.callProcess "magick" params
 
         newContent <- LBS.readFile convertedFilePath
         pure fileInfo { Wai.fileContent = newContent }

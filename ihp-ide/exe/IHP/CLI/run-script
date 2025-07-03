@@ -1,8 +1,31 @@
 #!/bin/bash -e
+
+# Show help if no arguments provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <script-path>"
+    echo "Example: $0 Application/Script/HelloWorldToAllUsers.hs"
+    exit 1
+fi
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-TASK_PATH=$@
-TASK_MODULE=${TASK_PATH##*/}
+TASK_PATH="$*"
+
+# Validate that TASK_PATH is not empty
+if [ -z "$TASK_PATH" ]; then
+    echo "Error: Script path cannot be empty"
+    exit 1
+fi
+
+# Extract module name safely
+TASK_MODULE="${TASK_PATH##*/}"
 TASK_MODULE="${TASK_MODULE%.*}"
+
+# Validate module name
+if [ -z "$TASK_MODULE" ]; then
+    echo "Error: Could not extract module name from path: $TASK_PATH"
+    exit 1
+fi
+
 
 # Ensure we are in an app dir
 if [ ! -f Main.hs ]; then
@@ -10,9 +33,22 @@ if [ ! -f Main.hs ]; then
     exit 1
 fi
 
-FRAMEWORKDIR=$(dirname $(readlink $(which RunDevServer)))/../
+# Detect framework directory safely
 if [ -d IHP ]; then
     FRAMEWORKDIR="$(pwd)/IHP"
+else
+    RUNDEVSERVER_PATH=$(which RunDevServer 2>/dev/null || echo "")
+    if [ -n "$RUNDEVSERVER_PATH" ]; then
+        READLINK_OUTPUT=$(readlink "$RUNDEVSERVER_PATH" 2>/dev/null || echo "")
+        if [ -n "$READLINK_OUTPUT" ]; then
+            FRAMEWORKDIR=$(dirname "$READLINK_OUTPUT")/../
+        fi
+    fi
+fi
+
+if [ -z "$FRAMEWORKDIR" ]; then
+    echo "Error: Could not locate IHP framework directory"
+    exit 1
 fi
 
 GHCI_SCRIPT="$(mktemp)"
