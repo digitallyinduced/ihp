@@ -13,6 +13,7 @@ toolServerLayout inner = [hsx|
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+        <meta name="turbo-refresh-method" content="morph"/>
 
         <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
         <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>

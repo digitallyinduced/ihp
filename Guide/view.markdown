@@ -387,7 +387,7 @@ instance View MyView where
 
 ## Diff-Based DOM Updates
 
-When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.
+When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [Turbo's built-in morphing](https://turbo.hotwired.dev/) to intelligently update the visible DOM.
 
 ## Turbo
 
