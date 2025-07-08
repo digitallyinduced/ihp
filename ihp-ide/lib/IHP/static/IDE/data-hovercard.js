@@ -1,4 +1,4 @@
-$(document).on('ready turbolinks:load', function () {
+$(document).on('ready turbo:load', function () {
     initDataHoverCard();
 });
 

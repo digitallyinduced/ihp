@@ -437,6 +437,6 @@ You can place a `Login with Github` button by linking to the `NewSessionWithGith
 </a>
 ```
 
-Use `target="_self"` for these links to avoid turbolinks interfering with the redirect to github.
+Use `target="_self"` for these links to avoid Turbo interfering with the redirect to github.
 
 Now your github integration is ready to use.

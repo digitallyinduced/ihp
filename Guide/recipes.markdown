@@ -436,14 +436,14 @@ Let's say you have a page with comments, and you link to them with `<a href="#co
 [hsx|<a href={"#comment-" ++ show comment.id} id={"comment-" ++ show comment.id}>|]
 ```
 
-The browser will scroll to the relevant comment when you follow the link, but let's say you also want to highlight the linked comment — like GitHub does. You could use the `:target` selector, but it doesn't play well with Turbolinks.
+The browser will scroll to the relevant comment when you follow the link, but let's say you also want to highlight the linked comment — like GitHub does. You could use the `:target` selector, but it doesn't play well with Turbo.
 
 The solution is to assign your own class to the targeted element:
 
 ```javascript
 // app.js
 
-$(document).on('ready turbolinks:load', function () {
+$(document).on('ready turbo:load', function () {
     // Highlight the #hash target
     const prevMarkedElement = document.querySelector('.hash-target');
     if (prevMarkedElement) {
