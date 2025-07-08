@@ -20,4 +20,4 @@ function initGeneratorPreview() {
     });
 }
 
-document.addEventListener('turbo:load', initGeneratorPreview);
+document.addEventListener('ihp:load', initGeneratorPreview);

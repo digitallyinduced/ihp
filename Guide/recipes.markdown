@@ -443,8 +443,8 @@ The solution is to assign your own class to the targeted element:
 ```javascript
 // app.js
 
-$(document).on('ready turbo:load', function () {
-    // Highlight the #hash target
+document.addEventListener('ihp:load', function () {
+    // Highlight the #hash target - works with or without Turbo
     const prevMarkedElement = document.querySelector('.hash-target');
     if (prevMarkedElement) {
         prevMarkedElement.classList.remove('hash-target');

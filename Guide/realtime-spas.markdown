@@ -97,8 +97,8 @@ function startApp() {
     ReactDOM.render(<HelloWorld/>, document.getElementById('hello-world'));
 }
 
-$(document).on('ready turbo:load', function () {
-    // This is called on the first page load *and* also when the page is changed by Turbo
+document.addEventListener('ihp:load', function () {
+    // This is called on both first page load and when Turbo changes the page
     startApp();
 });
 
