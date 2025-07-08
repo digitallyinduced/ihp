@@ -981,7 +981,7 @@ IHP by default sets its session cookies using the Lax [SameSite](https://develop
 
 ## JavaScript Helpers
 
-By default, your form will be submitted using AJAX and [TurboLinks](https://github.com/turbolinks/turbolinks) instead of browser-based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using TurboLinks and [morphdom](https://github.com/patrick-steele-idem/morphdom).
+By default, your form will be submitted using AJAX and [Hotwire Turbo](https://turbo.hotwired.dev/) instead of browser-based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using Turbo's built-in morphing capabilities.
 
 Additionally, to integrate the form submission into TurboLinks, the JavaScript helpers will also disable the form submit button after the form has been submitted. Also, any flash messages inside the form are removed.
 

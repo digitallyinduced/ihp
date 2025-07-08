@@ -594,7 +594,6 @@ JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js
 JS_FILES += ${IHP}/static/helpers.js
-JS_FILES += ${IHP}/static/vendor/morphdom-umd.min.js
 JS_FILES += ${IHP}/static/vendor/turbolinks.js
 JS_FILES += ${IHP}/static/vendor/turbolinksInstantClick.js
 JS_FILES += ${IHP}/static/vendor/turbolinksMorphdom.js
@@ -661,7 +660,6 @@ scripts = do
         <script src="/vendor/bootstrap.min.js"></script>
         <script src="/vendor/flatpickr.js"></script>
         <script src="/helpers.js"></script>
-        <script src="/vendor/morphdom-umd.min.js"></script>
     |]
     when isProduction [hsx|
         <script src="/prod.js"></script>
