@@ -594,9 +594,7 @@ JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js
 JS_FILES += ${IHP}/static/helpers.js
-JS_FILES += ${IHP}/static/vendor/turbolinks.js
-JS_FILES += ${IHP}/static/vendor/turbolinksInstantClick.js
-JS_FILES += ${IHP}/static/vendor/turbolinksMorphdom.js
+JS_FILES += ${IHP}/static/vendor/turbo.js
 ```
 
 You need to add your app-specific CSS and JS files here as well. E.g. if you have an `app.css`, `layout.css` and `app.js` add them by appending this:
