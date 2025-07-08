@@ -19,17 +19,13 @@ toolServerLayout inner = [hsx|
         <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
         <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
         <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
         
 
-        <script src={assetPath "/vendor/turbolinks.js"}></script>
-        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-        <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
-        <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
+        <script src={assetPath "/vendor/turbo.js"}></script>
         
 
         <script src={assetPath "/helpers.js"}></script>

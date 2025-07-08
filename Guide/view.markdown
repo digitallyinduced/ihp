@@ -389,11 +389,11 @@ instance View MyView where
 
 When in development, your views will automatically refresh on code changes. This works by re-requesting the view from the server via AJAX and then using [morphdom](https://github.com/patrick-steele-idem/morphdom) to update the visible DOM.
 
-## TurboLinks
+## Turbo
 
-In production mode, your application is using a custom integration of morphdom and [TurboLinks](https://github.com/turbolinks/turbolinks) together with [InstantClick](http://instantclick.io/). TurboLinks makes navigating the application even faster because it's not doing a full page refresh. We've integrated TurboLinks with morphdom to only update the parts of your HTML that have changed. This was inspired by react.js's DOM patch approach and allows e.g. CSS animations to run on a page transition. Using this makes your app feel like a [SPA](https://en.wikipedia.org/wiki/Single-page_application) without you writing any JavaScript code.
+In production mode, your application is using [Hotwire Turbo](https://turbo.hotwired.dev/). Turbo makes navigating the application even faster because it's not doing a full page refresh. Turbo updates only the parts of your HTML that have changed, which allows e.g. CSS animations to run on a page transition. Using this makes your app feel like a [SPA](https://en.wikipedia.org/wiki/Single-page_application) without you writing any JavaScript code.
 
-To improve latency, TurboLinks is configured to prefetch the URL immediately on mouse-hover. Usually, the time between a mouse-hover of a link and the mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
+To improve latency, Turbo is configured to prefetch the URL immediately on mouse-hover. Usually, the time between a mouse-hover of a link and the mouse click is 100ms - 200ms. As long as the server responds in less than 100ms, the response is already there when the click event is fired. This makes your app faster than most single page application (most SPAs still need to fetch some data after clicking).
 
 This setup is designed as a progressive enhancement. Your application is still usable when JavaScript is disabled.
 Even when disabled, your application will still be amazingly fast.
@@ -402,10 +402,7 @@ You can disable this behavior by removing the following code from your `Web/Layo
 
 ```haskell
     when isProduction [hsx|
-            <script src="/vendor/turbolinks.js"></script>
-            <script src="/vendor/morphdom-umd.min.js"></script>
-            <script src="/vendor/turbolinksMorphdom.js"></script>
-            <script src="/vendor/turbolinksInstantClick.js"></script>
+            <script src="/vendor/turbo.js"></script>
         |]
 ```
 
@@ -414,14 +411,14 @@ Preloading with InstantClick on hover will only happen with links that
 1. Use the GET method
 2. Do not link to an anchor or end in `#`
 3. Link to a different URL other than `location.href`
-4. Do not have an attribute `data-turbolinks-preload="false"`
+4. Do not have an attribute `data-turbo-preload="false"`
 
-(So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
+(So putting an anchor on a link, or explicitly setting the `data-turbo-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
 We provide two custom events
 
--   `ihp:load` that will trigger when `DOMContentLoaded` or `turbolinks:load`
--   `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+-   `ihp:load` that will trigger when `DOMContentLoaded` or `turbo:load`
+-   `ihp:unload` that will fire on `beforeunload` and before [Turbo updates the page](#Turbo)
 
 ```javascript
 document.addEventListener('ihp:load', () => {
