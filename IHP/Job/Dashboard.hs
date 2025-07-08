@@ -147,8 +147,8 @@ instance JobsDashboard '[] where
             function initPopover() {
                 $('[data-toggle="popover"]').popover({ trigger: 'hover click' })
             }
-            $(document).on('ready turbo:load', initPopover);
-            $(initPopover);
+            document.addEventListener('DOMContentLoaded', initPopover);
+            document.addEventListener('turbo:load', initPopover);
         </script>
         <style>
         .popover-body {

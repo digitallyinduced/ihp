@@ -1,4 +1,4 @@
-$(document).on('ready turbo:load', function () {
+document.addEventListener('turbo:load', function () {
     initMigrationEditor();
 });
 
