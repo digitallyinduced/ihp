@@ -180,25 +180,6 @@ else:
 
 show_step("Checking IHP")
 
-ihp_lib_is_link = path.islink("build/ihp-lib")
-
-if ihp_lib_is_link:
-    show_success("Symlink build/ihp-lib exists")
-else:
-    show_failure(
-        ("Symlink build/ihp-lib is missing. "
-         "Try 'make build/ihp-lib' to fix this")
-    )
-
-ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
-
-path_exists(
-    ihp_lib_link,
-    "Symlink build/ihp-lib target exists",
-    ("Symlink build/ihp-lib target directory does not exist. "
-     "Try `nix-shell --run \"make -B build/ihp-lib\"` to fix this")
-)
-
 if path.exists("IHP"):
     show_success("Local IHP directory exists")
 else:
@@ -254,9 +235,6 @@ show_step("Debugging Details")
 
 show_step("GHCI Output")
 print(ghci_output)
-
-show_step("build/ihp-lib Target")
-print(ihp_lib_link)
 
 show_step("Direnv Output")
 print(direnv_output)
