@@ -941,7 +941,7 @@ Create a Cachix token at: https://app.cachix.org/cache/YOUR-CACHIX/settings/auth
 
 ## Update `flake.nix`
 
-Uncomment and update the `nixConfig` section at the top of your `flake.nix`:
+Uncomment and update the `nixConfig` section at the bottom of your `flake.nix`:
 
 ```nix
 {
