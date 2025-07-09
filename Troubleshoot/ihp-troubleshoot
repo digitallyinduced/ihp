@@ -216,8 +216,7 @@ with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
 show_step("Checking IHP files")
 
 SENSITIVE_FILES = [
-    ".ghci", "hie.yaml", "flake.nix",
-    "Makefile", "Config/nix/nixpkgs-config.nix"
+    ".ghci", "flake.nix", "Makefile", "Config/nix/nixpkgs-config.nix"
 ]
 for file_details in boilerplate_contents():
     file_path = file_details["path"]
