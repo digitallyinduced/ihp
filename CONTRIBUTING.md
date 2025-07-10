@@ -43,12 +43,13 @@ You can now run `devenv up` in the host project directory to start the developme
 When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have run the following commands in the `IHP` directory:
 
 ```
+cd IHP
+
 # Optional - you can set the `DEBUG` environment variable to enable debug logging
 export DEBUG=1
 
-
 ghci
-:l ihp/ihp-ide/exe/IHP/IDE/DevServer.hs
+:l ihp-ide/exe/IHP/IDE/DevServer.hs
 
 # Start the server
 mainInParentDirectory
