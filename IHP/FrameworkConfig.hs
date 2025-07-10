@@ -456,6 +456,8 @@ isEnvironment environment = ?context.frameworkConfig.environment == environment
 -- | Returns 'True'  when the application is running in Development mode
 --
 -- Development mode means that the Development option is configured in Config/Config.hs
+--
+-- See 'Environment' for documentation on the default differences.
 isDevelopment :: (?context :: context, ConfigProvider context) => Bool
 isDevelopment = isEnvironment Development
 {-# INLINABLE isDevelopment #-}
@@ -463,6 +465,8 @@ isDevelopment = isEnvironment Development
 -- | Returns 'True' when the application is running in Production mode
 --
 -- Production mode means that the Production option is configured in Config/Config.hs
+--
+-- See 'Environment' for documentation on the default differences.
 isProduction :: (?context :: context, ConfigProvider context) => Bool
 isProduction = isEnvironment Production
 {-# INLINABLE isProduction #-}
