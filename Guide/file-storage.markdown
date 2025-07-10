@@ -413,8 +413,8 @@ Finally, let's add some Javacript, that would take care of removing the image fr
 ```javascript
 # app.js
 
-$(document).on('ready turbolinks:load', () => {
-
+document.addEventListener('ihp:load', function () {
+    // Initialize file upload functionality - works with or without Turbo
     // Show the remove file checkbox if a file is uploaded.
     $('form .file-upload-wrapper :input').on('change', function() {
         const $this = $(this);
