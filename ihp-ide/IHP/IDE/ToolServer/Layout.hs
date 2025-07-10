@@ -24,10 +24,10 @@ toolServerLayout inner = [hsx|
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
-        
+
 
         <script src={assetPath "/vendor/turbo.js"}></script>
-        
+
 
         <script src={assetPath "/helpers.js"}></script>
         <script src={assetPath "/IDE/contextmenu.js"}></script>
@@ -76,7 +76,7 @@ toolServerLayout inner = [hsx|
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         docu = navItem "DOCS" docsIcon "https://ihp.digitallyinduced.com/Guide/" False
-        
+
         isSchemaEditorController =
                     (  isActiveController @SchemaController
                     || isActiveController @TablesController
