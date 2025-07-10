@@ -35,12 +35,10 @@ direnv allow
 cd -
 ```
 
-You can now run `devenv up` in the host project directory to start the development server. However, if you'd like to change the DevServer you should stay on the
-
 ### Running the development server
 
-
-When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have run the following commands in the `IHP` directory:
+You can now run `devenv up` in the host project directory to start the development server. However, if you'd like to change the DevServer or JS files, we have to start the server differently, without `devenv up`. 
+We need to run the following commands (assuming you are on the host project):
 
 ```
 cd IHP
@@ -57,7 +55,7 @@ mainInParentDirectory
 
 We don't need to start postgres as the IDE starts it automatically.
 
-If you ever switch back to using the upstream version, just restore the original line in flake.nix (e.g., ihp.url = "github:digitallyinduced/ihp";), and then run from the host directory:
+If you ever switch back to using the upstream version, restore the original line in flake.nix (e.g., ihp.url = "github:digitallyinduced/ihp";), and then run from the host directory:
 
 ```
 nix flake lock --update-input ihp
