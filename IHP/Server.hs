@@ -24,6 +24,7 @@ import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
+import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Control.Exception as Exception
 
 import qualified System.Directory as Directory
@@ -47,6 +48,8 @@ run configBuilder = do
     withFrameworkConfig configBuilder \frameworkConfig -> do
         modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
 
+        approotMiddleware <- Approot.envFallback
+
         withInitalizers frameworkConfig modelContext do
             PGListener.withPGListener modelContext \pgListener -> do
                 autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
@@ -69,6 +72,7 @@ run configBuilder = do
                     . corsMiddleware
                     . methodOverridePost
                     . sessionMiddleware
+                    . approotMiddleware
                     $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}

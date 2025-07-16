@@ -18,6 +18,7 @@ import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
 import IHP.FrameworkConfig
 import Network.HTTP.Types.Status
+import qualified Network.Wai.Middleware.Approot as Approot
 
 import IHP.Controller.Context
 import IHP.ControllerSupport
@@ -43,7 +44,9 @@ redirectTo action = redirectToPath (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
-redirectToPath path = redirectToUrl (?context.frameworkConfig.baseUrl <> path)
+redirectToPath path = redirectToUrl (convertString baseUrl <> path)
+    where
+        baseUrl = Approot.getApproot ?context.requestContext.request
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a url (given as a string)
