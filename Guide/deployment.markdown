@@ -337,6 +337,22 @@ Steps to do to start from scratch:
  - `rm /tmp/[your-app].sql`
 
 
+### Troubleshooting / operations
+
+If a deployment or the initial creation goes wrong, there are techniques to locate the root cause, first, login to the EC2 instance:
+`ssh [your-app]-[env]`
+If logging in does not work, let's open AWS dashboard and initiate a reboot.
+After you logged in, you can:
+ - Check resource usages `df -h`, `free -m`, `top` to see if the instance capacity is okay for the deployment / load.
+ - `systemctl start app.service` / `systemctl restart app.service` check if the app can be started manually
+ - Check app logs: `journalctl --unit=app.service -n 100 --no-pager`
+ - Check worker logs: `journalctl  -u worker -r`
+ - Delete old logs if disk is full: `journalctl --vacuum-time=2d` - keep only past 2 days for example
+ - `dmesg` to spot any hardware/virtualization anomalies.
+ - `iptables -L` to see firewall rules, in case of network connectivity issues.
+
+Keep in mind that changes should be always done declaratively, via the `nix` files, for example changing the firewall rules temporarily via `iptables` will be lost at the next deployment, so `ssh` into the instance is merely for debugging, locating the root cause. The solution almost always involves a change in the `flake.nix` for the sake of idempotence.
+
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.
