@@ -45,6 +45,7 @@ import qualified IHP.Version as Version
 import qualified IHP.PGListener as PGListener
 
 import qualified Network.Wai.Application.Static as Static
+import qualified Network.Wai.Middleware.Approot as Approot
 import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
@@ -72,6 +73,8 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
     let modelContext = notConnectedModelContext undefined
+
+    approotMiddleware <- Approot.envFallback
     
     PGListener.withPGListener modelContext \pgListener -> do
         autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
@@ -90,7 +93,7 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
         let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
         Warp.runSettings warpSettings $
-                logMiddleware $ methodOverridePost $ sessionMiddleware
+                logMiddleware $ methodOverridePost $ sessionMiddleware $ approotMiddleware
                     $ Websocket.websocketsOr
                         Websocket.defaultConnectionOptions
                         (LiveReloadNotificationServer.app liveReloadClients)
