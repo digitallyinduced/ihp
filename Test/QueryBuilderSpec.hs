@@ -407,7 +407,40 @@ tests = do
                             |> orderByAsc #title
 
                     (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts ORDER BY posts.created_at,posts.title", [])
-            
+
+            describe "orderByJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByJoinedTable @User #name
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name", [])
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByJoinedTable @User #name
+                            |> orderByJoinedTable @User #id
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id", [])
+
+            describe "orderByAscJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByAscJoinedTable @User #name
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name", [])
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByAscJoinedTable @User #name
+                            |> orderByAscJoinedTable @User #id
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id", [])
+
+
             describe "orderByDesc" do
                 it "should add a ORDER BY DESC" do
                     let theQuery = query @Post
@@ -421,7 +454,23 @@ tests = do
                             |> orderByDesc #title
 
                     (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts ORDER BY posts.created_at DESC,posts.title DESC", [])
-        
+
+            describe "orderByDescJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByDescJoinedTable @User #name
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC", [])
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByDescJoinedTable @User #name
+                            |> orderByDescJoinedTable @User #id
+
+                    (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC,users.id DESC", [])
+
         describe "limit" do
             it "should add a LIMIT" do
                 let theQuery = query @Post

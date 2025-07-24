@@ -13,8 +13,11 @@ module IHP.QueryBuilder
 , QueryBuilder (..)
 , In (In)
 , orderBy
+, orderByJoinedTable
 , orderByAsc
+, orderByAscJoinedTable
 , orderByDesc
+, orderByDescJoinedTable
 , limit
 , offset
 , queryUnion
@@ -976,8 +979,6 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
         leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
 {-# INLINE innerJoinThirdTable #-}
-                       
-
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
 --
@@ -995,6 +996,26 @@ orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder {
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByAsc #-}
+
+-- | Adds an @ORDER BY .. ASC@ on a joined table column to your query.
+--
+-- Use 'orderByDescJoinedTable' for descending order.
+--
+-- __Example:__ Order joined `User` records by `username` ascending.
+--
+-- > query @Project
+-- >     |> innerJoin @User (#id, #projectId)
+-- >     |> orderByAscJoinedTable #username
+-- >     |> fetch
+-- > -- SELECT ... FROM projects
+-- > -- INNER JOIN users ON projects.id = users.project_id
+-- > -- ORDER BY users.username ASC
+orderByAscJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
+orderByAscJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE orderByAscJoinedTable #-}
 
 -- | Adds an @ORDER BY .. DESC@ to your query.
 --
@@ -1014,10 +1035,35 @@ orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder 
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByDesc #-}
 
+-- | Adds an @ORDER BY .. DESC@ on a joined table column to your query.
+--
+-- Use 'orderByAscJoinedTable' for ascending order.
+--
+-- __Example:__ Order joined `User` records by `username` descending.
+--
+-- > query @Project
+-- >     |> innerJoin @User (#id, #projectId)
+-- >     |> orderByDescJoinedTable #username
+-- >     |> fetch
+-- > -- SELECT ... FROM projects
+-- > -- INNER JOIN users ON projects.id = users.project_id
+-- > -- ORDER BY users.username DESC
+orderByDescJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
+orderByDescJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE orderByDescJoinedTable #-}
+
 -- | Alias for 'orderByAsc'
 orderBy :: (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderBy !name = orderByAsc name
 {-# INLINE orderBy #-}
+
+-- | Alias for 'orderByAscJoinedTable'
+orderByJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
+orderByJoinedTable !name = orderByAscJoinedTable @model @name @table @value @queryBuilderProvider @joinRegister @table' name
+{-# INLINE orderByJoinedTable #-}
 
 -- | Adds an @LIMIT ..@ to your query.
 --
