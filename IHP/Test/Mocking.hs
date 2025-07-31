@@ -34,6 +34,8 @@ import qualified Data.Serialize as Serialize
 import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
+import qualified Network.Wai.Middleware.Approot as Approot
+import qualified Network.Wai.Test as WaiTest
 
 type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -118,17 +120,18 @@ callAction controller = callActionWithParams controller []
 --
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
-    responseRef <- newIORef Nothing
-    let customRespond response = do
-            writeIORef responseRef (Just response)
-            pure ResponseReceived
-    let requestContextWithOverridenRespond = ?context { respond = customRespond, requestBody = FormBody params [] }
-    let ?context = requestContextWithOverridenRespond
-    runActionWithNewContext controller
-    maybeResponse <- readIORef responseRef
-    case maybeResponse of
-        Just response -> pure response
-        Nothing -> error "mockAction: The action did not render a response"
+    approotMiddleware <- Approot.envFallback
+    let ihpWaiApp request respond = do
+            let requestContextWithOverridenRespond = ?context { respond, request, requestBody = FormBody params [] }
+            let ?context = requestContextWithOverridenRespond
+            runActionWithNewContext controller
+
+        allMiddlewares app = approotMiddleware app
+
+    simpleResponse <- WaiTest.withSession (allMiddlewares ihpWaiApp) do
+        WaiTest.request ?context.request
+
+    pure $ Wai.responseLBS simpleResponse.simpleStatus simpleResponse.simpleHeaders simpleResponse.simpleBody
 
 -- | Run a Job in a mock environment
 --
