@@ -146,6 +146,7 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } useS
                             IO.hFlush IO.stdout
                         )
                     |> Warp.setPort appPort
+                    |> Warp.setGracefulShutdownTimeout (Just 6)
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } useSystemd =
     let
         warpSettings =  Warp.defaultSettings
