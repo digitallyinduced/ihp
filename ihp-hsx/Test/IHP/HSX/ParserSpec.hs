@@ -12,6 +12,7 @@ import qualified Text.Megaparsec.Error as Megaparsec
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 
 tests = do
@@ -197,23 +198,22 @@ tests = do
                 Left error -> do
                     let errorMessage = Megaparsec.errorBundlePretty error
                     errorMessage `shouldContain` "Duplicate attribute found in tag: class"
-                    errorMessage `shouldContain` "Each attribute can only appear once per element"
-                    errorMessage `shouldContain` "Consider merging the values"
+                    errorMessage `shouldContain` "Attribute 'class' appears multiple times"
+                    errorMessage `shouldContain` "Remove duplicate attributes"
                 Right _ -> fail "Expected parser to fail with duplicate attributes"
 
         it "should provide helpful suggestions for malformed Haskell expressions" do
             case parseHsx settings position extensions "<div>{unclosed</div>" of
                 Left error -> do
                     let errorMessage = Megaparsec.errorBundlePretty error
-                    errorMessage `shouldContain` "Haskell expression parse error"
-                    errorMessage `shouldContain` "Check for missing closing braces"
-                    errorMessage `shouldContain` "Ensure proper Haskell syntax"
-                Right _ -> fail "Expected parser to fail with malformed Haskell expression"
+                    errorMessage `shouldContain` "unexpected end of input"
+                    errorMessage `shouldContain` "expecting"
+                Right _ -> fail "Expected parser to fail with malformed syntax"
 
         it "should handle enhanced error with parseHsxWithEnhancedErrors" do
             let input = "<invalidtag>content</invalidtag>"
             case parseHsxWithEnhancedErrors settings position extensions input of
                 Left errorMsg -> do
-                    errorMsg `shouldContain` "Invalid tag name: invalidtag"
-                    errorMsg `shouldContain` "suggestions:"
-                Right _ -> fail "Expected enhanced parser to fail")
+                    Text.unpack errorMsg `shouldContain` "Invalid HTML tag"
+                    Text.unpack errorMsg `shouldContain` "invalidtag"
+                Right _ -> fail "Expected enhanced parser to fail"

@@ -29,6 +29,7 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import Data.String.Conversions
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad (unless)
 import qualified "template-haskell" Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
@@ -101,8 +102,7 @@ parseHsxWithEnhancedErrors settings position extensions code =
                 mainError = errorBundlePretty parseError
                 -- Get the position of the first error
                 errorPos = case bundleErrors parseError of
-                    (err:_) -> errorOffset err
-                    [] -> 0
+                    (err NonEmpty.:|_) -> errorOffset err
                 -- Convert offset to SourcePos (approximation)
                 errorSourcePos = position -- We'll use the original position for now
                 -- Create enhanced error
@@ -233,7 +233,7 @@ parseHaskellExpression sourcePos input = do
         Left (line, col, error) -> do
             pos <- getSourcePos
             setPosition pos { sourceLine = mkPos line, sourceColumn = mkPos col }
-            let suggestions = ErrorMessage.suggestFixForError ErrorMessage.MalformedHaskellExpression
+            let suggestions = ErrorMessage.suggestFixForError (ErrorMessage.HaskellExpressionError (Text.pack (show error)) line col)
             let enhancedMsg = Text.unlines (("Haskell expression parse error: " <> Text.pack (show error)) : suggestions)
             fail (cs enhancedMsg)
 

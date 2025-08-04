@@ -21,7 +21,6 @@ module IHP.HSX.ErrorMessage
 import Prelude
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Lines as Text
 import qualified Data.List as List
 import Text.Megaparsec (SourcePos(..), unPos)
 import qualified Text.Megaparsec as Megaparsec
@@ -52,7 +51,7 @@ data HSXError = HSXError
 extractSourceContext :: SourcePos -> Text -> (Text, Text, Text)
 extractSourceContext pos sourceCode =
     let
-        lines' = Text.lines sourceCode
+        lines' = Text.splitOn "\n" sourceCode
         lineNum = unPos (sourceLine pos) - 1  -- Convert to 0-based indexing
         
         beforeLine = if lineNum > 0 
