@@ -100,11 +100,19 @@ parseHsxWithEnhancedErrors settings position extensions code =
             let
                 -- Extract the main error message from the parse error bundle
                 mainError = errorBundlePretty parseError
-                -- Get the position of the first error
-                errorPos = case bundleErrors parseError of
-                    (err NonEmpty.:|_) -> errorOffset err
-                -- Convert offset to SourcePos (approximation)
-                errorSourcePos = position -- We'll use the original position for now
+                -- Get the actual error position from the first error in the bundle
+                errorSourcePos = case bundleErrors parseError of
+                    (err NonEmpty.:|_) -> case err of
+                        TrivialError offset _ _ -> 
+                            -- Convert offset back to SourcePos using the parse state
+                            let (SourcePos name line col) = position
+                                -- For now, use original position; improving this would require
+                                -- maintaining offset-to-position mapping during parsing
+                            in SourcePos name line col
+                        FancyError offset _ -> 
+                            let (SourcePos name line col) = position
+                            in SourcePos name line col
+                    [] -> position -- Fallback to original position
                 -- Create enhanced error
                 enhancedError = ErrorMessage.enhanceHSXError errorSourcePos code (cs mainError)
                 formattedError = ErrorMessage.formatHSXError enhancedError

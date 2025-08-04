@@ -195,10 +195,22 @@ classifyError msg
     | otherwise = SyntaxError msg
   where
     extractAttrFromDuplicateMsg :: Text -> Text
+    extractAttrFromDuplicateMsg :: Text -> Text
     extractAttrFromDuplicateMsg msg = 
-        case Text.words msg of
-            ws | length ws > 6 -> ws !! 6  -- Extract attribute name from error message
-            _ -> "unknown"
+        -- Look for patterns like "duplicate attribute 'class'" or "attribute: class"
+        let words = Text.words msg
+            -- Try different patterns for extracting attribute name
+            findAttrName [] = "unknown"
+            findAttrName (w:ws) = case w of
+                "attribute" -> case ws of
+                    (attr:_) -> Text.strip $ Text.filter (/= '\'') $ Text.filter (/= '"') attr
+                    [] -> findAttrName ws
+                _ -> if "'" `Text.isInfixOf` w || "\"" `Text.isInfixOf` w
+                     then Text.strip $ Text.filter (/= '\'') $ Text.filter (/= '"') w
+                     else findAttrName ws
+        in if Text.null (findAttrName words)
+           then "unknown"
+           else findAttrName words
 
 -- | Formats an enhanced HSX error for display
 formatHSXError :: HSXError -> Text
@@ -252,8 +264,8 @@ formatSourceContext lineNum beforeLine currentLine afterLine colNum =
                          else padLineNum beforeLineNum <> " | " <> beforeLine <> "\n"
         currentFormatted = padLineNum lineNumStr <> " | " <> currentLine <> "\n"
         
-        -- Create error pointer
-        pointer = Text.replicate (maxLineNumLen + 3 + colNum - 1) " " <> "^"
+        -- Create error pointer (ensure non-negative replication count)
+        pointer = Text.replicate (max 0 (maxLineNumLen + 3 + colNum - 1)) " " <> "^"
         
         afterFormatted = if Text.null afterLine
                         then ""
