@@ -89,6 +89,7 @@ library ihp-hsx-parser
     hs-source-dirs: parser
     exposed-modules:
         IHP.HSX.Parser
+        , IHP.HSX.ErrorMessage
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
 
@@ -107,6 +108,7 @@ library
         , IHP.HSX.Attribute
     reexported-modules:
         IHP.HSX.Parser
+        , IHP.HSX.ErrorMessage
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
 
@@ -124,6 +126,7 @@ library ihp-hsx-lucid2
         , IHP.HSX.Lucid2.ToHtml
     reexported-modules:
         IHP.HSX.Parser
+        , IHP.HSX.ErrorMessage
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
 

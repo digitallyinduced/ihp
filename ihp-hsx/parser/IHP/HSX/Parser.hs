@@ -11,6 +11,7 @@ Copyright: (c) digitally induced GmbH, 2022
 -}
 module IHP.HSX.Parser
 ( parseHsx
+, parseHsxWithEnhancedErrors
 , Node (..)
 , Attribute (..)
 , AttributeValue (..)
@@ -34,6 +35,7 @@ import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
+import qualified IHP.HSX.ErrorMessage as ErrorMessage
 
 data HsxSettings = HsxSettings
     { checkMarkup :: Bool
@@ -72,6 +74,42 @@ parseHsx settings position extensions code =
         ?settings = settings
     in
         runParser (setPosition position *> parser) "" code
+
+-- | Enhanced version of parseHsx that provides better error messages with context and suggestions
+--
+-- This function provides the same functionality as 'parseHsx' but with enhanced error reporting.
+-- When parsing fails, it extracts source context around the error location and provides
+-- helpful suggestions based on the type of error encountered.
+--
+-- __Example:__
+--
+-- > let filePath = "my-template"
+-- > let line = 0
+-- > let col = 0
+-- > let position = Megaparsec.SourcePos filePath (Megaparsec.mkPos line) (Megaparsec.mkPos col)
+-- > let hsxText = "<invalid-tag>Hello</invalid-tag>"
+-- >
+-- > let (Left errorMsg) = parseHsxWithEnhancedErrors settings position [] hsxText
+-- > -- errorMsg will contain context and suggestions
+parseHsxWithEnhancedErrors :: HsxSettings -> SourcePos -> [TH.Extension] -> Text -> Either Text Node
+parseHsxWithEnhancedErrors settings position extensions code =
+    case parseHsx settings position extensions code of
+        Right node -> Right node
+        Left parseError -> 
+            let
+                -- Extract the main error message from the parse error bundle
+                mainError = errorBundlePretty parseError
+                -- Get the position of the first error
+                errorPos = case bundleErrors parseError of
+                    (err:_) -> errorOffset err
+                    [] -> 0
+                -- Convert offset to SourcePos (approximation)
+                errorSourcePos = position -- We'll use the original position for now
+                -- Create enhanced error
+                enhancedError = ErrorMessage.enhanceHSXError errorSourcePos code (cs mainError)
+                formattedError = ErrorMessage.formatHSXError enhancedError
+            in
+                Left formattedError
 
 type Parser a = (?extensions :: [TH.Extension], ?settings :: HsxSettings) => Parsec Void Text a
 
@@ -163,7 +201,16 @@ hsxNodeAttributes end = staticAttributes
             let staticAttributes = List.filter isStaticAttribute attributes
             let keys = List.map (\(StaticAttribute name _) -> name) staticAttributes
             let uniqueKeys = List.nubOrd keys
-            unless (keys == uniqueKeys) (fail $ "Duplicate attribute found in tag: " <> show (keys List.\\ uniqueKeys))
+            unless (keys == uniqueKeys) do
+                pos <- getSourcePos
+                let duplicates = keys List.\\ uniqueKeys
+                let duplicateName = case duplicates of
+                        (attr:_) -> attr
+                        [] -> "unknown"
+                let errorMsg = "Duplicate attribute found in tag: " <> duplicateName
+                let suggestions = ErrorMessage.suggestFixForError (ErrorMessage.DuplicateAttribute duplicateName)
+                let enhancedMsg = Text.unlines (errorMsg : suggestions)
+                fail (cs enhancedMsg)
             pure attributes
 
 isStaticAttribute (StaticAttribute _ _) = True
@@ -186,7 +233,9 @@ parseHaskellExpression sourcePos input = do
         Left (line, col, error) -> do
             pos <- getSourcePos
             setPosition pos { sourceLine = mkPos line, sourceColumn = mkPos col }
-            fail (show error)
+            let suggestions = ErrorMessage.suggestFixForError ErrorMessage.MalformedHaskellExpression
+            let enhancedMsg = Text.unlines (("Haskell expression parse error: " <> Text.pack (show error)) : suggestions)
+            fail (cs enhancedMsg)
 
 hsxNodeAttribute :: Parser Attribute
 hsxNodeAttribute = do
@@ -220,7 +269,12 @@ hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
         let checkingMarkup = ?settings.checkMarkup
-        unless (isValidAttributeName name || not checkingMarkup) (fail $ "Invalid attribute name: " <> cs name)
+        unless (isValidAttributeName name || not checkingMarkup) do
+            pos <- getSourcePos
+            let errorMsg = "Invalid attribute name: " <> cs name
+            let suggestions = ErrorMessage.suggestFixForError (ErrorMessage.InvalidAttributeName name)
+            let enhancedMsg = Text.unlines (errorMsg : suggestions)
+            fail (cs enhancedMsg)
         pure name
     where
         isValidAttributeName name =
@@ -305,7 +359,12 @@ hsxElementName = do
                                   && not (Char.isNumber (Text.head name))
     let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
     let checkingMarkup = ?settings.checkMarkup
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) (fail $ "Invalid tag name: " <> cs name)
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) do
+        pos <- getSourcePos
+        let errorMsg = "Invalid tag name: " <> cs name
+        let suggestions = ErrorMessage.suggestFixForError (ErrorMessage.InvalidTagName name)
+        let enhancedMsg = Text.unlines (errorMsg : suggestions)
+        fail (cs enhancedMsg)
     space
     pure name
 

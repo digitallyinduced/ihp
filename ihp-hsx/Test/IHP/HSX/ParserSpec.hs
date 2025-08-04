@@ -170,3 +170,50 @@ tests = do
         it "should allow mixing custom and standard elements" do
             let p = parseHsx customSettings position extensions "<mycustomtag class=\"hello\" my-custom-attr=\"world\">test</mycustomtag>"
             p `shouldBe` (Right (Children [Node "mycustomtag" [StaticAttribute "class" (TextValue "hello"), StaticAttribute "my-custom-attr" (TextValue "world")] [TextNode "test"] False]))
+
+    describe "Enhanced Error Messages" do
+        let settings = HsxSettings True Set.empty Set.empty
+        
+        it "should provide helpful suggestions for invalid tag names" do
+            case parseHsx settings position extensions "<spn>content</spn>" of
+                Left error -> do
+                    let errorMessage = Megaparsec.errorBundlePretty error
+                    errorMessage `shouldContain` "Invalid tag name: spn"
+                    errorMessage `shouldContain` "Did you mean 'span'?"
+                    errorMessage `shouldContain` "Common HTML tags include:"
+                Right _ -> fail "Expected parser to fail with invalid tag name"
+
+        it "should provide helpful suggestions for invalid attribute names" do
+            case parseHsx settings position extensions "<div clas=\"test\">content</div>" of
+                Left error -> do
+                    let errorMessage = Megaparsec.errorBundlePretty error
+                    errorMessage `shouldContain` "Invalid attribute name: clas"
+                    errorMessage `shouldContain` "Did you mean 'class'?"
+                    errorMessage `shouldContain` "Common HTML attributes include:"
+                Right _ -> fail "Expected parser to fail with invalid attribute name"
+
+        it "should provide helpful suggestions for duplicate attributes" do
+            case parseHsx settings position extensions "<div class=\"first\" class=\"second\">content</div>" of
+                Left error -> do
+                    let errorMessage = Megaparsec.errorBundlePretty error
+                    errorMessage `shouldContain` "Duplicate attribute found in tag: class"
+                    errorMessage `shouldContain` "Each attribute can only appear once per element"
+                    errorMessage `shouldContain` "Consider merging the values"
+                Right _ -> fail "Expected parser to fail with duplicate attributes"
+
+        it "should provide helpful suggestions for malformed Haskell expressions" do
+            case parseHsx settings position extensions "<div>{unclosed</div>" of
+                Left error -> do
+                    let errorMessage = Megaparsec.errorBundlePretty error
+                    errorMessage `shouldContain` "Haskell expression parse error"
+                    errorMessage `shouldContain` "Check for missing closing braces"
+                    errorMessage `shouldContain` "Ensure proper Haskell syntax"
+                Right _ -> fail "Expected parser to fail with malformed Haskell expression"
+
+        it "should handle enhanced error with parseHsxWithEnhancedErrors" do
+            let input = "<invalidtag>content</invalidtag>"
+            case parseHsxWithEnhancedErrors settings position extensions input of
+                Left errorMsg -> do
+                    errorMsg `shouldContain` "Invalid tag name: invalidtag"
+                    errorMsg `shouldContain` "suggestions:"
+                Right _ -> fail "Expected enhanced parser to fail")
