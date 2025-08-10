@@ -1,4 +1,4 @@
-$(document).on('ready turbolinks:load', function () {
+document.addEventListener('ihp:load', function () {
     initQueryEditor();
 });
 

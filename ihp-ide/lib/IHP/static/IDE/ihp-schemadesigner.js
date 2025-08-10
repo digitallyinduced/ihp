@@ -189,11 +189,11 @@ function initTooltip() {
     $('[data-toggle="tooltip"]').tooltip('dispose').tooltip({ container: 'body'});
 }
 
-document.addEventListener('turbolinks:load', initSchemaDesigner);
-document.addEventListener('turbolinks:load', initCodeEditor);
-document.addEventListener('turbolinks:load', initQueryAce);
-document.addEventListener('turbolinks:load', initTooltip);
-document.addEventListener('turbolinks:load', initDataEditorForeignKeyAutocomplete);
+document.addEventListener('ihp:load', initSchemaDesigner);
+document.addEventListener('ihp:load', initCodeEditor);
+document.addEventListener('ihp:load', initQueryAce);
+document.addEventListener('ihp:load', initTooltip);
+document.addEventListener('ihp:load', initDataEditorForeignKeyAutocomplete);
 
 function initQueryAce() {
     var editorEl = document.getElementById('queryInput');
