@@ -64,6 +64,7 @@ common common-flags
         -Winaccessible-code
         -Wmissed-specialisations
         -Wall-missed-specialisations
+        -Werror=incomplete-patterns
         -fspecialise-aggressively
         -funfolding-use-threshold=120
         -fdicts-strict
