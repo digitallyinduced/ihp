@@ -916,3 +916,78 @@ Key Features:
    - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
 
 
+# Cachix Setup for Faster Builds
+
+Setting up your own Cachix cache can significantly speed up builds and deployments by sharing compiled Nix packages across your team and CI/CD pipeline.
+
+How it works:
+
+1. **Local development**: Your `flake.nix` configuration tells Nix to check your Cachix cache for pre-built packages
+2. **CI/CD**: GitHub Actions will:
+   - Pull from your cache during builds (faster)
+   - Push new builds to your cache after successful tests (on main branch only)
+3. **Team sharing**: All team members benefit from cached builds
+
+## Create a Cachix Cache
+
+1. Install cachix locally:
+
+ ```bash
+nix profile add --accept-flake-config nixpkgs#cachix
+```
+
+2. Go to [cachix.org](https://www.cachix.org) and create an account
+3. Create a new cache (choose a unique name for your project)
+4. Note down your cache name and public key
+
+## Get Your Cachix Auth Token
+
+Create a Cachix token at: https://app.cachix.org/cache/YOUR-CACHIX/settings/authtokens
+
+
+## Add Token to GitHub Repository Secrets
+
+1. Go to your GitHub repository
+2. Click the **Settings** tab
+3. In the left sidebar, click **Secrets and variables** → **Actions**
+4. Click **New repository secret**
+5. Name: `CACHIX_AUTH_TOKEN`
+6. Value: paste your cachix auth token
+7. Click **Add secret**
+
+## Update `flake.nix`
+
+Uncomment and update the `nixConfig` section at the bottom of your `flake.nix`:
+
+```nix
+{
+    nixConfig = {
+        extra-substituters = [
+            "https://YOUR-CACHE-NAME.cachix.org"
+        ];
+        extra-trusted-public-keys = [
+            "YOUR-CACHE-NAME.cachix.org-1:YOUR-PUBLIC-KEY"
+        ];
+    };
+    # ... rest of your flake
+}
+```
+
+## Update GitHub Actions Workflow
+
+In `.github/workflows/test.yml`, uncomment and update the Cachix sections:
+
+1. Uncomment the "Custom Cachix Init" step and replace `CHANGE-ME` with your cache name
+2. Uncomment the "Push to Cachix" step and replace `CHANGE-ME` with your cache name
+
+## Monitor Your Cache
+
+You can monitor new store paths being added to your cache:
+
+```bash
+cachix watch-store YOUR-CACHE-NAME
+```
+
+This will show you when new packages are being pushed to your cache.
+
+
