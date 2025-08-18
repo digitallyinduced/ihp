@@ -46,6 +46,7 @@ import GHC.TypeLits
 import Data.Data
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
 import Network.HTTP.Types.URI
 import qualified Data.List as List
 import Unsafe.Coerce
@@ -262,8 +263,24 @@ parseFuncs parseIdType = [
                     |> fromASCIIBytes
                     |> \case
                         Just uuid -> uuid |> unsafeCoerce |> Right
-                        Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+                        Nothing ->
+                            -- We couldn't parse the UUID, so try Maybe (Id UUID),
+                            -- where we have a @Just@ prefix before the UUID, or a @Nothing@ string.
+                            if (cs queryValue == ("Nothing" :: Text))
+                                -- This is a @Nothing@
+                                then Nothing |> unsafeCoerce |> Right
+                                else
+                                    queryValue
+                                        |> cs
+                                        |> Text.replace "Just" ""
+                                        |> UUID.fromText
+                                        |> \case
+                                            -- We were able to parse the UUID, so wrap it in a @Just@.
+                                            Just uuid -> Just uuid |> unsafeCoerce |> Right
+                                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
+
                 Nothing -> Left NotMatched
+
             ]
 {-# INLINABLE parseFuncs #-}
 
