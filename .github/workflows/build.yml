@@ -12,7 +12,11 @@ jobs:
         os: [ubuntu-latest, macos-latest, ARM64]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
+    - uses: wimpysworld/nothing-but-nix@main
+      with:
+        hatchet-protocol: 'rampage'
+      if: matrix.os == 'ubuntu-latest'
     - uses: DeterminateSystems/nix-installer-action@main
       with:
         determinate: true

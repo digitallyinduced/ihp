@@ -146,14 +146,14 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } useS
                             IO.hFlush IO.stdout
                         )
                     |> Warp.setPort appPort
-                    |> Warp.setGracefulShutdownTimeout (Just 6)
-                    |> Warp.setFdCacheDuration (5 * 60)
-                    |> Warp.setFileInfoCacheDuration (5 * 60)
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } useSystemd =
     let
         warpSettings =  Warp.defaultSettings
             |> Warp.setPort appPort
             |> Warp.setOnException exceptionTracker.onException
+            |> Warp.setGracefulShutdownTimeout (Just 6)
+            |> Warp.setFdCacheDuration (5 * 60)
+            |> Warp.setFileInfoCacheDuration (5 * 60)
         heartbeatCheck = do
                 response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
                 pure ()

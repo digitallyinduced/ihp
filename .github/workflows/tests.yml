@@ -8,6 +8,6 @@ jobs:
   tests:
     runs-on: ARM64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - run: nix develop --impure --command tests
     - run: nix develop --impure --command fastbuild
