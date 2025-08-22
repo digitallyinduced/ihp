@@ -27,6 +27,7 @@ common shared-properties
           , attoparsec
           , postgresql-simple
           , aeson
+          , countable-inflections
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
