@@ -1,7 +1,7 @@
 {
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs";
-        devenv.url = "github:cachix/devenv";
+        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+        devenv.url = "github:cachix/devenv/v1.8.2";
     };
 
     outputs = inputs@{ flake-parts, nixpkgs, ... }:
@@ -13,7 +13,7 @@
                 packages.default = pkgs.stdenv.mkDerivation {
                     name = "ihp-guide";
                     src = ./.;
-                    nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli nodejs-18_x curl cacert ];
+                    nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli nodejs curl cacert ];
                     buildPhase = ''
                         # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
                         export HOME=/tmp
@@ -33,7 +33,7 @@
                         haskellPackages.wai-app-static
                         entr
                         haskellPackages.mmark-cli
-                        nodejs-18_x
+                        nodejs
                     ];
 
                     enterShell = ''echo "Server is starting at: http://localhost:3000/index.html"'';
