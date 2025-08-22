@@ -28,7 +28,7 @@
                 };
 
                 devenv.shells.default = {
-                    process.implementation = "overmind";
+                    process.manager.implementation = "overmind";
                     packages = with pkgs; [
                         haskellPackages.wai-app-static
                         entr

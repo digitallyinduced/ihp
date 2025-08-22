@@ -113,7 +113,7 @@ that is defined in flake-module.nix
                 ./build-haddock
             '';
 
-            languages.haskell.stack = null; # Stack is not used in IHP
+            languages.haskell.stack.enable = false; # Stack is not used in IHP
             languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
         };
 

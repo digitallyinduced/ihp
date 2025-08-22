@@ -228,7 +228,7 @@ ihpFlake:
                                              then ghcCompiler.ghc.withHoogle
                                              else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
 
-                languages.haskell.stack = null; # Stack is not used in IHP
+                languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
                     ${ghcCompiler.ihp-ide}/bin/RunDevServer
