@@ -108,11 +108,6 @@ that is defined in flake-module.nix
                 make tarball.tar.gz
             '';
 
-            scripts.build-api-reference.exec = ''
-                chmod +x build-haddock
-                ./build-haddock
-            '';
-
             languages.haskell.stack.enable = false; # Stack is not used in IHP
             languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
         };
@@ -123,6 +118,80 @@ that is defined in flake-module.nix
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
+
+
+            guide =
+                let
+                    node-modules = pkgs.mkYarnModules {
+                        pname = "guide-node_modules";
+                        packageJSON = ./Guide/package.json;
+                        yarnLock = ./Guide/yarn.lock;
+                        version = "1.0.0";
+                    };
+                in
+                    pkgs.stdenv.mkDerivation {
+                        name = "ihp-guide";
+                        src = ./Guide;
+                        nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli pkgs.esbuild ];
+                        buildPhase = ''
+                            # build HTML from all *.markdown using the template
+                            for f in *.markdown; do
+                                out_html="''${f%.markdown}.html"
+                                mmark -i "$f" -o "$out_html" \
+                                    --template layout.html \
+                                    --ext-skylighting --ext-ghc-highlighter \
+                                    --ext-punctuation --ext-toc 2-6
+                            done
+
+                            cp ${node-modules}/node_modules/bootstrap/dist/css/bootstrap.min.css bootstrap.css
+                            cp ${node-modules}/node_modules/instantclick/dist/instantclick.min.js instantclick.js
+
+                            # build search.js via esbuild
+                            NODE_PATH=${node-modules}/node_modules \
+                            ${pkgs.esbuild}/bin/esbuild search.jsx \
+                                --bundle \
+                                --preserve-symlinks \
+                                --minify-whitespace \
+                                --define:process.env.NODE_ENV=\"production\" \
+                                --minify \
+                                --legal-comments=none \
+                                --outfile=search.js
+                        '';
+                        installPhase = ''
+                            mkdir -p $out
+                            cp -r *.html *.css *.js images $out/
+                        '';
+                        LOCALE_ARCHIVE = pkgs.lib.optionalString pkgs.stdenv.isLinux "${pkgs.glibcLocales}/lib/locale/locale-archive";
+                        LANG = "en_US.UTF-8";
+                        allowedReferences = [];
+                };
+
+
+            reference =
+                pkgs.stdenv.mkDerivation {
+                    name = "ihp-reference";
+                    src = self;
+                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp ];
+                    buildPhase = ''
+                        cp -r ${pkgs.ghc.ihp.doc}/share/doc/ihp-*/html haddock-build
+                        chmod -R u+w haddock-build
+
+                        cd haddock-build
+
+                        # Add favicon
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<head>#<head><link rel="shortcut icon" type="image\/x-icon" href="https:\/\/ihp.digitallyinduced.com\/ihp-logo.svg"\/>#g' '{}' +
+
+                        # Add ihp-haddock.css
+                        cp ../ihp-haddock.css ihp-haddock.css
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+                        # Link title to index
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
+
+                        cp -R . $out
+                    '';
+                    # allowedReferences = [];
+            };
         };
     };
 }
