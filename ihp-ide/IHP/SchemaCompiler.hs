@@ -6,7 +6,7 @@ module IHP.SchemaCompiler
 import ClassyPrelude
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
-import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, pluralize)
+import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import Data.List.Split
@@ -16,6 +16,7 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
+import Text.Countable (pluralize)
 
 data CompileException = CompileException ByteString deriving (Show)
 instance Exception CompileException where
