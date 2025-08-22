@@ -1,6 +1,7 @@
 module IHP.IDE.SchemaDesigner.Controller.Validation where
 
 import IHP.ControllerPrelude
+import Text.Countable (singularize)
 
 isUniqueInList :: (Foldable t, Eq a) => t a -> Maybe a -> Validator a
 isUniqueInList list oldValue newValue
