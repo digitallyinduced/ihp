@@ -23,6 +23,17 @@ final: prev: {
             ihp-oauth-google = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-oauth-google.nix" {};
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
+            
+            # Can be removed after https://github.com/tippenein/countable-inflections/pull/6 is merged
+            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
+                version = "0.3.0-idempotent-pluralize";
+                src = final.fetchFromGitHub {
+                    owner = "mpscholten";
+                    repo = "countable-inflections";
+                    rev = "eea519973d6b59291054beab161bcc948b1b580f";
+                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
+                };
+            };
         };
     };
 }

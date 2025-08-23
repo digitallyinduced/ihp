@@ -6,6 +6,7 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.SchemaDesigner.View.Columns.Edit (typeSelector)
+import Text.Countable (singularize)
 
 data NewColumnView = NewColumnView
     { statements :: [Statement]

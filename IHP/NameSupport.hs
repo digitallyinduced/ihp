@@ -16,7 +16,6 @@ module IHP.NameSupport
 , tableNameToViewName
 , enumValueToControllerName
 , toSlug
-, module IHP.NameSupport.Inflections
 , fieldNameToFieldLabel
 , columnNameToFieldLabel
 , removeIdSuffix
@@ -31,9 +30,9 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Control.Monad (join)
-import IHP.NameSupport.Inflections
 import qualified Text.Inflections
 import qualified Data.Text as Text
+import Text.Countable (singularize, pluralize)
 
 -- | Transforms a underscore table name to a camel case model name.
 --

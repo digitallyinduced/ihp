@@ -70,6 +70,7 @@ common shared-properties
             , cryptohash
             , http-types
             , safe-exceptions
+            , countable-inflections
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

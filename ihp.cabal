@@ -86,8 +86,6 @@ common shared-properties
             , parser-combinators
             , ip
             , fast-logger
-            , regex-pcre-builtin
-            , pcre-utils
             , minio-hs
             , temporary
             , conduit-extra
@@ -105,6 +103,7 @@ common shared-properties
             , mime-types
             , safe-exceptions
             , resourcet
+            , countable-inflections
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -210,8 +209,6 @@ library
         , IHP.Log.Types
         , IHP.ModelSupport
         , IHP.NameSupport
-        , IHP.NameSupport.Inflections
-        , IHP.NameSupport.Inflections.Data
         , IHP.QueryBuilder
         , IHP.Fetch
         , IHP.RouterPrelude
