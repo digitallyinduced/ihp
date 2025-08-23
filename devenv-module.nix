@@ -45,7 +45,7 @@ that is defined in flake-module.nix
                             export IHP=${pkgs.ghc.ihp-ide}/lib/IHP
 
                             # scaffold before the package’s normal build kicks in
-                            new-application Web
+                            ${pkgs.ghc.ihp-ide}/bin/new-application Web
 
                             make build/bin/RunUnoptimizedProdServer
                         '';
