@@ -208,6 +208,17 @@ that is defined in flake-module.nix
                     '';
                     # allowedReferences = [];
             };
+
+            datasync-js = pkgs.mkYarnPackage {
+                name = "datasync-js";
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = "${self}/lib/IHP/DataSync";
+                };
+                postConfigure = ''
+                    yarn run test
+                    yarn run typecheck
+                '';
+            };
         };
     };
 }
