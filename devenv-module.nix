@@ -12,6 +12,9 @@ that is defined in flake-module.nix
         apps.migrate = {
             type = "app";
             program = "${pkgs.ghc.ihp-migrate}/bin/migrate";
+            meta = {
+                description = "Apply migrations to the database";
+            };
         };
 
         devenv.shells.default = {
