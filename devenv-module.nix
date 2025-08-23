@@ -22,7 +22,10 @@ that is defined in flake-module.nix
             # Runs Tests/Main.hs
             tests = pkgs.stdenv.mkDerivation {
                 name = "ihp-tests";
-                src = self;
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = self;
+                    include = [ "IHP" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "lib" (filter.matchExt "hs") ];
+                };
                 nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
                 buildPhase = ''
                     # shellcheck disable=SC2046
