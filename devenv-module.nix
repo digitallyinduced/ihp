@@ -5,7 +5,7 @@ that is defined in flake-module.nix
 */
 { self, inputs }:
 {
-    perSystem = { system, nix-filter, pkgs, lib, ... }:
+    perSystem = { config, system, nix-filter, pkgs, lib, ... }:
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
 
@@ -16,6 +16,23 @@ that is defined in flake-module.nix
                 description = "Apply migrations to the database";
             };
         };
+
+        # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
+        checks = {
+            # Runs Tests/Main.hs
+            tests = pkgs.stdenv.mkDerivation {
+                name = "ihp-tests";
+                src = self;
+                nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
+                buildPhase = ''
+                    # shellcheck disable=SC2046
+                    runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
+                    touch $out
+                '';
+            };
+        }
+            # Add all package outputs to the checks
+            // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system});
 
         devenv.shells.default = {
             packages = with pkgs; [];
@@ -97,10 +114,6 @@ that is defined in flake-module.nix
                         io-streams
                         network-uri
                     ]);
-
-            scripts.tests.exec = ''
-                runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
-            '';
 
             scripts.fastbuild.exec = ''
                 cabal build --flag FastBuild
