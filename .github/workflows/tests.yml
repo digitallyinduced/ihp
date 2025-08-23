@@ -5,7 +5,7 @@ on:
   push:
     branches: 'master'
 jobs:
-  tests:
+  nix-flake-check:
     runs-on: ARM64
     steps:
     - uses: actions/checkout@v5
