@@ -55,6 +55,7 @@ that is defined in flake-module.nix
                         installPhase = ''
                             cp -R . $out
                         '';
+                        buildInputs = old.buildInputs ++ [ pkgs.ghc.ihp-ide ];
                     });
                 in
                     inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
