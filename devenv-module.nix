@@ -30,9 +30,46 @@ that is defined in flake-module.nix
                     touch $out
                 '';
             };
+
+            # Creates a new empty IHP project and verifies that it builds with IHP
+            #
+            # To run this check against a specific IHP version:
+            #     nix flake check --impure --override-input ihp-boilerplate/ihp "github:digitallyinduced/ihp/$someHash"
+            ihp-boilerplate-with-web-application =
+                let
+                    # Empty project with an empty Web application being created
+                    projectSrc = inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
+                        name = "ihp-boilerplate-with-web-application-src";
+                        buildPhase = ''
+                            export IHP_LIB=${pkgs.ghc.ihp-ide}/lib/IHP
+                            export IHP=${pkgs.ghc.ihp-ide}/lib/IHP
+
+                            # scaffold before the package’s normal build kicks in
+                            new-application Web
+
+                            make build/bin/RunUnoptimizedProdServer
+                        '';
+                        installPhase = ''
+                            cp -R . $out
+                        '';
+                    });
+                in
+                    inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
+                        name = "ihp-boilerplate-with-web-application";
+                        src = projectSrc;
+                    });
+
+
+            # Checks devShells
+            ihp-devShell = self.devShells.${system}.default;
+            boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
         }
             # Add all package outputs to the checks
-            // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system});
+            // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system})
+            
+            # Add all ihp-boilerplate packages to the checks
+            // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") inputs.ihp-boilerplate.packages.${system}))
+        ;
 
         devenv.shells.default = {
             packages = with pkgs; [];
