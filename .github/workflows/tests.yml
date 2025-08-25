@@ -1,13 +1,12 @@
-name: "Tests + Compile"
+name: "nix flake check --impure"
 on:
   pull_request:
     branches: [master]
   push:
     branches: 'master'
 jobs:
-  tests:
+  nix-flake-check:
     runs-on: ARM64
     steps:
     - uses: actions/checkout@v5
-    - run: nix develop --impure --command tests
-    - run: nix develop --impure --command fastbuild
+    - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L

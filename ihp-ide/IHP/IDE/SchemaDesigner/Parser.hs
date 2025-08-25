@@ -60,7 +60,7 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = optional space >> manyTill statement eof
+parseDDL = optional space >> (restrict <|> manyTill statement eof)
 
 statement = do
     space
@@ -996,3 +996,11 @@ commit = do
 removeTypeCasts :: Expression -> Expression
 removeTypeCasts (TypeCastExpression value _) = value
 removeTypeCasts otherwise = otherwise
+
+restrict = do
+    lexeme "\\restrict"
+    key <- identifier
+    inner <- manyTill statement (lexeme "\\unrestrict")
+    symbol key
+    eof
+    pure inner

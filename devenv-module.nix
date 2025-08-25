@@ -5,14 +5,75 @@ that is defined in flake-module.nix
 */
 { self, inputs }:
 {
-    perSystem = { system, nix-filter, pkgs, lib, ... }:
+    perSystem = { config, system, nix-filter, pkgs, lib, ... }:
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
 
         apps.migrate = {
             type = "app";
             program = "${pkgs.ghc.ihp-migrate}/bin/migrate";
+            meta = {
+                description = "Apply migrations to the database";
+            };
         };
+
+        # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
+        checks = {
+            # Runs Tests/Main.hs
+            tests = pkgs.stdenv.mkDerivation {
+                name = "ihp-tests";
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = self;
+                    include = [ "IHP" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "lib" (filter.matchExt "hs") ];
+                };
+                nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
+                buildPhase = ''
+                    # shellcheck disable=SC2046
+                    runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
+                    touch $out
+                '';
+            };
+
+            # Creates a new empty IHP project and verifies that it builds with IHP
+            #
+            # To run this check against a specific IHP version:
+            #     nix flake check --impure --override-input ihp-boilerplate/ihp "github:digitallyinduced/ihp/$someHash"
+            ihp-boilerplate-with-web-application =
+                let
+                    # Empty project with an empty Web application being created
+                    projectSrc = inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
+                        name = "ihp-boilerplate-with-web-application-src";
+                        buildPhase = ''
+                            export IHP_LIB=${pkgs.ghc.ihp-ide}/lib/IHP
+                            export IHP=${pkgs.ghc.ihp-ide}/lib/IHP
+
+                            # scaffold before the package’s normal build kicks in
+                            ${pkgs.ghc.ihp-ide}/bin/new-application Web
+
+                            make build/bin/RunUnoptimizedProdServer
+                        '';
+                        installPhase = ''
+                            cp -R . $out
+                        '';
+                        buildInputs = old.buildInputs ++ [ pkgs.ghc.ihp-ide ];
+                    });
+                in
+                    inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
+                        name = "ihp-boilerplate-with-web-application";
+                        src = projectSrc;
+                    });
+
+
+            # Checks devShells
+            ihp-devShell = self.devShells.${system}.default;
+            boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
+        }
+            # Add all package outputs to the checks
+            // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system})
+            
+            # Add all ihp-boilerplate packages to the checks
+            // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") inputs.ihp-boilerplate.packages.${system}))
+        ;
 
         devenv.shells.default = {
             packages = with pkgs; [];
@@ -94,10 +155,6 @@ that is defined in flake-module.nix
                         io-streams
                         network-uri
                     ]);
-
-            scripts.tests.exec = ''
-                runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
-            '';
 
             scripts.fastbuild.exec = ''
                 cabal build --flag FastBuild
@@ -196,6 +253,17 @@ that is defined in flake-module.nix
                         cp -R . $out
                     '';
                     # allowedReferences = [];
+            };
+
+            datasync-js = pkgs.mkYarnPackage {
+                name = "datasync-js";
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = "${self}/lib/IHP/DataSync";
+                };
+                postConfigure = ''
+                    yarn run test
+                    yarn run typecheck
+                '';
             };
         };
     };
