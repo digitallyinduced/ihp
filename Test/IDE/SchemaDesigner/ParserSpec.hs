@@ -1169,6 +1169,13 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse an 'CREATE UNLOGGED TABLE' statement" do
             parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True }
 
+        it "should ignore restrict lines" do
+            let sql = [trimming|
+                \restrict LjgPjBgHVdXUE0a19ZenYCd3Zs2dsdUxghYk15OGwb4zzkNflnbsZ4rQo7Eqm5G
+                CREATE TABLE public_variables (id UUID);
+                \unrestrict LjgPjBgHVdXUE0a19ZenYCd3Zs2dsdUxghYk15OGwb4zzkNflnbsZ4rQo7Eqm5G
+            |]
+            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = CreateTable {name = "public_variables", columns = [Column {name = "id", columnType = PUUID, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = []}, constraints = [], unlogged = False}}
 
 col :: Column
 col = Column
