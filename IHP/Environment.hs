@@ -3,7 +3,8 @@ import IHP.Prelude
 
 -- | The 'Environment' type is used to switch between development and production configurations.
 --
--- You can set it with 'option Development' or 'option Production' in your Config.hs, or via the 'IHP_ENV' environment variable.
+-- When running 'devenv up', this will be set to 'Development', while 'deploy-to-nixos' will set it to 'Production'.
+-- You can also manually set it with 'option Development' or 'option Production' in your Config.hs, or via the 'IHP_ENV' environment variable.
 --
 -- You can check the current environment using 'isDevelopment', 'isProduction', or 'isEnvironment' if you want to change behaviour based on the environment.
 -- IHP by default implements the following differences:
