@@ -11,7 +11,7 @@ import IHP.Prelude
 --
 -- - Static file caching: In 'Development', browser cache is disabled (max-age=0). In 'Production', max-age is forever, with asset hashes for invalidation. See 'initStaticApp'.
 -- - Logger: In 'Development', logging uses the default format. In 'Production', it uses an Apache-style logger and higher log level. See 'ihpDefaultConfig'.
--- - Background workers: In 'Development', a development job worker server is started automatically. In 'Production', you need to manually start a separate RunJobs process. See the Guide for details.
+-- - Background workers: In 'Development', a development job worker server is started automatically. In 'Production', you need to manually start a separate RunJobs process. See the [chapter on Jobs in the Guide](https://ihp.digitallyinduced.com/Guide/jobs.html#development-vs-production) for details.
 -- - Database connections: The pool idle time is by default shorter in 'Development'. See 'ihpDefaultConfig'.
 -- - Error pages: In 'Development', error pages may contain backtraces and details about the code, with links to the IDE. In 'Production', error pages do not contain implementation information.
 data Environment = Development | Production deriving (Eq, Show)
