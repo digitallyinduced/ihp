@@ -19,7 +19,7 @@ source-repository head
 common shared-properties
     default-language: Haskell2010
     build-depends:
-            base
+            base >= 4.17.0 && < 4.22
             , bytestring
             , attoparsec
             , basic-prelude
