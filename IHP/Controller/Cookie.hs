@@ -3,7 +3,7 @@ Module: IHP.Controller.Cookie
 Description: Set Cookies
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module IHP.Controller.Cookie (setCookie) where
+module IHP.Controller.Cookie (setCookie, getCookie, allCookies) where
 
 import IHP.Prelude
 import IHP.ControllerSupport
@@ -28,3 +28,17 @@ setCookie cookie = setHeader ("Set-Cookie", cookieString)
                 |> renderSetCookie
                 |> Binary.toLazyByteString
                 |> LBS.toStrict
+
+-- | Returns a cookie by it's name
+--
+-- > getCookie "fbc"
+-- Just "1234"
+--
+getCookie :: (?context :: ControllerContext) => Text -> Maybe Text
+getCookie name =
+    lookup name allCookies
+
+-- | Returns all cookies sent with the current request
+allCookies :: (?context :: ControllerContext) => [(Text, Text)]
+allCookies =
+    maybe [] parseCookiesText $ lookup "Cookie" request.requestHeaders
