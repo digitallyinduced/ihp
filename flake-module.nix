@@ -123,6 +123,14 @@ ihpFlake:
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = pkgs.ghc;
+            hsDataDir = package:
+                    let
+                        ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.8.4"
+                        shareRoot = "${package.data}/share/${ghcName}";
+                        # Pick the only dir ending with "-${ghcName}", e.g. "aarch64-osx-ghc-9.8.4"
+                        sys = lib.head (lib.filter (n: lib.hasSuffix "-${ghcName}" n) (builtins.attrNames (builtins.readDir shareRoot)));
+                    in
+                        "${shareRoot}/${sys}/${package.name}";
         in lib.mkIf cfg.enable {
             _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
 
@@ -143,6 +151,7 @@ ihpFlake:
                     optimizationLevel = cfg.optimizationLevel;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -157,6 +166,7 @@ ihpFlake:
                     optimizationLevel = "0";
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
@@ -178,10 +188,10 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
-                    nativeBuildInputs = [ghcCompiler.ihp-ide];
+                    nativeBuildInputs = [ghcCompiler.ihp-ide.data];
                     installPhase = ''
                         mkdir $out
-                        cp ${ghcCompiler.ihp-ide}/lib/IHP/IHPSchema.sql $out/
+                        cp ${hsDataDir ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
                     '';
                     allowedReferences = [];
                 };
@@ -231,7 +241,7 @@ ihpFlake:
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    IHP_STATIC=${hsDataDir ghcCompiler.ihp.data}/static ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.ihp.exec = "start";
@@ -254,7 +264,7 @@ ihpFlake:
 
                         echo "-- IHPSchema.sql" >> $out
                         echo "" >> $out
-                        cat ${./lib/IHP/IHPSchema.sql} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+                        cat ${ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
                         echo "" >> $out
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out
@@ -267,8 +277,11 @@ ihpFlake:
                     }
                 ];
 
-                env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
-                env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
+                # Used in the Makefile https://github.com/digitallyinduced/ihp-boilerplate/blob/master/Makefile
+                env.IHP = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+
+                # Used by .ghci https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.ghci
+                env.IHP_LIB = config.devenv.shells.default.env.IHP;
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then

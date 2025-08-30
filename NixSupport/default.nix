@@ -12,6 +12,7 @@
 , appName ? "app"
 , optimizationLevel ? "2"
 , filter
+, ihp-env-var-backwards-compat
 }:
 
 let
@@ -23,8 +24,6 @@ let
         (otherDeps pkgs)
     ];
 
-    ihpLibWithMakefile = filter { root = ihp; include = ["lib/IHP/Makefile.dist"]; name = "ihpLibWithMakefile"; };
-    ihpLibWithMakefileAndStatic = filter { root = ihp; include = ["lib/IHP/Makefile.dist" "lib/IHP/static"]; name = "ihpLibWithMakefileAndStatic"; };
     splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
 
     schemaObjectFiles =
@@ -37,7 +36,7 @@ let
                     mkdir -p build/Generated
                     build-generated-code
 
-                    export IHP=${ihpLibWithMakefile}/lib/IHP
+                    export IHP=${ihp-env-var-backwards-compat}
                     ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
 
                     cp -r build $out
@@ -64,8 +63,8 @@ let
 
                 chmod -R +w build/RunProdServer/*
 
-                export IHP_LIB=${ihpLibWithMakefile}/lib/IHP
-                export IHP=${ihpLibWithMakefile}/lib/IHP
+                export IHP_LIB=${ihp-env-var-backwards-compat}
+                export IHP=${ihp-env-var-backwards-compat}
 
                 mkdir -p build/bin build/RunUnoptimizedProdServer
 
@@ -139,8 +138,8 @@ in
             # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
             export HOME=/tmp
 
-            export IHP_LIB=${ihpLibWithMakefileAndStatic}/lib/IHP
-            export IHP=${ihpLibWithMakefileAndStatic}/lib/IHP
+            export IHP_LIB=${ihp-env-var-backwards-compat}
+            export IHP=${ihp-env-var-backwards-compat}
 
             make -j static/app.css static/app.js
 
@@ -153,11 +152,11 @@ in
             mkdir -p $out/bin $out/lib
 
             INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihpLibWithMakefileAndStatic}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp-env-var-backwards-compat} --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
-                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihpLibWithMakefileAndStatic}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp-env-var-backwards-compat} --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs

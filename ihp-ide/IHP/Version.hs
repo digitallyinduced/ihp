@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Version where
 
 import IHP.Prelude
-import qualified Paths_ihp
+import qualified Paths_ihp_ide
 import Data.Version (showVersion)
 
 data Edition = Basic | Pro | Business | Enterprise
@@ -14,7 +14,7 @@ data Edition = Basic | Pro | Business | Enterprise
 
 -- | Returns the git commit hash of https://github.com/digitallyinduced/ihp at which this IHP version was built
 ihpVersion :: Text
-ihpVersion = cs $! showVersion Paths_ihp.version
+ihpVersion = cs $! showVersion Paths_ihp_ide.version
 
 ihpEdition :: Edition
 ihpEdition = Pro

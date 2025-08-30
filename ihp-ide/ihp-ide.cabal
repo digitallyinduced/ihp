@@ -9,6 +9,19 @@ maintainer:          hello@digitallyinduced.com
 -- copyright:
 -- category:
 build-type:          Simple
+data-dir: data
+data-files:
+      lib/IHP/Makefile.dist
+    , lib/IHP/.hie-bios
+    , lib/IHP/applicationGhciConfig
+    , IHPSchema.sql
+    , static/IDE/*.css
+    , static/IDE/*.js
+    , static/IDE/fonts/inter/*.eot
+    , static/IDE/fonts/inter/*.svg
+    , static/IDE/fonts/inter/*.ttf
+    , static/IDE/fonts/inter/*.woff
+    , static/IDE/fonts/inter/*.woff2
 
 Flag FastBuild
     Default: False
@@ -223,6 +236,10 @@ library
         , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
+        , IHP.Version
+        , IHP.Test.Database
+    autogen-modules: Paths_ihp_ide
+    other-modules: Paths_ihp_ide
 
 executable RunDevServer
     import: shared-properties
@@ -258,6 +275,8 @@ executable RunDevServer
             -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
+    autogen-modules: Paths_ihp_ide
+    other-modules: Paths_ihp_ide
 
 executable new-application
     import: shared-properties
