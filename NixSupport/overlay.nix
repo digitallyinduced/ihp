@@ -5,7 +5,7 @@ in
 final: prev: {
     ghc = final.haskell.packages.ghc98.override {
         overrides = self: super: {
-            ihp = super.callPackage "${toString flakeRoot}/ihp.nix" { filter = inputs.nix-filter.lib; };
+            ihp = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp.nix" { filter = inputs.nix-filter.lib; };
             ihp-ide = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-ide.nix" {};
             ihp-migrate = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-migrate.nix" {};
             ihp-openai = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-openai.nix" {};
