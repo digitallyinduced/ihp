@@ -84,6 +84,7 @@ common shared-properties
             , http-types
             , safe-exceptions
             , countable-inflections
+            , hspec
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -237,6 +238,7 @@ library
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
         , IHP.Version
+        , IHP.Test.Database
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
 

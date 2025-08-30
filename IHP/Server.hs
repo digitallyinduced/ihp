@@ -19,7 +19,6 @@ import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.AutoRefresh.Types as AutoRefresh
-import IHP.LibDir
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString

@@ -17,7 +17,6 @@ import IHP.IDE.SchemaDesigner.Types
 import Text.Megaparsec
 import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
-import qualified IHP.LibDir as LibDir
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
 
@@ -59,8 +58,11 @@ diffAppDatabase includeIHPSchema databaseUrl = do
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
-    ihpSchemaSql <- getDataFileName "IHPSchema.sql"
+    ihpSchemaSql <- findIHPSchemaSql
     Parser.parseSqlFile ihpSchemaSql
+
+findIHPSchemaSql :: IO FilePath
+findIHPSchemaSql = getDataFileName "IHPSchema.sql"
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)

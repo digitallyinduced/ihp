@@ -18,7 +18,6 @@ import IHP.IDE.ToolServer.Types
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import qualified IHP.EnvVar as EnvVar
 import Data.String.Conversions (cs)
-import qualified IHP.LibDir as LibDir
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 
@@ -170,7 +169,6 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
-    libDirectory <- LibDir.findLibDirectory
 
     let withoutStatusServer callback = Exception.bracket_
             (do isStoppedVar <- newEmptyMVar; putMVar stopStatusServer isStoppedVar; takeMVar isStoppedVar)

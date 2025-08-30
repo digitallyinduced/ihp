@@ -261,9 +261,7 @@ library
         , IHP.FlashMessages.ControllerFunctions
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
-        , IHP.LibDir
         , IHP.Test.Mocking
-        , IHP.Test.Database
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types

@@ -12,7 +12,6 @@ import GHC.IO.Handle
 import qualified Control.Exception.Safe as Exception
 
 import qualified IHP.Log as Log
-import qualified IHP.LibDir as LibDir
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
 
