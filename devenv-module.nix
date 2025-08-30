@@ -83,7 +83,10 @@ that is defined in flake-module.nix
             // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system})
             
             # Add all ihp-boilerplate packages to the checks
-            // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") inputs.ihp-boilerplate.packages.${system}))
+            // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v
+                        && n != "default"
+                        && n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                    ) inputs.ihp-boilerplate.packages.${system}))
         ;
 
         devenv.shells.default = {
