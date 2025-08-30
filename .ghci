@@ -1,4 +1,5 @@
 :set -i.
+:set -idev
 :set -iihp-ide
 :set -iihp-ssc
 :set -threaded

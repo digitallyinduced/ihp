@@ -14,6 +14,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.LibDir as LibDir
 import qualified IHP.EnvVar as EnvVar
+import Paths_ihp_ide (getDataFileName)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -112,9 +113,9 @@ initDatabase = do
         waitUntilReady errorHandle do
             Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
 
-            ihpLib <- LibDir.findLibDirectory
             let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
-            importSql (cs ihpLib <> "/IHPSchema.sql")
+            ihpSchemaSql <- getDataFileName "IHPSchema.sql"
+            importSql ihpSchemaSql
             importSql "Application/Schema.sql"
             importSql "Application/Fixtures.sql"
 

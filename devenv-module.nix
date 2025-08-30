@@ -6,6 +6,16 @@ that is defined in flake-module.nix
 { self, inputs }:
 {
     perSystem = { config, system, nix-filter, pkgs, lib, ... }:
+    let
+                    hsDataDir = package:
+                            let
+                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.8.4"
+                                shareRoot = "${package.data}/share/${ghcName}";
+                                # Pick the only dir ending with "-${ghcName}", e.g. "aarch64-osx-ghc-9.8.4"
+                                sys = lib.head (lib.filter (n: lib.hasSuffix "-${ghcName}" n) (builtins.attrNames (builtins.readDir shareRoot)));
+                            in
+                                "${shareRoot}/${sys}/${package.name}";
+    in
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
 
@@ -24,12 +34,12 @@ that is defined in flake-module.nix
                 name = "ihp-tests";
                 src = let filter = inputs.nix-filter.lib; in filter {
                     root = self;
-                    include = [ "IHP" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "lib" (filter.matchExt "hs") ];
+                    include = [ "IHP" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "data" "dev" (filter.matchExt "hs") ];
                 };
                 nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
                 buildPhase = ''
                     # shellcheck disable=SC2046
-                    runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
+                    runghc $(make -f ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc -idev Test/Main.hs
                     touch $out
                 '';
             };
@@ -44,8 +54,8 @@ that is defined in flake-module.nix
                     projectSrc = inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
                         name = "ihp-boilerplate-with-web-application-src";
                         buildPhase = ''
-                            export IHP_LIB=${pkgs.ghc.ihp-ide}/lib/IHP
-                            export IHP=${pkgs.ghc.ihp-ide}/lib/IHP
+                            export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP"}
+                            export IHP=${self.packages.${system}.ihp-env-var-backwards-compat}
 
                             # scaffold before the package’s normal build kicks in
                             ${pkgs.ghc.ihp-ide}/bin/new-application Web
@@ -253,13 +263,24 @@ that is defined in flake-module.nix
             datasync-js = pkgs.mkYarnPackage {
                 name = "datasync-js";
                 src = let filter = inputs.nix-filter.lib; in filter {
-                    root = "${self}/lib/IHP/DataSync";
+                    root = "${self}/data/DataSync";
                 };
                 postConfigure = ''
                     yarn run test
                     yarn run typecheck
                 '';
             };
+
+            # The IHP boilerplate's Makefile depends on an IHP env var that contains
+            # the Makefile.dist (ihp-ide) and several JS and CSS files (ihp)
+            ihp-env-var-backwards-compat =
+                pkgs.symlinkJoin {
+                    name = "ihp-env-var-backwards-compat";
+                    paths = [
+                        (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
+                        (hsDataDir pkgs.ghc.ihp.data)
+                    ];
+                };
         };
     };
 }

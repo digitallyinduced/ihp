@@ -49,6 +49,7 @@ import qualified Network.Wai.Middleware.Approot as Approot
 import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
+import Paths_ihp_ide (getDataFileName)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do
@@ -101,7 +102,7 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
-    toolServerStatic <- EnvVar.env "TOOLSERVER_STATIC"
+    toolServerStatic <- getDataFileName "static"
     ihpStatic <- EnvVar.env "IHP_STATIC"
 
     let ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days

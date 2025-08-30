@@ -38,6 +38,7 @@ import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
 
 import IHP.Controller.NotFound (handleNotFound)
+import Paths_ihp (getDataFileName)
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -94,16 +95,12 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 -- - In production mode: We cache files forever. IHP's 'assetPath' helper will add a hash to files to cache bust when something has changed.
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
-    libDir <- cs <$> findLibDirectory
-    ihpStatic <- EnvVar.envOrNothing "IHP_STATIC"
-
+    frameworkStaticDir <- getDataFileName "static"
     let
         maxAge = case frameworkConfig.environment of
             Env.Development -> Static.MaxAgeSeconds 0
             Env.Production -> Static.MaxAgeForever
 
-
-        frameworkStaticDir = fromMaybe (libDir <> "/static/") ihpStatic
         frameworkSettings = (Static.defaultWebAppSettings frameworkStaticDir)
                 { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge

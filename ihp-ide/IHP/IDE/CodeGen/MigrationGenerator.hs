@@ -19,6 +19,7 @@ import IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.LibDir as LibDir
 import qualified IHP.FrameworkConfig as FrameworkConfig
+import Paths_ihp_ide (getDataFileName)
 
 buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
 buildPlan description sqlStatements = buildPlan' True description sqlStatements
@@ -58,8 +59,8 @@ diffAppDatabase includeIHPSchema databaseUrl = do
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
-    libDir <- LibDir.findLibDirectory
-    Parser.parseSqlFile (cs $ libDir <> "/IHPSchema.sql")
+    ihpSchemaSql <- getDataFileName "IHPSchema.sql"
+    Parser.parseSqlFile ihpSchemaSql
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
