@@ -55,7 +55,7 @@ that is defined in flake-module.nix
                     projectSrc = inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
                         name = "ihp-boilerplate-with-web-application-src";
                         buildPhase = ''
-                            export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP"}
+                            export IHP_LIB=${(hsDataDir pkgs.ghc.ihp-ide.data) + "/lib/IHP"}
                             export IHP=${self.packages.${system}.ihp-env-var-backwards-compat}
 
                             # scaffold before the package’s normal build kicks in

@@ -151,6 +151,7 @@ ihpFlake:
                     optimizationLevel = cfg.optimizationLevel;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -165,6 +166,7 @@ ihpFlake:
                     optimizationLevel = "0";
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                 };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
@@ -186,10 +188,10 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
-                    nativeBuildInputs = [ghcCompiler.ihp-ide];
+                    nativeBuildInputs = [ghcCompiler.ihp-ide.data];
                     installPhase = ''
                         mkdir $out
-                        cp ${ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
+                        cp ${hsDataDir ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
                     '';
                     allowedReferences = [];
                 };
