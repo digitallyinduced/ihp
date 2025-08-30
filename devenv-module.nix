@@ -185,6 +185,7 @@ that is defined in flake-module.nix
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
+            ihp-sitemap = pkgs.ghc.ihp-sitemap;
 
             guide =
                 let

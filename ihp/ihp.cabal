@@ -298,9 +298,6 @@ library
         , IHP.DataSync.REST.Controller
         , IHP.DataSync.Role
         , IHP.PGListener
-        , IHP.SEO.Sitemap.Types
-        , IHP.SEO.Sitemap.ControllerFunctions
-        , IHP.SEO.Sitemap.Routes
         , IHP.EnvVar
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
