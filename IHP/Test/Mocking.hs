@@ -24,7 +24,6 @@ import           IHP.ModelSupport                          (createModelContext, 
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
-import qualified IHP.Test.Database as Database
 import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
@@ -45,35 +44,6 @@ data MockContext application = InitControllerContext application => MockContext
     , applicationContext :: ApplicationContext
     , application :: application
     }
-
--- | Create contexts that can be used for mocking
-withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
-withIHPApp application configBuilder hspecAction = do
-    FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
-        let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime, databaseUrl } = frameworkConfig
-
-        logger <- newLogger def { level = Warn } -- don't log queries
-
-        let initTestDatabase = Database.createTestDatabase databaseUrl
-        let cleanupTestDatabase testDatabase = Database.deleteDatabase databaseUrl testDatabase
-        let withTestDatabase = Exception.bracket initTestDatabase cleanupTestDatabase
-
-        withTestDatabase \testDatabase -> do
-            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections (testDatabase.url) logger
-
-            PGListener.withPGListener modelContext \pgListener -> do
-                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-                let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-                let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
-
-                let requestContext = RequestContext
-                     { request = defaultRequest {vault = sessionVault}
-                     , requestBody = FormBody [] []
-                     , respond = const (pure ResponseReceived)
-                     , frameworkConfig = frameworkConfig }
-
-                (hspecAction MockContext { .. })
-
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do

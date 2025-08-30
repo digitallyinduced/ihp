@@ -10,6 +10,29 @@ maintainer:          hello@digitallyinduced.com
 -- copyright:
 -- category:
 build-type:          Simple
+data-dir: data
+data-files:
+      static/*.css
+    , static/*.js
+    , static/*.svg
+    
+    , static/vendor/*.min.css
+    , static/vendor/*.min.css.map
+    , static/vendor/*.min.js
+    , static/vendor/*.min.js.map
+    , static/vendor/*.js
+
+    , static/vendor/jquery-3.2.1.slim.min.js
+    , static/vendor/jquery-3.5.0.min.js
+    , static/vendor/jquery-3.6.0.min.js
+    , static/vendor/jquery-3.6.0.slim.min.js
+    , static/vendor/popper-2.11.6.min.js
+
+    , static/vendor/bootstrap-5.2.1/*.min.css
+    , static/vendor/bootstrap-5.2.1/*.min.js
+
+    , static/vendor/src-min/*.js
+    , static/vendor/src-min/snippets/*.js
 
 Flag FastBuild
     Default: False
@@ -238,11 +261,7 @@ library
         , IHP.FlashMessages.ControllerFunctions
         , IHP.FlashMessages.ViewFunctions
         , IHP.SchemaMigration
-        , IHP.LibDir
         , IHP.Test.Mocking
-        , IHP.Test.Database
-        , IHP.Version
-        , Paths_ihp
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
@@ -283,3 +302,5 @@ library
         , IHP.SEO.Sitemap.ControllerFunctions
         , IHP.SEO.Sitemap.Routes
         , IHP.EnvVar
+    autogen-modules: Paths_ihp
+    other-modules: Paths_ihp
