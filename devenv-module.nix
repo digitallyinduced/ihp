@@ -34,12 +34,13 @@ that is defined in flake-module.nix
                 name = "ihp-tests";
                 src = let filter = inputs.nix-filter.lib; in filter {
                     root = self;
-                    include = [ "IHP" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "data" "dev" (filter.matchExt "hs") ];
+                    include = [ "ihp" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "dev" (filter.matchExt "hs") ];
                 };
                 nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
                 buildPhase = ''
+                    cd ihp
                     # shellcheck disable=SC2046
-                    runghc $(make -f ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc -idev Test/Main.hs
+                    runghc $(make -f ../ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -i. -i../ihp-ide -i../ihp-ssc -i../dev Test/Main.hs
                     touch $out
                 '';
             };
@@ -263,7 +264,7 @@ that is defined in flake-module.nix
             datasync-js = pkgs.mkYarnPackage {
                 name = "datasync-js";
                 src = let filter = inputs.nix-filter.lib; in filter {
-                    root = "${self}/data/DataSync";
+                    root = "${self}/ihp/data/DataSync";
                 };
                 postConfigure = ''
                     yarn run test

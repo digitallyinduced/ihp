@@ -72,7 +72,7 @@
 mkDerivation {
   pname = "ihp";
   version = "1.3.0";
-  src = filter { root = ./.; include = ["IHP" "ihp.cabal" "LICENSE" "data"]; };
+  src = filter { root = ./ihp; include = ["IHP" "ihp.cabal" "LICENSE" "data"]; };
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
