@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-datasync-typescript
-version:             1.3.0
+version:             1.4.0
 synopsis:            TypeScript code generation for IHP DataSync
 description:         Generates TypeScript type interfaces from the IHP Schema.sql
 license:             MIT

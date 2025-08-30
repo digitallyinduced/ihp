@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-sitemap";
-  version = "1.3.0";
+  version = "1.4.0";
   src = ./../../ihp-sitemap;
   libraryHaskellDepends = [ base blaze-html blaze-markup ihp text ];
   testHaskellDepends = [

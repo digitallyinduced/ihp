@@ -1,7 +1,7 @@
 { mkDerivation, ihp, lib, with-utf8 }:
 mkDerivation {
   pname = "ihp-migrate";
-  version = "1.3.0";
+  version = "1.4.0";
   src = ./../../ihp-migrate;
   isLibrary = false;
   isExecutable = true;
