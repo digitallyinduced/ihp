@@ -84,7 +84,6 @@ common shared-properties
             , http-types
             , safe-exceptions
             , countable-inflections
-            , hspec
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
