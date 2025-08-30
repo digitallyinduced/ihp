@@ -171,11 +171,6 @@ that is defined in flake-module.nix
                 cabal build --flag FastBuild
             '';
 
-            scripts.build-ihp-new.exec = ''
-                cd ProjectGenerator
-                make tarball.tar.gz
-            '';
-
             languages.haskell.stack.enable = false; # Stack is not used in IHP
             languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
         };
@@ -186,7 +181,7 @@ that is defined in flake-module.nix
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
-
+            ihp-new = pkgs.callPackage ./ProjectGenerator/default.nix {};
 
             guide =
                 let
