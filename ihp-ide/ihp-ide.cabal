@@ -308,10 +308,3 @@ executable new-session-secret
     hs-source-dirs: exe
     main-is: IHP/CLI/NewSessionSecret.hs
     ghc-options: -fsplit-sections
-
--- IHP Pro
-executable ihp-app-to-docker-image
-    import: shared-properties
-    build-depends: ihp
-    hs-source-dirs: exe
-    main-is: IHP/CLI/IHPAppToDockerImage.hs
