@@ -11,38 +11,24 @@ category:            Database
 build-type:          Simple
 
 executable migrate
+    default-language: GHC2021
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
     build-depends: ihp, with-utf8

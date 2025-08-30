@@ -39,7 +39,7 @@ Flag FastBuild
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
-    default-language: Haskell2010
+    default-language: GHC2021
     build-depends:
             base
             , classy-prelude
@@ -131,36 +131,22 @@ common shared-properties
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
+        , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
             -j

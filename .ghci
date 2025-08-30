@@ -1,51 +1,40 @@
 :set -i.
 :set -idev
+:set -iihp
 :set -iihp-ide
 :set -iihp-ssc
 :set -threaded
+
+:set -XGHC2021
+
 :set -XOverloadedStrings
 :set -XNoImplicitPrelude
 :set -XImplicitParams
-:set -XRank2Types
 :set -XDisambiguateRecordFields
-:set -XNamedFieldPuns
 :set -XDuplicateRecordFields
 :set -XOverloadedLabels
-:set -XFlexibleContexts
-:set -XTypeSynonymInstances
-:set -XFlexibleInstances
 :set -XQuasiQuotes
 :set -XTypeFamilies
 :set -XPackageImports
-:set -XScopedTypeVariables
 :set -XRecordWildCards
-:set -XTypeApplications
-:set -XDataKinds
-:set -XInstanceSigs
-:set -XDeriveGeneric
-:set -XMultiParamTypeClasses
-:set -XTypeOperators
-:set -XUndecidableInstances
-:set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
-:set -XDeriveDataTypeable
-:set -XLambdaCase
 :set -XDefaultSignatures
-:set -XEmptyDataDeriving
-:set -XBangPatterns
-:set -XBlockArguments
-:set -XMultiWayIf
 :set -XFunctionalDependencies
-:set -XTemplateHaskell
-:set -fprefer-byte-code
-:set -fbyte-code-and-object-code
-:set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
-:set -XStandaloneDeriving
+:set -XBlockArguments
+:set -XLambdaCase
+:set -XTemplateHaskell
+:set -XOverloadedRecordDot
+:set -XDataKinds
+:set -XUndecidableInstances
+:set -XMultiWayIf
 :set -XDerivingVia
 :set -XDeepSubsumption
-:set -XOverloadedRecordDot
+
+:set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
 :set -Werror=missing-fields
 :set -fwarn-incomplete-patterns
 :set -Wno-ambiguous-fields
+:set -fprefer-byte-code
+:set -fbyte-code-and-object-code
 :set -O0
 :set -j
