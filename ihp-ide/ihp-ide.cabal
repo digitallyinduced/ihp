@@ -68,7 +68,7 @@ common shared-properties
             , network
             , unliftio
             , unix
-            , fsnotify
+            , fsnotify >= 0.4.3.0
             , websockets
             , wai-websockets
             , wreq
