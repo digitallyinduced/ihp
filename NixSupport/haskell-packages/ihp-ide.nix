@@ -70,7 +70,7 @@
 }:
 mkDerivation {
   pname = "ihp-ide";
-  version = "1.3.0";
+  version = "1.4.0";
   src = ./../../ihp-ide;
   isLibrary = true;
   isExecutable = true;

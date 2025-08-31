@@ -1,7 +1,7 @@
 { mkDerivation, ihp, ihp-ide, neat-interpolation, lib, with-utf8, megaparsec }:
 mkDerivation {
   pname = "ihp-datasync-typescript";
-  version = "v1.3.0";
+  version = "v1.4.0";
   src = ./../../ihp-datasync-typescript;
   libraryHaskellDepends = [
     ihp ihp-ide neat-interpolation
