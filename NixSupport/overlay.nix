@@ -19,13 +19,13 @@ final: prev: {
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
             
-            # Can be removed after https://github.com/tippenein/countable-inflections/pull/6 is merged
+            # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.0-idempotent-pluralize";
+                version = "0.3.2";
                 src = final.fetchFromGitHub {
-                    owner = "mpscholten";
+                    owner = "tippenein";
                     repo = "countable-inflections";
-                    rev = "eea519973d6b59291054beab161bcc948b1b580f";
+                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
                     hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
                 };
             };
