@@ -3,11 +3,15 @@ name:                ihp-ide
 version:             1.4.0
 synopsis:            Dev tools for IHP
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
-license:             NONE
+license:             MIT
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
--- copyright:
--- category:
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
 build-type:          Simple
 data-dir: data
 data-files:
@@ -30,7 +34,7 @@ Flag FastBuild
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base
+            base >= 4.17.0 && < 4.22
             , classy-prelude
             , mono-traversable
             , transformers
@@ -106,8 +110,6 @@ common shared-properties
         , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
-            -j
-            -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
 
@@ -123,7 +125,6 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            -O1
             -threaded
 
             -Wunused-imports
@@ -234,8 +235,6 @@ executable RunDevServer
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
         ghc-options:
-            -j
-            -O0
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
@@ -252,8 +251,6 @@ executable RunDevServer
             -funbox-strict-fields
             -funfolding-use-threshold=160
             -fdicts-strict
-            -j
-            -O2
             -threaded
             -with-rtsopts=-A512m
             -with-rtsopts=-N
@@ -309,7 +306,11 @@ executable hash-password
 executable new-session-secret
     default-language: Haskell2010
     default-extensions: BlockArguments
-    build-depends: base, clientsession, bytestring, with-utf8, base64-bytestring
+    build-depends: base >= 4.17.0 && < 4.22, clientsession, bytestring, with-utf8, base64-bytestring
     hs-source-dirs: exe
     main-is: IHP/CLI/NewSessionSecret.hs
     ghc-options: -fsplit-sections
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp

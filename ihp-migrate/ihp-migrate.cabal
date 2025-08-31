@@ -2,7 +2,7 @@ cabal-version:       2.2
 name:                ihp-migrate
 version:             1.4.0
 synopsis:            Provides the IHP migrate binary
-description:         Postgres DB migrations
+description:         Postgres DB migrations for IHP applications
 license:             MIT
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
