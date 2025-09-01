@@ -127,19 +127,17 @@ let
 in
     pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             # Hash that changes only when `static` changes:
-            IHP_ASSET_VERSION="$(basename ${static} | cut -d- -f1)"
+            INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
-                --set-default IHP_ASSET_VERSION $IHP_ASSET_VERSION \
+                --set-default IHP_ASSET_VERSION $INPUT_HASH \
                 --set-default APP_STATIC ${static} \
-                --run "cd $out/lib" \
                 --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
                 makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
-                    --set-default IHP_ASSET_VERSION $IHP_ASSET_VERSION \
+                    --set-default IHP_ASSET_VERSION $INPUT_HASH \
                     --set-default APP_STATIC ${static} \
-                    --run "cd $out/lib" \
                     --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
