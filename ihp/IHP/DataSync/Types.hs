@@ -73,5 +73,4 @@ data DataSyncController
     | DataSyncReady
         { subscriptions :: !(HashMap UUID (MVar.MVar ()))
         , transactions :: !(HashMap UUID DataSyncTransaction)
-        , asyncs :: ![Async ()]
         }

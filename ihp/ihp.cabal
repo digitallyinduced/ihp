@@ -133,6 +133,7 @@ common shared-properties
             , safe-exceptions
             , resourcet
             , countable-inflections
+            , stm
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

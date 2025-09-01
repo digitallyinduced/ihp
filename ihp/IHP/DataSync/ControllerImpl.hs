@@ -25,6 +25,11 @@ import qualified IHP.PGListener as PGListener
 import IHP.ApplicationContext
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
+import GHC.Conc (getNumCapabilities, ThreadId, myThreadId, atomically)
+import qualified Data.HashSet as HashSet
+import Control.Concurrent.QSemN
+import Control.Concurrent.STM.TVar
+import Control.Monad (void)
 
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -47,36 +52,58 @@ runDataSyncController ::
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
-        setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty, asyncs = [] }
+    setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
-        let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
+    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
 
-        forever do
-            message <- Aeson.eitherDecodeStrict' <$> receiveData
 
-            case message of
-                Right decodedMessage -> do
-                    let requestId = decodedMessage.requestId
+    sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
 
-                    Exception.mask \restore -> do
-                        -- Handle the messages in an async way
-                        -- This increases throughput as multiple queries can be fetched
-                        -- in parallel
-                        handlerProcess <- async $ restore do
+    -- Track Asyncs so we can cancel/wait on socket close
+    childrenVar <- newTVarIO (HashMap.empty :: HashMap ThreadId (Async ()))
+
+    let spawnWorker decodedMessage = do
+            tidReady <- MVar.newEmptyMVar
+            a <- asyncWithUnmask \unmask -> do
+                -- Register myself
+                tid <- myThreadId
+                MVar.putMVar tidReady tid
+                -- Take/release concurrency slot entirely inside the worker
+                Exception.bracket_ (waitQSemN sem 1) (signalQSemN sem 1) do
+                    Exception.finally
+                        (unmask do
                             result <- Exception.try (handleMessage decodedMessage)
-
                             case result of
                                 Left (e :: Exception.SomeException) -> do
+                                    let requestId    = decodedMessage.requestId
                                     let errorMessage = case fromException e of
-                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs (enhancedSqlError.sqlError.sqlErrorMsg)
+                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs enhancedSqlError.sqlError.sqlErrorMsg
                                             Nothing -> cs (displayException e)
                                     Log.error (tshow e)
                                     sendJSON DataSyncError { requestId, errorMessage }
-                                Right result -> pure ()
+                                Right _ -> pure ()
+                        )
+                        -- Self-deregister
+                        (do
+                            tid' <- myThreadId
+                            atomically $ modifyTVar' childrenVar (HashMap.delete tid')
+                        )
+            -- Parent stores the Async by ThreadId (no race thanks to tidReady)
+            tid <- MVar.takeMVar tidReady
+            atomically $ modifyTVar' childrenVar (HashMap.insert tid a)
 
-                        atomicModifyIORef'' ?state (\state -> state |> modify #asyncs (handlerProcess:))
-                        pure ()
-                Left errorMessage -> sendJSON FailedToDecodeMessageError { errorMessage = cs errorMessage }
+    let loop = forever do
+            msg <- Aeson.eitherDecodeStrict' <$> receiveData
+            case msg of
+                Right decoded -> spawnWorker decoded
+                Left err      -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
+
+    -- On websocket close: cancel and drain all children
+    loop `Exception.finally` do
+        m <- readTVarIO childrenVar
+        let handles = HashMap.elems m
+        mapM_ cancel handles
+        mapM_ (const (pure ())) =<< mapM waitCatch handles
 {-# INLINE runDataSyncController #-}
 
 
@@ -427,15 +454,6 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-cleanupAllSubscriptions :: (?state :: IORef DataSyncController, ?applicationContext :: ApplicationContext) => IO ()
-cleanupAllSubscriptions = do
-    state <- getState
-    let pgListener = ?applicationContext.pgListener
-
-    case state of
-        DataSyncReady { asyncs } -> forEach asyncs uninterruptibleCancel
-        _ -> pure ()
-
 changesToValue :: Renamer -> [ChangeNotifications.Change] -> Value
 changesToValue renamer changes = object (map changeToPair changes)
     where
@@ -526,8 +544,5 @@ instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ()
 
 instance SetField "transactions" DataSyncController (HashMap UUID DataSyncTransaction) where
     setField transactions record = record { transactions }
-
-instance SetField "asyncs" DataSyncController [Async ()] where
-    setField asyncs record = record { asyncs }
 
 atomicModifyIORef'' ref updateFn = atomicModifyIORef' ref (\value -> (updateFn value, ()))
