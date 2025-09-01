@@ -48,7 +48,6 @@ import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.PGListenerSpec
-import qualified Test.SEO.Sitemap
 
 main :: IO ()
 main = hspec do
@@ -84,4 +83,3 @@ main = hspec do
     Test.IDE.CodeGeneration.MigrationGenerator.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
-    Test.SEO.Sitemap.tests

@@ -8,6 +8,7 @@ MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
 GHC_EXTENSIONS=
+GHC_EXTENSIONS+= -XGHC2021
 GHC_EXTENSIONS+= -XOverloadedStrings
 GHC_EXTENSIONS+= -XNoImplicitPrelude
 GHC_EXTENSIONS+= -XImplicitParams

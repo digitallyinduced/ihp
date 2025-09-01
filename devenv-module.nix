@@ -184,7 +184,8 @@ that is defined in flake-module.nix
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
-            ihp-new = pkgs.callPackage ./ProjectGenerator/default.nix {};
+            ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
+            ihp-sitemap = pkgs.ghc.ihp-sitemap;
 
             # ihp-pro
             stripe = pkgs.ghc.ihp-stripe;

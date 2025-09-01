@@ -1,14 +1,19 @@
 cabal-version:       2.2
 name:                ihp
-version:             1.3.0
+version:             1.4.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
-license:             NONE
+                     Full guide available at: <https://ihp.digitallyinduced.com/Guide/index.html>
+license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
--- copyright:
--- category:
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
 build-type:          Simple
 data-dir: data
 data-files:
@@ -33,15 +38,16 @@ data-files:
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
+extra-source-files: CHANGELOG.md
 
 Flag FastBuild
     Default: False
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
-    default-language: Haskell2010
+    default-language: GHC2021
     build-depends:
-            base
+            base >= 4.17.0 && < 4.22
             , classy-prelude
             , mono-traversable
             , transformers
@@ -131,40 +137,24 @@ common shared-properties
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
+        , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
-            -j
-            -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
@@ -179,7 +169,6 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            -O1
             +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
@@ -298,9 +287,6 @@ library
         , IHP.DataSync.REST.Controller
         , IHP.DataSync.Role
         , IHP.PGListener
-        , IHP.SEO.Sitemap.Types
-        , IHP.SEO.Sitemap.ControllerFunctions
-        , IHP.SEO.Sitemap.Routes
         , IHP.EnvVar
         -- IHP PRO
         , IHP.AuthSupport.Controller.PasswordResets
@@ -313,3 +299,7 @@ library
 
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
