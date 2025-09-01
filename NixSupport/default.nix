@@ -13,6 +13,7 @@
 , optimizationLevel ? "2"
 , filter
 , ihp-env-var-backwards-compat
+, static
 }:
 
 let
@@ -119,44 +120,25 @@ let
             '';
             src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
             buildInputs = [allHaskellPackages];
-            nativeBuildInputs = [ pkgs.makeWrapper schemaObjectFiles];
+            nativeBuildInputs = [schemaObjectFiles];
             enableParallelBuilding = true;
             disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
         };
 in
-    pkgs.stdenv.mkDerivation {
-        name = appName;
-        buildPhase = ''
-            runHook preBuild
-
-            # When npm install is executed by the project's makefile it will fail with:
-            #
-            #     EACCES: permission denied, mkdir '/homeless-shelter'
-            #
-            # To avoid this error we use /tmp as our home directory for the build
-            #
-            # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
-            export HOME=/tmp
-
-            export IHP_LIB=${ihp-env-var-backwards-compat}
-            export IHP=${ihp-env-var-backwards-compat}
-
-            make -j static/app.css static/app.js
-
-            runHook postBuild
-        '';
-        installPhase = ''
-            runHook preInstall
-
-            mkdir -p "$out"
-            mkdir -p $out/bin $out/lib
-
-            INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp-env-var-backwards-compat} --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+    pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+            # Hash that changes only when `static` changes:
+            INPUT_HASH="$(basename ${static} | cut -d- -f1)"
+            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
+                --set-default IHP_ASSET_VERSION $INPUT_HASH \
+                --set-default APP_STATIC ${static} \
+                --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
-                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp-env-var-backwards-compat} --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
+                    --set-default IHP_ASSET_VERSION $INPUT_HASH \
+                    --set-default APP_STATIC ${static} \
+                    --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
@@ -165,21 +147,4 @@ in
                     binary_basename=$(basename "$binary")
                     cp "$binary" "$out/bin/$binary_basename";
                 done
-
-            mv static "$out/lib/static"
-
-            runHook postInstall
-        '';
-        src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
-        buildInputs = builtins.concatLists [ allNativePackages ];
-        nativeBuildInputs = builtins.concatLists [
-            [ pkgs.makeWrapper
-              pkgs.cacert # Needed for npm install to work from within the IHP build process
-              [allHaskellPackages] 
-            ]
-        ];
-        shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
-        enableParallelBuilding = true;
-        impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
-        disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
-    }
+    ''
