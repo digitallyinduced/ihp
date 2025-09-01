@@ -126,6 +126,15 @@ ihpFlake:
                         }
                     '';
                 };
+
+                static.makeBundling = lib.mkOption {
+                    type = lib.types.bool;
+                    default = true;
+                    description = ''
+                        Whether to build static files using the Makefile provided by IHP.
+                        If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
+                    '';
+                };
             };
         }
     );
@@ -191,44 +200,13 @@ ihpFlake:
                         pkgs.symlinkJoin {
                             name = "${cfg.appName}-static";
                             paths = [
-                                (self'.packages.legacyStaticFilesCompiledByMake)
+                                (if cfg.static.makeBundling
+                                    then self'.packages.staticFilesCompiledByMake
+                                    else (let filter = ihpFlake.inputs.nix-filter.lib; in filter { root = cfg.projectPath; include = ["static"]; name = "static-directory"; }) + "/static"
+                                )
                                 extraStaticFarm
                             ];
                         };
-
-                legacyStaticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
-                    name = "${config.ihp.appName}-legacyStaticFilesCompiledByMake";
-                    buildPhase = ''
-                        runHook preBuild
-                        # When npm install is executed by the project's makefile it will fail with:
-                        #
-                        #     EACCES: permission denied, mkdir '/homeless-shelter'
-                        #
-                        # To avoid this error we use /tmp as our home directory for the build
-                        #
-                        # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
-                        export HOME=/tmp
-
-                        export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
-                        export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
-
-                        make -j static/app.css static/app.js
-                        runHook postBuild
-                    '';
-                    installPhase = ''
-                        cp -R static/. $out
-                    '';
-                    src = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
-                    buildInputs = cfg.packages;
-                    nativeBuildInputs = builtins.concatLists [
-                        [ pkgs.makeWrapper
-                          pkgs.cacert # Needed for npm install to work from within the IHP build process
-                        ]
-                    ];
-                    enableParallelBuilding = true;
-                    impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
-                    disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
-                };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
                     name = "ihp-app";
@@ -267,7 +245,41 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-            };
+            } // (if cfg.static.makeBundling then {
+                staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
+                    name = "${config.ihp.appName}-staticFilesCompiledByMake";
+                    buildPhase = ''
+                        runHook preBuild
+                        # When npm install is executed by the project's makefile it will fail with:
+                        #
+                        #     EACCES: permission denied, mkdir '/homeless-shelter'
+                        #
+                        # To avoid this error we use /tmp as our home directory for the build
+                        #
+                        # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
+                        export HOME=/tmp
+
+                        export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+                        export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+
+                        make -j static/app.css static/app.js
+                        runHook postBuild
+                    '';
+                    installPhase = ''
+                        cp -R static/. $out
+                    '';
+                    src = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
+                    buildInputs = cfg.packages;
+                    nativeBuildInputs = builtins.concatLists [
+                        [ pkgs.makeWrapper
+                          pkgs.cacert # Needed for npm install to work from within the IHP build process
+                        ]
+                    ];
+                    enableParallelBuilding = true;
+                    impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
+                    disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
+                };
+            } else {});
 
             devenv.shells.default = lib.mkIf cfg.enable {
                 packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
