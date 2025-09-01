@@ -95,6 +95,7 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
     frameworkStaticDir <- getDataFileName "static"
+    appStaticDir <- EnvVar.envOrDefault "APP_STATIC" "static/"
     let
         maxAge = case frameworkConfig.environment of
             Env.Development -> Static.MaxAgeSeconds 0
@@ -104,7 +105,7 @@ initStaticApp frameworkConfig = do
                 { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge
                 }
-        appSettings = (Static.defaultWebAppSettings "static/")
+        appSettings = (Static.defaultWebAppSettings appStaticDir)
                 { Static.ss404Handler = Just (Static.staticApp frameworkSettings)
                 , Static.ssMaxAge = maxAge
                 }
