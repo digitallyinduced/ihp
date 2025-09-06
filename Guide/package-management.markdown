@@ -384,8 +384,7 @@ and geographic objects in PostgreSQL add
 ```nix
 {
     inputs = {
-        ihp.url = "path:///Users/marc/digitallyinduced/ihp";
-        ihp.inputs.nixpkgs.url = "github:mpscholten/nixpkgs/fix-th-desugar";
+        ihp.url = "github:digitallyinduced/ihp/v1.4";
         nixpkgs.follows = "ihp/nixpkgs";
         flake-parts.follows = "ihp/flake-parts";
         devenv.follows = "ihp/devenv";
