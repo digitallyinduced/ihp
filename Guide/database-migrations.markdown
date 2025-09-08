@@ -47,7 +47,16 @@ After that, we can already run this migration to update our production database.
 
 IHP provides a shell command `migrate` that runs all migrations that haven't be executed yet. A table `schema_migratons` is used to keep track of which migrations already have been run. The table will be automatically created by the `migrate` tool.
 
-To test your migrations locally, you can run this tool locally like:
+To test your migrations locally, first add `ihp-migrate` to your `flake.nix` if you haven't already:
+
+```diff
+                     haskellPackages = p: with p; [
+                         # Haskell dependencies go here
+                         p.ihp
++                        p.ihp-migrate
+                         cabal-install
+```
+then you can run this tool locally like:
 
 ```bash
 migrate
@@ -59,6 +68,17 @@ In a production context you need to specify the correct database URL via the `DA
 DATABASE_URL=postgresql://... migrate
 ```
 
+For running it when deploying from Github Actions, it may be faster to add a devshell containing just that package. Put
+
+```nix
+                devShells.ihp-migrate = pkgs.mkShell {
+                  buildInputs = [
+                    pkgs.ghc.ihp-migrate
+                  ];
+                };
+
+```
+in `flake.nix` in the `perSystem` block (next to the `ihp` block). Then you can run it as `nix develop .#ihp-migrate --command migrate`.
 
 ### Skipping Old Migrations
 
