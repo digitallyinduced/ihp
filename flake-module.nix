@@ -180,9 +180,7 @@ ihpFlake:
                 };
 
 
-                migrate = pkgs.writeScriptBin "migrate" ''
-                    ${ghcCompiler.ihp}/bin/migrate
-                '';
+                migrate = ghcCompiler.ihp-migrate;
 
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
