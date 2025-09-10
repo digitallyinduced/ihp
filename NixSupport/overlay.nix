@@ -5,17 +5,17 @@ in
 final: prev: {
     ghc = final.haskell.packages.ghc98.override {
         overrides = self: super: {
-            ihp = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp.nix" { filter = inputs.nix-filter.lib; };
-            ihp-ide = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-ide.nix" {};
-            ihp-migrate = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-migrate.nix" {};
-            ihp-openai = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-openai.nix" {};
-            ihp-postgresql-simple-extra = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-postgresql-simple-extra.nix" {};
-            ihp-ssc = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-ssc.nix" {};
-            ihp-zip = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-zip.nix" {};
-            # ihp-hsx = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-hsx.nix" {};
-            ihp-graphql = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-graphql.nix" {};
-            ihp-datasync-typescript = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-datasync-typescript.nix" {};
-            ihp-sitemap = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-sitemap.nix" {};
+            ihp = super.callCabal2nix "ihp" "${toString flakeRoot}/ihp" {};
+            ihp-ide = super.callCabal2nix "ihp-ide" "${toString flakeRoot}/ihp-ide" {};
+            ihp-migrate = (super.callCabal2nix "ihp-migrate" "${toString flakeRoot}/ihp-migrate" {}).overrideAttrs (old: { mainProgram = "migrate"; });
+            ihp-openai = super.callCabal2nix "ihp-openai" "${toString flakeRoot}/ihp-openai" {};
+            ihp-postgresql-simple-extra = super.callCabal2nix "ihp-postgresql-simple-extra" "${toString flakeRoot}/ihp-postgresql-simple-extra" {};
+            ihp-ssc = super.callCabal2nix "ihp-ssc" "${toString flakeRoot}/ihp-ssc" {};
+            ihp-zip = super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {};
+            ihp-hsx = super.callCabal2nix "ihp-hsx" "${toString flakeRoot}/ihp-hsx" {};
+            ihp-graphql = super.callCabal2nix "ihp-graphql" "${toString flakeRoot}/ihp-graphql" {};
+            ihp-datasync-typescript = super.callCabal2nix "ihp-datasync-typescript" "${toString flakeRoot}/ihp-datasync-typescript" {};
+            ihp-sitemap = super.callCabal2nix "ihp-sitemap" "${toString flakeRoot}/ihp-sitemap" {};
             
             ihp-datasync = super.callCabal2nix "ihp-datasync" "${toString flakeRoot}/ihp-datasync" {};
 
