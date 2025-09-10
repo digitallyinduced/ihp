@@ -15,7 +15,6 @@ In general, remember that all specific web app logic should stay in the `Web/` s
 | Config/                       |                                                                                     |
 | Config/Config.hs              | Configuration for the framework and your application                                |
 | Config/nix/nixpkgs-config.nix | Configuration for the Nix package manager                                           |
-| Config/nix/haskell-packages/  | Custom Haskell dependencies can be placed here                                      |
 | Application/                  | Your domain logic lives here                                                        |
 | Application/Schema.sql        | Models and database tables are defined here                                         |
 | Web/Controller                | Web application controllers                                                         |
