@@ -18,6 +18,7 @@ final: prev: {
             ihp-sitemap = super.callCabal2nix "ihp-sitemap" "${toString flakeRoot}/ihp-sitemap" {};
             
             ihp-datasync = super.callCabal2nix "ihp-datasync" "${toString flakeRoot}/ihp-datasync" {};
+            ihp-job-dashboard = super.callCabal2nix "ihp-job-dashboard" "${toString flakeRoot}/ihp-job-dashboard" {};
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
             

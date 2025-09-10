@@ -1,0 +1,58 @@
+cabal-version:       2.2
+name:                ihp-job-dashboard
+version:             1.4.0
+synopsis:            Dashboard for IHP job runners
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+library
+    default-language: GHC2021
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , wai
+            , mtl
+            , blaze-html
+            , blaze-markup
+            , ihp
+            , ihp-hsx
+            , postgresql-simple
+            , http-types
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+    hs-source-dirs: .
+    exposed-modules:
+          IHP.Job.Dashboard
+        , IHP.Job.Dashboard.Types
+        , IHP.Job.Dashboard.Auth
+        , IHP.Job.Dashboard.View
+        , IHP.Job.Dashboard.Utils
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp

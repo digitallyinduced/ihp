@@ -254,11 +254,6 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
-        , IHP.Job.Dashboard
-        , IHP.Job.Dashboard.Types
-        , IHP.Job.Dashboard.Auth
-        , IHP.Job.Dashboard.View
-        , IHP.Job.Dashboard.Utils
         , IHP.PageHead.ControllerFunctions
         , IHP.PageHead.Types
         , IHP.PageHead.ViewFunctions

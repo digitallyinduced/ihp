@@ -187,6 +187,7 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
 
             guide =
                 let
