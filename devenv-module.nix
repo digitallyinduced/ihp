@@ -186,6 +186,7 @@ that is defined in flake-module.nix
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
+            ihp-datasync = pkgs.ghc.ihp-datasync;
 
             guide =
                 let
@@ -263,7 +264,7 @@ that is defined in flake-module.nix
             datasync-js = pkgs.mkYarnPackage {
                 name = "datasync-js";
                 src = let filter = inputs.nix-filter.lib; in filter {
-                    root = "${self}/ihp/data/DataSync";
+                    root = "${self}/ihp-datasync/data/DataSync";
                 };
                 postConfigure = ''
                     yarn run test
