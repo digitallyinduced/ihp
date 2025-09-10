@@ -227,7 +227,6 @@ library
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.ValidationSupport
-        , IHP.ViewErrorMessages
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport

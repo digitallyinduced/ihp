@@ -14,7 +14,6 @@ module IHP.View.Form where
 import IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.HSX.ConvertibleStrings ()
-import IHP.ViewErrorMessages ()
 import           IHP.ViewSupport
 import qualified Text.Blaze.Html5                   as Html5
 import IHP.HSX.ToHtml
