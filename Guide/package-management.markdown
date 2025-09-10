@@ -245,6 +245,32 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
 
 This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
 
+The package definition comes from nixpkgs. To override it, we will point our `flake.nix` to our own fork of nixpkgs. First (with the default nixpkgs in `flake.nix`) we find the *current* nixpkgs revision for our version of IHP by running `nix flake metadata nixpkgs`:
+
+```sh
+$ nix flake metadata nixpkgs
+Resolved URL:  github:NixOS/nixpkgs/nixpkgs-unstable
+Locked URL:    github:NixOS/nixpkgs/c6a788f552b7b7af703b1a29802a7233c0067908
+Description:   A collection of packages for the Nix package manager
+Revision:      c6a788f552b7b7af703b1a29802a7233c0067908
+Last modified: 2025-09-03 16:58:13
+Fingerprint:   3e05021e9dd32512ef43eb88791de71e5e822d62db4d9db7aa5fe41348da26cd
+```
+
+This tells us that IHP uses nixpkgs at revision `c6a788f552b7b7af703b1a29802a7233c0067908`. We will now create a shallow clone at that revision (nixpkgs is big and shallow clones are faster):
+
+1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/c6a788f552b7b7af703b1a29802a7233c0067908
+
+2. Click the tag/branch selector and give it a name like `ihp-1.4` and click the "Create branch ihp-1.4 from c6a788f" button
+
+3. Shallow clone your fork at that branch, and give it some new name for the changes you will put on top:
+
+   ```bash
+   git clone --depth 3 -b ihp-1.4 https://github.com/YOURUSER/nixpkgs
+   cd nixpkgs
+   git checkout -b downgraded-google-oauth2
+   ```
+
 To use the older version of the package we need to override the package definition. To do this, enter a temporary Nix shell with `cabal2nix` and `cabal-install`:
 
 ```bash
@@ -280,9 +306,34 @@ mkDerivation {
 }
 ```
 
-Save this package definition code to a new file in `Config/nix/haskell-packages/google-oauth2.nix`. IHP projects are configured to automatically pick up any Haskell package definitions in the `Config/nix/haskell-packages` directory. So this package definition will be used automatically.
+Now open `pkgs/development/haskell-modules/hackage-packages.nix` and look for the line
 
-Ensure you add this new nix package to git `git add Config/nix/haskell-packages`, as nix will only pick up files that are part of the git repository. If you forget to add it, Nix may silently ignore your changes, and your build won’t reflect the new package.
+```nix
+  "google-oauth2" = callPackage (
+```
+
+Remove the contents of `callPackage(…)` and instead insert the package definition you got from `cabal2nix`, giving e.g.
+
+```nix
+  "google-oauth2" = callPackage (
+{ mkDerivation, aeson, base, bytestring, hspec, HTTP, http-conduit
+, http-types, load-env, stdenv
+}:
+mkDerivation {
+  pname = "google-oauth2";
+  version = "0.2.2";
+  sha256 = "0n408kh48d7ky09j9zw9ad4mhbv1v7gq6i3ya4f6fhkjqqgw8c1j";
+  libraryHaskellDepends = [
+    aeson base bytestring HTTP http-conduit
+  ];
+  testHaskellDepends = [
+    base bytestring hspec http-conduit http-types load-env
+  ];
+  description = "Google OAuth2 token negotiation";
+  license = stdenv.lib.licenses.mit;
+}
+  ) { };
+```
 
 Go back to your project directory and run `nix flake update`. This will try to install the new `google-oauth2` package in the expected version `0.2.2`.
 
