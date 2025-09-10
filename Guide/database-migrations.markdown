@@ -68,17 +68,7 @@ In a production context you need to specify the correct database URL via the `DA
 DATABASE_URL=postgresql://... migrate
 ```
 
-For running it when deploying from Github Actions, it may be faster to add a devshell containing just that package. Put
-
-```nix
-                devShells.ihp-migrate = pkgs.mkShell {
-                  buildInputs = [
-                    pkgs.ghc.ihp-migrate
-                  ];
-                };
-
-```
-in `flake.nix` in the `perSystem` block (next to the `ihp` block). Then you can run it as `nix develop .#ihp-migrate --command migrate`.
+For running migrations when deploying from Github Actions, you can use `nix run .#migrate`.
 
 ### Skipping Old Migrations
 
