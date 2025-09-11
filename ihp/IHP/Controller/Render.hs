@@ -16,7 +16,6 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
-import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
 

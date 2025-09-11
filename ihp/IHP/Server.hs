@@ -24,7 +24,6 @@ import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
-import qualified Control.Exception as Exception
 
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO

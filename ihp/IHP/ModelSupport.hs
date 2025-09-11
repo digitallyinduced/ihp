@@ -38,7 +38,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
-import qualified GHC.Conc
 import IHP.Postgres.Point
 import IHP.Postgres.Interval ()
 import IHP.Postgres.Polygon
