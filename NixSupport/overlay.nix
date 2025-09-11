@@ -4,21 +4,24 @@ let
 in
 final: prev: {
     ghc = final.haskell.packages.ghc98.override {
-        overrides = self: super: {
-            ihp = super.callCabal2nix "ihp" "${toString flakeRoot}/ihp" {};
-            ihp-ide = super.callCabal2nix "ihp-ide" "${toString flakeRoot}/ihp-ide" {};
-            ihp-migrate = (super.callCabal2nix "ihp-migrate" "${toString flakeRoot}/ihp-migrate" {}).overrideAttrs (old: { mainProgram = "migrate"; });
-            ihp-openai = super.callCabal2nix "ihp-openai" "${toString flakeRoot}/ihp-openai" {};
-            ihp-postgresql-simple-extra = super.callCabal2nix "ihp-postgresql-simple-extra" "${toString flakeRoot}/ihp-postgresql-simple-extra" {};
-            ihp-ssc = super.callCabal2nix "ihp-ssc" "${toString flakeRoot}/ihp-ssc" {};
+        overrides = self: super:
+            let
+                filter = inputs.nix-filter.lib;
+                localPackage = name: super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {};
+        in {
+            ihp = localPackage "ihp";
+            ihp-ide = localPackage "ihp-ide";
+            ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
+            ihp-openai = localPackage "ihp-openai";
+            ihp-postgresql-simple-extra = localPackage "ihp-postgresql-simple-extra";
+            ihp-ssc = localPackage "ihp-ssc";
             ihp-zip = super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {};
-            ihp-hsx = super.callCabal2nix "ihp-hsx" "${toString flakeRoot}/ihp-hsx" {};
-            ihp-graphql = super.callCabal2nix "ihp-graphql" "${toString flakeRoot}/ihp-graphql" {};
-            ihp-datasync-typescript = super.callCabal2nix "ihp-datasync-typescript" "${toString flakeRoot}/ihp-datasync-typescript" {};
-            ihp-sitemap = super.callCabal2nix "ihp-sitemap" "${toString flakeRoot}/ihp-sitemap" {};
-            
-            ihp-datasync = super.callCabal2nix "ihp-datasync" "${toString flakeRoot}/ihp-datasync" {};
-            ihp-job-dashboard = super.callCabal2nix "ihp-job-dashboard" "${toString flakeRoot}/ihp-job-dashboard" {};
+            ihp-hsx = localPackage "ihp-hsx";
+            ihp-graphql = localPackage "ihp-graphql";
+            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
+            ihp-sitemap = localPackage"ihp-sitemap";
+            ihp-datasync = localPackage "ihp-datasync";
+            ihp-job-dashboard = localPackage"ihp-job-dashboard";
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
             
