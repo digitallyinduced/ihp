@@ -250,6 +250,7 @@ that is defined in flake-module.nix
                     name = "ihp-env-var-backwards-compat";
                     paths = [
                         (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
+                        (hsDataDir pkgs.ghc.ihp-ide.data + "/IHPSchema.sql")
                         (hsDataDir pkgs.ghc.ihp.data)
                     ];
                 };
