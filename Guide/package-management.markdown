@@ -245,21 +245,21 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
 
 This will install version 0.3.0.0 of the google-oauth2 package, as this is the latest version available in the package set used by IHP. For our specific application requirements, we want to use version 0.2.2, an older version of this package.
 
-The package definition comes from nixpkgs. To override it, we will point our `flake.nix` to our own fork of nixpkgs. First (with the default nixpkgs in `flake.nix`) we find the *current* nixpkgs revision for our version of IHP by running `nix flake metadata nixpkgs`:
+The package definition comes from nixpkgs. To override it, we will point our `flake.nix` to our own fork of nixpkgs. First (with the default nixpkgs in `flake.nix`) we find the *current* nixpkgs revision for our version of IHP by running `nix flake metadata --inputs-from . nixpkgs`:
 
 ```sh
-$ nix flake metadata nixpkgs
-Resolved URL:  github:NixOS/nixpkgs/nixpkgs-unstable
-Locked URL:    github:NixOS/nixpkgs/c6a788f552b7b7af703b1a29802a7233c0067908
+$ nix flake metadata --inputs-from . nixpkgs
+Resolved URL:  github:NixOS/nixpkgs/9cb344e96d5b6918e94e1bca2d9f3ea1e9615545?narHash=sha256-gKlP0LbyJ3qX0KObfIWcp5nbuHSb5EHwIvU6UcNBg2A%3D
+Locked URL:    github:NixOS/nixpkgs/9cb344e96d5b6918e94e1bca2d9f3ea1e9615545?narHash=sha256-gKlP0LbyJ3qX0KObfIWcp5nbuHSb5EHwIvU6UcNBg2A%3D
 Description:   A collection of packages for the Nix package manager
-Revision:      c6a788f552b7b7af703b1a29802a7233c0067908
-Last modified: 2025-09-03 16:58:13
-Fingerprint:   3e05021e9dd32512ef43eb88791de71e5e822d62db4d9db7aa5fe41348da26cd
+Revision:      9cb344e96d5b6918e94e1bca2d9f3ea1e9615545
+Last modified: 2025-08-20 17:33:59
+Fingerprint:   a7682548550237130fe9f60275c2be495005dce98ced24e788bc9b3bf74fc91f
 ```
 
-This tells us that IHP uses nixpkgs at revision `c6a788f552b7b7af703b1a29802a7233c0067908`. We will now create a shallow clone at that revision (nixpkgs is big and shallow clones are faster):
+This tells us that IHP uses nixpkgs at revision `9cb344e96d5b6918e94e1bca2d9f3ea1e9615545`. We will now create a shallow clone at that revision (nixpkgs is big and shallow clones are faster):
 
-1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/c6a788f552b7b7af703b1a29802a7233c0067908
+1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/9cb344e96d5b6918e94e1bca2d9f3ea1e9615545
 
 2. Click the tag/branch selector and give it a name like `ihp-1.4` and click the "Create branch ihp-1.4 from c6a788f" button
 
