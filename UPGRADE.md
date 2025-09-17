@@ -59,9 +59,9 @@ in `flake.nix` in the `perSystem` block (next to the `ihp` block). Then you can 
 
 IHP now expects package overrides to be defined in nixpkgs, so if you had any files in `Config/nix/haskell-packages` they will be ignored in 1.4. The procedure is now to fork nixpkgs, do the changes there, and point your `flake.nix` at the fork. But the fork should start from the nixpkgs commit that this IHP version was based off.
 
-IHP 1.4 by default uses nixpkgs revision `c6a788f552b7b7af703b1a29802a7233c0067908` (you can find this with `nix flake metadata nixpkgs` if you have the default `nixpkgs` in your `flake.nix`). So to convert your `Config/nix/haskell-packages` you can
+IHP 1.4 by default uses nixpkgs revision `9cb344e96d5b6918e94e1bca2d9f3ea1e9615545` (you can find this with `nix flake metadata --inputs-from . nixpkgs` if you have the default `nixpkgs` in your `flake.nix`). So to convert your `Config/nix/haskell-packages` you can
 
-1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/c6a788f552b7b7af703b1a29802a7233c0067908
+1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/9cb344e96d5b6918e94e1bca2d9f3ea1e9615545
 
 2. Click the tag/branch selector and give it a name like `ihp-1.4` and click the "Create branch ihp-1.4 from c6a788f" button
 
