@@ -163,3 +163,23 @@ When you run `ihp-new blog` to create a new project on a system using Ubuntu run
 **Solution:**
 
 Switch to WSL 2.
+
+### OAuth/HTTPS in Docker fails: `certificate has unknown CA`
+
+**Problem:**
+
+Inside a container built with Nix `dockerTools.buildImage`, HTTPS requests fail with:
+
+```
+HttpExceptionRequest ... (InternalException (HandshakeFailed (Error_Protocol "certificate has unknown CA" UnknownCa)))
+```
+
+This can affect Google OAuth, GitHub API calls, S3 uploads, etc.
+
+**Cause:**
+
+Minimal images produced by `dockerTools.buildImage` do not include a root CA bundle at `/etc/ssl/certs` by default, and SSL libraries cannot validate certificates.
+
+**Solution:**
+
+Override the IHP Docker image to include CA certificates and set SSL env vars. See the detailed snippet and explanation in Deployment → Deploying with Docker → "TLS certificates in Nix-built Docker images".
