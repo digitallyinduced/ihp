@@ -33,7 +33,7 @@ import IHP.Test.Mocking
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
 
 -- | Create contexts that can be used for mocking
-withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
+withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO a) -> IO a
 withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
         let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime } = frameworkConfig
