@@ -92,3 +92,49 @@ action StatsAction = autoRefresh do
 ```
 
 The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.
+
+### Using Auto Refresh with HTMX
+
+HTMX endpoints often render just a fragment and swap it into an existing container. Auto Refresh can cooperate with that flow as long as the client knows which element to morph and the fragment exposes the session meta data.
+
+1. Wrap the HTMX action in `autoRefresh` and select the container you want to keep in sync using [`setAutoRefreshTarget`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:setAutoRefreshTarget).
+2. Include `{autoRefreshMeta}` somewhere inside the fragment. The meta tag does not need to live in `<head>`—the Auto Refresh script will pick it up after the HTMX swap.
+3. Keep the container stable (e.g. the same `id`) so morphdom can update its children without losing your `hx-*` attributes.
+
+```haskell
+-- Controller
+action RefineChatPaneAction { chatId } = autoRefresh do
+    setAutoRefreshTarget "#chat-pane"
+    messages <- query @Message
+        |> filterWhere (#chatId, chatId)
+        |> orderByDesc #createdAt
+        |> fetch
+    render RefineChatPaneView { .. }
+
+-- View
+instance View RefineChatPaneView where
+    html RefineChatPaneView { .. } = [hsx|
+        {autoRefreshMeta}
+        <div id="chat-pane" class="h-full">
+            {forEach messages renderMessage}
+        </div>
+    |]
+```
+
+On the page you can keep your skeleton loader and HTMX setup:
+
+```haskell
+[hsx|
+<div
+    id="chat-pane"
+    class="h-full"
+    hx-get={pathTo RefineChatPaneAction { chatId }}
+    hx-trigger="load once"
+    hx-swap="innerHTML"
+>
+    {skeleton}
+</div>
+|]
+```
+
+After HTMX swaps in the fragment, the Auto Refresh client reuses the session id, reconnects the WebSocket, and limits updates to `#chat-pane`, so the skeleton no longer flashes when the backing data changes.

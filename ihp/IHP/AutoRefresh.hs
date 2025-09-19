@@ -32,6 +32,11 @@ initAutoRefresh = do
     putContext AutoRefreshDisabled
     putContext ?applicationContext.autoRefreshServer
 
+-- | Limits the client-side morphing to the DOM node matching the given CSS selector.
+-- Useful when combining Auto Refresh with fragment based renderers such as HTMX.
+setAutoRefreshTarget :: (?context :: ControllerContext) => Text -> IO ()
+setAutoRefreshTarget selector = putContext (AutoRefreshTarget selector)
+
 autoRefresh :: (
     ?theAction :: action
     , Controller action
