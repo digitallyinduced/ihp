@@ -1282,16 +1282,16 @@
     },
     "nixpkgs_5": {
       "locked": {
-        "lastModified": 1758479074,
-        "narHash": "sha256-s2AA5pHYsKDGD9ZFY7zY/w9zNHSJoh8/OIpiNrHuqOs=",
-        "owner": "NixOS",
+        "lastModified": 1758486067,
+        "narHash": "sha256-SVGbJF1svrcMF75AQ42rt2DEb3tU3mw22EFxd8F6TLU=",
+        "owner": "sternenseemann",
         "repo": "nixpkgs",
-        "rev": "b8b6b30ae0b6c39706740dd30523723ac5d5793d",
+        "rev": "e230810e76176e40dd281029a987d0f0b786d1d2",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "staging-next",
+        "owner": "sternenseemann",
+        "ref": "stackage-lts-24.11",
         "repo": "nixpkgs",
         "type": "github"
       }
