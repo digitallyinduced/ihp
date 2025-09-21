@@ -3,7 +3,8 @@
 
     inputs = {
         # "github:NixOS/nixpkgs/nixos-unstable"
-        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+        nixpkgs.url = "github:sternenseemann/nixpkgs/stackage-lts-24.11";
+
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
