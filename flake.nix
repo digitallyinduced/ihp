@@ -3,7 +3,7 @@
 
     inputs = {
         # "github:NixOS/nixpkgs/nixos-unstable"
-        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+        nixpkgs.url = "github:NixOS/nixpkgs/staging-next";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
