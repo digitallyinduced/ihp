@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, CPP #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -181,9 +181,11 @@ instance Default Text where
     {-# INLINE def #-}
     def = ""
 
+#if !MIN_VERSION_data_default(0,8,0)
 instance Default Bool where
     {-# INLINE def #-}
     def = False
+#endif
 
 instance Default Point where
     def = Point def def
