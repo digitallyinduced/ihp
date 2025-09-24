@@ -1,4 +1,11 @@
-# v1.4.0 (unreleased)
+# v1.4.1
+
+- ihp-{openai,sitemap}: increase base bounds from 4.20 => 4.22
+- fix migrate package
+- use Data.Text qualified in IHP.NameSupport to fix build with text-2.1.2
+- Drop 'Default Bool' instance for data-default >= 0.8
+
+# v1.4.0
 
 ## Highlights
 - 🚀 Improved Dev Server: faster, more reliable reloads without race conditions.
