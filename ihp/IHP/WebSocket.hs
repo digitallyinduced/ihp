@@ -37,7 +37,7 @@ class WSApp state where
     run :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
+    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext) => IO ()
     onPing = pure ()
 
     onClose :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
@@ -65,7 +65,7 @@ startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state
 
-    result <- Exception.try ((withPingPong defaultPingPongOptions connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
+    result <- Exception.try ((withPingPong (defaultPingPongOptions { Websocket.pingAction = onPing @state }) connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of
         Left (e@Exception.SomeException{}) ->
             case Exception.fromException e of
