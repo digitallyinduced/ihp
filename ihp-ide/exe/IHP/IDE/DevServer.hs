@@ -34,6 +34,7 @@ import qualified System.Directory as Directory
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
+import qualified System.IO as IO
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
@@ -64,6 +65,12 @@ main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
 mainWithOptions wrapWithDirenv = withUtf8 do
+    -- https://github.com/digitallyinduced/ihp/issues/2134
+    -- devenv will redirect the standard handles to a pipe, causing block buffering by default
+    -- We need to override this so that `putStrLn` etc. works as expected
+    IO.hSetBuffering IO.stdout IO.LineBuffering
+    IO.hSetBuffering IO.stderr IO.LineBuffering
+
     databaseNeedsMigration <- newIORef False
     portConfig <- findAvailablePortConfig
     ensureUserIsNotRoot
