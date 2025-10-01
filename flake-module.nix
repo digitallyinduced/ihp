@@ -319,14 +319,13 @@ ihpFlake:
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
-                # env.IHP_DEVENV = "1";
-                # env.DATABASE_URL = "postgres:///app?host=${config.env.PGHOST}";
+                env.IHP_DEVENV = "1";
+                env.DATABASE_URL = "postgres:///app?host=${config.devenv.shells.default.env.PGHOST}";
 
                 # Disabled for now
                 # As the devenv postgres uses a different location for the socket
                 # this would break lots of known commands such as `make db`
-                services.postgres.enable = false;
-                services.postgres.package = pkgs.postgresql_13;
+                services.postgres.enable = true;
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
@@ -335,15 +334,15 @@ ihpFlake:
 
                         echo "-- IHPSchema.sql" >> $out
                         echo "" >> $out
-                        cat ${ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+                        cat ${hsDataDir ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} >> $out
                         echo "" >> $out
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out
-                        cat ${cfg.projectPath + "/Application/Schema.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+                        cat ${cfg.projectPath + "/Application/Schema.sql"} >> $out
                         echo "" >> $out
                         echo "-- Application/Fixtures.sql" >> $out
                         echo "" >> $out
-                        cat ${cfg.projectPath + "/Application/Fixtures.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+                        cat ${cfg.projectPath + "/Application/Fixtures.sql"} >> $out
                     '';
                     }
                 ];
