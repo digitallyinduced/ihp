@@ -7,7 +7,6 @@ import qualified IHP.Server
 import IHP.RouterSupport
 import IHP.ControllerPrelude
 import IHP.Mail
---import IHP.GenericController
 
 data DemoController = DemoAction deriving (Eq, Show, Data)
 

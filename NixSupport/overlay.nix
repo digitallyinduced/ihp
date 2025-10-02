@@ -4,18 +4,24 @@ let
 in
 final: prev: {
     ghc = final.haskell.packages.ghc98.override {
-        overrides = self: super: {
-            ihp = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp.nix" { filter = inputs.nix-filter.lib; };
-            ihp-ide = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-ide.nix" {};
-            ihp-migrate = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-migrate.nix" {};
-            ihp-openai = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-openai.nix" {};
-            ihp-postgresql-simple-extra = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-postgresql-simple-extra.nix" {};
-            ihp-ssc = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-ssc.nix" {};
-            ihp-zip = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-zip.nix" {};
-            # ihp-hsx = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-hsx.nix" {};
-            ihp-graphql = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-graphql.nix" {};
-            ihp-datasync-typescript = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-datasync-typescript.nix" {};
-            ihp-sitemap = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-sitemap.nix" {};
+        overrides = self: super:
+            let
+                filter = inputs.nix-filter.lib;
+                localPackage = name: super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {};
+        in {
+            ihp = localPackage "ihp";
+            ihp-ide = localPackage "ihp-ide";
+            ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
+            ihp-openai = localPackage "ihp-openai";
+            ihp-postgresql-simple-extra = localPackage "ihp-postgresql-simple-extra";
+            ihp-ssc = localPackage "ihp-ssc";
+            ihp-zip = super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {};
+            ihp-hsx = localPackage "ihp-hsx";
+            ihp-graphql = localPackage "ihp-graphql";
+            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
+            ihp-sitemap = localPackage"ihp-sitemap";
+            ihp-datasync = localPackage "ihp-datasync";
+            ihp-job-dashboard = localPackage"ihp-job-dashboard";
 
             # ihp-pro
             ihp-stripe = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-stripe.nix" {};

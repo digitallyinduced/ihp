@@ -227,7 +227,6 @@ library
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.ValidationSupport
-        , IHP.ViewErrorMessages
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport
@@ -255,11 +254,6 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
-        , IHP.Job.Dashboard
-        , IHP.Job.Dashboard.Types
-        , IHP.Job.Dashboard.Auth
-        , IHP.Job.Dashboard.View
-        , IHP.Job.Dashboard.Utils
         , IHP.PageHead.ControllerFunctions
         , IHP.PageHead.Types
         , IHP.PageHead.ViewFunctions
@@ -275,18 +269,6 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        -- DataSync
-        , IHP.DataSync.Types
-        , IHP.DataSync.RowLevelSecurity
-        , IHP.DataSync.DynamicQuery
-        , IHP.DataSync.DynamicQueryCompiler
-        , IHP.DataSync.ChangeNotifications
-        , IHP.DataSync.Controller
-        , IHP.DataSync.ControllerImpl
-        , IHP.DataSync.REST.Types
-        , IHP.DataSync.REST.Routes
-        , IHP.DataSync.REST.Controller
-        , IHP.DataSync.Role
         , IHP.PGListener
         , IHP.EnvVar
         -- IHP PRO

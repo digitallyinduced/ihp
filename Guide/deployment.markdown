@@ -497,6 +497,42 @@ $ docker run \
     app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
 ```
 
+### TLS certificates in Nix-built Docker images
+
+If your container makes HTTPS requests (e.g. Google OAuth, GitHub API, S3) and you see errors like:
+
+```
+HttpExceptionRequest ... (InternalException (HandshakeFailed (Error_Protocol "certificate has unknown CA" UnknownCa)))
+```
+
+your image likely does not contain a root CA bundle. Minimal images produced by `dockerTools.buildImage` do not include `/etc/ssl/certs` by default.
+
+Fix by overriding the IHP Docker image to include CA certificates and set standard SSL env vars so libraries can find them:
+
+```nix
+# inside your flake outputs, override the image used by nix build .#unoptimized-docker-image
+packages = {
+  unoptimized-docker-image = lib.mkForce (pkgs.dockerTools.buildImage {
+    name = "ihp-app";
+    # Provide a minimal userspace and CA bundle
+    copyToRoot = with pkgs.dockerTools; [
+      usrBinEnv   # /usr/bin/env for scripts
+      binSh       # /bin/sh for shell scripts
+      caCertificates  # /etc/ssl/certs/ca-certificates.crt
+      fakeNss     # NSS files for name resolution
+    ];
+    config = {
+      Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunProdServer" ];
+      Env = [
+        "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+        "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+        "SSL_CERT_DIR=/etc/ssl/certs"
+      ];
+    };
+  });
+};
+```
+
 ## Deploying on Bare Metal
 
 You can build and deploy your IHP app on your own server without external deployment tools.
@@ -914,5 +950,4 @@ Key Features:
 3. **Automatic Configuration**:
 
    - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
-
 

@@ -24,7 +24,6 @@ import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
-import qualified Control.Exception as Exception
 
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
@@ -95,6 +94,7 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
     frameworkStaticDir <- getDataFileName "static"
+    appStaticDir <- EnvVar.envOrDefault "APP_STATIC" "static/"
     let
         maxAge = case frameworkConfig.environment of
             Env.Development -> Static.MaxAgeSeconds 0
@@ -104,7 +104,7 @@ initStaticApp frameworkConfig = do
                 { Static.ss404Handler = Just (frameworkConfig.requestLoggerMiddleware handleNotFound)
                 , Static.ssMaxAge = maxAge
                 }
-        appSettings = (Static.defaultWebAppSettings "static/")
+        appSettings = (Static.defaultWebAppSettings appStaticDir)
                 { Static.ss404Handler = Just (Static.staticApp frameworkSettings)
                 , Static.ssMaxAge = maxAge
                 }

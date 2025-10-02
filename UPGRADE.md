@@ -3,6 +3,9 @@ This document describes breaking changes, as well as how to fix them, that have 
 After updating your project, please consult the segments from your current release until now.
 
 # Upgrade to 1.4.0 from 1.3.0
+
+## Switch IHP version
+
 1. **Switch IHP version**
 
     - **IHP Basic**
@@ -28,6 +31,63 @@ After updating your project, please consult the segments from your current relea
     ```
 
     Now you can start your project as usual with `devenv up`.
+
+## Use the new `ihp-migrate` package for database migrations
+
+The `migrate` command now has its own package `ihp-migrate`, so it is no longer available by default in the devshell or `nix-shell`. To make it available again, you can add the package to `flake.nix`:
+```diff
+                     haskellPackages = p: with p; [
+                         # Haskell dependencies go here
+                         p.ihp
++                        p.ihp-migrate
+                         cabal-install
+```
+
+However, for running it when deploying from Github Actions, it may be faster to add a devshell containing just that package. Put
+
+```nix
+                devShells.ihp-migrate = pkgs.mkShell {
+                  buildInputs = [
+                    pkgs.ghc.ihp-migrate
+                  ];
+                };
+
+```
+in `flake.nix` in the `perSystem` block (next to the `ihp` block). Then you can run it as `nix develop .#ihp-migrate --command migrate`.
+
+## Use nixpkgs instead of `Config/nix/haskell-packages`
+
+IHP now expects package overrides to be defined in nixpkgs, so if you had any files in `Config/nix/haskell-packages` they will be ignored in 1.4. The procedure is now to fork nixpkgs, do the changes there, and point your `flake.nix` at the fork. But the fork should start from the nixpkgs commit that this IHP version was based off.
+
+IHP 1.4 by default uses nixpkgs revision `9cb344e96d5b6918e94e1bca2d9f3ea1e9615545` (you can find this with `nix flake metadata --inputs-from . nixpkgs` if you have the default `nixpkgs` in your `flake.nix`). So to convert your `Config/nix/haskell-packages` you can
+
+1. Hit fork on https://github.com/NixOS/nixpkgs and open https://github.com/YOURUSER/nixpkgs/tree/9cb344e96d5b6918e94e1bca2d9f3ea1e9615545
+
+2. Click the tag/branch selector and give it a name like `ihp-1.4` and click the "Create branch ihp-1.4 from c6a788f" button
+
+3. Shallow clone your fork at that branch (nixpkgs is big and shallow clone is faster), and give it some new name for the changes you will put on top:
+
+   ```bash
+   git clone --depth 3 -b ihp-1.4 https://github.com/YOURUSER/nixpkgs
+   cd nixpkgs
+   git checkout -b my-changes-to-ihp-1.4
+   ```
+
+4. Edit `pkgs/development/haskell-modules/hackage-packages.nix` and insert the contents from your old `haskell-packages` For example, if you wanted to update HPDF, you would I look for `"HPDF"` in `hackage-packages.nix` and replace the existing entry with what you had in `Config/nix/haskell-packages/HPDF.nix` (or use the output of `cabal2nix cabal://HPDF` as described in [package management in the Guide](https://ihp.digitallyinduced.com/Guide/package-management.html#using-a-different-version-of-a-haskell-package).).
+
+5. Commit and push those changes to your fork, and take note of the revision of your fork
+
+6. Put that commit in `nixpkgs.url` in your `flake.nix` and comment out `nixpkgs.follows`, e.g.
+
+   ```diff
+   -        nixpkgs.follows = "ihp/nixpkgs"
+   +        # nixpkgs.follows = "ihp/nixpkgs"; # Overridden to upgrade HPDF:
+   +        nixpkgs.url = "github:YOURUSER/nixpkgs?rev=YOURREVISION";
+   ```
+
+7. Delete the old package definitions: `git rm -r Config/nix/haskell-packages`
+
+
 
 # Upgrade to 1.3.0 from 1.2.0
 1. **Switch IHP version**

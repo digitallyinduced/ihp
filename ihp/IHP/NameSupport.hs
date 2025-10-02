@@ -23,7 +23,7 @@ module IHP.NameSupport
 
 import Prelude hiding (splitAt, words, map)
 import IHP.HaskellSupport
-import Data.Text
+import Data.Text (Text)
 import Data.String.Conversions (cs)
 import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
@@ -45,7 +45,7 @@ tableNameToModelName :: Text -> Text
 tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do
     let singularizedTableName = cs (singularize tableName)
-    if "_" `isInfixOf` singularizedTableName
+    if "_" `Text.isInfixOf` singularizedTableName
         then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
         else ucfirst singularizedTableName
 {-# INLINABLE tableNameToModelName #-}
@@ -62,7 +62,7 @@ tableNameToModelName tableName = do
 -- "UserProjects"
 tableNameToControllerName :: Text -> Text
 tableNameToControllerName tableName = do
-    if "_" `isInfixOf` tableName
+    if "_" `Text.isInfixOf` tableName
         then unwrapEither tableName $ Inflector.toCamelCased True tableName
         else ucfirst tableName
 {-# INLINABLE tableNameToControllerName #-}
@@ -94,7 +94,7 @@ enumValueToControllerName enumValue =
         words :: [Inflector.SomeWord]
         words =
                 enumValue
-                |> splitOn " "
+                |> Text.splitOn " "
                 |> List.map (Inflector.parseSnakeCase [])
                 |> List.map (\case
                         Left failed -> error (cs $ "enumValueToControllerName failed for " <> show failed)
@@ -151,7 +151,7 @@ humanize text = unwrapEither text $ Inflector.toHumanized True text
 {-# INLINABLE applyFirst #-}
 applyFirst :: (Text -> Text) -> Text -> Text
 applyFirst f text =
-    let (first, rest) = splitAt 1 text
+    let (first, rest) = Text.splitAt 1 text
     in (f first) <> rest
 
 -- | Make a text's first character lowercase
@@ -162,7 +162,7 @@ applyFirst f text =
 -- >>> lcfirst "alread lowercase"
 -- "already lowercase"
 lcfirst :: Text -> Text
-lcfirst = applyFirst toLower
+lcfirst = applyFirst Text.toLower
 {-# INLINABLE lcfirst #-}
 
 -- | Make a text's first character uppercase
@@ -173,7 +173,7 @@ lcfirst = applyFirst toLower
 -- >>> ucfirst "Already uppercase"
 -- "Already uppercase"
 ucfirst :: Text -> Text
-ucfirst = applyFirst toUpper
+ucfirst = applyFirst Text.toUpper
 {-# INLINABLE ucfirst #-}
 
 -- | Add '_' to the end of a name if it is a reserved haskell keyword
@@ -184,7 +184,7 @@ ucfirst = applyFirst toUpper
 -- >>> escapeHaskellKeyword "type"
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
-escapeHaskellKeyword name = if toLower name `Prelude.elem` haskellKeywords then name <> "_" else name
+escapeHaskellKeyword name = if Text.toLower name `Prelude.elem` haskellKeywords then name <> "_" else name
 
 haskellKeywords :: [Text]
 haskellKeywords = [ "_"
@@ -247,10 +247,10 @@ haskellKeywords = [ "_"
 toSlug :: Text -> Text
 toSlug text =
         text
-        |> toLower
-        |> map replaceChar
-        |> words
-        |> intercalate "-"
+        |> Text.toLower
+        |> Text.map replaceChar
+        |> Text.words
+        |> Text.intercalate "-"
     where
         replaceChar 'ä' = 'a'
         replaceChar 'ö' = 'o'

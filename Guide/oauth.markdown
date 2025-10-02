@@ -247,6 +247,16 @@ function onGoogleLogin(response) {
 
 Now you should be able to log in with Google from your normal login page.
 
+### Troubleshooting (Docker/Nix images)
+
+If Google login works locally but fails inside a Docker container built with Nix with an error like:
+
+```
+HttpExceptionRequest ... (InternalException (HandshakeFailed (Error_Protocol "certificate has unknown CA" UnknownCa)))
+```
+
+your image is likely missing root CA certificates. See Deployment → Deploying with Docker → "TLS certificates in Nix-built Docker images" for how to include CA certificates and set the `SSL_CERT_FILE`/`NIX_SSL_CERT_FILE` env vars in your image.
+
 ## Login with GitHub
 
 ### Setup

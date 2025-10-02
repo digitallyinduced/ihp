@@ -30,7 +30,6 @@ import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
-import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot

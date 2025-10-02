@@ -45,7 +45,6 @@ import qualified Test.ViewSupportSpec
 import qualified Test.ServerSideComponent.HtmlParserSpec
 import qualified Test.ServerSideComponent.HtmlDiffSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
-import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.PGListenerSpec
 
@@ -78,7 +77,6 @@ main = hspec do
     Test.ServerSideComponent.HtmlParserSpec.tests
     Test.ServerSideComponent.HtmlDiffSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
-    Test.DataSync.DynamicQueryCompiler.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
     Test.Controller.CookieSpec.tests

@@ -45,36 +45,6 @@ that is defined in flake-module.nix
                 '';
             };
 
-            # Creates a new empty IHP project and verifies that it builds with IHP
-            #
-            # To run this check against a specific IHP version:
-            #     nix flake check --impure --override-input ihp-boilerplate/ihp "github:digitallyinduced/ihp/$someHash"
-            ihp-boilerplate-with-web-application =
-                let
-                    # Empty project with an empty Web application being created
-                    projectSrc = inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
-                        name = "ihp-boilerplate-with-web-application-src";
-                        buildPhase = ''
-                            export IHP_LIB=${(hsDataDir pkgs.ghc.ihp-ide.data) + "/lib/IHP"}
-                            export IHP=${self.packages.${system}.ihp-env-var-backwards-compat}
-
-                            # scaffold before the package’s normal build kicks in
-                            ${pkgs.ghc.ihp-ide}/bin/new-application Web
-
-                            make build/bin/RunUnoptimizedProdServer
-                        '';
-                        installPhase = ''
-                            cp -R . $out
-                        '';
-                        buildInputs = old.buildInputs ++ [ pkgs.ghc.ihp-ide ];
-                    });
-                in
-                    inputs.ihp-boilerplate.packages.${system}.default.overrideAttrs (old: {
-                        name = "ihp-boilerplate-with-web-application";
-                        src = projectSrc;
-                    });
-
-
             # Checks devShells
             ihp-devShell = self.devShells.${system}.default;
             boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
@@ -186,6 +156,8 @@ that is defined in flake-module.nix
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
+            ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
 
             # ihp-pro
             stripe = pkgs.ghc.ihp-stripe;
@@ -269,7 +241,7 @@ that is defined in flake-module.nix
             datasync-js = pkgs.mkYarnPackage {
                 name = "datasync-js";
                 src = let filter = inputs.nix-filter.lib; in filter {
-                    root = "${self}/ihp/data/DataSync";
+                    root = "${self}/ihp-datasync/data/DataSync";
                 };
                 postConfigure = ''
                     yarn run test
@@ -284,6 +256,7 @@ that is defined in flake-module.nix
                     name = "ihp-env-var-backwards-compat";
                     paths = [
                         (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
+                        (hsDataDir pkgs.ghc.ihp-ide.data)
                         (hsDataDir pkgs.ghc.ihp.data)
                     ];
                 };

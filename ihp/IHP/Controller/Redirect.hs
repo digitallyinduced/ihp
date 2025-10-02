@@ -16,7 +16,6 @@ import qualified Network.Wai.Util
 import Network.URI (parseURI)
 import IHP.Controller.RequestContext
 import IHP.RouterSupport (HasPath (pathTo))
-import IHP.FrameworkConfig
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
 

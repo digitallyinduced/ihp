@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, CPP #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -38,7 +38,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
-import qualified GHC.Conc
 import IHP.Postgres.Point
 import IHP.Postgres.Interval ()
 import IHP.Postgres.Polygon
@@ -182,9 +181,11 @@ instance Default Text where
     {-# INLINE def #-}
     def = ""
 
+#if !MIN_VERSION_data_default(0,8,0)
 instance Default Bool where
     {-# INLINE def #-}
     def = False
+#endif
 
 instance Default Point where
     def = Point def def

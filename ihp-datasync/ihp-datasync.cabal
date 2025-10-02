@@ -1,0 +1,136 @@
+cabal-version:       2.2
+name:                ihp-datasync
+version:             1.4.0
+synopsis:            IHP DataSync Framework
+description:         DataSync module for the Integrated Haskell Platform, enabling real-time data synchronization and RESTful API capabilities for IHP applications.
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP, DataSync
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+Flag FastBuild
+    Default: False
+    Description: Disables all optimisations, leads to faster build time
+
+common shared-properties
+    default-language: GHC2021
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , classy-prelude
+            , mono-traversable
+            , transformers
+            , mtl
+            , text
+            , postgresql-simple
+            , bytestring
+            , aeson
+            , uuid
+            , time
+            , attoparsec
+            , case-insensitive
+            , haskell-src-meta
+            , template-haskell
+            , haskell-src-exts
+            , interpolate
+            , containers
+            , http-media
+            , wai
+            , warp
+            , websockets
+            , wai-websockets
+            , unliftio
+            , async
+            , ihp
+            , ihp-hsx
+            , ihp-postgresql-simple-extra
+            , deepseq
+            , safe-exceptions
+            , http-types
+            , scientific
+            , vector
+            , stm
+            , resource-pool
+            , unordered-containers
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+    if flag(FastBuild)
+        ghc-options:
+            -threaded
+            +RTS -A256m -n4m -H512m -qg -N -RTS
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
+            -Wno-ambiguous-fields
+    else
+        ghc-options:
+            -fstatic-argument-transformation
+            -funbox-strict-fields
+            -haddock
+            +RTS -A256m -n4m -H512m -qg -N -RTS
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wmissed-specialisations
+            -Wall-missed-specialisations
+            -Wno-ambiguous-fields
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.DataSync.Types
+        , IHP.DataSync.RowLevelSecurity
+        , IHP.DataSync.DynamicQuery
+        , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.ChangeNotifications
+        , IHP.DataSync.Controller
+        , IHP.DataSync.ControllerImpl
+        , IHP.DataSync.REST.Types
+        , IHP.DataSync.REST.Routes
+        , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Role
+    other-modules:
+        Paths_ihp_datasync
+    autogen-modules:
+        Paths_ihp_datasync
+
+
+test-suite ihp-datasync-hspec
+    import: shared-properties
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      .
+    main-is:             Test/Main.hs
+    other-modules: Test.DataSync.DynamicQueryCompiler
+    build-depends: hspec
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
