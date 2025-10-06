@@ -49,6 +49,7 @@
                     services_worker = ./NixSupport/nixosModules/services/worker.nix;
                     services_migrate = ./NixSupport/nixosModules/services/migrate.nix;
                     services_loadSchema = ./NixSupport/nixosModules/services/loadSchema.nix;
+                    services_appKeygen = ./NixSupport/nixosModules/services/app-keygen.nix;
                     options = ./NixSupport/nixosModules/options.nix;
                     binaryCache = ./NixSupport/nixosModules/binaryCache.nix;
                 };
