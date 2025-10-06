@@ -1,0 +1,61 @@
+cabal-version:       2.2
+name:                ihp-sitemap
+version:             1.4.0
+synopsis:            SEO
+description:         Render sitemaps with IHP
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            SEO
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+common ihp-std
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+
+library
+    import: ihp-std
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , text
+        , ihp
+        , blaze-html
+        , blaze-markup
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.SEO.Sitemap.ControllerFunctions
+        , IHP.SEO.Sitemap.Routes
+        , IHP.SEO.Sitemap.Types
+
+test-suite tests
+    import: ihp-std
+    type: exitcode-stdio-1.0
+    main-is: SEO/Sitemap.hs
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , hspec
+        , ihp
+        , ihp-sitemap
+        , wai
+        , wai-extra
+        , http-types
+        , ihp-hsx
+    hs-source-dirs: Test

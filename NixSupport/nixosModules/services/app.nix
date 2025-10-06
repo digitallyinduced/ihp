@@ -6,13 +6,16 @@ in
     systemd.services.app = {
         description = "IHP App";
         enable = true;
-        after = [ "network.target" "app-keygen.service" ];
+        after = [ "network.target" "app.socket" "app-keygen.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
-            Type = "simple";
+            Type = "notify";
             Restart = "always";
             WorkingDirectory = "${cfg.package}/lib";
             ExecStart = "${cfg.package}/bin/RunProdServer";
+            KillSignal = "SIGINT";
+            WatchdogSec = "60";
+            Sockets = "app.socket";
         };
         environment =
             let
@@ -24,8 +27,16 @@ in
                     DATABASE_URL = cfg.databaseUrl;
                     IHP_SESSION_SECRET_FILE = cfg.sessionSecretFile;
                     GHCRTS = cfg.rtsFlags;
+                    IHP_SYSTEMD = "1";
                 };
             in
                 defaultEnv // cfg.additionalEnvVars;
+    };
+    systemd.sockets.app = {
+        wantedBy = [ "sockets.target" ];
+        socketConfig = {
+            ListenStream = "${toString cfg.appPort}";
+            Accept = "no";
+        };
     };
 }

@@ -3,21 +3,61 @@ flake-parts module for setting the local IHP devenv shell
 this is different from the devenv environment used by IHP apps!
 that is defined in flake-module.nix
 */
-{ inputs }:
+{ self, inputs }:
 {
-    perSystem = { nix-filter, pkgs, lib, ... }: let
-        ghcCompiler = import ./NixSupport/mkGhcCompiler.nix {
-            inherit pkgs;
-            ghcCompiler = pkgs.haskell.packages.ghc98;
-            ihp = ./.;
-            filter = inputs.nix-filter.lib;
-        };
-    in {
+    perSystem = { config, system, nix-filter, pkgs, lib, ... }:
+    let
+                    hsDataDir = package:
+                            let
+                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.8.4"
+                                shareRoot = "${package.data}/share/${ghcName}";
+                                # Pick the only dir ending with "-${ghcName}", e.g. "aarch64-osx-ghc-9.8.4"
+                                sys = lib.head (lib.filter (n: lib.hasSuffix "-${ghcName}" n) (builtins.attrNames (builtins.readDir shareRoot)));
+                            in
+                                "${shareRoot}/${sys}/${package.name}";
+    in
+    {
+        _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
 
         apps.migrate = {
             type = "app";
-            program = "${ghcCompiler.ihp-migrate}/bin/migrate";
+            program = "${pkgs.ghc.ihp-migrate}/bin/migrate";
+            meta = {
+                description = "Apply migrations to the database";
+            };
         };
+
+        # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
+        checks = {
+            # Runs Tests/Main.hs
+            tests = pkgs.stdenv.mkDerivation {
+                name = "ihp-tests";
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = self;
+                    include = [ "ihp" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "dev" (filter.matchExt "hs") ];
+                };
+                nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
+                buildPhase = ''
+                    cd ihp
+                    # shellcheck disable=SC2046
+                    runghc $(make -f ../ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -i. -i../ihp-ide -i../ihp-ssc -i../dev Test/Main.hs
+                    touch $out
+                '';
+            };
+
+            # Checks devShells
+            ihp-devShell = self.devShells.${system}.default;
+            boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
+        }
+            # Add all package outputs to the checks
+            // (lib.filterAttrs (n: v: lib.isDerivation v && n != "default") self.packages.${system})
+            
+            # Add all ihp-boilerplate packages to the checks
+            // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v
+                        && n != "default"
+                        && n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                    ) inputs.ihp-boilerplate.packages.${system}))
+        ;
 
         devenv.shells.default = {
             packages = with pkgs; [];
@@ -25,13 +65,14 @@ that is defined in flake-module.nix
 
             languages.haskell.enable = true;
             languages.haskell.package =
-                    ghcCompiler.ghc.withPackages (p: with p; [
+                    pkgs.ghc.ghc.withPackages (p: with p; [
                         # Copied from ihp.nix
                         base
                         classy-prelude
                         directory
                         string-conversions
                         warp
+                        warp-systemd
                         wai
                         mtl
                         blaze-html
@@ -84,42 +125,135 @@ that is defined in flake-module.nix
                         cereal-text
                         neat-interpolation
                         unagi-chan
-                        with-utf8_1_1_0_0
+                        with-utf8
 
                         # Development Specific Tools (not in ihp.nix)
                         hspec
                         ihp-hsx
                         ihp-postgresql-simple-extra
-                    ]);
 
-            scripts.tests.exec = ''
-                runghc $(make -f lib/IHP/Makefile.dist print-ghc-extensions) -iihp-ide -iihp-ssc Test/Main.hs
-            '';
+
+                        http-streams
+                        HsOpenSSL
+                        http-streams
+                        io-streams
+                        network-uri
+                    ]);
 
             scripts.fastbuild.exec = ''
                 cabal build --flag FastBuild
             '';
 
-            scripts.build-ihp-new.exec = ''
-                cd ProjectGenerator
-                make tarball.tar.gz
-            '';
-
-            scripts.build-api-reference.exec = ''
-                chmod +x build-haddock
-                ./build-haddock
-            '';
-
-            languages.haskell.stack = null; # Stack is not used in IHP
-            languages.haskell.languageServer = ghcCompiler.haskell-language-server;
+            languages.haskell.stack.enable = false; # Stack is not used in IHP
+            languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
         };
 
         packages = {
-            default = ghcCompiler.ihp;
-            ide = ghcCompiler.ihp-ide;
-            ssc = ghcCompiler.ihp-ssc;
-            migrate = ghcCompiler.ihp-migrate;
-            datasync-typescript = ghcCompiler.ihp-datasync-typescript;
+            default = pkgs.ghc.ihp;
+            ide = pkgs.ghc.ihp-ide;
+            ssc = pkgs.ghc.ihp-ssc;
+            migrate = pkgs.ghc.ihp-migrate;
+            datasync-typescript = pkgs.ghc.ihp-datasync-typescript;
+            ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
+            ihp-sitemap = pkgs.ghc.ihp-sitemap;
+            ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
+
+            guide =
+                let
+                    node-modules = pkgs.mkYarnModules {
+                        pname = "guide-node_modules";
+                        packageJSON = ./Guide/package.json;
+                        yarnLock = ./Guide/yarn.lock;
+                        version = "1.0.0";
+                    };
+                in
+                    pkgs.stdenv.mkDerivation {
+                        name = "ihp-guide";
+                        src = ./Guide;
+                        nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli pkgs.esbuild ];
+                        buildPhase = ''
+                            # build HTML from all *.markdown using the template
+                            for f in *.markdown; do
+                                out_html="''${f%.markdown}.html"
+                                mmark -i "$f" -o "$out_html" \
+                                    --template layout.html \
+                                    --ext-skylighting --ext-ghc-highlighter \
+                                    --ext-punctuation --ext-toc 2-6
+                            done
+
+                            cp ${node-modules}/node_modules/bootstrap/dist/css/bootstrap.min.css bootstrap.css
+                            cp ${node-modules}/node_modules/instantclick/dist/instantclick.min.js instantclick.js
+
+                            # build search.js via esbuild
+                            NODE_PATH=${node-modules}/node_modules \
+                            ${pkgs.esbuild}/bin/esbuild search.jsx \
+                                --bundle \
+                                --preserve-symlinks \
+                                --minify-whitespace \
+                                --define:process.env.NODE_ENV=\"production\" \
+                                --minify \
+                                --legal-comments=none \
+                                --outfile=search.js
+                        '';
+                        installPhase = ''
+                            mkdir -p $out
+                            cp -r *.html *.css *.js images $out/
+                        '';
+                        LOCALE_ARCHIVE = pkgs.lib.optionalString pkgs.stdenv.isLinux "${pkgs.glibcLocales}/lib/locale/locale-archive";
+                        LANG = "en_US.UTF-8";
+                        allowedReferences = [];
+                };
+
+
+            reference =
+                pkgs.stdenv.mkDerivation {
+                    name = "ihp-reference";
+                    src = self;
+                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp ];
+                    buildPhase = ''
+                        cp -r ${pkgs.ghc.ihp.doc}/share/doc/ihp-*/html haddock-build
+                        chmod -R u+w haddock-build
+
+                        cd haddock-build
+
+                        # Add favicon
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<head>#<head><link rel="shortcut icon" type="image\/x-icon" href="https:\/\/ihp.digitallyinduced.com\/ihp-logo.svg"\/>#g' '{}' +
+
+                        # Add ihp-haddock.css
+                        cp ../ihp-haddock.css ihp-haddock.css
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+                        # Link title to index
+                        find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
+
+                        cp -R . $out
+                    '';
+                    # allowedReferences = [];
+            };
+
+            datasync-js = pkgs.mkYarnPackage {
+                name = "datasync-js";
+                src = let filter = inputs.nix-filter.lib; in filter {
+                    root = "${self}/ihp-datasync/data/DataSync";
+                };
+                postConfigure = ''
+                    yarn run test
+                    yarn run typecheck
+                '';
+            };
+
+            # The IHP boilerplate's Makefile depends on an IHP env var that contains
+            # the Makefile.dist (ihp-ide) and several JS and CSS files (ihp)
+            ihp-env-var-backwards-compat =
+                pkgs.symlinkJoin {
+                    name = "ihp-env-var-backwards-compat";
+                    paths = [
+                        (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
+                        (hsDataDir pkgs.ghc.ihp-ide.data)
+                        (hsDataDir pkgs.ghc.ihp.data)
+                    ];
+                };
         };
     };
 }

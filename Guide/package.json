@@ -1,0 +1,19 @@
+{
+  "name": "ihp-documentation-search",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@docsearch/css": "^3.0.0-alpha.40",
+    "@docsearch/react": "^3.0.0-alpha.40",
+    "bootstrap": "4.5",
+    "instantclick": "^3.1.0-2",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  }
+}

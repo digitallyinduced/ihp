@@ -337,6 +337,22 @@ Steps to do to start from scratch:
  - `rm /tmp/[your-app].sql`
 
 
+### Troubleshooting / operations
+
+If a deployment or the initial creation goes wrong, there are techniques to locate the root cause, first, login to the EC2 instance:
+`ssh [your-app]-[env]`
+If logging in does not work, let's open AWS dashboard and initiate a reboot.
+After you logged in, you can:
+ - Check resource usages `df -h`, `free -m`, `top` to see if the instance capacity is okay for the deployment / load.
+ - `systemctl start app.service` / `systemctl restart app.service` check if the app can be started manually
+ - Check app logs: `journalctl --unit=app.service -n 100 --no-pager`
+ - Check worker logs: `journalctl  -u worker -r`
+ - Delete old logs if disk is full: `journalctl --vacuum-time=2d` - keep only past 2 days for example
+ - `dmesg` to spot any hardware/virtualization anomalies.
+ - `iptables -L` to see firewall rules, in case of network connectivity issues.
+
+Keep in mind that changes should be always done declaratively, via the `nix` files, for example changing the firewall rules temporarily via `iptables` will be lost at the next deployment, so `ssh` into the instance is merely for debugging, locating the root cause. The solution almost always involves a change in the `flake.nix` for the sake of idempotence.
+
 ## Deploying with Docker
 
 Deploying IHP with docker is a good choice for a professional production setup.
@@ -479,6 +495,42 @@ It's therefore important to set it to the external user-facing web addresss. E.g
 $ docker run \
     -e 'IHP_BASEURL=https://example.com' \
     app:g13rks9fb4ik8hnqip2s3ngqq4nq14zw
+```
+
+### TLS certificates in Nix-built Docker images
+
+If your container makes HTTPS requests (e.g. Google OAuth, GitHub API, S3) and you see errors like:
+
+```
+HttpExceptionRequest ... (InternalException (HandshakeFailed (Error_Protocol "certificate has unknown CA" UnknownCa)))
+```
+
+your image likely does not contain a root CA bundle. Minimal images produced by `dockerTools.buildImage` do not include `/etc/ssl/certs` by default.
+
+Fix by overriding the IHP Docker image to include CA certificates and set standard SSL env vars so libraries can find them:
+
+```nix
+# inside your flake outputs, override the image used by nix build .#unoptimized-docker-image
+packages = {
+  unoptimized-docker-image = lib.mkForce (pkgs.dockerTools.buildImage {
+    name = "ihp-app";
+    # Provide a minimal userspace and CA bundle
+    copyToRoot = with pkgs.dockerTools; [
+      usrBinEnv   # /usr/bin/env for scripts
+      binSh       # /bin/sh for shell scripts
+      caCertificates  # /etc/ssl/certs/ca-certificates.crt
+      fakeNss     # NSS files for name resolution
+    ];
+    config = {
+      Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunProdServer" ];
+      Env = [
+        "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+        "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+        "SSL_CERT_DIR=/etc/ssl/certs"
+      ];
+    };
+  });
+};
 ```
 
 ## Deploying on Bare Metal
@@ -878,3 +930,24 @@ The maximum number of subscriptions per websocket connection in IHP DataSync. De
 #### `IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION`
 
 The maximum number of database transactions per websocket connection in IHP DataSync. Defaults to `10`.
+
+## `systemd` Integration
+
+The `deploy-to-nixos` tool now includes systemd integration to improve reliability and reduce downtime for IHP applications. These features are enabled by default when using `ihp.nixosModules.app`.
+
+Key Features:
+
+1. **Systemd Watchdog**:
+
+   - The app sends a heartbeat to systemd every 30 seconds via localhost.
+   - If the app becomes unresponsive, systemd restarts it after 60 seconds.
+
+2. **Socket Activation**:
+
+   - Systemd queues incoming HTTP requests during app startup or restarts.
+   - This eliminates downtime and ensures uninterrupted service.
+
+3. **Automatic Configuration**:
+
+   - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
+

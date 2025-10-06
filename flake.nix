@@ -2,7 +2,8 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs?rev=54b4bb956f9891b872904abdb632cea85a033ff2";
+        # "github:NixOS/nixpkgs/nixos-unstable"
+        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
@@ -12,7 +13,7 @@
         flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
         # used for setting up development environments
-        devenv.url = "github:cachix/devenv?rev=6e318854efa95c5e67a1152547f838754e8f0306";
+        devenv.url = "github:cachix/devenv/v1.8.2";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
         # TODO use a corresponding release branch
@@ -23,14 +24,15 @@
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
-        { flake-parts-lib, withSystem, ... } : {
+        { self, flake-parts-lib, withSystem, ... } : {
             systems = import inputs.systems;
             imports = [
                 inputs.devenv.flakeModule
-                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs; })
+                (flake-parts-lib.importApply ./devenv-module.nix { inherit inputs self; })
             ];
 
             flake = {
+                overlays.default = import ./NixSupport/overlay.nix { inherit inputs self; };
                 flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
                     path = inputs.ihp-boilerplate;
@@ -42,7 +44,7 @@
                 nixosModules = {
                     app = ./NixSupport/nixosModules/app.nix;
                     appWithPostgres = ./NixSupport/nixosModules/appWithPostgres.nix;
-                    
+
                     services_app = ./NixSupport/nixosModules/services/app.nix;
                     services_worker = ./NixSupport/nixosModules/services/worker.nix;
                     services_migrate = ./NixSupport/nixosModules/services/migrate.nix;

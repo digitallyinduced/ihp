@@ -12,6 +12,8 @@
 , appName ? "app"
 , optimizationLevel ? "2"
 , filter
+, ihp-env-var-backwards-compat
+, static
 }:
 
 let
@@ -23,6 +25,8 @@ let
         (otherDeps pkgs)
     ];
 
+    splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
+
     schemaObjectFiles =
         let
             self = projectPath;
@@ -33,18 +37,19 @@ let
                     mkdir -p build/Generated
                     build-generated-code
 
-                    export IHP=${ihp}/lib/IHP
-                    ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
+                    export IHP=${ihp-env-var-backwards-compat}
+                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
 
                     cp -r build $out
                 '';
-                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; };
+                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; name = "schemaObjectFiles-source"; };
                 nativeBuildInputs =
                     [ (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
                     ]
                 ;
                 dontInstall = true;
                 dontFixup = false;
+                disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
             };
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
@@ -59,13 +64,13 @@ let
 
                 chmod -R +w build/RunProdServer/*
 
-                export IHP_LIB=${ihp}/lib/IHP
-                export IHP=${ihp}/lib/IHP
+                export IHP_LIB=${ihp-env-var-backwards-compat}
+                export IHP=${ihp-env-var-backwards-compat}
 
                 mkdir -p build/bin build/RunUnoptimizedProdServer
 
-                echo ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
-                ghc -O${if optimized then optimizationLevel else "0"} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
+                echo ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
+                ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
 
                 # Build job runner if there are any jobs
                 if find -type d -iwholename \*/Job|grep .; then
@@ -77,7 +82,7 @@ let
                     echo "import Main ()" >> build/RunJobs.hs
                     echo "main :: IO ()" >> build/RunJobs.hs
                     echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> build/RunJobs.hs
-                    ghc -O${if optimized then optimizationLevel else "0"} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
+                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
                 fi;
 
                 # Build all scripts if there are any
@@ -113,46 +118,27 @@ let
                         mv "build/bin/Script/$script_basename" "$out/bin/$script_basename";
                     done
             '';
-            dontFixup = true;
-            src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; };
+            src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
             buildInputs = [allHaskellPackages];
-            nativeBuildInputs = [ pkgs.makeWrapper ];
+            nativeBuildInputs = [schemaObjectFiles];
             enableParallelBuilding = true;
+            disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
         };
 in
-    pkgs.stdenv.mkDerivation {
-        name = appName;
-        buildPhase = ''
-            runHook preBuild
-
-            # When npm install is executed by the project's makefile it will fail with:
-            #
-            #     EACCES: permission denied, mkdir '/homeless-shelter'
-            #
-            # To avoid this error we use /tmp as our home directory for the build
-            #
-            # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
-            export HOME=/tmp
-
-            export IHP_LIB=${ihp}/lib/IHP
-            export IHP=${ihp}/lib/IHP
-
-            make -j static/app.css static/app.js
-
-            runHook postBuild
-        '';
-        installPhase = ''
-            runHook preInstall
-
-            mkdir -p "$out"
-            mkdir -p $out/bin $out/lib
-
-            INPUT_HASH="$((basename $out) | cut -d - -f 1)"
-            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+    pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+            # Hash that changes only when `static` changes:
+            INPUT_HASH="$(basename ${static} | cut -d- -f1)"
+            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
+                --set-default IHP_ASSET_VERSION $INPUT_HASH \
+                --set-default APP_STATIC ${static} \
+                --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
-                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs --set-default IHP_ASSET_VERSION $INPUT_HASH --set-default IHP_LIB ${ihp}/lib/IHP --run "cd $out/lib" --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
+                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
+                    --set-default IHP_ASSET_VERSION $INPUT_HASH \
+                    --set-default APP_STATIC ${static} \
+                    --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
@@ -161,20 +147,4 @@ in
                     binary_basename=$(basename "$binary")
                     cp "$binary" "$out/bin/$binary_basename";
                 done
-
-            mv static "$out/lib/static"
-
-            runHook postInstall
-        '';
-        dontFixup = true;
-        src = pkgs.nix-gitignore.gitignoreSource [] projectPath;
-        buildInputs = builtins.concatLists [ [allHaskellPackages] allNativePackages ];
-        nativeBuildInputs = builtins.concatLists [
-            [ pkgs.makeWrapper
-            pkgs.cacert # Needed for npm install to work from within the IHP build process
-            ]
-        ];
-        shellHook = "eval $(egrep ^export ${allHaskellPackages}/bin/ghc)";
-        enableParallelBuilding = true;
-        impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
-    }
+    ''

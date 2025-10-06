@@ -114,6 +114,27 @@ ihpFlake:
                     type = lib.types.str;
                     default = "1";
                 };
+
+                static.extraDirs = lib.mkOption {
+                    type = lib.types.attrsOf (lib.types.oneOf [ lib.types.path lib.types.package ]);
+                    default = {};
+                    description = "Map of subdir name -> derivation/path to be mounted under static/";
+                    example = ''
+                        {
+                            Frontend = self.packages.${system}.frontend;   # -> /static/Frontend/...
+                            Bootstrap = "${pkgs.bootstrap5}/dist";         # mount subdir of a package
+                        }
+                    '';
+                };
+
+                static.makeBundling = lib.mkOption {
+                    type = lib.types.bool;
+                    default = true;
+                    description = ''
+                        Whether to build static files using the Makefile provided by IHP.
+                        If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
+                    '';
+                };
             };
         }
     );
@@ -122,14 +143,18 @@ ihpFlake:
         perSystem = { self', lib, pkgs, system, config, ... }: let
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
-            ghcCompiler = import "${ihp}/NixSupport/mkGhcCompiler.nix" {
-                inherit pkgs;
-                inherit (cfg) ghcCompiler dontCheckPackages doJailbreakPackages dontHaddockPackages;
-                ihp = ihp;
-                haskellPackagesDir = cfg.projectPath + "/Config/nix/haskell-packages";
-                filter = ihpFlake.inputs.nix-filter.lib;
-            };
+            ghcCompiler = pkgs.ghc;
+            hsDataDir = package:
+                    let
+                        ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.8.4"
+                        shareRoot = "${package.data}/share/${ghcName}";
+                        # Pick the only dir ending with "-${ghcName}", e.g. "aarch64-osx-ghc-9.8.4"
+                        sys = lib.head (lib.filter (n: lib.hasSuffix "-${ghcName}" n) (builtins.attrNames (builtins.readDir shareRoot)));
+                    in
+                        "${shareRoot}/${sys}/${package.name}";
         in lib.mkIf cfg.enable {
+            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+
             # release build package
             packages = {
                 default = self'.packages.unoptimized-prod-server;
@@ -147,6 +172,8 @@ ihpFlake:
                     optimizationLevel = cfg.optimizationLevel;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    static = self'.packages.static;
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -161,7 +188,25 @@ ihpFlake:
                     optimizationLevel = "0";
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
+                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    static = self'.packages.static;
                 };
+
+                static =
+                    let
+                        # Turn { Frontend = drv; Admin = drv2; } into a farm
+                        extraStaticFarm = pkgs.linkFarm "${cfg.appName}-extra-static" (lib.mapAttrsToList (name: path: { inherit name path; }) cfg.static.extraDirs);
+                    in
+                        pkgs.symlinkJoin {
+                            name = "${cfg.appName}-static";
+                            paths = [
+                                (if cfg.static.makeBundling
+                                    then self'.packages.staticFilesCompiledByMake
+                                    else (let filter = ihpFlake.inputs.nix-filter.lib; in filter { root = cfg.projectPath; include = ["static"]; name = "static-directory"; }) + "/static"
+                                )
+                                extraStaticFarm
+                            ];
+                        };
 
                 unoptimized-docker-image = pkgs.dockerTools.buildImage {
                     name = "ihp-app";
@@ -174,18 +219,18 @@ ihpFlake:
                 };
 
 
-                migrate = pkgs.writeScriptBin "migrate" ''
-                    ${ghcCompiler.ihp}/bin/migrate
-                '';
+                migrate = ghcCompiler.ihp-migrate;
 
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
+                    nativeBuildInputs = [ghcCompiler.ihp-ide.data];
                     installPhase = ''
                         mkdir $out
-                        cp ${ihp.ihp-ide}/lib/IHP/IHPSchema.sql $out/
+                        cp ${hsDataDir ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
                     '';
+                    allowedReferences = [];
                 };
 
 
@@ -198,7 +243,41 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-            };
+            } // (if cfg.static.makeBundling then {
+                staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
+                    name = "${config.ihp.appName}-staticFilesCompiledByMake";
+                    buildPhase = ''
+                        runHook preBuild
+                        # When npm install is executed by the project's makefile it will fail with:
+                        #
+                        #     EACCES: permission denied, mkdir '/homeless-shelter'
+                        #
+                        # To avoid this error we use /tmp as our home directory for the build
+                        #
+                        # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
+                        export HOME=/tmp
+
+                        export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+                        export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+
+                        make -j static/app.css static/app.js
+                        runHook postBuild
+                    '';
+                    installPhase = ''
+                        cp -R static/. $out
+                    '';
+                    src = pkgs.nix-gitignore.gitignoreSource [] cfg.projectPath;
+                    buildInputs = cfg.packages;
+                    nativeBuildInputs = builtins.concatLists [
+                        [ pkgs.makeWrapper
+                          pkgs.cacert # Needed for npm install to work from within the IHP build process
+                        ]
+                    ];
+                    enableParallelBuilding = true;
+                    impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
+                    disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
+                };
+            } else {});
 
             devenv.shells.default = lib.mkIf cfg.enable {
                 packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
@@ -230,14 +309,13 @@ ihpFlake:
                                              then ghcCompiler.ghc.withHoogle
                                              else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
 
-                languages.haskell.languageServer = ghcCompiler.haskell-language-server;
-                languages.haskell.stack = null; # Stack is not used in IHP
+                languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    IHP_STATIC=${hsDataDir ghcCompiler.ihp.data}/static ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
-                processes.devServer.exec = "start";
+                processes.ihp.exec = "start";
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
@@ -257,7 +335,7 @@ ihpFlake:
 
                         echo "-- IHPSchema.sql" >> $out
                         echo "" >> $out
-                        cat ${./lib/IHP/IHPSchema.sql} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
+                        cat ${ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} | sed -e s'/--.*//' | sed -e s'/$/\\/' >> $out
                         echo "" >> $out
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out
@@ -270,8 +348,11 @@ ihpFlake:
                     }
                 ];
 
-                env.IHP_LIB = "${ghcCompiler.ihp-ide}/lib/IHP";
-                env.IHP = "${ghcCompiler.ihp-ide}/lib/IHP"; # Used in the Makefile
+                # Used in the Makefile https://github.com/digitallyinduced/ihp-boilerplate/blob/master/Makefile
+                env.IHP = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+
+                # Used by .ghci https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.ghci
+                env.IHP_LIB = config.devenv.shells.default.env.IHP;
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
@@ -292,6 +373,8 @@ ihpFlake:
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
                     ssh $1 systemctl start migrate
                 '';
+
+                overlays = [ihp.overlays.default];
             };
         };
 

@@ -8,6 +8,7 @@ import qualified Database.PostgreSQL.Simple.Types as PG
 import Prelude (Semigroup (..))
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
+import Text.Countable (singularize, pluralize)
 
 data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 

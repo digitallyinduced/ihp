@@ -1,4 +1,4 @@
-module IHP.IDE.ToolServer (withToolServer) where
+module IHP.IDE.ToolServer (runToolServer) where
 
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -39,27 +39,26 @@ import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
-import qualified IHP.LibDir as LibDir
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
 import qualified IHP.PGListener as PGListener
 
 import qualified Network.Wai.Application.Static as Static
+import qualified Network.Wai.Middleware.Approot as Approot
 import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
+import Paths_ihp_ide (getDataFileName)
 
-withToolServer :: (?context :: Context) => IO () -> IO ()
-withToolServer inner = withAsyncBound async (\_ -> inner)
-    where
-        async = do
-            let port = ?context.portConfig.toolServerPort |> fromIntegral
-            let isDebugMode = ?context.isDebugMode
+runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
+runToolServer toolServerApplication liveReloadClients = do
+    let port = ?context.portConfig.toolServerPort |> fromIntegral
+    let isDebugMode = ?context.isDebugMode
 
-            startToolServer' port isDebugMode
+    startToolServer' toolServerApplication port isDebugMode liveReloadClients
 
-startToolServer' :: (?context :: Context) => Int -> Bool -> IO ()
-startToolServer' port isDebugMode = do
+startToolServer' :: (?context :: Context) => ToolServerApplication -> Int -> Bool -> _ -> IO ()
+startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
 
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
@@ -74,33 +73,35 @@ startToolServer' port isDebugMode = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
     let modelContext = notConnectedModelContext undefined
-    pgListener <- PGListener.init modelContext
-    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-    staticApp <- initStaticApp
 
-    let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
-    let toolServerApplication = ToolServerApplication { devServerContext = ?context }
-    let application :: Wai.Application = \request respond -> do
-            let ?applicationContext = applicationContext
-            frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
+    approotMiddleware <- Approot.envFallback
+    
+    PGListener.withPGListener modelContext \pgListener -> do
+        autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+        staticApp <- initStaticApp
 
-    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
-    let warpSettings = Warp.defaultSettings
-            |> Warp.setPort port
-            |> Warp.setBeforeMainLoop openAppUrl
+        let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
+        let application :: Wai.Application = \request respond -> do
+                let ?applicationContext = applicationContext
+                frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-    let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
+        let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
+        let warpSettings = Warp.defaultSettings
+                |> Warp.setPort port
+                |> Warp.setBeforeMainLoop openAppUrl
 
-    Warp.runSettings warpSettings $
-            logMiddleware $ methodOverridePost $ sessionMiddleware
-                $ Websocket.websocketsOr
-                    Websocket.defaultConnectionOptions
-                    LiveReloadNotificationServer.app
-                    application
+        let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
+
+        Warp.runSettings warpSettings $
+                logMiddleware $ methodOverridePost $ sessionMiddleware $ approotMiddleware
+                    $ Websocket.websocketsOr
+                        Websocket.defaultConnectionOptions
+                        (LiveReloadNotificationServer.app liveReloadClients)
+                        application
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
-    toolServerStatic <- EnvVar.env "TOOLSERVER_STATIC"
+    toolServerStatic <- getDataFileName "static"
     ihpStatic <- EnvVar.env "IHP_STATIC"
 
     let ssMaxAge = Static.MaxAgeSeconds (60 * 60 * 24 * 30) -- 30 days
@@ -145,7 +146,8 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         availableApps <- AvailableApps <$> findApplications
         webControllers <- WebControllers <$> findWebControllers
 
-        let defaultAppUrl = "http://localhost:" <> tshow Helper.appPort
+        appPort <- Helper.theAppPort
+        let defaultAppUrl = "http://localhost:" <> tshow appPort
         appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
 
         putContext availableApps
@@ -159,6 +161,5 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
 
 readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
 readDatabaseNeedsMigration = do
-    context <- theDevServerContext
-    state <- readIORef (context.appStateRef)
-    readIORef (state.databaseNeedsMigration)
+    context <- fromContext @ToolServerApplication
+    readIORef context.databaseNeedsMigration

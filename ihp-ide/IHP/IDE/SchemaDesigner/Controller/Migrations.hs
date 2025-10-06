@@ -16,7 +16,7 @@ import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
 import IHP.Log.Types
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import qualified System.Directory as Directory
 import qualified Database.PostgreSQL.Simple as PG
 
@@ -61,7 +61,7 @@ instance Controller MigrationsController where
                         let errorMessage = case fromException exception of
                                 Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
                                 Nothing -> tshow exception
-                        
+
                         setErrorMessage errorMessage
                         redirectTo MigrationsAction
                     Right _ -> do
@@ -79,14 +79,14 @@ instance Controller MigrationsController where
     action UpdateMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
         let sqlStatements = param "sqlStatements"
-
-        Text.writeFile (cs $ SchemaMigration.migrationPath migration) sqlStatements
+        migrationFilePath <- SchemaMigration.migrationPath migration
+        Text.writeFile (cs migrationFilePath) sqlStatements
 
         redirectTo MigrationsAction
 
     action DeleteMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
-        let path = cs $ SchemaMigration.migrationPath migration
+        path <- cs <$> SchemaMigration.migrationPath migration
 
         Directory.removeFile path
 
@@ -101,7 +101,7 @@ instance Controller MigrationsController where
                 let errorMessage = case fromException exception of
                         Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
                         Nothing -> tshow exception
-                
+
                 setErrorMessage errorMessage
                 redirectTo MigrationsAction
             Right _ -> do
@@ -109,7 +109,9 @@ instance Controller MigrationsController where
                 redirectTo MigrationsAction
 
 readSqlStatements :: SchemaMigration.Migration -> IO Text
-readSqlStatements migration = Text.readFile (cs $ SchemaMigration.migrationPath migration)
+readSqlStatements migration = do
+    migrationFilePath <- (SchemaMigration.migrationPath migration)
+    Text.readFile (cs migrationFilePath)
 
 findRecentMigrations :: IO [SchemaMigration.Migration]
 findRecentMigrations = take 20 . reverse <$> SchemaMigration.findAllMigrations

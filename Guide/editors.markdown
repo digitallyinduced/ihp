@@ -97,10 +97,11 @@ Install the following additional packages from [Melpa](https://melpa.org/#/getti
 -   `haskell-mode` – enable basic Haskell support, syntax highlighting, ghci interaction
 -   `envrc-mode` – lets eglot find the PATH to Haskell Language Server etc.
 
-At the very least you need `(add-hook 'haskell-mode-hook #'eglot-ensure)`
-and `(envrc-global-mode +1)` in your `~/.emacs.d/init.el`, but you may also
-want to set up some keybindings to common language server functions
-(since by default none are included). Here's an example init file:
+At the very least you need `(envrc-global-mode +1)` in your
+`~/.emacs.d/init.el`, after that you should be able to `M-x eglot` to
+start the language server for a project. You may also want to set up
+some keybindings to common language server functions (since by default
+none are included). Here's an example init file:
 
 ```emacs-lisp
 (use-package envrc
@@ -109,6 +110,8 @@ want to set up some keybindings to common language server functions
 
 (use-package eglot
   :config
+  ;; Optionally start the language server automatically (no need to
+  ;; run `M-x eglot` on startup) for every Haskell project you open:
   (add-hook 'haskell-mode-hook #'eglot-ensure)
   ;; Optionally add keybindings to some common functions:
   :bind ((:map eglot-mode-map
@@ -130,6 +133,8 @@ want to set up some keybindings to common language server functions
 (server-start) ; for emacsclient / quick startup
 ```
 
+You should now be able to use the builtin go-to-definition bound to `M-.`.
+
 (The built-in completion menu isn't very modern-looking, a good
 alternative if you want to add another plugin is
 [corfu](https://github.com/minad/corfu).)
@@ -149,8 +154,14 @@ and `chmod +x ~/bin/emacs-line`, then export this env var in your shell (e.g. in
 export IHP_EDITOR="$HOME/bin/emacs-line"
 ```
 
-Another useful package set that integrates with lsp/lsp-ui and loads the default nix environment from direnv as well as removing [common flycheck issue](https://github.com/joncol/dotfiles/blob/master/homedir/.emacs.d/init.el). 
-This config also adds a jump to definition for functions bound to "C-c p":
+### lsp-mode instead of eglot
+
+[lsp-mode](https://github.com/emacs-lsp/lsp-mode), with companion package [lsp-ui](https://emacs-lsp.github.io/lsp-ui/), is an alternative to the builtin eglot, with some different features.
+They are installable with `M-x package-install`.
+
+Below is an example configuration for this package set, which also uses the [emacs-direnv](https://github.com/wbolster/emacs-direnv) package instead of [envrc](https://github.com/purcell/envrc) to load the nix environment.
+
+This config also adds a peek-definition for functions using lsp-ui, bound to `C-c p`:
 
 ```emacs
 (use-package direnv
@@ -159,14 +170,17 @@ This config also adds a jump to definition for functions bound to "C-c p":
   (direnv-always-show-summary nil)
   :config
   (direnv-mode))
+
 (use-package lsp-mode
   :custom
   (lsp-lens-enable nil)
   (lsp-enable-symbol-highlighting nil)
-
   :hook
   (lsp-mode . lsp-enable-which-key-integration)
-
+  :init
+  ;; Optionally start the language server automatically (no need to
+  ;; run `M-x lsp` on startup) for every Haskell project you open:
+  ;; (add-hook 'haskell-mode-hook #'lsp)
   :config
   ;; This is to make `lsp-mode' work with `direnv' and pick up the correct
   ;; version of GHC.
@@ -179,31 +193,6 @@ This config also adds a jump to definition for functions bound to "C-c p":
   :config
   (setq lsp-ui-doc-position 'bottom))
 
-;; (add-hook 'haskell-mode-hook #'lsp)
-(use-package flycheck-haskell
-  ;; Disabling this package, since it only gives error:
-  ;; "Reading Haskell configuration failed with exit code Segmentation fault and
-  ;; output:", when trying to run it in Nix/direnv setup.
-  :disabled
-  :hook (haskell-mode . flycheck-haskell-setup))
-
-(add-hook 'haskell-mode-hook
-          (lambda ()
-            (rainbow-mode -1)
-;; we aren't evil:
-;;            (evil-leader/set-key "x h" 'haskell-hoogle)
-;;            (setq evil-shift-width 2)
-            (define-key haskell-mode-map (kbd "C-c C-c C-s")
-              'haskell-mode-stylish-buffer)
-            (bind-key (kbd "C-c C-c C-a") 'haskell-sort-imports)
-            (setq haskell-auto-insert-module-format-string
-                  "module %s\n  () where\n\n")
-            (haskell-auto-insert-module-template)
-            (smartparens-mode)
-            (sp-local-pair 'haskell-mode "{" "}")
-            (setq haskell-hoogle-command nil)
-            (ligature-mode)))
-
 (use-package lsp-haskell
   :hook ((haskell-mode . lsp-deferred)
          (haskell-literate-mode . lsp-deferred))
@@ -211,7 +200,25 @@ This config also adds a jump to definition for functions bound to "C-c p":
   (lsp-haskell-server-path "haskell-language-server"))
 
 (use-package haskell-mode
-  :defer)
+  :defer
+  :config
+  (add-hook 'haskell-mode-hook
+            (lambda ()
+              ;; Evil users may want these:
+              ;; (evil-leader/set-key "x h" 'haskell-hoogle)
+              ;; (setq evil-shift-width 2)
+              (define-key haskell-mode-map (kbd "C-c C-c C-s")
+                          'haskell-mode-stylish-buffer)
+              (bind-key (kbd "C-c C-c C-a") 'haskell-sort-imports)
+              (setq haskell-auto-insert-module-format-string
+                    "module %s\n  () where\n\n")
+              (haskell-auto-insert-module-template)
+              (when (require 'smartparens nil 'noerror)
+                (smartparens-mode)
+                (sp-local-pair 'haskell-mode "{" "}"))
+              (setq haskell-hoogle-command nil)
+              (when (require 'ligature nil 'noerror)
+                (ligature-mode)))))
 ```
 
 ## Using IHP with Vim / NeoVim

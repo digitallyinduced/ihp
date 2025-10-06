@@ -64,11 +64,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Just AssistantRole
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -79,11 +81,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -94,11 +98,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -109,11 +115,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -124,11 +132,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -139,11 +149,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -154,11 +166,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -169,11 +183,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -184,11 +200,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Nothing
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             , CompletionChunk
                                 { id = "chatcmpl-9OMbIk2dtKfDVvDUNgi8ARVSC4LmI"
@@ -199,11 +217,13 @@ tests = do
                                             , toolCalls = Nothing
                                             , role = Nothing
                                             }
+                                        , finishReason = Just FinishReasonStop
                                         }
                                     ]
                                 , created = 1715593776
                                 , model = "gpt-4-turbo-2024-04-09"
                                 , systemFingerprint = Just "fp_294de9593d"
+                                , usage = Nothing
                                 }
                             ]
                         }
@@ -226,11 +246,13 @@ tests = do
                                     , toolCalls = Just [ FunctionCall { index = 0, id = Just "call_cx6RG7DZq3WlIDfXXp9PdtmS", name = Just "get_current_weather", arguments = "" } ]
                                     , role = Just AssistantRole
                                     }
+                                , finishReason = Nothing
                                 }
                             ]
                         , created = 1715277101
                         , model = "gpt-4-turbo-2024-04-09"
                         , systemFingerprint = Just "fp_294de9593d"
+                        , usage = Nothing
                         }
                 let result = ParserResult
                         { chunk = Just chunk
@@ -295,11 +317,13 @@ tests = do
                                               ]
                                           , role = Just AssistantRole
                                           }
+                                    , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -317,11 +341,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -339,11 +365,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -361,11 +389,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -383,11 +413,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -405,11 +437,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -427,11 +461,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -449,11 +485,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -471,11 +509,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -493,11 +533,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -515,11 +557,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -537,11 +581,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -559,11 +605,13 @@ tests = do
                                               ]
                                           , role = Nothing
                                           }
+                                      , finishReason = Nothing
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           , CompletionChunk
                               { id = "chatcmpl-9N2DdAg2usc3V0VoinTcCwv5rBs3o"
@@ -574,11 +622,13 @@ tests = do
                                           , toolCalls = Nothing
                                           , role = Nothing
                                           }
+                                      , finishReason = Just FinishReasonToolCalls
                                       }
                                   ]
                               , created = 1715277101
                               , model = "gpt-4-turbo-2024-04-09"
                               , systemFingerprint = Just "fp_294de9593d"
+                              , usage = Nothing
                               }
                           ]
                       }

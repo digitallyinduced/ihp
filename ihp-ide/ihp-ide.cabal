@@ -1,23 +1,40 @@
 cabal-version:       2.2
 name:                ihp-ide
-version:             1.3.0
+version:             1.4.0
 synopsis:            Dev tools for IHP
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
-license:             NONE
+license:             MIT
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
--- copyright:
--- category:
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
 build-type:          Simple
+data-dir: data
+data-files:
+      lib/IHP/Makefile.dist
+    , lib/IHP/.hie-bios
+    , lib/IHP/applicationGhciConfig
+    , IHPSchema.sql
+    , static/IDE/*.css
+    , static/IDE/*.js
+    , static/IDE/fonts/inter/*.eot
+    , static/IDE/fonts/inter/*.svg
+    , static/IDE/fonts/inter/*.ttf
+    , static/IDE/fonts/inter/*.woff
+    , static/IDE/fonts/inter/*.woff2
 
 Flag FastBuild
     Default: False
     Description: Disables all optimisations, leads to faster build time
 
 common shared-properties
-    default-language: Haskell2010
+    default-language: GHC2021
     build-depends:
-            base
+            base >= 4.17.0 && < 4.22
             , classy-prelude
             , mono-traversable
             , transformers
@@ -55,7 +72,7 @@ common shared-properties
             , network
             , unliftio
             , unix
-            , fsnotify
+            , fsnotify >= 0.4.3.0
             , websockets
             , wai-websockets
             , wreq
@@ -69,44 +86,30 @@ common shared-properties
             , base16-bytestring
             , cryptohash
             , http-types
+            , safe-exceptions
+            , countable-inflections
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
+        , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
-            -j
-            -O0
             -threaded
             +RTS -A256m -n4m -H512m -qg -N -RTS
 
@@ -122,7 +125,6 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            -O1
             -threaded
 
             -Wunused-imports
@@ -221,6 +223,10 @@ library
         , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
+        , IHP.Version
+        , IHP.Test.Database
+    autogen-modules: Paths_ihp_ide
+    other-modules: Paths_ihp_ide
 
 executable RunDevServer
     import: shared-properties
@@ -229,8 +235,6 @@ executable RunDevServer
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
         ghc-options:
-            -j
-            -O0
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
@@ -247,8 +251,6 @@ executable RunDevServer
             -funbox-strict-fields
             -funfolding-use-threshold=160
             -fdicts-strict
-            -j
-            -O2
             -threaded
             -with-rtsopts=-A512m
             -with-rtsopts=-N
@@ -256,6 +258,8 @@ executable RunDevServer
             -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
+    autogen-modules: Paths_ihp_ide
+    other-modules: Paths_ihp_ide
 
 executable new-application
     import: shared-properties
@@ -302,7 +306,11 @@ executable hash-password
 executable new-session-secret
     default-language: Haskell2010
     default-extensions: BlockArguments
-    build-depends: base, clientsession, bytestring, with-utf8, base64-bytestring
+    build-depends: base >= 4.17.0 && < 4.22, clientsession, bytestring, with-utf8, base64-bytestring
     hs-source-dirs: exe
     main-is: IHP/CLI/NewSessionSecret.hs
     ghc-options: -fsplit-sections
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp

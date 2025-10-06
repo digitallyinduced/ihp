@@ -5,6 +5,7 @@ import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.Layout
+import Text.Countable (singularize)
 
 data EditColumnView = EditColumnView
     { statements :: [Statement]

@@ -17,20 +17,48 @@ If you don't have a project, first make sure you have the latest version of `ihp
 # Set up a local IHP project
 ihp-new myproject
 cd myproject
-devenv up
 ```
-
-Running `devenv up` is necessary, even if you don't intend to run it this way (e.g. you intend to do development and don't intend to run it "normally"), to do some initial setup like creating the database. You can keep `devenv up` running, as it will pick up any changes to the custom app or the IHP, and save you the hassle of manually recompiling from ghci on every change.
 
 Clone the IHP repository into the project directory. The `IHP` directory is added to the GHC search path in `applicationGhciConfig`. Therefore when the `IHP` directory exists, GHC will load all IHP modules from there.
 
 ```
 git clone git@github.com:digitallyinduced/ihp.git IHP
-# Enable direnv
 cd IHP
+
+# Patch flake.nix in the parent directory to use local IHP path
+sed -i "s|ihp.url = .*|ihp.url = \"path://$(pwd)\";|" ../flake.nix
+
+# Enable direnv
 direnv allow
-# Go back to the project root (do not run inside the IHP directory)
+
+# Switch back to the host project directory
 cd -
+```
+
+### Running the development server
+
+You can now run `devenv up` in the host project directory to start the development server. However, if you'd like to change the DevServer or JS files, we have to start the server differently, without `devenv up`. 
+We need to run the following commands (assuming you are on the host project):
+
+```
+cd IHP
+
+# Optional - you can set the `DEBUG` environment variable to enable debug logging
+export DEBUG=1
+
+ghci
+:l ihp-ide/exe/IHP/IDE/DevServer.hs
+
+# Start the server
+mainInParentDirectory
+```
+
+We don't need to start postgres as the IDE starts it automatically.
+
+If you ever switch back to using the upstream version, restore the original line in flake.nix (e.g., ihp.url = "github:digitallyinduced/ihp";), and then run from the host directory:
+
+```
+nix flake lock --update-input ihp
 ```
 
 ### Faster Haskell Builds
@@ -40,64 +68,6 @@ Uncomment the `configureFlags = [ "--flag FastBuild" ];` and `doHaddock = false;
 We need to make sure not to commit the changes of `IHP/ihp.nix`
 To help us with that, you can run this from the root of your project `cd IHP && git update-index --assume-unchanged ihp.nix`, so git will ignore your changes.
 
-### Nix Changes
-
-If you're testing local nix changes, you need to change your `flake.nix` to point to the IHP project instead of pulling it from github:
-
-```nix
-{
-    inputs = {
-        # The path needs to be absolute
-        ihp.url = "path:///Users/myuser/someproject/IHP";
-        # ...
-    };
-```
-
-After that run `nix flake update`.
-
-### Running the latest IHP `master`
-
-When contributing to IHP core you will want to have your PRs synced with `master`. Your `flake.nix` should have this line:
-
-```nix
-{
-    ihp.url = "github:digitallyinduced/ihp";
-}
-```
-
-Then every time you'd like to update to the latest master, you'll run:
-
-```
-nix flake update
-direnv allow
-```
-
-Note that it takes around 30 minutes for the IHP GitHub actions to prepare a binary build of IHP. If you run latest master and the GitHub actions aren't finished yet, you will notice that your computer needs to build IHP from scratch which takes a lot of time. You can wait for the GitHub action to complete or point to a specific IHP commit to avoid long build times.
-
-### Running the development server
-
-
-When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have to
-use `make console` to load your application together with the framework located in `IHP`.
-
-```
-ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
-main
-```
-
-We don't need to start postgres as the IDE starts it automatically.
-
-#### Debugging the development server
-
-You can enable additional debug logging for the development server by setting the env variable `DEBUG=1`. Like this:
-
-```
-export DEBUG=1
-ghci
-:l IHP/exe/IHP/IDE/DevServer.hs
-main
-```
 
 ## Working on the documentation
 

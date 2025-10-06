@@ -60,7 +60,7 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = optional space >> manyTill statement eof
+parseDDL = optional space >> (manyTill statement eof)
 
 statement = do
     space
@@ -68,7 +68,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
     space
     pure s
 
@@ -996,3 +996,13 @@ commit = do
 removeTypeCasts :: Expression -> Expression
 removeTypeCasts (TypeCastExpression value _) = value
 removeTypeCasts otherwise = otherwise
+
+restrict = do
+    lexeme "\\restrict"
+    key <- identifier
+    pure Comment { content = "" }
+
+unrestrict = do
+    lexeme "\\unrestrict"
+    key <- identifier
+    pure Comment { content = "" }
