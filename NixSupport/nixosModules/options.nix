@@ -75,7 +75,7 @@ with lib;
 
         sessionSecret = mkOption {
             type = types.str;
-            descriptiom = ''
+            description = ''
                 It's recommended to use sessionSecretFile instead
             '';
         };
@@ -83,7 +83,7 @@ with lib;
         sessionSecretFile = mkOption {
             type = types.path;
             default = "/var/ihp/session.aes";
-            descriptiom = ''
+            description = ''
                 The session secret is stored here.
 
                 If the file doesn't exists, the service will generate a new key automatically.
