@@ -374,6 +374,33 @@ ihpFlake:
                     ssh $1 systemctl start migrate
                 '';
 
+                scripts.runscript.exec = ''
+                    if [ $# -lt 1 ]; then
+                         echo "Makes a .hs script invokeable in ghci via its run function and runs it."
+                         echo "Usage: runscript Application/Script/MyScript.hs>"
+                         exit 1
+                    fi
+             
+                    TASK_PATH="$1"
+                    TASK_MODULE="$TASK_PATH"
+                    TASK_MODULE="''${TASK_MODULE#./}"   # drop leading ./
+                    TASK_MODULE="''${TASK_MODULE%.hs}"  # drop .hs
+                    TASK_MODULE="''${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
+                    TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
+             
+                    GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
+                    trap 'rm -f "$GHCI_SCRIPT"' EXIT
+                      {
+                      echo ":script ${ghcCompiler.ihp-ide}/data/lib/IHP/applicationGhciConfig"
+                      echo "import IHP.ScriptSupport"
+                      echo ":set -i." 
+                      echo ":l Config/Config.hs $TASK_PATH"
+                      echo "import qualified $TASK_MODULE  as Script"              
+                      echo "IHP.ScriptSupport.runScript config Script.run"
+                      echo ":quit"
+                      } > "$GHCI_SCRIPT"
+                    ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"                
+          '';                
                 overlays = [ihp.overlays.default];
             };
         };
