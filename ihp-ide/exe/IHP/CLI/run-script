@@ -7,8 +7,16 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-TASK_PATH="$*"
+
+# Resolve directory of this script robustly:
+# - Use BASH_SOURCE[0] if available, else fall back to $0
+# - Avoid relying solely on BASH_SOURCE in environments where it's empty
+# - The fallback src="${BASH_SOURCE[0]:-$0}" prevents dirname from receiving an empty operand.
+src="${BASH_SOURCE[0]:-$0}"
+DIR="$( cd "$( dirname "$src" )" >/dev/null 2>&1 && pwd )"
+
+# Use the first argument as the task path (preserves spaces correctly for a single path)
+TASK_PATH="$1"
 
 # Validate that TASK_PATH is not empty
 if [ -z "$TASK_PATH" ]; then
