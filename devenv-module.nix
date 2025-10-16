@@ -249,7 +249,7 @@ that is defined in flake-module.nix
                 pkgs.symlinkJoin {
                     name = "ihp-env-var-backwards-compat";
                     paths = [
-                        (hsDataDir pkgs.ghc.ihp-ide + "/exe/IHP/CLI")
+                        (hsDataDir "${self}/ihp-ide/exe/IHP/CLI/")
                         (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
                         (hsDataDir pkgs.ghc.ihp-ide.data)
                         (hsDataDir pkgs.ghc.ihp.data)
