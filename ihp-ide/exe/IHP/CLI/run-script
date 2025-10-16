@@ -1,82 +1,27 @@
 #!/bin/bash -e
 
-# Show help if no arguments provided
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <script-path>"
-    echo "Example: $0 Application/Script/HelloWorldToAllUsers.hs"
-    exit 1
+  echo "Usage: $0 <script-path>"
+  echo "Example: $0 Application/Script/HelloWorldToAllUsers.hs"  
+  exit 1
 fi
 
-
-# Resolve directory of this script robustly:
-# - Use BASH_SOURCE[0] if available, else fall back to $0
-# - Avoid relying solely on BASH_SOURCE in environments where it's empty
-# - The fallback src="${BASH_SOURCE[0]:-$0}" prevents dirname from receiving an empty operand.
-src="${BASH_SOURCE[0]:-$0}"
-DIR="$( cd "$( dirname "$src" )" >/dev/null 2>&1 && pwd )"
-
-# Use the first argument as the task path (preserves spaces correctly for a single path)
 TASK_PATH="$1"
+TASK_MODULE="$TASK_PATH"
+TASK_MODULE="''${TASK_MODULE#./}"   # drop leading ./
+TASK_MODULE="''${TASK_MODULE%.hs}"  # drop .hs
+TASK_MODULE="''${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
+TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
 
-# Validate that TASK_PATH is not empty
-if [ -z "$TASK_PATH" ]; then
-    echo "Error: Script path cannot be empty"
-    exit 1
-fi
-
-# Extract module name safely
-TASK_MODULE="${TASK_PATH##*/}"
-TASK_MODULE="${TASK_MODULE%.*}"
-
-# Validate module name
-if [ -z "$TASK_MODULE" ]; then
-    echo "Error: Could not extract module name from path: $TASK_PATH"
-    exit 1
-fi
-
-
-# Ensure we are in an app dir
-if [ ! -f Main.hs ]; then
-    echo "You have to be in a project directory to run the script"
-    exit 1
-fi
-
-# Detect framework directory safely
-if [ -d IHP ]; then
-    FRAMEWORKDIR="$(pwd)/IHP"
-else
-    RUNDEVSERVER_PATH=$(which RunDevServer 2>/dev/null || echo "")
-    if [ -n "$RUNDEVSERVER_PATH" ]; then
-        READLINK_OUTPUT=$(readlink "$RUNDEVSERVER_PATH" 2>/dev/null || echo "")
-        if [ -n "$READLINK_OUTPUT" ]; then
-            FRAMEWORKDIR=$(dirname "$READLINK_OUTPUT")/../
-        fi
-    fi
-fi
-
-if [ -z "$FRAMEWORKDIR" ]; then
-    echo "Error: Could not locate IHP framework directory"
-    exit 1
-fi
-
-GHCI_SCRIPT="$(mktemp)"
-trap "rm $GHCI_SCRIPT" EXIT
-
-echo ":script $FRAMEWORKDIR/lib/IHP/applicationGhciConfig" > "$GHCI_SCRIPT"
-
-if [ -d IHP ]; then
-    echo ":l IHP/IHP/ScriptSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
-else
-    echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
-fi
-
-echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
-echo ":set -i." >> "$GHCI_SCRIPT"
-echo ":l Config/Config.hs" >> "$GHCI_SCRIPT"
-echo ":l Config/Config.hs Application/Script/$TASK_MODULE.hs" >> "$GHCI_SCRIPT"
-echo "import qualified Application.Script.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
-echo "IHP.ScriptSupport.runScript config Script.run" >> "$GHCI_SCRIPT"
-echo ":quit" >> "$GHCI_SCRIPT"
-
+GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
+trap 'rm -f "$GHCI_SCRIPT"' EXIT
+  {
+  echo ":script ${ihp}/ihp-ide/data/lib/IHP/applicationGhciConfig"
+  echo "import IHP.ScriptSupport"
+  echo ":set -i." 
+  echo ":l Config/Config.hs $TASK_PATH"
+  echo "import qualified $TASK_MODULE  as Script"              
+  echo "IHP.ScriptSupport.runScript config Script.run"
+  echo ":quit"
+  } > "$GHCI_SCRIPT"
 ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
-
