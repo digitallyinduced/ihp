@@ -6,6 +6,8 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 TASK_PATH="$*"
 
 TASK_MODULE="$TASK_PATH"
@@ -15,6 +17,10 @@ TASK_MODULE="''${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
 TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
 
 GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
+
+
+echo $TASK_PATH
+echo $TASK_MODULE
 
 # Validate module name
 if [ -z "$TASK_MODULE" ]; then
@@ -33,7 +39,6 @@ trap 'rm -f "$GHCI_SCRIPT"' EXIT
 
 #Create a script that will be run by ghci that loads the application Config and the target .hs script.
 {
-
 echo ":def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))"
 echo ":loadFromIHP applicationGhciConfig"
 if [ -d IHP ]; then
@@ -42,8 +47,9 @@ else
     echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
 fi
 echo ":set -i." 
-echo ":l Config/Config.hs $TASK_PATH"
-echo "import qualified $TASK_MODULE  as Script"              
+echo ":l Config/Config.hs"
+echo ":l $TASK_PATH"
+echo "import qualified $TASK_MODULE as Script"
 echo "IHP.ScriptSupport.runScript config Script.run"
 echo ":quit"
 } > "$GHCI_SCRIPT"
