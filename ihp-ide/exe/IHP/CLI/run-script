@@ -6,7 +6,8 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-TASK_PATH="$1"
+TASK_PATH="$*"
+
 TASK_MODULE="$TASK_PATH"
 TASK_MODULE="''${TASK_MODULE#./}"   # drop leading ./
 TASK_MODULE="''${TASK_MODULE%.hs}"  # drop .hs
@@ -14,17 +15,37 @@ TASK_MODULE="''${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
 TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
 
 GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
+
+# Validate module name
+if [ -z "$TASK_MODULE" ]; then
+    echo "Error: Could not extract module name from path: $TASK_PATH"
+    exit 1
+fi
+
+# Ensure we are in an app dir
+if [ ! -f Main.hs ]; then
+    echo "You have to be in a project directory to run the script"
+    exit 1
+fi
+
+# On exit signal clean up our GHCI_SCRIPT
 trap 'rm -f "$GHCI_SCRIPT"' EXIT
-  {
- 
-  echo ":def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))"
-  echo ":loadFromIHP applicationGhciConfig"
-  echo "import IHP.ScriptSupport"
-  echo ":set -i." 
-  echo ":l Config/Config.hs $TASK_PATH"
-  echo "import qualified $TASK_MODULE  as Script"              
-  echo "IHP.ScriptSupport.runScript config Script.run"
-  echo ":quit"
-  } > "$GHCI_SCRIPT"
+
+#Create a script that will be run by ghci that loads the application Config and the target .hs script.
+{
+
+echo ":def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))"
+echo ":loadFromIHP applicationGhciConfig"
+if [ -d IHP ]; then
+    echo ":l IHP/IHP/ScriptSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
+else
+    echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
+fi
+echo ":set -i." 
+echo ":l Config/Config.hs $TASK_PATH"
+echo "import qualified $TASK_MODULE  as Script"              
+echo "IHP.ScriptSupport.runScript config Script.run"
+echo ":quit"
+} > "$GHCI_SCRIPT"
   
 ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
