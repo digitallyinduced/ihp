@@ -7,14 +7,13 @@ if [ $# -eq 0 ]; then
 fi
 
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 TASK_PATH="$*"
 
 TASK_MODULE="$TASK_PATH"
-TASK_MODULE="''${TASK_MODULE#./}"   # drop leading ./
-TASK_MODULE="''${TASK_MODULE%.hs}"  # drop .hs
-TASK_MODULE="''${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
-TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
+TASK_MODULE="${TASK_MODULE#./}"   # drop leading ./
+TASK_MODULE="${TASK_MODULE%.hs}"  # drop .hs
+TASK_MODULE="${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
+TASK_MODULE="${TASK_MODULE////.}" # convert / -> . (path to module)
 
 GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
 
