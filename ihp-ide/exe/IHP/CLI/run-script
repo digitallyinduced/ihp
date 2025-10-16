@@ -7,8 +7,8 @@ if [ $# -eq 0 ]; then
 fi
 
 
+# Fetch the Task Path from args and Convert Path to a valid ghc module import name.
 TASK_PATH="$*"
-
 TASK_MODULE="$TASK_PATH"
 TASK_MODULE="${TASK_MODULE#./}"   # drop leading ./
 TASK_MODULE="${TASK_MODULE%.hs}"  # drop .hs
@@ -16,10 +16,6 @@ TASK_MODULE="${TASK_MODULE%.lhs}" # drop .lhs (if ever used)
 TASK_MODULE="${TASK_MODULE////.}" # convert / -> . (path to module)
 
 GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
-
-
-echo $TASK_PATH
-echo $TASK_MODULE
 
 # Validate module name
 if [ -z "$TASK_MODULE" ]; then
@@ -46,9 +42,8 @@ else
     echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
 fi
 echo ":set -i." 
-echo ":l Config/Config.hs"
-echo ":l $TASK_PATH"
-echo "import qualified $TASK_MODULE as Script"
+echo ":l Config/Config.hs Application/Script/$TASK_MODULE.hs"
+echo "import qualified Application.Script.$TASK_MODULE as Script"
 echo "IHP.ScriptSupport.runScript config Script.run"
 echo ":quit"
 } > "$GHCI_SCRIPT"
