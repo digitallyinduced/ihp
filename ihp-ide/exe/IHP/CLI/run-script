@@ -41,6 +41,16 @@ fi
 GHCI_SCRIPT="$(mktemp)"
 trap "rm $GHCI_SCRIPT" EXIT
 
+echo ":set prompt \"\"" >> "$GHCI_SCRIPT"
+
+# Inline applicationGhciConfig but exclude :set prompt and :l Main.hs
+grep -vE '^[[:space:]]*:l[[:space:]]*Main\.hs$|^[[:space:]]*:set[[:space:]]+prompt' \
+    "$IHP/lib/IHP/applicationGhciConfig" >> "$GHCI_SCRIPT"
+
+# Add a line break for safety
+echo "" >> "$GHCI_SCRIPT"
+
+# Load the actual script
 if [ -d IHP ]; then
     echo ":l IHP/IHP/ScriptSupport.hs $TASK_PATH" >> "$GHCI_SCRIPT"
 else
@@ -48,12 +58,9 @@ else
 fi
 
 echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
-echo ":set -i." >> "$GHCI_SCRIPT"
-echo ":l Config/Config.hs" >> "$GHCI_SCRIPT"
 echo ":l Config/Config.hs Application/Script/$TASK_MODULE.hs" >> "$GHCI_SCRIPT"
 echo "import qualified Application.Script.$TASK_MODULE as Script" >> "$GHCI_SCRIPT"
 echo "IHP.ScriptSupport.runScript config Script.run" >> "$GHCI_SCRIPT"
 echo ":quit" >> "$GHCI_SCRIPT"
 
-ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
-
+ghci -ignore-dot-ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
