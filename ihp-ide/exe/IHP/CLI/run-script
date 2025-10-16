@@ -42,8 +42,8 @@ else
     echo "import IHP.ScriptSupport" >> "$GHCI_SCRIPT"
 fi
 echo ":set -i." 
-echo ":l Config/Config.hs Application/Script/$TASK_MODULE.hs"
-echo "import qualified Application.Script.$TASK_MODULE as Script"
+echo ":l Config/Config.hs $TASK_PATH"
+echo "import qualified $TASK_MODULE as Script"
 echo "IHP.ScriptSupport.runScript config Script.run"
 echo ":quit"
 } > "$GHCI_SCRIPT"
