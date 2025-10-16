@@ -16,7 +16,9 @@ TASK_MODULE="''${TASK_MODULE////.}" # convert / -> . (path to module)
 GHCI_SCRIPT="$(mktemp -t runscript.XXXXXX)"
 trap 'rm -f "$GHCI_SCRIPT"' EXIT
   {
-  echo ":script ${ihp}/ihp-ide/data/lib/IHP/applicationGhciConfig"
+ 
+  echo ":def loadFromIHP \file -> (System.Environment.getEnv "IHP_LIB") >>= (\ihpLib -> readFile (ihpLib <> "/" <> file))"
+  echo ":loadFromIHP applicationGhciConfig"
   echo "import IHP.ScriptSupport"
   echo ":set -i." 
   echo ":l Config/Config.hs $TASK_PATH"
@@ -24,4 +26,5 @@ trap 'rm -f "$GHCI_SCRIPT"' EXIT
   echo "IHP.ScriptSupport.runScript config Script.run"
   echo ":quit"
   } > "$GHCI_SCRIPT"
+  
 ghci -package-env - -threaded -fomit-interface-pragmas +RTS -A128m -RTS < "$GHCI_SCRIPT"
