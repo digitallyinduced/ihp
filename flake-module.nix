@@ -280,7 +280,7 @@ ihpFlake:
             } else {});
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ihpFlake.inputs.self.packages."${system}".run-script ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
                     ++ [(let cfg = config.devenv.shells.default.services.postgres; in
