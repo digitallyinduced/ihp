@@ -20,6 +20,7 @@
 ## Minor Changes
 
 ### Nix / Deployment
+- [Removed option: 'WORKING_DIRECTORY' no longer required on deployment static assets wrapped automatically](https://github.com/digitallyinduced/ihp/commit/9c54588d983d74bdc28b063d1132952deb57dc16)
 - [Added options: `rtsFlags`, `optimizationLevel`, `appName`](https://github.com/digitallyinduced/ihp/commit/5718a7cdfb3984958ce78ed9c958ce8bf686a7c2).
 - [Support for aarch64 NixOS deployments](https://github.com/digitallyinduced/ihp/commit/fa107a604511d383bddf163211b406aa6f28ff5b).
 - [Faster `nix build` via caching of `Generated.Types`](https://github.com/digitallyinduced/ihp/commit/b5e5cdafc4d0980c333db0afcafaf038be4e2eee).
