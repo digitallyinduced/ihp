@@ -11,7 +11,6 @@ in
         serviceConfig = {
             Type = "notify";
             Restart = "always";
-            WorkingDirectory = "${cfg.package}/lib";
             ExecStart = "${cfg.package}/bin/RunProdServer";
             KillSignal = "SIGINT";
             WatchdogSec = "60";

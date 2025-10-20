@@ -1,5 +1,7 @@
-# v1.4.0 (unreleased)
+# unreleased
+- [Removed option: 'WORKING_DIRECTORY' no longer required on deployment static assets wrapped automatically](https://github.com/digitallyinduced/ihp/commit/9c54588d983d74bdc28b063d1132952deb57dc16)
 
+# v1.4.0 (unreleased)
 ## Highlights
 - 🚀 Improved Dev Server: faster, more reliable reloads without race conditions.
 - 📦 Ecosystem split: IHP now modular (`ihp-ide`, `ihp-ssc`, `ihp-migrate`, `ihp-sitemap`).
