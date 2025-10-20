@@ -158,6 +158,18 @@ that is defined in flake-module.nix
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
+            
+            run-script = pkgs.stdenv.mkDerivation {
+                pname = "run-script";
+                version = "1.0.0";
+                src = ./ihp-ide/exe/IHP/CLI/run-script;
+                dontUnpack = true;
+                installPhase = ''
+                    mkdir -p $out/bin
+                    cp $src $out/bin/run-script
+                    chmod +x $out/bin/run-script
+                '';
+            };
 
             guide =
                 let
