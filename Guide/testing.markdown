@@ -135,13 +135,13 @@ Another way of executing the tests, that we'll use on [CI](https://github.com/di
 runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
 ```
 
-To execute a specific bunch of tests, you can use `--match`:
+To run a particular set of tests, use `--match`.
 
 ```
-runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs --match "PostsController"
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs --match "Posts"
 ```
 
-This command will execute all tests which are described under `describe "PostsController"`.
+This command will execute all tests which are described under describe "Posts controller functionality".
 
 ## Setting the Current User During Testing
 
