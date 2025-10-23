@@ -243,20 +243,6 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-
-                tests = pkgs.stdenv.mkDerivation {
-                        name = "${config.ihp.appName}-tests";
-                        src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                        nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide])) ];
-                        buildPhase = ''
-                            # shellcheck disable=SC2046
-                            make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
-
-                            # shellcheck disable=SC2046
-                            runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
-                            touch $out
-                        '';
-                    };
             } // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";
@@ -291,7 +277,23 @@ ihpFlake:
                     impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
                     disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
                 };
-            } else {});
+            } else {})
+            // (if builtins.pathExists "${cfg.projectPath}/Test/Main.hs"
+                then {
+                    tests = pkgs.stdenv.mkDerivation {
+                            name = "${config.ihp.appName}-tests";
+                            src = builtins.path { path = config.ihp.projectPath; name = "source"; };
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide])) ];
+                            buildPhase = ''
+                                # shellcheck disable=SC2046
+                                make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+                                touch $out
+                            '';
+                        };
+                } else {});
 
             devenv.shells.default = lib.mkIf cfg.enable {
                 packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ihpFlake.inputs.self.packages."${system}".run-script ]
