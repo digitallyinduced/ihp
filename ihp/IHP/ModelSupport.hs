@@ -92,6 +92,10 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let rowLevelSecurity = Nothing
     pure ModelContext { .. }
 
+releaseModelContext :: ModelContext -> IO ()
+releaseModelContext modelContext =
+    Pool.destroyAllResources modelContext.connectionPool
+
 type family GetModelById id :: Type where
     GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
     GetModelById (Id' tableName) = GetModelByTableName tableName

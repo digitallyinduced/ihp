@@ -495,6 +495,10 @@ initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnect
     modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
     pure modelContext
 
+withModelContext :: FrameworkConfig -> (ModelContext -> IO result) -> IO result
+withModelContext frameworkConfig action =
+    Exception.bracket (initModelContext frameworkConfig) releaseModelContext action
+
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --
 -- Inspired by https://maksbotan.github.io/posts/2021-01-20-callstacks.html

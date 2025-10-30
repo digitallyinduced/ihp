@@ -45,34 +45,33 @@ run configBuilder = do
     IO.setLocaleEncoding IO.utf8
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
+        IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
+            approotMiddleware <- Approot.envFallback
 
-        approotMiddleware <- Approot.envFallback
+            withInitalizers frameworkConfig modelContext do
+                PGListener.withPGListener modelContext \pgListener -> do
+                    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
 
-        withInitalizers frameworkConfig modelContext do
-            PGListener.withPGListener modelContext \pgListener -> do
-                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+                    let ?modelContext = modelContext
+                    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
 
-                let ?modelContext = modelContext
-                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
+                    sessionMiddleware <- initSessionMiddleware frameworkConfig
+                    staticApp <- initStaticApp frameworkConfig
+                    let corsMiddleware = initCorsMiddleware frameworkConfig
+                    let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
+                    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
-                sessionMiddleware <- initSessionMiddleware frameworkConfig
-                staticApp <- initStaticApp frameworkConfig
-                let corsMiddleware = initCorsMiddleware frameworkConfig
-                let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
-                let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+                    useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
 
-                useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
-
-                withBackgroundWorkers pgListener frameworkConfig
-                    . runServer frameworkConfig useSystemd
-                    . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                    . customMiddleware
-                    . corsMiddleware
-                    . methodOverridePost
-                    . sessionMiddleware
-                    . approotMiddleware
-                    $ application staticApp requestLoggerMiddleware
+                    withBackgroundWorkers pgListener frameworkConfig
+                        . runServer frameworkConfig useSystemd
+                        . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
+                        . customMiddleware
+                        . corsMiddleware
+                        . methodOverridePost
+                        . sessionMiddleware
+                        . approotMiddleware
+                        $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
 
