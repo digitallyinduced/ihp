@@ -18,7 +18,6 @@ import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import qualified IHP.AutoRefresh as AutoRefresh
-import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
@@ -50,10 +49,10 @@ run configBuilder = do
 
             withInitalizers frameworkConfig modelContext do
                 PGListener.withPGListener modelContext \pgListener -> do
-                    autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+                    autoRefreshMiddleware <- AutoRefresh.initAutoRefreshMiddleware pgListener
 
                     let ?modelContext = modelContext
-                    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
+                    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, frameworkConfig, pgListener }
 
                     sessionMiddleware <- initSessionMiddleware frameworkConfig
                     staticApp <- initStaticApp frameworkConfig
@@ -71,6 +70,7 @@ run configBuilder = do
                         . methodOverridePost
                         . sessionMiddleware
                         . approotMiddleware
+                        . autoRefreshMiddleware
                         $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}

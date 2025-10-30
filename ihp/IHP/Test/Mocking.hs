@@ -53,8 +53,7 @@ mockContextNoDatabase application configBuilder = do
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
    pgListener <- PGListener.init modelContext
-   autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-   let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
+   let applicationContext = ApplicationContext { modelContext = modelContext, frameworkConfig, pgListener }
 
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}

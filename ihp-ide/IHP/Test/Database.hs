@@ -45,9 +45,8 @@ withIHPApp application configBuilder hspecAction = do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
             PGListener.withPGListener modelContext \pgListener -> do
-                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
                 let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-                let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
+                let applicationContext = ApplicationContext { modelContext = modelContext, frameworkConfig, pgListener }
 
                 let requestContext = RequestContext
                      { request = defaultRequest {vault = sessionVault}

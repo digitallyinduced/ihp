@@ -77,10 +77,9 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
     approotMiddleware <- Approot.envFallback
     
     PGListener.withPGListener modelContext \pgListener -> do
-        autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
         staticApp <- initStaticApp
 
-        let applicationContext = ApplicationContext { modelContext, autoRefreshServer, frameworkConfig, pgListener }
+        let applicationContext = ApplicationContext { modelContext, frameworkConfig, pgListener }
         let application :: Wai.Application = \request respond -> do
                 let ?applicationContext = applicationContext
                 frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond

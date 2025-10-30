@@ -26,11 +26,14 @@ import IHP.Controller.Response
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString
+import qualified IHP.Log as Log
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai
 
 initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
 initAutoRefresh = do
     putContext AutoRefreshDisabled
-    putContext ?applicationContext.autoRefreshServer
 
 autoRefresh :: (
     ?theAction :: action
@@ -40,7 +43,7 @@ autoRefresh :: (
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
     autoRefreshState <- fromContext @AutoRefreshState
-    autoRefreshServer <- fromContext @(IORef AutoRefreshServer)
+    let autoRefreshServer = autoRefreshServerFromRequest request
 
     case autoRefreshState of
         AutoRefreshDisabled -> do
@@ -112,18 +115,20 @@ instance WSApp AutoRefreshWSApp where
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
-        availableSessions <- getAvailableSessions ?applicationContext.autoRefreshServer
+        availableSessions <- getAvailableSessions (autoRefreshServerFromRequest request)
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById sessionId
+            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById (autoRefreshServerFromRequest request) sessionId
 
             let handleResponseException (ResponseException response) = case response of
-                    Wai.ResponseBuilder status headers builder -> do
+                    Wai.ResponseBuilder status headers builder -> do                        
                         let html = ByteString.toLazyByteString builder
+
+                        Log.info ("AutoRefresh: inner = " <> show (status, headers, builder) <> " END")
 
                         when (html /= lastResponse) do
                             sendTextData html
-                            updateSession sessionId (\session -> session { lastResponse = html })
+                            updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
 
             async $ forever do
@@ -140,12 +145,12 @@ instance WSApp AutoRefreshWSApp where
     onPing = do
         now <- getCurrentTime
         AutoRefreshActive { sessionId } <- getState
-        updateSession sessionId (\session -> session { lastPing = now })
+        updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastPing = now })
 
     onClose = do
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
-                let autoRefreshServer = ?applicationContext.autoRefreshServer
+                let autoRefreshServer = autoRefreshServerFromRequest request
                 modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
@@ -191,18 +196,17 @@ getAvailableSessions autoRefreshServer = do
         |> pure
 
 -- | Returns a session for a given session id. Errors in case the session does not exist.
-getSessionById :: (?applicationContext :: ApplicationContext) => UUID -> IO AutoRefreshSession
-getSessionById sessionId = do
-    autoRefreshServer <- readIORef ?applicationContext.autoRefreshServer
+getSessionById :: IORef AutoRefreshServer -> UUID -> IO AutoRefreshSession
+getSessionById autoRefreshServer sessionId = do
+    autoRefreshServer <- readIORef autoRefreshServer
     autoRefreshServer.sessions
         |> find (\AutoRefreshSession { id } -> id == sessionId)
         |> Maybe.fromMaybe (error "getSessionById: Could not find the session")
         |> pure
 
 -- | Applies a update function to a session specified by its session id
-updateSession :: (?applicationContext :: ApplicationContext) => UUID -> (AutoRefreshSession -> AutoRefreshSession) -> IO ()
-updateSession sessionId updateFunction = do
-    let server = ?applicationContext.autoRefreshServer
+updateSession :: IORef AutoRefreshServer -> UUID -> (AutoRefreshSession -> AutoRefreshSession) -> IO ()
+updateSession server sessionId updateFunction = do
     let updateSession' session = if session.id == sessionId then updateFunction session else session
     modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
     pure ()
@@ -251,3 +255,20 @@ notificationTrigger tableName = PG.Query [i|
         insertTriggerName = "ar_did_insert_" <> tableName
         updateTriggerName = "ar_did_update_" <> tableName
         deleteTriggerName = "ar_did_delete_" <> tableName
+
+autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
+autoRefreshVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE autoRefreshVaultKey #-}
+
+initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
+initAutoRefreshMiddleware pgListener = do
+    autoRefreshServer <- newIORef (newAutoRefreshServer pgListener)
+    pure \app request respond -> do
+        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer request.vault }
+        app request' respond
+
+autoRefreshServerFromRequest :: Request -> IORef AutoRefreshServer
+autoRefreshServerFromRequest request =
+    case Vault.lookup autoRefreshVaultKey request.vault of
+        Just server -> server
+        Nothing -> error "AutoRefresh middleware not initialized. Please make sure you have added the AutoRefresh middleware to your application."
