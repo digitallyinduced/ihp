@@ -25,6 +25,7 @@ module IHP.Controller.Session
   , deleteSession
   , getSessionAndClear
   , sessionVaultKey
+  , lookupSessionVault
   ) where
 
 import IHP.Prelude
@@ -160,12 +161,12 @@ sessionLookup :: (?context :: ControllerContext) => ByteString -> IO (Maybe Byte
 sessionLookup = fst sessionVault
 
 sessionVault :: (?context :: ControllerContext) => (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
-sessionVault = case vaultLookup of
+sessionVault = case lookupSessionVault ?context.requestContext.request of
         Just session -> session
         Nothing -> error "sessionInsert: The session vault is missing in the request"
-    where
-        RequestContext { request } = ?context.requestContext
-        vaultLookup = Vault.lookup sessionVaultKey request.vault
+
+lookupSessionVault :: Wai.Request -> Maybe (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
+lookupSessionVault request = Vault.lookup sessionVaultKey request.vault
 
 sessionVaultKey :: Vault.Key (Network.Wai.Session.Session IO ByteString ByteString)
 sessionVaultKey = unsafePerformIO Vault.newKey
