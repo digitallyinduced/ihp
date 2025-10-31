@@ -22,6 +22,7 @@ import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
+import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
@@ -46,6 +47,18 @@ run configBuilder = do
     withFrameworkConfig configBuilder \frameworkConfig -> do
         IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
             approotMiddleware <- Approot.envFallback
+            assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware
+                    -- | The asset version is used for cache busting
+                    --
+                    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
+                    -- env variable with e.g. the git commit hash of the production build.
+                    --
+                    -- If IHP cannot figure out an asset version, it will fallback to the static
+                    -- string @"dev"@.
+                    --
+                    "IHP_ASSET_VERSION"
+                    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN                    
+                    "IHP_ASSET_BASEURL"
 
             withInitalizers frameworkConfig modelContext do
                 PGListener.withPGListener modelContext \pgListener -> do
@@ -73,6 +86,7 @@ run configBuilder = do
                         . modelContextMiddleware modelContext
                         . frameworkConfigMiddleware frameworkConfig
                         . pgListenerMiddleware pgListener
+                        . assetPathMiddleware
                         $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}

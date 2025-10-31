@@ -3,6 +3,7 @@
 :set -iihp
 :set -iihp-ide
 :set -iihp-ssc
+:set -iwai-asset-path
 :set -threaded
 
 :set -XGHC2021

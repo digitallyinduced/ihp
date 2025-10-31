@@ -134,6 +134,7 @@ common shared-properties
             , resourcet
             , countable-inflections
             , stm
+            , wai-asset-path
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -257,8 +258,6 @@ library
         , IHP.PageHead.ControllerFunctions
         , IHP.PageHead.Types
         , IHP.PageHead.ViewFunctions
-        , IHP.Assets.Types
-        , IHP.Assets.ViewFunctions
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
