@@ -29,7 +29,8 @@ import Network.HTTP.Types
 import IHP.Controller.NotFound (handleNotFound)
 import Data.String.Conversions
 import Unsafe.Coerce
-import IHP.ApplicationContext
+import IHP.RequestVault
+import System.IO.Unsafe (unsafePerformIO)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -140,8 +141,12 @@ config = do
     option Development
     option (AppPort 8000)
 
-application :: (?applicationContext :: ApplicationContext) => Application
-application = Server.application handleNotFound (\app -> app)
+initApplication :: IO Application
+initApplication = do
+    frameworkConfig <- buildFrameworkConfig (pure ())
+    pure (frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app))
+
+application = unsafePerformIO initApplication
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

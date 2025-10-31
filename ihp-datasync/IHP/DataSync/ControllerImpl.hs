@@ -22,7 +22,6 @@ import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.PGListener as PGListener
-import IHP.ApplicationContext
 import qualified Data.Set as Set
 import qualified Data.Pool as Pool
 import GHC.Conc (getNumCapabilities, ThreadId, myThreadId, atomically)
@@ -30,7 +29,8 @@ import qualified Data.HashSet as HashSet
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
 import Control.Monad (void)
-
+import IHP.Controller.RequestContext
+import IHP.RequestVault
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
 $(deriveToJSON defaultOptions 'DataSyncResult)
@@ -42,7 +42,6 @@ type HandleCustomMessageFn = (DataSyncResponse -> IO ()) -> DataSyncMessage -> I
 
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , ?applicationContext :: ApplicationContext
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
@@ -109,7 +108,6 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 
 buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , ?applicationContext :: ApplicationContext
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
@@ -121,7 +119,7 @@ buildMessageHandler ::
     => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
 buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
     where
-            pgListener = ?applicationContext.pgListener
+            pgListener = ?context.requestContext.request.pgListener
             handleMessage :: DataSyncMessage -> IO ()
             handleMessage DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)

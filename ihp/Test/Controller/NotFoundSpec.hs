@@ -27,7 +27,6 @@ import Network.HTTP.Types
 import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
-import IHP.ApplicationContext
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -71,11 +70,8 @@ config = do
     option Development
     option (AppPort 8000)
 
-makeApplication :: (?applicationContext :: ApplicationContext) => IO Application
-makeApplication = do
-    store <- Session.mapStore_
-    let sessionMiddleware :: Middleware = Session.withSession store "SESSION" ?applicationContext.frameworkConfig.sessionCookie sessionVaultKey
-    pure (sessionMiddleware $ (Server.application handleNotFound) (\app -> app))
+application :: Application
+application = Server.application handleNotFound (\app -> app)
 
 assertNotFound :: SResponse -> IO ()
 assertNotFound response = do
@@ -86,8 +82,6 @@ tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "Not found" $ do
         it "should return show 404 page when notFoundWhen is True" $ withContext do
-            application <- makeApplication
             runSession (testGet "test/TestActionNotFoundWhen") application >>= assertNotFound
         it "should return show 404 page when notFoundUnless is False" $ withContext do
-            application <- makeApplication
             runSession (testGet "test/TestActionNotFoundUnless") application >>= assertNotFound

@@ -30,7 +30,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
-import IHP.ApplicationContext
 import IHP.Controller.NotFound (handleNotFound)
 import qualified IHP.Log as Log
 
@@ -47,9 +46,9 @@ handleNoResponseReturned controller = do
         |]
     let title = [hsx|No response returned in {tshow controller}|]
     let RequestContext { respond } = ?context.requestContext
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
-displayException :: (Show action, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -78,7 +77,7 @@ displayException exception action additionalInfo = do
     -- the error message to the stderr output
     --
     when (?context.frameworkConfig.environment == Environment.Production) do
-        let exceptionTracker = ?applicationContext.frameworkConfig.exceptionTracker.onException
+        let exceptionTracker = ?context.frameworkConfig.exceptionTracker.onException
         let request = ?requestContext.request
 
 
@@ -110,7 +109,7 @@ genericHandler exception controller additionalInfo = do
             else (prodErrorMessage, prodTitle)
     let RequestContext { respond } = ?context.requestContext
 
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError errorTitle errorMessage))
+    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment errorTitle errorMessage))
 
 postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
@@ -134,7 +133,7 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
 
         handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
         handleSqlError exception = do
@@ -157,7 +156,7 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
         Nothing -> case fromException exception of
@@ -195,10 +194,12 @@ patternMatchFailureHandler exception controller additionalInfo = do
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
+-- Only used in dev mode of the app.
+
 paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
@@ -239,7 +240,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
@@ -260,7 +261,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
             let title = [hsx|Parameter <q>{name}</q> was invalid|]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
@@ -305,7 +306,7 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
             let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
@@ -321,12 +322,11 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
                 in Just (handleNotFound ?context.request ?context.respond)
         Nothing -> Nothing
 
-handleRouterException :: (?applicationContext :: ApplicationContext) => SomeException -> Application
-handleRouterException exception request respond =
-    let ?context = ?applicationContext
-    in case fromException exception of
+handleRouterException :: Environment.Environment -> SomeException -> Application
+handleRouterException environment exception request respond =
+    case fromException exception of
         Just Router.NoConstructorMatched { expectedType, value, field } -> do
-            let routingError =  if ?context.frameworkConfig.environment == Environment.Development
+            let routingError = if environment == Environment.Development
                 then [hsx|<p>Routing failed with: {tshow exception}</p>|]
                 else ""
 
@@ -340,13 +340,13 @@ handleRouterException exception request respond =
             let title = case value of
                     Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
                     Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
-            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
         Just Router.BadType { expectedType, value = Just value, field } -> do
             let errorMessage = [hsx|
                     <p>Routing failed with: {tshow exception}</p>
                 |]
             let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
-            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
         _ -> case fromException exception of
             Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
                 let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
@@ -380,7 +380,7 @@ handleRouterException exception request respond =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
             Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
                 let errorMessage = [hsx|
                         <p>
@@ -394,7 +394,7 @@ handleRouterException exception request respond =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
             Just Router.UnexpectedMethodException { allowedMethods, method } -> do
                 let errorMessage = [hsx|
                         <p>Routing failed with: {tshow exception}</p>
@@ -404,7 +404,7 @@ handleRouterException exception request respond =
                         </p>
                     |]
                 let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
             _ -> do
                 let errorMessage = [hsx|
                         Routing failed with: {tshow exception}
@@ -413,11 +413,11 @@ handleRouterException exception request respond =
                         <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                     |]
                 let title = H.text "Routing failed"
-                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError title errorMessage))
+                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
 
 
-renderError :: forall context. (?context :: context, ConfigProvider context) => H.Html -> H.Html -> H.Html
-renderError errorTitle view = [hsx|
+renderError :: Environment.Environment -> H.Html -> H.Html -> H.Html
+renderError environment errorTitle view = [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -490,7 +490,7 @@ renderError errorTitle view = [hsx|
 </html>
     |]
         where
-            shouldShowHelpFooter = ?context.frameworkConfig.environment == Environment.Development
+            shouldShowHelpFooter = environment == Environment.Development
             helpFooter = [hsx|
                 <div class="ihp-error-other-solutions">
                     <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>

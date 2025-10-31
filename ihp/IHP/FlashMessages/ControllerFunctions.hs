@@ -8,6 +8,7 @@ module IHP.FlashMessages.ControllerFunctions where
 import IHP.Prelude
 import IHP.FlashMessages.Types
 import IHP.Controller.Context
+import IHP.Controller.RequestContext
 import IHP.Controller.Session
 import qualified Data.Maybe as Maybe
 
@@ -65,6 +66,11 @@ errorMessageKey :: ByteString
 errorMessageKey = "flashErrorMessage"
 
 initFlashMessages :: (?context :: ControllerContext) => IO ()
-initFlashMessages = do
-    flashMessages <- getAndClearFlashMessages
-    putContext flashMessages
+initFlashMessages =
+    -- We can only use the flashMessages if the session middleware ran before
+    -- This is not the case for e.g. tests
+    case lookupSessionVault ?context.requestContext.request of
+        Just _ -> do
+            flashMessages <- getAndClearFlashMessages
+            putContext flashMessages
+        Nothing -> pure ()

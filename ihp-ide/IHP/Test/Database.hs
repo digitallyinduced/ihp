@@ -15,7 +15,6 @@ import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 
 
-import           IHP.ApplicationContext                    (ApplicationContext (..))
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
@@ -44,18 +43,15 @@ withIHPApp application configBuilder hspecAction = do
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
-            PGListener.withPGListener modelContext \pgListener -> do
-                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
-                let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-                let applicationContext = ApplicationContext { modelContext = modelContext, autoRefreshServer, frameworkConfig, pgListener }
+            let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
 
-                let requestContext = RequestContext
-                     { request = defaultRequest {vault = sessionVault}
-                     , requestBody = FormBody [] []
-                     , respond = const (pure ResponseReceived)
-                     , frameworkConfig = frameworkConfig }
+            let requestContext = RequestContext
+                 { request = defaultRequest {vault = sessionVault}
+                 , requestBody = FormBody [] []
+                 , respond = const (pure ResponseReceived)
+                 , frameworkConfig = frameworkConfig }
 
-                (hspecAction MockContext { .. })
+            (hspecAction MockContext { .. })
 
 withTestDatabase masterDatabaseUrl callback = do
     testDatabaseName <- randomDatabaseName

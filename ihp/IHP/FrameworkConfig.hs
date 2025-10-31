@@ -324,7 +324,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
-    -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
+    -- This redis url can be access from all IHP entrypoints using the request.frameworkConfig.appConfig that is in scope:
     --
     -- > import qualified Data.TMap as TMap
     -- > import Config -- For accessing the RedisUrl data type
@@ -494,6 +494,10 @@ initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnect
     let isDevelopment = environment == Development
     modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
     pure modelContext
+
+withModelContext :: FrameworkConfig -> (ModelContext -> IO result) -> IO result
+withModelContext frameworkConfig action =
+    Exception.bracket (initModelContext frameworkConfig) releaseModelContext action
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --

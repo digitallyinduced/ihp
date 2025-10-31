@@ -14,6 +14,7 @@ import IHP.SEO.Sitemap.Types
 import IHP.SEO.Sitemap.Routes
 import IHP.SEO.Sitemap.ControllerFunctions
 import IHP.Controller.NotFound (handleNotFound)
+import IHP.RequestVault
 
 main :: IO ()
 main = hspec do
@@ -74,10 +75,15 @@ config = do
     option Development
     option (AppPort 8000)
 
+makeApplication = do
+    frameworkConfig <- buildFrameworkConfig config
+    pure $ frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app)
+
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "SEO" do
         describe "Sitemap" do
             it "should render a XML Sitemap" $ withContext do
-                runSession (testGet "/sitemap.xml") (Server.application handleNotFound (\app -> app))
+                application <- makeApplication
+                runSession (testGet "/sitemap.xml") application
                     >>= assertSuccess "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>http://localhost:8000/main/ShowPost?postId=00000000-0000-0000-0000-000000000000</loc><lastmod>2105-04-16</lastmod><changefreq>hourly</changefreq></url></urlset>"
