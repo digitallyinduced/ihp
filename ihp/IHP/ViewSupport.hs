@@ -19,7 +19,6 @@ module IHP.ViewSupport
 , onLoad
 , theRequest
 , viewContext
-, addStyle
 , ViewFetchHelpMessage
 , param
 , fetch
@@ -202,25 +201,6 @@ instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
 viewContext :: (?context :: ControllerContext) => ControllerContext
 viewContext = ?context
 {-# INLINE viewContext #-}
-
--- | Adds an inline style element to the html.
---
--- This helps to work around the issue, that our HSX parser cannot deal with CSS yet.
---
--- __Example:__
---
--- > myStyle = addStyle "#my-div { color: blue; }"
--- > [hsx|{myStyle}<div id="my-div">Hello World</div>|]
---
--- This will render like:
---
--- > <style>
--- >     #my-div { color: blue; }
--- > </style>
--- > <div id="my-div">Hello World</div>
-addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
-addStyle style = Html5.style (Html5.preEscapedText (cs style))
-{-# INLINE addStyle #-}
 
 -- | This class provides helpful compile-time error messages when you use common
 -- controller functions inside of your views.
