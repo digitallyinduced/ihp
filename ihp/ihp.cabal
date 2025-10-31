@@ -135,6 +135,7 @@ common shared-properties
             , countable-inflections
             , stm
             , wai-asset-path
+            , wai-flash-messages
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -247,9 +248,7 @@ library
         , IHP.View.Classes
         , IHP.View.CSSFramework
         , IHP.View.Types
-        , IHP.FlashMessages.Types
-        , IHP.FlashMessages.ControllerFunctions
-        , IHP.FlashMessages.ViewFunctions
+        , IHP.FlashMessages
         , IHP.SchemaMigration
         , IHP.Test.Mocking
         , IHP.Job.Queue

@@ -22,8 +22,7 @@ module IHP.ControllerPrelude
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
     , module IHP.Mail
-    , module IHP.FlashMessages.Types
-    , module IHP.FlashMessages.ControllerFunctions
+    , module IHP.FlashMessages
     , module IHP.Controller.Context
     , module IHP.Modal.Types
     , module IHP.Modal.ControllerFunctions
@@ -63,8 +62,7 @@ import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
-import IHP.FlashMessages.Types
-import IHP.FlashMessages.ControllerFunctions
+import IHP.FlashMessages
 import IHP.Controller.Context
 import IHP.Controller.Layout
 
