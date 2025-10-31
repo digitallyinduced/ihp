@@ -18,7 +18,6 @@ module IHP.ViewSupport
 , onClick
 , onLoad
 , theRequest
-, viewContext
 , ViewFetchHelpMessage
 , param
 , fetch
@@ -196,11 +195,6 @@ instance PathString Text where
 
 instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
     pathToString = pathTo
-
--- | Alias for @?context@
-viewContext :: (?context :: ControllerContext) => ControllerContext
-viewContext = ?context
-{-# INLINE viewContext #-}
 
 -- | This class provides helpful compile-time error messages when you use common
 -- controller functions inside of your views.
