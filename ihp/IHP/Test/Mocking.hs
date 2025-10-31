@@ -14,7 +14,6 @@ import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
-import           IHP.ApplicationContext                    (ApplicationContext (..))
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
@@ -35,12 +34,11 @@ import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
 
-type ContextParameters application = (?applicationContext :: ApplicationContext, ?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
+type ContextParameters application = (?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
 data MockContext application = InitControllerContext application => MockContext
     { modelContext :: ModelContext
     , requestContext :: RequestContext
-    , applicationContext :: ApplicationContext
     , application :: application
     }
 
@@ -52,8 +50,6 @@ mockContextNoDatabase application configBuilder = do
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-   pgListener <- PGListener.init modelContext
-   let applicationContext = ApplicationContext { modelContext = modelContext, frameworkConfig, pgListener }
 
    let requestContext = RequestContext
          { request = defaultRequest {vault = sessionVault}
@@ -68,7 +64,6 @@ withContext :: (ContextParameters application => IO a) -> MockContext applicatio
 withContext action mocking@MockContext{..} = let
     ?modelContext = modelContext
     ?context = requestContext
-    ?applicationContext = applicationContext
     ?application = application
     ?mocking = mocking
   in do
@@ -176,7 +171,6 @@ responseStatusShouldBe response status = responseStatus response `shouldBe` stat
 --
 withUser :: forall user application userId result.
     ( ?mocking :: MockContext application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Serialize.Serialize userId
     , HasField "id" user userId

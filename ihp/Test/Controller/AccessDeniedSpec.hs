@@ -27,7 +27,6 @@ import Network.HTTP.Types
 import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
-import IHP.ApplicationContext
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -71,7 +70,7 @@ config = do
     option Development
     option (AppPort 8000)
 
-application :: (?applicationContext :: ApplicationContext) => Application
+application :: Application
 application = Server.application handleNotFound (\app -> app)
 
 assertAccessDenied :: SResponse -> IO ()

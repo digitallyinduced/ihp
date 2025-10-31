@@ -11,7 +11,6 @@ import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ApplicationContext
 import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
@@ -33,6 +32,7 @@ import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
+import IHP.RequestVault
 
 import IHP.Controller.NotFound (handleNotFound)
 import Paths_ihp (getDataFileName)
@@ -52,7 +52,6 @@ run configBuilder = do
                     autoRefreshMiddleware <- AutoRefresh.initAutoRefreshMiddleware pgListener
 
                     let ?modelContext = modelContext
-                    let ?applicationContext = ApplicationContext { modelContext = ?modelContext, frameworkConfig, pgListener }
 
                     sessionMiddleware <- initSessionMiddleware frameworkConfig
                     staticApp <- initStaticApp frameworkConfig
@@ -71,6 +70,9 @@ run configBuilder = do
                         . sessionMiddleware
                         . approotMiddleware
                         . autoRefreshMiddleware
+                        . modelContextMiddleware modelContext
+                        . frameworkConfigMiddleware frameworkConfig
+                        . pgListenerMiddleware pgListener
                         $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
@@ -134,12 +136,12 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
-application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Middleware -> Application
+application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
-runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Bool -> Application -> IO ()
+runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = Warp.runSettings $
                 Warp.defaultSettings
                     |> Warp.setBeforeMainLoop (do

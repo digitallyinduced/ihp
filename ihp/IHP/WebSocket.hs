@@ -19,7 +19,6 @@ where
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
 import Network.WebSockets.Connection.PingPong (withPingPong, defaultPingPongOptions)
-import IHP.ApplicationContext
 import IHP.Controller.RequestContext
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
@@ -34,13 +33,13 @@ import qualified Network.WebSockets.Connection as WebSocket
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
+    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext) => IO ()
+    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?applicationContext :: ApplicationContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
+    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
     onClose = pure ()
 
     -- | Provide WebSocket Connection Options
@@ -60,7 +59,7 @@ class WSApp state where
     connectionOptions :: WebSocket.ConnectionOptions
     connectionOptions = WebSocket.defaultConnectionOptions
 
-startWSApp :: forall state. (WSApp state, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state

@@ -8,7 +8,6 @@ module IHP.AutoRefresh where
 import IHP.Prelude
 import IHP.AutoRefresh.Types
 import IHP.ControllerSupport
-import IHP.ApplicationContext
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
@@ -31,7 +30,7 @@ import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 
-initAutoRefresh :: (?context :: ControllerContext, ?applicationContext :: ApplicationContext) => IO ()
+initAutoRefresh :: (?context :: ControllerContext) => IO ()
 initAutoRefresh = do
     putContext AutoRefreshDisabled
 
