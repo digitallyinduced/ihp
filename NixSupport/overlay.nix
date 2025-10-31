@@ -22,6 +22,7 @@ final: prev: {
             ihp-sitemap = localPackage"ihp-sitemap";
             ihp-datasync = localPackage "ihp-datasync";
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
+            wai-asset-path = localPackage "wai-asset-path";
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
             

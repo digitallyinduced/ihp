@@ -31,6 +31,8 @@ module IHP.ViewSupport
 , theCSSFramework
 , fromCSSFramework
 , liveReloadWebsocketUrl
+, assetPath
+, assetVersion
 ) where
 
 import IHP.Prelude
@@ -56,6 +58,7 @@ import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
+import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -265,3 +268,24 @@ liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
 
 instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
     applyAttribute attr attr' value h = HSX.applyAttribute attr attr' (inputValue value) h
+
+
+-- | Adds a cache buster to a asset path
+--
+-- >>> assetPath "/keyhandlers.js"
+-- "/keyhandlers.js?v=9be8995c-7055-43d9-a1b2-43e05c210271"
+--
+-- The asset version can be configured using the
+-- @IHP_ASSET_VERSION@ environment variable.
+assetPath :: (?context :: ControllerContext) => Text -> Text
+assetPath assetPath = AssetPath.assetPath theRequest assetPath
+
+-- | Returns the assetVersion
+--
+-- >>> assetVersion
+-- "9be8995c-7055-43d9-a1b2-43e05c210271"
+--
+-- The asset version can be configured using the
+-- @IHP_ASSET_VERSION@ environment variable.
+assetVersion :: (?context :: ControllerContext) => Text
+assetVersion = fromMaybe (error "assetPath middleware missing") (AssetPath.assetVersion theRequest)
