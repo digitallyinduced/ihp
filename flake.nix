@@ -21,6 +21,11 @@
         ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
 
         nix-filter.url = "github:numtide/nix-filter";
+
+        devenv-root = {
+            url = "file+file:///dev/null";
+            flake = false;
+        };
     };
 
     outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (
