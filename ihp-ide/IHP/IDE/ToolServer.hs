@@ -48,6 +48,7 @@ import qualified WaiAppStatic.Types as Static
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 import Paths_ihp_ide (getDataFileName)
+import IHP.RequestVault
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do
@@ -87,7 +88,7 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
     let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
     Warp.runSettings warpSettings $
-            logMiddleware $ methodOverridePost $ sessionMiddleware $ approotMiddleware
+            logMiddleware $ methodOverridePost $ sessionMiddleware $ approotMiddleware $ frameworkConfigMiddleware frameworkConfig
                 $ Websocket.websocketsOr
                     Websocket.defaultConnectionOptions
                     (LiveReloadNotificationServer.app liveReloadClients)
