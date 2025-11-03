@@ -88,6 +88,7 @@ common shared-properties
             , http-types
             , safe-exceptions
             , countable-inflections
+            , ihp-migrate
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

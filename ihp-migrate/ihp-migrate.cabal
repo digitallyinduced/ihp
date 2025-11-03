@@ -10,27 +10,39 @@ bug-reports:         https://github.com/digitallyinduced/ihp/issues
 category:            Database
 build-type:          Simple
 
-executable migrate
+
+common ihp-std
     default-language: GHC2021
     default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
         OverloadedStrings
-        , NoImplicitPrelude
-        , ImplicitParams
-        , DisambiguateRecordFields
-        , DuplicateRecordFields
-        , OverloadedLabels
-        , DataKinds
-        , QuasiQuotes
-        , TypeFamilies
-        , PackageImports
-        , RecordWildCards
-        , DefaultSignatures
-        , FunctionalDependencies
-        , PartialTypeSignatures
-        , BlockArguments
-        , LambdaCase
-        , TemplateHaskell
-        , OverloadedRecordDot
-    build-depends: ihp, with-utf8
+        ImplicitParams
+
+library
+    import: ihp-std
+    build-depends: base >= 4.17.0 && < 4.22, ihp, with-utf8, text, directory
+    hs-source-dirs: .
+    exposed-modules: IHP.SchemaMigration
+
+executable migrate
+    import: ihp-std
+    build-depends: base >= 4.17.0 && < 4.22, ihp, with-utf8, text, directory, ihp-migrate
     hs-source-dirs: .
     main-is: Migrate.hs
+
+test-suite tests
+    import: ihp-std
+    type: exitcode-stdio-1.0
+    main-is: SchemaMigrationSpec.hs
+    build-depends: base >= 4.17.0 && < 4.22, hspec, ihp, with-utf8, directory, ihp-migrate, filepath, temporary
+    hs-source-dirs: Test

@@ -249,7 +249,6 @@ library
         , IHP.View.CSSFramework
         , IHP.View.Types
         , IHP.FlashMessages
-        , IHP.SchemaMigration
         , IHP.Test.Mocking
         , IHP.Job.Queue
         , IHP.Job.Runner
