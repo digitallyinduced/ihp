@@ -274,3 +274,26 @@ library
 source-repository head
     type:     git
     location: https://github.com/digitallyinduced/ihp
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: .
+    other-modules:
+        Test.ValidationSupport.ValidateFieldSpec
+        Test.NameSupportSpec
+        Test.HaskellSupportSpec
+        Test.View.CSSFrameworkSpec
+        Test.View.FormSpec
+        Test.Controller.ContextSpec
+        Test.Controller.ParamSpec
+        Test.Controller.AccessDeniedSpec
+        Test.Controller.NotFoundSpec
+        Test.ModelSupportSpec
+        Test.QueryBuilderSpec
+        Test.RouterSupportSpec
+        Test.ViewSupportSpec
+        Test.FileStorage.ControllerFunctionsSpec
+        Test.Controller.CookieSpec
+        Test.PGListenerSpec

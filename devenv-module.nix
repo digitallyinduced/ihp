@@ -29,22 +29,6 @@ that is defined in flake-module.nix
 
         # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
         checks = {
-            # Runs Tests/Main.hs
-            tests = pkgs.stdenv.mkDerivation {
-                name = "ihp-tests";
-                src = let filter = inputs.nix-filter.lib; in filter {
-                    root = self;
-                    include = [ "ihp" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "dev" (filter.matchExt "hs") "wai-asset-path" "wai-flash-messages" ];
-                };
-                nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
-                buildPhase = ''
-                    cd ihp
-                    # shellcheck disable=SC2046
-                    runghc $(make -f ../ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -i. -i../ihp-ide -i../ihp-ssc -i../wai-asset-path -i../wai-flash-messages -i../dev Test/Main.hs
-                    touch $out
-                '';
-            };
-
             # Checks devShells
             ihp-devShell = self.devShells.${system}.default;
             boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
