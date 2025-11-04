@@ -370,6 +370,9 @@ ihpFlake:
                 # Used by .ghci https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.ghci
                 env.IHP_LIB = config.devenv.shells.default.env.IHP;
 
+                # Use Overmind so when running tests in GitHub actions, we can execute `devenv up &` without an error.
+                process.implementation = "overmind";
+
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
                         echo "usage: deploy-to-nixos <target-host>"
