@@ -25,14 +25,22 @@ Clone the IHP repository into the project directory. The `IHP` directory is adde
 git clone git@github.com:digitallyinduced/ihp.git IHP
 cd IHP
 
-# Patch flake.nix in the parent directory to use local IHP path
+# Patch flake.nix in the parent directory to switch
+# from "ihp.url=..." to use the local IHP path as an input to your flake
 sed -i "s|ihp.url = .*|ihp.url = \"path://$(pwd)\";|" ../flake.nix
+
+# Note if you are on mac and direnv has not loaded you may have to alter the above patch :
+# sed -i '.bak' -E "s|^([[:space:]]*)ihp\.url = \".*\";|\1ihp.url = \"path://$PWD\";|" ../flake.nix
+
 
 # Enable direnv
 direnv allow
 
 # Switch back to the host project directory
 cd -
+
+# update your flake lock to make sure your flake references the local version of ihp.
+nix flake update
 ```
 
 ### Running the development server

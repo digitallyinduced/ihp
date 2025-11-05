@@ -186,8 +186,6 @@ ihpDefaultConfig = do
     rlsAuthenticatedRole <- envOrDefault "IHP_RLS_AUTHENTICATED_ROLE" "ihp_authenticated"
     option $ RLSAuthenticatedRole rlsAuthenticatedRole
 
-    initAssetVersion
-
     dataSyncMaxSubscriptionsPerConnection <- envOrDefault "IHP_DATASYNC_MAX_SUBSCRIPTIONS_PER_CONNECTION" 128
     dataSyncMaxTransactionsPerConnection <- envOrDefault "IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION" 10
     option $ DataSyncMaxSubscriptionsPerConnection dataSyncMaxSubscriptionsPerConnection
@@ -204,12 +202,6 @@ instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
     envStringToValue "FromSocket" = Right RequestLogger.FromSocket
     envStringToValue otherwise    = Left "Expected 'FromHeader' or 'FromSocket'"
-
-initAssetVersion :: ConfigBuilder
-initAssetVersion = do
-    ihpAssetVersion <- envOrNothing "IHP_ASSET_VERSION"
-    let assetVersion = fromMaybe "dev" ihpAssetVersion
-    option (AssetVersion assetVersion)
 
 findOption :: forall option. Typeable option => State.StateT TMap.TMap IO option
 findOption = fromMaybe (error optionNotFoundErrorMessage) <$> findOptionOrNothing @option
@@ -245,8 +237,6 @@ buildFrameworkConfig appConfig = do
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
-            (AssetVersion assetVersion) <- findOption @AssetVersion
-            assetBaseUrl <- envOrNothing "IHP_ASSET_BASEURL"
             customMiddleware <- findOption @CustomMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
@@ -324,7 +314,7 @@ data FrameworkConfig = FrameworkConfig
     -- >     redisUrl <- env "REDIS_URL"
     -- >     option (RedisUrl redisUrl)
     --
-    -- This redis url can be access from all IHP entrypoints using the ?applicationContext that is in scope:
+    -- This redis url can be access from all IHP entrypoints using the request.frameworkConfig.appConfig that is in scope:
     --
     -- > import qualified Data.TMap as TMap
     -- > import Config -- For accessing the RedisUrl data type
@@ -397,19 +387,6 @@ data FrameworkConfig = FrameworkConfig
 
     -- | See IHP.DataSync.Role
     , rlsAuthenticatedRole :: !Text
-
-    -- | The asset version is used for cache busting
-    --
-    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
-    -- env variable with e.g. the git commit hash of the production build.
-    --
-    -- If IHP cannot figure out an asset version, it will fallback to the static
-    -- string @"dev"@.
-    --
-    , assetVersion :: !Text
-
-    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN
-    , assetBaseUrl :: !(Maybe Text)
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
@@ -494,6 +471,10 @@ initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnect
     let isDevelopment = environment == Development
     modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
     pure modelContext
+
+withModelContext :: FrameworkConfig -> (ModelContext -> IO result) -> IO result
+withModelContext frameworkConfig action =
+    Exception.bracket (initModelContext frameworkConfig) releaseModelContext action
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --

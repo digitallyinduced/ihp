@@ -18,8 +18,6 @@ module IHP.ViewSupport
 , onClick
 , onLoad
 , theRequest
-, viewContext
-, addStyle
 , ViewFetchHelpMessage
 , param
 , fetch
@@ -31,6 +29,8 @@ module IHP.ViewSupport
 , theCSSFramework
 , fromCSSFramework
 , liveReloadWebsocketUrl
+, assetPath
+, assetVersion
 ) where
 
 import IHP.Prelude
@@ -56,6 +56,7 @@ import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
+import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -195,30 +196,6 @@ instance PathString Text where
 instance {-# OVERLAPPABLE #-} HasPath action => PathString action where
     pathToString = pathTo
 
--- | Alias for @?context@
-viewContext :: (?context :: ControllerContext) => ControllerContext
-viewContext = ?context
-{-# INLINE viewContext #-}
-
--- | Adds an inline style element to the html.
---
--- This helps to work around the issue, that our HSX parser cannot deal with CSS yet.
---
--- __Example:__
---
--- > myStyle = addStyle "#my-div { color: blue; }"
--- > [hsx|{myStyle}<div id="my-div">Hello World</div>|]
---
--- This will render like:
---
--- > <style>
--- >     #my-div { color: blue; }
--- > </style>
--- > <div id="my-div">Hello World</div>
-addStyle :: (ConvertibleStrings string Text) => string -> Html5.Markup
-addStyle style = Html5.style (Html5.preEscapedText (cs style))
-{-# INLINE addStyle #-}
-
 -- | This class provides helpful compile-time error messages when you use common
 -- controller functions inside of your views.
 class ViewParamHelpMessage where
@@ -265,3 +242,24 @@ liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
 
 instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
     applyAttribute attr attr' value h = HSX.applyAttribute attr attr' (inputValue value) h
+
+
+-- | Adds a cache buster to a asset path
+--
+-- >>> assetPath "/keyhandlers.js"
+-- "/keyhandlers.js?v=9be8995c-7055-43d9-a1b2-43e05c210271"
+--
+-- The asset version can be configured using the
+-- @IHP_ASSET_VERSION@ environment variable.
+assetPath :: (?context :: ControllerContext) => Text -> Text
+assetPath assetPath = AssetPath.assetPath theRequest assetPath
+
+-- | Returns the assetVersion
+--
+-- >>> assetVersion
+-- "9be8995c-7055-43d9-a1b2-43e05c210271"
+--
+-- The asset version can be configured using the
+-- @IHP_ASSET_VERSION@ environment variable.
+assetVersion :: (?context :: ControllerContext) => Text
+assetVersion = fromMaybe (error "assetPath middleware missing") (AssetPath.assetVersion theRequest)

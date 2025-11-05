@@ -88,6 +88,7 @@ common shared-properties
             , http-types
             , safe-exceptions
             , countable-inflections
+            , ihp-migrate
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -314,3 +315,23 @@ executable new-session-secret
 source-repository head
     type:     git
     location: https://github.com/digitallyinduced/ihp
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: .
+    build-depends: ihp, hspec
+    other-modules:
+        Test.IDE.SchemaDesigner.CompilerSpec
+        Test.IDE.SchemaDesigner.ParserSpec
+        Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
+        Test.IDE.SchemaDesigner.Controller.HelperSpec
+        Test.IDE.SchemaDesigner.Controller.ValidationSpec
+        Test.IDE.CodeGeneration.ControllerGenerator
+        Test.IDE.CodeGeneration.ViewGenerator
+        Test.IDE.CodeGeneration.MailGenerator
+        Test.IDE.CodeGeneration.JobGenerator
+        Test.IDE.SchemaDesigner.SchemaOperationsSpec
+        Test.IDE.CodeGeneration.MigrationGenerator
+        Test.SchemaCompilerSpec

@@ -186,7 +186,6 @@ module Web.View.CustomCSSFramework (customTailwind) where
 
 import IHP.View.CSSFramework -- This is the only import not copied from IHP/View/CSSFramework.hs
 import IHP.Prelude
-import IHP.FlashMessages.Types
 import qualified Text.Blaze.Html5 as Blaze
 import Text.Blaze.Html.Renderer.Text (renderHtml)
 import IHP.HSX.QQ (hsx)

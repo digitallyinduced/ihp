@@ -8,7 +8,7 @@ ihpFlake:
 
 # these arguments on the other hand are from the flake where this module is imported
 # i.e. from the flake of any particular IHP app
-{ inputs, flake-parts-lib, lib, config, ... }:
+{ self, inputs, flake-parts-lib, lib, config, ... }:
 
 {
 
@@ -277,10 +277,26 @@ ihpFlake:
                     impureEnvVars = pkgs.lib.fetchers.proxyImpureEnvVars; # Needed for npm install to work from within the IHP build process
                     disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
                 };
-            } else {});
+            } else {})
+            // (if builtins.pathExists "${cfg.projectPath}/Test/Main.hs"
+                then {
+                    tests = pkgs.stdenv.mkDerivation {
+                            name = "${config.ihp.appName}-tests";
+                            src = builtins.path { path = config.ihp.projectPath; name = "source"; };
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide])) ];
+                            buildPhase = ''
+                                # shellcheck disable=SC2046
+                                make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+                                touch $out
+                            '';
+                        };
+                } else {});
 
             devenv.shells.default = lib.mkIf cfg.enable {
-                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ]
+                packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ihpFlake.inputs.self.packages."${system}".run-script ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
                     ++ [(let cfg = config.devenv.shells.default.services.postgres; in
@@ -376,6 +392,12 @@ ihpFlake:
 
                 overlays = [ihp.overlays.default];
             };
+
+            checks = (lib.filterAttrs (n: v:
+                   n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                && n != "migrate"
+                && lib.isDerivation v
+                ) self.packages.${system});
         };
 
         # Nix requires this to be interactively allowed on first use for security reasons

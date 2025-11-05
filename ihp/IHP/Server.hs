@@ -11,19 +11,18 @@ import Network.Wai.Session.ClientSession (clientsessionStore)
 import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ApplicationContext
 import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import qualified IHP.AutoRefresh as AutoRefresh
-import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
+import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
@@ -34,6 +33,7 @@ import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
+import IHP.RequestVault
 
 import IHP.Controller.NotFound (handleNotFound)
 import Paths_ihp (getDataFileName)
@@ -45,34 +45,49 @@ run configBuilder = do
     IO.setLocaleEncoding IO.utf8
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        modelContext <- IHP.FrameworkConfig.initModelContext frameworkConfig
+        IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
+            approotMiddleware <- Approot.envFallback
+            assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware
+                    -- | The asset version is used for cache busting
+                    --
+                    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
+                    -- env variable with e.g. the git commit hash of the production build.
+                    --
+                    -- If IHP cannot figure out an asset version, it will fallback to the static
+                    -- string @"dev"@.
+                    --
+                    "IHP_ASSET_VERSION"
+                    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN                    
+                    "IHP_ASSET_BASEURL"
 
-        approotMiddleware <- Approot.envFallback
+            withInitalizers frameworkConfig modelContext do
+                PGListener.withPGListener modelContext \pgListener -> do
+                    autoRefreshMiddleware <- AutoRefresh.initAutoRefreshMiddleware pgListener
 
-        withInitalizers frameworkConfig modelContext do
-            PGListener.withPGListener modelContext \pgListener -> do
-                autoRefreshServer <- newIORef (AutoRefresh.newAutoRefreshServer pgListener)
+                    let ?modelContext = modelContext
 
-                let ?modelContext = modelContext
-                let ?applicationContext = ApplicationContext { modelContext = ?modelContext, autoRefreshServer, frameworkConfig, pgListener }
+                    sessionMiddleware <- initSessionMiddleware frameworkConfig
+                    staticApp <- initStaticApp frameworkConfig
+                    let corsMiddleware = initCorsMiddleware frameworkConfig
+                    let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
+                    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
-                sessionMiddleware <- initSessionMiddleware frameworkConfig
-                staticApp <- initStaticApp frameworkConfig
-                let corsMiddleware = initCorsMiddleware frameworkConfig
-                let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
-                let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+                    useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
 
-                useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
-
-                withBackgroundWorkers pgListener frameworkConfig
-                    . runServer frameworkConfig useSystemd
-                    . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                    . customMiddleware
-                    . corsMiddleware
-                    . methodOverridePost
-                    . sessionMiddleware
-                    . approotMiddleware
-                    $ application staticApp requestLoggerMiddleware
+                    withBackgroundWorkers pgListener frameworkConfig
+                        . runServer frameworkConfig useSystemd
+                        . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
+                        . customMiddleware
+                        . corsMiddleware
+                        . methodOverridePost
+                        . sessionMiddleware
+                        . approotMiddleware
+                        . autoRefreshMiddleware
+                        . modelContextMiddleware modelContext
+                        . frameworkConfigMiddleware frameworkConfig
+                        . pgListenerMiddleware pgListener
+                        . assetPathMiddleware
+                        $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
 
@@ -116,11 +131,17 @@ initSessionMiddleware FrameworkConfig { sessionCookie } = do
     let path = "Config/client_session_key.aes"
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
+    hasSessionSecretFileEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET_FILE"
     doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
     store <- clientsessionStore <$>
-            if hasSessionSecretEnvVar || not doesConfigDirectoryExist
-                then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
-                else ClientSession.getKey path
+            if hasSessionSecretFileEnvVar
+                then do
+                    path <- EnvVar.env "IHP_SESSION_SECRET_FILE"
+                    ClientSession.getKey path
+                else
+                    if hasSessionSecretEnvVar || not doesConfigDirectoryExist
+                        then ClientSession.getKeyEnv "IHP_SESSION_SECRET"
+                        else ClientSession.getKey path
     let sessionMiddleware :: Middleware = withSession store "SESSION" sessionCookie sessionVaultKey
     pure sessionMiddleware
 
@@ -129,12 +150,12 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
-application :: (FrontController RootApplication, ?applicationContext :: ApplicationContext) => Application -> Middleware -> Application
+application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
-runServer :: (?applicationContext :: ApplicationContext) => FrameworkConfig -> Bool -> Application -> IO ()
+runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = Warp.runSettings $
                 Warp.defaultSettings
                     |> Warp.setBeforeMainLoop (do

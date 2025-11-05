@@ -17,7 +17,8 @@ import Text.Blaze.Html (Html)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified Data.ByteString.Builder as ByteString
-import IHP.FlashMessages.ControllerFunctions (initFlashMessages)
+import IHP.FlashMessages (consumeFlashMessagesMiddleware)
+import qualified IHP.Controller.RequestContext
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -46,7 +47,6 @@ respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "im
 renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
 renderHtml !view = do
     let ?view = view
-    initFlashMessages
     ViewSupport.beforeRender view
     frozenContext <- Context.freeze ?context
 
@@ -122,7 +122,14 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
 render !view = do
     renderPolymorphic PolymorphicRender
-            { html = Just $ (renderHtml view) >>= respondHtml
+            { html = Just do
+                    let next request respond = do
+                            let requestContext' = ?context.requestContext { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
+                            let context' = ?context { Context.requestContext = requestContext' }
+                            let ?context = context' in (renderHtml view) >>= respondHtml
+                            error "unreachable"
+                    _ <- consumeFlashMessagesMiddleware next request ?context.requestContext.respond
+                    pure ()
             , json = Just $ renderJson (ViewSupport.json view)
             }
 

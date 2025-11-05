@@ -29,22 +29,6 @@ that is defined in flake-module.nix
 
         # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
         checks = {
-            # Runs Tests/Main.hs
-            tests = pkgs.stdenv.mkDerivation {
-                name = "ihp-tests";
-                src = let filter = inputs.nix-filter.lib; in filter {
-                    root = self;
-                    include = [ "ihp" "ihp-ide" "ihp-hsx" "ihp-ssc" "Test" ".ghci" "dev" (filter.matchExt "hs") ];
-                };
-                nativeBuildInputs = with pkgs; [ config.devenv.shells.default.languages.haskell.package ];
-                buildPhase = ''
-                    cd ihp
-                    # shellcheck disable=SC2046
-                    runghc $(make -f ../ihp-ide/data/lib/IHP/Makefile.dist print-ghc-extensions) -i. -i../ihp-ide -i../ihp-ssc -i../dev Test/Main.hs
-                    touch $out
-                '';
-            };
-
             # Checks devShells
             ihp-devShell = self.devShells.${system}.default;
             boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;
@@ -158,6 +142,20 @@ that is defined in flake-module.nix
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
+            wai-asset-path = pkgs.ghc.wai-asset-path;
+            wai-flash-messages = pkgs.ghc.wai-flash-messages;
+            
+            run-script = pkgs.stdenv.mkDerivation {
+                pname = "run-script";
+                version = "1.0.0";
+                src = ./ihp-ide/exe/IHP/CLI/run-script;
+                dontUnpack = true;
+                installPhase = ''
+                    mkdir -p $out/bin
+                    cp $src $out/bin/run-script
+                    chmod +x $out/bin/run-script
+                '';
+            };
 
             # ihp-pro
             stripe = pkgs.ghc.ihp-stripe;

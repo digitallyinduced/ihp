@@ -34,7 +34,6 @@ import qualified Prelude
 import ClassyPrelude hiding (index, delete, take)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
-import IHP.ApplicationContext hiding (frameworkConfig)
 import Data.UUID
 import Network.HTTP.Types.Method
 import IHP.Controller.RequestContext
@@ -68,13 +67,12 @@ import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
 import IHP.Controller.Context
 import IHP.Controller.Param
-import qualified IHP.ApplicationContext as ApplicationContext
 import Data.Kind
+import IHP.Environment
 
 runAction'
     :: forall application controller
      . ( Controller controller
-       , ?applicationContext :: ApplicationContext
        , InitControllerContext application
        , ?application :: application
        , Typeable application
@@ -82,8 +80,8 @@ runAction'
        )
      => controller -> Application
 runAction' controller request respond = do
-    let ?modelContext = ApplicationContext.modelContext ?applicationContext
-    requestContext <- createRequestContext ?applicationContext request respond
+    let ?modelContext = request.modelContext
+    requestContext <- createRequestContext request respond
     let ?context = requestContext
     let ?requestContext = requestContext
     contextOrErrorResponse <- newContextForAction controller
@@ -94,17 +92,17 @@ runAction' controller request respond = do
 
 class FrontController application where
     controllers
-        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
+        :: (?application :: application, ?context :: RequestContext)
         => [Parser Application]
 
     router
-        :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext)
+        :: (?application :: application, ?context :: RequestContext)
         => [Parser Application] -> Parser Application
     router = defaultRouter
     {-# INLINABLE router #-}
 
 defaultRouter
-    :: (?applicationContext :: ApplicationContext, ?application :: application, ?context :: RequestContext, FrontController application)
+    :: (?application :: application, ?context :: RequestContext, FrontController application)
     => [Parser Application] -> Parser Application
 defaultRouter additionalControllers = do
     let allControllers = controllers <> additionalControllers
@@ -640,7 +638,6 @@ getMethod =
 get :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable action
@@ -669,7 +666,6 @@ get path action = do
 post :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable action
@@ -729,7 +725,6 @@ webSocketApp :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable webSocketApp
@@ -746,7 +741,6 @@ webSocketAppWithHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable webSocketApp
@@ -775,7 +769,6 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable webSocketApp
@@ -790,7 +783,6 @@ webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?applicationContext :: ApplicationContext
     , ?context :: RequestContext
     , Typeable application
     , Typeable webSocketApp
@@ -805,23 +797,25 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?applicationContext::ApplicationContext, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser Application
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser Application
 startPage action = get (ByteString.pack (actionPrefix @action)) action
 {-# INLINABLE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 {-# INLINABLE withPrefix #-}
 
-frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (?applicationContext :: ApplicationContext, FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
+frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction request respond = do
-    let requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = ?applicationContext.frameworkConfig }
+    let
+        environment = request.frameworkConfig.environment
+        requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = error "Cannot use frameworkConfig here" }
 
     let ?context = requestContext
 
     let
         path = request.rawPathInfo
         handleException :: SomeException -> IO (Either String Application)
-        handleException exception = pure $ Right $ ErrorController.handleRouterException exception
+        handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
 
         routes = let ?application = application in router [let ?application = () in webSocketApp @autoRefreshApp]
 
@@ -839,11 +833,11 @@ frontControllerToWAIApp middleware application notFoundAction request respond = 
         Right action -> (middleware action) request respond
 {-# INLINABLE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController. (?applicationContext :: ApplicationContext, ?context :: RequestContext, FrontController frontController) => frontController -> Parser Application
+mountFrontController :: forall frontController. (?context :: RequestContext, FrontController frontController) => frontController -> Parser Application
 mountFrontController application = let ?application = application in router []
 {-# INLINABLE mountFrontController #-}
 
-parseRoute :: forall controller application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => Parser Application
+parseRoute :: forall controller application. (?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => Parser Application
 parseRoute = do
     action <- parseRoute' @controller
     pure $ runAction' @application action
@@ -858,7 +852,7 @@ parseUUIDOrTextId queryVal = queryVal
 
 parseRouteWithId
     :: forall controller application.
-        (?applicationContext :: ApplicationContext,
+        (
             ?context :: RequestContext,
             Controller controller,
             CanRoute controller,
@@ -871,7 +865,7 @@ parseRouteWithId = do
     action <- parseRoute' @controller
     pure (runAction' @application action)
 
-catchAll :: forall action application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
+catchAll :: forall action application. (?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
 catchAll action = do
     string (ByteString.pack (actionPrefix @action))
     _ <- takeByteString

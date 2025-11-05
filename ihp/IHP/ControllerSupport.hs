@@ -33,7 +33,6 @@ import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
-import IHP.ApplicationContext (ApplicationContext (..))
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
 import qualified IHP.Controller.RequestContext as RequestContext
@@ -51,6 +50,7 @@ import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
+import IHP.RequestVault
 
 type Action' = IO ResponseReceived
 
@@ -61,7 +61,7 @@ class (Show controller, Eq controller) => Controller controller where
     action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?applicationContext :: ApplicationContext, ?context :: ControllerContext) => IO ()
+    initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?context :: ControllerContext) => IO ()
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
@@ -69,7 +69,7 @@ instance InitControllerContext () where
     initContext = pure ()
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?applicationContext :: ApplicationContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let respond = ?context.requestContext.respond
@@ -90,7 +90,6 @@ runAction controller = do
 newContextForAction
     :: forall application controller
      . ( Controller controller
-       , ?applicationContext :: ApplicationContext
        , ?context :: RequestContext
        , InitControllerContext application
        , ?application :: application
@@ -99,7 +98,7 @@ newContextForAction
        )
     => controller -> IO (Either (IO ResponseReceived) ControllerContext)
 newContextForAction controller = do
-    let ?modelContext = ?applicationContext.modelContext
+    let ?modelContext = ?context.request.modelContext
     let ?requestContext = ?context
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
@@ -116,13 +115,13 @@ newContextForAction controller = do
         Right _ -> pure $ Right ?context
 
 {-# INLINE runActionWithNewContext #-}
-runActionWithNewContext :: forall application controller. (Controller controller, ?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
+runActionWithNewContext :: forall application controller. (Controller controller, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
     contextOrResponse <- newContextForAction controller
     case contextOrResponse of
         Left response -> response
         Right context -> do
-            let ?modelContext = ?applicationContext.modelContext
+            let ?modelContext = requestModelContext ?context.request
             let ?requestContext = ?context
             let ?context = context
             runAction controller
@@ -139,10 +138,10 @@ prepareRLSIfNeeded modelContext = do
         Nothing -> pure modelContext
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp :: forall webSocketApp application. (?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
 startWebSocketApp initialState onHTTP request respond = do
-    let ?modelContext = ?applicationContext.modelContext
-    requestContext <- createRequestContext ?applicationContext request respond
+    let ?modelContext = requestModelContext ?context.request
+    requestContext <- createRequestContext request respond
     let ?requestContext = requestContext
 
     let handleConnection pendingConnection = do
@@ -166,7 +165,7 @@ startWebSocketApp initialState onHTTP request respond = do
             Just response -> respond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?applicationContext :: ApplicationContext, ?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?context :: RequestContext, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
     where
         respond = ?context.respond
@@ -245,8 +244,9 @@ requestBodyJSON =
         _ -> error "Expected JSON body"
 
 {-# INLINE createRequestContext #-}
-createRequestContext :: ApplicationContext -> Request -> Respond -> IO RequestContext
-createRequestContext ApplicationContext { frameworkConfig } request respond = do
+createRequestContext :: Request -> Respond -> IO RequestContext
+createRequestContext request respond = do
+    let frameworkConfig = requestFrameworkConfig request
     let contentType = lookup hContentType (requestHeaders request)
     requestBody <- case contentType of
         "application/json" -> do

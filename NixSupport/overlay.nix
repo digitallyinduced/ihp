@@ -22,6 +22,8 @@ final: prev: {
             ihp-sitemap = localPackage"ihp-sitemap";
             ihp-datasync = localPackage "ihp-datasync";
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
+            wai-asset-path = localPackage "wai-asset-path";
+            wai-flash-messages = localPackage "wai-flash-messages";
 
             # ihp-pro
             ihp-stripe = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-stripe.nix" {};

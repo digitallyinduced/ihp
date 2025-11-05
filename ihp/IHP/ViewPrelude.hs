@@ -25,7 +25,7 @@ module IHP.ViewPrelude (
     module Data.Aeson,
     module IHP.AutoRefresh.View,
     module IHP.View.Classes,
-    module IHP.FlashMessages.ViewFunctions,
+    module IHP.FlashMessages,
     module IHP.Controller.Context,
     module IHP.Controller.Layout,
     module IHP.Modal.Types,
@@ -33,7 +33,6 @@ module IHP.ViewPrelude (
     module IHP.Job.Types,
     module IHP.LoginSupport.Helper.View,
     module IHP.PageHead.ViewFunctions,
-    module IHP.Assets.ViewFunctions,
     module IHP.Breadcrumb.ViewFunctions,
     module IHP.Pagination.ViewFunctions,
 ) where
@@ -55,7 +54,7 @@ import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
 import IHP.AutoRefresh.View
 import IHP.View.Types
 import IHP.View.Classes
-import IHP.FlashMessages.ViewFunctions
+import IHP.FlashMessages
 import IHP.Controller.Context
 import IHP.Controller.Layout
 
@@ -66,6 +65,5 @@ import IHP.Job.Types
 import IHP.LoginSupport.Helper.View
 import IHP.PageHead.ViewFunctions
 
-import IHP.Assets.ViewFunctions
 import IHP.Breadcrumb.ViewFunctions
 import IHP.Pagination.ViewFunctions
