@@ -40,10 +40,6 @@ data-files:
     , static/vendor/src-min/snippets/*.js
 extra-source-files: CHANGELOG.md
 
-Flag FastBuild
-    Default: False
-    Description: Disables all optimisations, leads to faster build time
-
 common shared-properties
     default-language: GHC2021
     build-depends:
@@ -158,30 +154,6 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    if flag(FastBuild)
-        ghc-options:
-            -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-            -Wno-ambiguous-fields
-    else
-        ghc-options:
-            -fstatic-argument-transformation
-            -funbox-strict-fields
-            -haddock
-            +RTS -A256m -n4m -H512m -qg -N -RTS
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-            -Wno-ambiguous-fields
 
 library
     import: shared-properties
