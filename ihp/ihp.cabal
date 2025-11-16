@@ -137,6 +137,7 @@ common shared-properties
             , wai-asset-path
             , wai-flash-messages
             , slugger
+            , ihp-imagemagick
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -262,7 +263,6 @@ library
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
-        , IHP.FileStorage.Preprocessor.ImageMagick
         , IHP.Pagination.ControllerFunctions
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types

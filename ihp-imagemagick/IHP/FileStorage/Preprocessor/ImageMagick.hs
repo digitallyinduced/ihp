@@ -7,8 +7,10 @@ module IHP.FileStorage.Preprocessor.ImageMagick
 ( applyImageMagick
 ) where
 
-import IHP.Prelude
+import Prelude
 
+import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Network.Wai.Parse as Wai
 import qualified Data.ByteString.Lazy as LBS
 import qualified System.IO.Temp as Temp
@@ -48,15 +50,13 @@ import qualified System.Process as Process
 -- >             company <- company |> updateRecord
 -- >             redirectTo EditCompanyAction { .. }
 --
-applyImageMagick :: Text -> [String] -> Wai.FileInfo LByteString -> IO (Wai.FileInfo LByteString)
+applyImageMagick :: Text -> [String] -> Wai.FileInfo LBS.LazyByteString -> IO (Wai.FileInfo LBS.LazyByteString)
 applyImageMagick convertTo otherParams fileInfo = do
     Temp.withTempDirectory "/tmp" "ihp-upload" $ \tempPath -> do
         let tempFilePath = tempPath <> "/image"
-        let convertedFilePath = tempPath <> "/converted." <> cs convertTo
+        let convertedFilePath = tempPath <> "/converted." <> Text.unpack convertTo
 
-        fileInfo
-            |> (.fileContent)
-            |> LBS.writeFile tempFilePath
+        LBS.writeFile tempFilePath fileInfo.fileContent
 
         let params :: [String] = [tempFilePath] <> otherParams <> [convertedFilePath]
         Process.callProcess "magick" params

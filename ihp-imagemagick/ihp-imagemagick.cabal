@@ -1,0 +1,44 @@
+cabal-version:       2.2
+name:                ihp-imagemagick
+version:             1.4.0
+synopsis:            ImageMagick preprocessing for IHP file uploads
+description:         Preprocess uploaded images with ImageMagick in IHP apps
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Web
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+common ihp-std
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+
+library
+    import: ihp-std
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , text
+        , bytestring
+        , wai-extra
+        , process
+        , temporary
+    hs-source-dirs: .
+    exposed-modules: IHP.FileStorage.Preprocessor.ImageMagick
