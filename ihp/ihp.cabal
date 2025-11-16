@@ -280,7 +280,8 @@ test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
-    hs-source-dirs: .
+    hs-source-dirs: Test
+    build-depends: ihp 
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
