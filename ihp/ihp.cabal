@@ -136,6 +136,7 @@ common shared-properties
             , stm
             , wai-asset-path
             , wai-flash-messages
+            , slugger
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

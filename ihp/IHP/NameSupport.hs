@@ -33,6 +33,7 @@ import Control.Monad (join)
 import qualified Text.Inflections
 import qualified Data.Text as Text
 import Text.Countable (singularize, pluralize)
+import qualified Data.Text.Slugger
 
 -- | Transforms a underscore table name to a camel case model name.
 --
@@ -245,17 +246,7 @@ haskellKeywords = [ "_"
 -- >>> toSlug "Hallo! @ Welt"
 -- "hallo-welt"
 toSlug :: Text -> Text
-toSlug text =
-        text
-        |> Text.toLower
-        |> Text.map replaceChar
-        |> Text.words
-        |> Text.intercalate "-"
-    where
-        replaceChar 'ä' = 'a'
-        replaceChar 'ö' = 'o'
-        replaceChar 'ü' = 'u'
-        replaceChar char = if Char.isAlphaNum char && Char.isAscii char then char else ' '
+toSlug text = Data.Text.Slugger.toSlug text
 
 
 -- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
