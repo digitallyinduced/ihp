@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK not-home, hide #-}
 module IHP.Prelude
 ( module CorePrelude
 , module Data.Text.IO

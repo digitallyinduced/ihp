@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK not-home, hide #-}
 {-|
 Module: IHP.MailPrelude
 Description: Prelude for email views

@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK not-home, hide #-}
 module IHP.ControllerPrelude
     ( module IHP.Prelude
     , module IHP.ControllerSupport
