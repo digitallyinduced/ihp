@@ -73,7 +73,7 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
-    approotMiddleware <- Approot.envFallback
+    approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
     
     staticApp <- initStaticApp
 
