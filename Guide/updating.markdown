@@ -6,11 +6,13 @@
 
 ## Releases
 
-During the beta releases, there is a new release every two weeks on Friday. [You can find a list of all releases on GitHub.](https://github.com/digitallyinduced/ihp/releases).
+[You can find a list of all releases on GitHub.](https://github.com/digitallyinduced/ihp/releases).
 
-A new version is usually announced first via the [IHP Newsletter](http://eepurl.com/g51zq1) and also on Twitter.
+A new version is usually announced first via the [IHP Newsletter](http://eepurl.com/g51zq1) and also on X.
 
-IHP version numbers are assigned by the release date. For example, the version `v10072020` stands for the release of the `10.07.2020`.
+## Upgrade Instructions
+
+[See UPGRADE.md](https://github.com/digitallyinduced/ihp/blob/master/UPGRADE.md) for intructions on how to upgrade your IHP project to a newer version of IHP.
 
 ## Updating to the Latest Release
 
@@ -18,61 +20,58 @@ To update to the current IHP version, follow the instructions [in the release no
 
 ## Updating to the Latest Git Commit
 
-To test out the latest IHP features even when they are not released yet you can update to the latest IHP git commit. For that, you need [to copy the git commit hash from the latest commit on GitHub](https://github.com/digitallyinduced/ihp/commits/master).
+To test out the latest IHP features even when they are not released yet you can update to the latest IHP git commit:
 
-After that open the `default.nix` in your project folder. This will look like this:
+Open `flake.nix`. It should look like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "720a10ddfd500d5930c926c293aea5a9016acb29";
-    };
-
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/v1.4";
 ...
 ```
 
-Now change the git commit hash in line 4 next to `rev = ` to your chosen git commit hash.
+Now drop the `/v1.4` from the `ihp.url = "github:digitallyinduced/ihp/v1.4";` such that the file looks like this:
+```nix
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp";
+...
+```
+
+This will fetch the latest master branch from IHP.
 
 Then rebuild everything by running the following:
 
 ```bash
-devenv up
+direnv allow
 ```
-
-When the commit you're trying out is not merged into the master branch this will fail because nix is doing only a shallow-clone of the repo. Follow the steps in "Updating to a specific Git Commit" below to fix this.
 
 ## Updating to a specific Git Commit
 
 When the commit you're trying out is not yet merged into the master branch, follow these steps.
 
-Open the `default.nix` in your project folder. This will look like this:
+Open the `flake.nix` in your project folder. This will look like this:
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "720a10ddfd500d5930c926c293aea5a9016acb29";
-    };
-
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/v1.4";
 ...
 ```
 
-Now change the git commit hash in line 4 next to `rev = ` to your chosen git commit hash. Also add a `ref = "*"` otherwise nix will only shallow-clone the master branch:
+Now change the `/v1.4` to your chosen git commit hash:
+
 
 ```nix
-let
-    ihp = builtins.fetchGit {
-        url = "https://github.com/digitallyinduced/ihp.git";
-        rev = "... my new commit hash ...";
-        ref = "*";
-    };
-
+{
+    inputs = {
+        ihp.url = "github:digitallyinduced/ihp/ff63977c178a39d4e22dae82d6f3d8ba1647039e";
 ...
 ```
 
 Then rebuild everything by running the following:
 
 ```bash
-devenv up
+direnv allow
 ```
