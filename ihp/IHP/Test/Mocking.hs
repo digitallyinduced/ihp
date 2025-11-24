@@ -22,7 +22,7 @@ import           IHP.Controller.RequestContext             (RequestBody (..), Re
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext)
+import           IHP.ModelSupport                          (createModelContext, Id')
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
