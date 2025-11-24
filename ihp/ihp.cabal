@@ -20,6 +20,7 @@ data-files:
       static/*.css
     , static/*.js
     , static/*.svg
+    , IHPSchema.sql
     
     , static/vendor/*.min.css
     , static/vendor/*.min.css.map

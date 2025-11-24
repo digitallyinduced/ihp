@@ -10,16 +10,19 @@ import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
 import qualified Network.HTTP.Types.Status                 as HTTP
+import qualified Database.PostgreSQL.Simple as PG
+import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Data.UUID.V4 as UUID
+import qualified Data.UUID as UUID
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
-import qualified IHP.AutoRefresh.Types                     as AutoRefresh
 import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, Id')
+import           IHP.ModelSupport                          (createModelContext)
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
@@ -29,10 +32,12 @@ import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
-import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
+import qualified Control.Exception as Exception
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
+import qualified System.Process as Process
+import Paths_ihp (getDataFileName)
 
 type ContextParameters application = (?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -42,10 +47,31 @@ data MockContext application = InitControllerContext application => MockContext
     , application :: application
     }
 
+-- | Create contexts that can be used for mocking. Sets up a temporary database,
+-- imports IHPSchema.sql and Application/Schema.sql, and passes a MockContext to the callback.
+withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
+withIHPApp application configBuilder hspecAction = do
+    FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
+        let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime, databaseUrl } = frameworkConfig
+
+        logger <- newLogger def { level = Warn } -- don't log queries
+
+        withTestDatabase databaseUrl \testDatabaseUrl -> do
+            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
+
+            let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+
+            let requestContext = RequestContext
+                 { request = defaultRequest {vault = sessionVault}
+                 , requestBody = FormBody [] []
+                 , respond = const (pure ResponseReceived)
+                 , frameworkConfig = frameworkConfig }
+
+            hspecAction MockContext { .. }
+
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   let databaseConnection = undefined
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
@@ -197,6 +223,49 @@ withUser user callback =
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)
+
+withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
+
+withTestDatabase masterDatabaseUrl callback = do
+    testDatabaseName <- randomDatabaseName
+
+    withConnection masterDatabaseUrl \masterConnection ->
+        Exception.bracket_
+            (PG.execute masterConnection "CREATE DATABASE ?" [PG.Identifier testDatabaseName])
+            (
+                -- The WITH FORCE is required to force close open connections
+                -- Otherwise the DROP DATABASE takes a few seconds to execute
+                PG.execute masterConnection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier testDatabaseName]
+            )
+            (do
+                importSchema (testDatabaseUrl masterDatabaseUrl testDatabaseName)
+                callback (testDatabaseUrl masterDatabaseUrl testDatabaseName)
+            )
+
+testDatabaseUrl :: ByteString -> Text -> ByteString
+testDatabaseUrl masterDatabaseUrl testDatabaseName =
+    masterDatabaseUrl
+        |> cs
+        |> Text.replace "postgresql:///app" ("postgresql:///" <> testDatabaseName)
+        |> cs
+
+randomDatabaseName :: IO Text
+randomDatabaseName = do
+    databaseId <- UUID.nextRandom
+    pure ("test-" <> UUID.toText databaseId)
+
+importSchema :: ByteString -> IO ()
+importSchema databaseUrl = do
+    -- We use the system psql to handle the initial Schema Import as it can handle
+    -- complex Schema including variations in formatting, custom types, functions, and table definitions.
+    let importSql file = Process.callCommand ("psql " <> (cs databaseUrl) <> " < " <> file)
+
+    ihpSchemaSql <- findIHPSchemaSql
+    importSql ihpSchemaSql
+    importSql "Application/Schema.sql"
+
+findIHPSchemaSql :: IO FilePath
+findIHPSchemaSql = getDataFileName "IHPSchema.sql"
 
 -- | Turns a record id into a value that can be used with 'callActionWithParams'
 --
