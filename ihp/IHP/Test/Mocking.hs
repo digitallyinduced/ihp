@@ -26,12 +26,14 @@ import           IHP.ModelSupport                          (createModelContext, 
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
+import qualified IHP.RequestVault                          as RequestVault
 import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
+import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
 import qualified Control.Exception as Exception
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -58,11 +60,17 @@ withIHPApp application configBuilder hspecAction = do
 
         withTestDatabase databaseUrl \testDatabaseUrl -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
+            pgListener <- PGListener.init modelContext
 
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+            let vaultWithContext =
+                    sessionVault
+                        |> Vault.insert RequestVault.modelContextVaultKey modelContext
+                        |> Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
+                        |> Vault.insert RequestVault.pgListenerVaultKey pgListener
 
             let requestContext = RequestContext
-                 { request = defaultRequest {vault = sessionVault}
+                 { request = defaultRequest {vault = vaultWithContext}
                  , requestBody = FormBody [] []
                  , respond = const (pure ResponseReceived)
                  , frameworkConfig = frameworkConfig }
@@ -74,11 +82,17 @@ mockContextNoDatabase application configBuilder = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+   pgListener <- PGListener.init modelContext
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+   let vaultWithContext =
+           sessionVault
+               |> Vault.insert RequestVault.modelContextVaultKey modelContext
+               |> Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
+               |> Vault.insert RequestVault.pgListenerVaultKey pgListener
 
    let requestContext = RequestContext
-         { request = defaultRequest {vault = sessionVault}
+         { request = defaultRequest {vault = vaultWithContext}
          , requestBody = FormBody [] []
          , respond = \resp -> pure ResponseReceived
          , frameworkConfig = frameworkConfig }
