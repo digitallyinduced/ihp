@@ -29,4 +29,4 @@ library
         RecordWildCards
     build-depends: base >= 4.17.0 && < 4.22, ihp, wai, process, text, ihp-ide, vault, uuid, postgresql-simple
     hs-source-dirs: .
-    exposed-modules: IHP.Test.Database
+    exposed-modules: IHP.Hspec

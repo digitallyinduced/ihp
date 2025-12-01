@@ -1,4 +1,4 @@
-module IHP.Test.Database (withIHPApp) where
+module IHP.Hspec (withIHPApp) where
 
 import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG

@@ -62,7 +62,7 @@ import Web.Controller.Posts ()
 import Web.FrontController ()
 import Network.Wai
 import IHP.ControllerPrelude
-import IHP.Test.Database (withIHPApp)
+import IHP.Hspec (withIHPApp)
 
 tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
@@ -281,7 +281,7 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Client
 import qualified Network.Wreq as Wreq
 import Control.Lens ((^.))
-import IHP.Test.Database (withIHPApp)
+import IHP.Hspec (withIHPApp)
 
 
 tests :: Spec
