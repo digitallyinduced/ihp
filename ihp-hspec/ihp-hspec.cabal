@@ -7,7 +7,7 @@ license:             MIT
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
-category:            Database
+category:            Testing
 build-type:          Simple
 
 library
