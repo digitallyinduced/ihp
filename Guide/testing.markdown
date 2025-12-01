@@ -10,13 +10,15 @@ This section provides some guidelines for testing your IHP applications. It is h
 
 The following setup and tests can be viewed in the [Blog example](https://github.com/digitallyinduced/ihp-blog-example-app).
 
-1. Add `hspec` in `flake.nix`
+1. Add `hspec` and `ihp-hspec` in `flake.nix`
 ```nix
         haskellPackages = p: with p; [
             cabal-install
             # ...
             p.ihp
+            
             hspec
+            ihp-hspec
         ];
 ```
 2. Rebuild environment with `devenv up`
@@ -60,6 +62,7 @@ import Web.Controller.Posts ()
 import Web.FrontController ()
 import Network.Wai
 import IHP.ControllerPrelude
+import IHP.Test.Database (withIHPApp)
 
 tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
@@ -278,6 +281,7 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Client
 import qualified Network.Wreq as Wreq
 import Control.Lens ((^.))
+import IHP.Test.Database (withIHPApp)
 
 
 tests :: Spec
