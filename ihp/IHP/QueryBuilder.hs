@@ -36,6 +36,7 @@ module IHP.QueryBuilder
 , filterWhereMatches
 , filterWhereIMatches
 , filterWhereJoinedTable
+, filterWhereCaseInsensitiveJoinedTable
 , filterWhereNotJoinedTable
 , filterWhereInJoinedTable
 , filterWhereNotInJoinedTable
@@ -512,6 +513,23 @@ filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder F
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereJoinedTable #-}
+
+-- | Like 'filterWhereJoinedTable', but adds a @WHERE LOWER(x) = LOWER(y)@ condition to the query. Example: 
+--
+-- __Example:__ get posts by user Tom, ignoring case.
+--
+-- > tomPosts <- query @Post
+-- >                    |> innerJoin @User (#createdBy, #id)
+-- >                    |> filterWhereCaseInsensitiveJoinedTable @User (#name, "Tom" :: Text)
+-- >                    |> fetch
+-- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE LOWER(users.name) = LOWER('Tom')
+--
+filterWhereCaseInsensitiveJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereCaseInsensitiveJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value), applyLeft = Just "LOWER", applyRight = Just "LOWER" }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereCaseInsensitiveJoinedTable #-}
 
 -- | Like 'filterWhere' but negates the condition.
 --
