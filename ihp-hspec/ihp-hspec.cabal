@@ -1,0 +1,32 @@
+cabal-version:       2.2
+name:                ihp-hspec
+version:             1.4.0
+synopsis:            Test helpers for IHP apps
+description:         Provides the withIHPApp function for hspec tests
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Testing
+build-type:          Simple
+
+library
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+        RecordWildCards
+    build-depends: base >= 4.17.0 && < 4.22, ihp, wai, process, text, ihp-ide, vault, uuid, postgresql-simple
+    hs-source-dirs: .
+    exposed-modules: IHP.Hspec
