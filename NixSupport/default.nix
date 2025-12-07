@@ -54,7 +54,80 @@ let
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
 
-    binaries =
+    appSrc = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
+
+    scriptDir = projectPath + "/Application/Script";
+
+    scriptNames =
+        if builtins.pathExists scriptDir
+        then
+            let
+                entries = builtins.readDir scriptDir;
+                names = builtins.attrNames entries;
+                hsFiles =
+                    builtins.filter
+                        (n:
+                            entries.${n} == "regular"
+                            && pkgs.lib.hasSuffix ".hs" n
+                            && n != "Prelude.hs"
+                        )
+                        names;
+            in
+                map (n: pkgs.lib.removeSuffix ".hs" n) hsFiles
+        else
+            [];
+
+
+    mkScript =
+        scriptName:
+            pkgs.stdenv.mkDerivation {
+                name = "${appName}-script-${scriptName}";
+                src = appSrc;
+
+                buildInputs = [ allHaskellPackages ];
+                nativeBuildInputs = [ pkgs.gnumake schemaObjectFiles ];
+
+                buildPhase = ''
+                    mkdir -p build/bin build/Generated build/RunProdServer
+                    cp -r ${schemaObjectFiles}/RunProdServer build/
+                    cp -r ${schemaObjectFiles}/Generated build/
+                    chmod -R +w build/RunProdServer build/Generated || true
+
+                    export IHP_LIB=${ihp-env-var-backwards-compat}
+                    export IHP=${ihp-env-var-backwards-compat}
+
+                    mkdir -p build/Script/Main
+                    cat > build/Script/Main/${scriptName}.hs <<'EOF'
+                    module Main (main) where
+                    import IHP.ScriptSupport
+                    import qualified Config
+                    import Application.Script.${scriptName} (run)
+                    main = runScript Config.config run
+                    EOF
+
+                    mkdir -p build/RunScript/${scriptName}
+
+                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                        $(make print-ghc-options) \
+                        ${if optimized then prodGhcOptions else ""} \
+                        build/Script/Main/${scriptName}.hs \
+                        -o build/bin/${scriptName} \
+                        -odir build/RunScript/${scriptName} \
+                        -hidir build/RunScript/${scriptName}
+                '';
+
+                installPhase = ''
+                    mkdir -p $out/bin
+                    mv build/bin/${scriptName} $out/bin/${scriptName}
+                '';
+
+                disallowedReferences = [ ihp ];
+            };
+
+    scriptPackages = map mkScript scriptNames;
+    allScripts = pkgs.symlinkJoin { name = "${appName}-scripts"; paths = scriptPackages; };
+
+    serverAndJobBinaries =
         pkgs.stdenv.mkDerivation {
             name = appName + "-binaries";
             buildPhase = ''
@@ -84,20 +157,6 @@ let
                     echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> build/RunJobs.hs
                     ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
                 fi;
-
-                # Build all scripts if there are any
-                mkdir -p Application/Script
-                SCRIPT_TARGETS=`find Application/Script -type f -iwholename '*.hs' -not -name 'Prelude.hs' -exec basename {} .hs ';' | sed 's#^#build/bin/Script/#' | tr "\n" " "`
-                if [[ ! -z "$SCRIPT_TARGETS" ]]; then
-                    # Need to use -j1 here to avoid race conditions of temp files created by GHC.
-                    #
-                    # These errors look like:
-                    #
-                    #   <no location info>: error:
-                    #   build/RunUnoptimizedProdServer/Application/Script/Prelude.o.tmp: renameFile:renamePath:rename: does not exist (No such file or directory)
-                    #
-                    make -j1 $SCRIPT_TARGETS;
-                fi;
             '';
             installPhase = ''
                 mkdir -p "$out"
@@ -109,20 +168,18 @@ let
                 if [ -f build/bin/RunJobs ]; then
                     mv build/bin/RunJobs $out/bin/RunJobs;
                 fi;
-
-                # Copy IHP Script binaries to bin/
-                mkdir -p build/bin/Script
-                find build/bin/Script/ -type f -print0 |
-                    while read -d $'\0' script; do
-                        script_basename=$(basename "$script")
-                        mv "build/bin/Script/$script_basename" "$out/bin/$script_basename";
-                    done
             '';
-            src = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
+            src = appSrc;
             buildInputs = [allHaskellPackages];
             nativeBuildInputs = [schemaObjectFiles];
             enableParallelBuilding = true;
             disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
+        };
+
+    binaries =
+        pkgs.symlinkJoin {
+            name = "${appName}-binaries";
+            paths = [ serverAndJobBinaries allScripts ];
         };
 in
     pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
@@ -142,7 +199,7 @@ in
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
-            find ${binaries}/bin/ -type f -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
+            find ${binaries}/bin/ -type l -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
                 while read -d $'\0' binary; do
                     binary_basename=$(basename "$binary")
                     cp "$binary" "$out/bin/$binary_basename";
