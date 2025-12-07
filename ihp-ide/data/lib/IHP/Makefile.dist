@@ -118,13 +118,6 @@ build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Full production build with all ghc optimizations (takes a while)
-	mkdir -p build/RunOptimizedProdServer
-	ghc -O${OPTIMIZATION_LEVEL} ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
-	chmod +x $<
-	rm -f build/bin/RunProdServer
-	ln -s `basename $@` build/bin/RunProdServer
-
 clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
