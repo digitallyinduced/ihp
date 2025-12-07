@@ -118,13 +118,13 @@ build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Deprecated: Use 'nix build .#unoptimized-prod-server' instead
+build/bin/RunUnoptimizedProdServer: ## Deprecated: Use 'nix build .#unoptimized-prod-server' instead
 	@echo "WARNING: This target is deprecated and may not work correctly."
 	@echo "Please use 'nix build .#unoptimized-prod-server' instead."
 	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
 	@exit 1
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Deprecated: Use 'nix build .#optimized-prod-server' instead
+build/bin/RunOptimizedProdServer: ## Deprecated: Use 'nix build .#optimized-prod-server' instead
 	@echo "WARNING: This target is deprecated and may not work correctly."
 	@echo "Please use 'nix build .#optimized-prod-server' instead."
 	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
@@ -150,7 +150,7 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-build/bin/Script/%: build/Script/Main/%.hs ## Deprecated: Use 'nix build' instead
+build/bin/Script/%: ## Deprecated: Use 'nix build' instead
 	@echo "WARNING: This target is deprecated and may not work correctly."
 	@echo "Please use 'nix build .#optimized-prod-server' or 'nix build .#unoptimized-prod-server' instead."
 	@echo "Script binaries will be available in result/bin/"
@@ -165,14 +165,14 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
-build/bin/RunJobs: build/RunJobs.hs ## Deprecated: Use 'nix build' instead
+build/bin/RunJobs: ## Deprecated: Use 'nix build' instead
 	@echo "WARNING: This target is deprecated and may not work correctly."
 	@echo "Please use 'nix build .#optimized-prod-server' or 'nix build .#unoptimized-prod-server' instead."
 	@echo "The RunJobs binary will be available in result/bin/RunJobs"
 	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
 	@exit 1
 
-build/bin/RunJobsOptimized: build/RunJobs.hs ## Deprecated: Use 'nix build .#optimized-prod-server' instead
+build/bin/RunJobsOptimized: ## Deprecated: Use 'nix build .#optimized-prod-server' instead
 	@echo "WARNING: This target is deprecated and may not work correctly."
 	@echo "Please use 'nix build .#optimized-prod-server' instead."
 	@echo "The RunJobs binary will be available in result/bin/RunJobs"
