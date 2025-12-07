@@ -118,19 +118,17 @@ build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated
 	build-generated-code
 
-build/bin/RunUnoptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Quickly does a production build (all compiler optimizations disabled)
-	mkdir -p build/RunUnoptimizedProdServer
-	ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer
-	chmod +x $<
-	rm -f build/bin/RunProdServer
-	ln -s `basename $@` build/bin/RunProdServer
+build/bin/RunUnoptimizedProdServer: ## Deprecated: Use 'nix build .#unoptimized-prod-server' instead
+	@echo "WARNING: This target is deprecated and may not work correctly."
+	@echo "Please use 'nix build .#unoptimized-prod-server' instead."
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1
 
-build/bin/RunOptimizedProdServer: Main.hs build/bin static/prod.js static/prod.css build/Generated/Types.hs ## Full production build with all ghc optimizations (takes a while)
-	mkdir -p build/RunOptimizedProdServer
-	ghc -O${OPTIMIZATION_LEVEL} ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer
-	chmod +x $<
-	rm -f build/bin/RunProdServer
-	ln -s `basename $@` build/bin/RunProdServer
+build/bin/RunOptimizedProdServer: ## Deprecated: Use 'nix build .#optimized-prod-server' instead
+	@echo "WARNING: This target is deprecated and may not work correctly."
+	@echo "Please use 'nix build .#optimized-prod-server' instead."
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1
 
 clean: ## Resets all build and temporary files
 	rm -rf build/bin
@@ -152,15 +150,12 @@ print-ghc-extensions: ## Prints all used ghc extensions. Useful for scripting
 help: ## This help page
 	@grep -h -E '^[a-zA-Z_///-\.]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-build/bin/Script/%: build/Script/Main/%.hs
-	mkdir -p build/bin/Script
-	# If RunOptimizedProdServer is compiled, likely we have object files with O2 in the build directory, so we're making an optimized script
-	# Otherwise we're doing a unoptimized compile as it's much faster
-	if [[ -f "build/bin/RunOptimizedProdServer" ]]; then \
-		ghc -O${OPTIMIZATION_LEVEL} ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer; \
-	else \
-		ghc -O0 ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer; \
-	fi
+build/bin/Script/%: ## Deprecated: Use 'nix build' instead
+	@echo "WARNING: This target is deprecated and may not work correctly."
+	@echo "Please use 'nix build .#optimized-prod-server' or 'nix build .#unoptimized-prod-server' instead."
+	@echo "Script binaries will be available in result/bin/"
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1
 
 build/Script/Main/%.hs: Application/Script/%.hs
 	mkdir -p build/Script/Main
@@ -170,15 +165,19 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
-build/bin/RunJobs: build/RunJobs.hs ## Builds an unoptimized binary for running the job workers
-	mkdir -p build/bin
-	ghc -O0 -main-is 'RunJobs.main' ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer # We use object files by build/bin/RunUnoptimizedProdServer here to speed up compilation during deployments
+build/bin/RunJobs: ## Deprecated: Use 'nix build' instead
+	@echo "WARNING: This target is deprecated and may not work correctly."
+	@echo "Please use 'nix build .#optimized-prod-server' or 'nix build .#unoptimized-prod-server' instead."
+	@echo "The RunJobs binary will be available in result/bin/RunJobs"
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1
 
-build/bin/RunJobsOptimized: build/RunJobs.hs ## Builds an optimized binary for running the job workers, symlinks it to build/bin/RunJobs
-	mkdir -p build/bin
-	ghc -O${OPTIMIZATION_LEVEL} -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer # We use object files by build/bin/RunOptimizedProdServer here to speed up compilation during deployments
-	rm -f build/bin/RunJobs
-	ln -s `basename $@` build/bin/RunJobs
+build/bin/RunJobsOptimized: ## Deprecated: Use 'nix build .#optimized-prod-server' instead
+	@echo "WARNING: This target is deprecated and may not work correctly."
+	@echo "Please use 'nix build .#optimized-prod-server' instead."
+	@echo "The RunJobs binary will be available in result/bin/RunJobs"
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1
 
 build/RunJobs.hs: build/Generated/Types.hs
 	echo "module RunJobs (main) where" > $@
@@ -197,5 +196,9 @@ ghci:
 # https://github.com/digitallyinduced/ihp/issues/776
 console: ghci ## Start IHP console, alias for 'make ghci'
 
-prepare-optimized-nix-build: ## Sets the 'enabled = true' flags in default.nix, so that a 'nix-build' makes optimized binaries
-	sed -i '' 's/haskellDeps/optimized = true;\n        haskellDeps/g' default.nix
+prepare-optimized-nix-build: ## Deprecated: Use 'nix build .#optimized-prod-server' instead
+	@echo "WARNING: This target is deprecated and no longer needed."
+	@echo "Please use 'nix build .#optimized-prod-server' for optimized builds."
+	@echo "Or use 'nix build .#unoptimized-prod-server' for faster, unoptimized builds."
+	@echo "See https://ihp.digitallyinduced.com/Guide/deployment.html for more information."
+	@exit 1

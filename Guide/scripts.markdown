@@ -162,10 +162,20 @@ IHP> runScript appConfig run
 
 ## Building a script
 
-In production, you might want to build a script to a binary for performance reasons. Use make like this:
+In production, you might want to build a script to a binary for performance reasons. Use nix build like this:
 
 ```bash
-make build/bin/Script/HelloWorldToAllUsers
+# Build all scripts along with the application
+nix build .#optimized-prod-server
+
+# Or for faster, unoptimized builds
+nix build .#unoptimized-prod-server
 ```
 
-This will produce a binary `build/bin/Script/HelloWorldToAllUsers` from the source file `Application/Script/HelloWorldToAllUsers.hs`.
+This will produce binaries in the `result/bin/` directory. For example, a script at `Application/Script/HelloWorldToAllUsers.hs` will produce a binary at `result/bin/HelloWorldToAllUsers`.
+
+You can then run the script with:
+
+```bash
+result/bin/HelloWorldToAllUsers
+```
