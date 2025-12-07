@@ -178,10 +178,10 @@ Build this script into a binary by running `nix build .#optimized-prod-server` o
 We can then create a cron entry such as:
 
 ```
-0 5 * * *  root bin/Script/RunEmailCustomersJob
+0 5 * * *  root /path/to/your/app/result/bin/RunEmailCustomersJob
 ```
 
-to schedule a job to be run every day at 5am. See [this article by DigitalOcean](https://www.digitalocean.com/community/tutorials/how-to-use-cron-to-automate-tasks-ubuntu-1804) for more information on `cron`.
+to schedule a job to be run every day at 5am. Make sure to use the full path to the binary in your cron entry. See [this article by DigitalOcean](https://www.digitalocean.com/community/tutorials/how-to-use-cron-to-automate-tasks-ubuntu-1804) for more information on `cron`.
 
 
 ## Jobs Dashboard
