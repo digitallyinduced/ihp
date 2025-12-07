@@ -77,7 +77,7 @@ instance Worker RootApplication where
 
 #### Development vs. Production
 
-In development mode, these watchers are started with the dev server. In production however, use `make build/bin/RunJobs` to build a binary that you can deploy along side your IHP app to watch for added jobs and run them.
+In development mode, these watchers are started with the dev server. In production however, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. You can deploy this binary (found at `result/bin/RunJobs`) alongside your IHP app to watch for added jobs and run them.
 
 ### Viewing job status
 
@@ -173,7 +173,7 @@ run = do
   pure ()
 ```
 
-Build this script into a binary with `make build/bin/Script/RunEmailCustomersJob` as described in the [scripts documentation](/Guide/scripts.html).
+Build this script into a binary by running `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. The script binary will be available at `result/bin/RunEmailCustomersJob`. See the [scripts documentation](/Guide/scripts.html) for more details.
 
 We can then create a cron entry such as:
 
