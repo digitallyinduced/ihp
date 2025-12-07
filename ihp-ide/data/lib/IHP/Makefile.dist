@@ -156,26 +156,6 @@ build/Script/Main/%.hs: Application/Script/%.hs
 	echo "import Application.Script.$* (run)" >> $@
 	echo "main = runScript Config.config run" >> $@
 
-build/bin/RunJobs: build/RunJobs.hs ## Builds an unoptimized binary for running the job workers
-	mkdir -p build/bin
-	ghc -O0 -main-is 'RunJobs.main' ${GHC_OPTIONS} $< -o $@ -odir build/RunUnoptimizedProdServer -hidir build/RunUnoptimizedProdServer # We use object files by build/bin/RunUnoptimizedProdServer here to speed up compilation during deployments
-
-build/bin/RunJobsOptimized: build/RunJobs.hs ## Builds an optimized binary for running the job workers, symlinks it to build/bin/RunJobs
-	mkdir -p build/bin
-	ghc -O${OPTIMIZATION_LEVEL} -main-is 'RunJobs.main' ${GHC_OPTIONS} ${PROD_GHC_OPTIONS} $< -o $@ -odir build/RunOptimizedProdServer -hidir build/RunOptimizedProdServer # We use object files by build/bin/RunOptimizedProdServer here to speed up compilation during deployments
-	rm -f build/bin/RunJobs
-	ln -s `basename $@` build/bin/RunJobs
-
-build/RunJobs.hs: build/Generated/Types.hs
-	echo "module RunJobs (main) where" > $@
-	echo "import Application.Script.Prelude" >> $@
-	echo "import IHP.ScriptSupport" >> $@
-	echo "import IHP.Job.Runner" >> $@
-	echo "import qualified Config" >> $@
-	echo "import Main ()" >> $@
-	echo "main :: IO ()" >> $@
-	echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> $@
-
 # https://github.com/digitallyinduced/ihp/issues/130
 ghci:
 	ghci -package-env -
