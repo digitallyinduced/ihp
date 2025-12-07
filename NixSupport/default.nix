@@ -127,7 +127,77 @@ let
     scriptPackages = map mkScript scriptNames;
     allScripts = pkgs.symlinkJoin { name = "${appName}-scripts"; paths = scriptPackages; };
 
-    serverAndJobBinaries =
+    hasJobs =
+        let
+            isHsFile = entries: name:
+                entries.${name} == "regular" && pkgs.lib.hasSuffix ".hs" name;
+
+            anyJobHsIn =
+                dir:
+                    let
+                        entries = builtins.readDir dir;
+                        names = builtins.attrNames entries;
+
+                        subdirs =
+                            builtins.filter (n: entries.${n} == "directory") names;
+
+                        hereIsJobDir = pkgs.lib.toLower (builtins.baseNameOf (toString dir)) == "job";
+
+                        hasHsHere =
+                            hereIsJobDir && builtins.any (isHsFile entries) names;
+
+                        hasHsBelow =
+                            builtins.any (n: anyJobHsIn (dir + "/${n}")) subdirs;
+                    in
+                        hasHsHere || hasHsBelow;
+        in
+            anyJobHsIn appSrc;
+
+    runJobs =
+        pkgs.stdenv.mkDerivation {
+            name = "${appName}-run-jobs";
+            src = appSrc;
+
+            buildInputs = [ allHaskellPackages ];
+            nativeBuildInputs = [ pkgs.gnumake schemaObjectFiles ];
+
+            buildPhase = ''
+                mkdir -p build/Generated build/RunProdServer build/bin
+                cp -r ${schemaObjectFiles}/RunProdServer build/
+                cp -r ${schemaObjectFiles}/Generated build/
+                chmod -R +w build/RunProdServer build/Generated || true
+
+                export IHP_LIB=${ihp-env-var-backwards-compat}
+                export IHP=${ihp-env-var-backwards-compat}
+
+                cat > build/RunJobs.hs <<'EOF'
+                module RunJobs (main) where
+                import Application.Script.Prelude
+                import IHP.ScriptSupport
+                import IHP.Job.Runner
+                import qualified Config
+                import Main ()
+                main :: IO ()
+                main = runScript Config.config (runJobWorkers (workers RootApplication))
+                EOF
+
+                ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    -main-is 'RunJobs.main' \
+                    $(make print-ghc-options) \
+                    ${if optimized then prodGhcOptions else ""} \
+                    build/RunJobs.hs -o build/bin/RunJobs \
+                    -odir build/RunProdServer -hidir build/RunProdServer
+            '';
+
+            installPhase = ''
+                mkdir -p $out/bin
+                mv build/bin/RunJobs $out/bin/RunJobs
+            '';
+
+            disallowedReferences = [ ihp ];
+        };
+
+    runServer =
         pkgs.stdenv.mkDerivation {
             name = appName + "-binaries";
             buildPhase = ''
@@ -142,32 +212,13 @@ let
 
                 mkdir -p build/bin build/RunUnoptimizedProdServer
 
-                echo ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
                 ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
-
-                # Build job runner if there are any jobs
-                if find -type d -iwholename \*/Job|grep .; then
-                    echo "module RunJobs (main) where" > build/RunJobs.hs
-                    echo "import Application.Script.Prelude" >> build/RunJobs.hs
-                    echo "import IHP.ScriptSupport" >> build/RunJobs.hs
-                    echo "import IHP.Job.Runner" >> build/RunJobs.hs
-                    echo "import qualified Config" >> build/RunJobs.hs
-                    echo "import Main ()" >> build/RunJobs.hs
-                    echo "main :: IO ()" >> build/RunJobs.hs
-                    echo "main = runScript Config.config (runJobWorkers (workers RootApplication))" >> build/RunJobs.hs
-                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} -main-is 'RunJobs.main' $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} build/RunJobs.hs -o build/bin/RunJobs -odir build/RunProdServer -hidir build/RunProdServer
-                fi;
             '';
             installPhase = ''
                 mkdir -p "$out"
                 mkdir -p $out/bin $out/lib
 
                 mv build/bin/RunProdServer $out/bin/RunProdServer
-
-                # Copy job runner binary to bin/ if we built it
-                if [ -f build/bin/RunJobs ]; then
-                    mv build/bin/RunJobs $out/bin/RunJobs;
-                fi;
             '';
             src = appSrc;
             buildInputs = [allHaskellPackages];
@@ -179,7 +230,7 @@ let
     binaries =
         pkgs.symlinkJoin {
             name = "${appName}-binaries";
-            paths = [ serverAndJobBinaries allScripts ];
+            paths = [ runServer allScripts ] ++ pkgs.lib.optional hasJobs runJobs;
         };
 in
     pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
