@@ -186,7 +186,6 @@ library
         , IHP.Modal.ControllerFunctions
         , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
-        , IHP.Welcome.Controller
         , IHP.RequestVault
         , IHP.ControllerPrelude
         , IHP.ControllerSupport
