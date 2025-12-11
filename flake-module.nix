@@ -387,7 +387,11 @@ ihpFlake:
                         --option sandbox false \
                         --option extra-substituters "https://digitallyinduced.cachix.org" \
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
-                    ssh $1 systemctl start migrate
+                    
+                    # Only start migrate service if it exists
+                    if ssh $1 systemctl list-unit-files migrate.service >/dev/null 2>&1; then
+                        ssh $1 systemctl start migrate
+                    fi
                 '';
 
                 overlays = [ihp.overlays.default];

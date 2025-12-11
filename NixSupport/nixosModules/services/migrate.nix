@@ -1,8 +1,8 @@
-{ config, pkgs, ihp, ... }:
+{ config, pkgs, lib, ihp, ... }:
 let cfg = config.services.ihp;
 in
 {
-    systemd.services.migrate = {
+    systemd.services.migrate = lib.mkIf (cfg.migrations != null) {
         serviceConfig = {
             Type = "oneshot";
             ExecStart = ihp.apps."${pkgs.system}".migrate.program;
