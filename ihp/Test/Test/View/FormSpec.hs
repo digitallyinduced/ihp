@@ -164,16 +164,13 @@ instance SetField "meta" (Event' ) MetaBag where
 
 instance UpdateField "id" (Event' ) (Event' ) (Id' "events") (Id' "events") where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = 
-        Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
 instance UpdateField "date" (Event' ) (Event' ) (Maybe Day) (Maybe Day) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = 
-        Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
 instance UpdateField "createdAt" (Event' ) (Event' ) (Maybe UTCTime) (Maybe UTCTime) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = 
-        Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
 instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Event id date createdAt meta) = Event id date createdAt newValue
