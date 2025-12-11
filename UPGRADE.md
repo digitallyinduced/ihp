@@ -55,6 +55,20 @@ However, for running it when deploying from Github Actions, it may be faster to 
 ```
 in `flake.nix` in the `perSystem` block (next to the `ihp` block). Then you can run it as `nix develop .#ihp-migrate --command migrate`.
 
+## `IHP.Welcome.Controller` moved to separate `ihp-welcome` package
+
+The welcome page controller has been moved to its own package `ihp-welcome`. If your project uses `IHP.Welcome.Controller` and `WelcomeAction`, you need to add the package to `flake.nix`:
+
+```diff
+                     haskellPackages = p: with p; [
+                         # Haskell dependencies go here
+                         p.ihp
++                        p.ihp-welcome
+                         cabal-install
+```
+
+Most production applications don't use the welcome controller and can safely ignore this change. The welcome controller is typically only used in new projects as initial boilerplate.
+
 ## Use nixpkgs instead of `Config/nix/haskell-packages`
 
 IHP now expects package overrides to be defined in nixpkgs, so if you had any files in `Config/nix/haskell-packages` they will be ignored in 1.4. The procedure is now to fork nixpkgs, do the changes there, and point your `flake.nix` at the fork. But the fork should start from the nixpkgs commit that this IHP version was based off.
