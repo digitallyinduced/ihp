@@ -47,10 +47,10 @@ withIHPApp application configBuilder hspecAction = do
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
             
             -- Apply modelContextMiddleware to populate the vault
-            requestRef <- newIORef (error "Request not captured")
+            requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
             let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
             let transformedApp = modelContextMiddleware modelContext captureApp
-            _ <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
+            _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
             requestWithModelContext <- readIORef requestRef
 
             let requestContext = RequestContext
