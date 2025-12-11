@@ -77,6 +77,12 @@ tests = do
                 columnNameToFieldName "project_id" `shouldBe` "projectId"
                 columnNameToFieldName "user_project_name" `shouldBe` "userProjectName"
 
+            it "should handle column names with numbers after underscores" do
+                columnNameToFieldName "foo_25bar" `shouldBe` "foo25bar"
+                columnNameToFieldName "test_123_column" `shouldBe` "test123Column"
+                columnNameToFieldName "user_2fa_enabled" `shouldBe` "user2faEnabled"
+                columnNameToFieldName "item_3d_model" `shouldBe` "item3dModel"
+
         describe "fieldNameToColumnName" do
             it "should deal with empty input" do
                 fieldNameToColumnName "" `shouldBe` ""
@@ -85,6 +91,20 @@ tests = do
                 fieldNameToColumnName "email" `shouldBe` "email"
                 fieldNameToColumnName "projectId" `shouldBe` "project_id"
                 fieldNameToColumnName "userProjectName" `shouldBe` "user_project_name"
+
+            it "should handle field names with numbers to ensure round-trip" do
+                fieldNameToColumnName "foo25bar" `shouldBe` "foo_25bar"
+                fieldNameToColumnName "test123Column" `shouldBe` "test_123_column"
+                fieldNameToColumnName "user2faEnabled" `shouldBe` "user_2fa_enabled"
+                fieldNameToColumnName "item3dModel" `shouldBe` "item_3d_model"
+
+        describe "columnNameToFieldName and fieldNameToColumnName round-trip" do
+            it "should round-trip correctly for column names with numbers after underscores" do
+                let roundTrip name = fieldNameToColumnName (columnNameToFieldName name)
+                roundTrip "foo_25bar" `shouldBe` "foo_25bar"
+                roundTrip "test_123_column" `shouldBe` "test_123_column"
+                roundTrip "user_2fa_enabled" `shouldBe` "user_2fa_enabled"
+                roundTrip "item_3d_model" `shouldBe` "item_3d_model"
 
         describe "lcfirst" do
             it "should deal with empty input" do
