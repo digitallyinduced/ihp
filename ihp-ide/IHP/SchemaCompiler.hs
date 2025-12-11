@@ -552,6 +552,7 @@ compileCreate table@(CreateTable { name, columns }) =
         writableColumns = onlyWritableColumns columns
         modelName = qualifiedConstructorNameFromTableName name
         columnNames = commaSep (map (.name) writableColumns)
+        allColumnNames = commaSep (map (.name) columns)
         values = commaSep (map columnPlaceholder writableColumns)
 
         toBinding column@(Column { name }) =
@@ -581,10 +582,10 @@ compileCreate table@(CreateTable { name, columns }) =
         <> indent (
             "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
                 <> "create model = do\n"
-                <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> columnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
+                <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
                 <> "createMany [] = pure []\n"
                 <> "createMany models = do\n"
-                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> columnNames <> "\") " <> createManyFieldValues <> "\n"
+                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues <> "\n"
                     )
             )
         <> indent (
@@ -623,6 +624,10 @@ compileUpdate table@(CreateTable { name, columns }) =
                 |> map (.name)
                 |> intercalate ", "
 
+        allColumnNames = columns
+                |> map (.name)
+                |> intercalate ", "
+
         primaryKeyPattern = case primaryKeyColumns table of
                                 [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
                                 [col] -> col.name
@@ -636,7 +641,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         "instance CanUpdate " <> modelName <> " where\n"
         <> indent ("updateRecord model = do\n"
                 <> indent (
-                    "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> columnNames <> "\" (" <> bindings <> ")\n"
+                    "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")\n"
                 )
             )
         <> indent ("updateRecordDiscardResult model = do\n"
