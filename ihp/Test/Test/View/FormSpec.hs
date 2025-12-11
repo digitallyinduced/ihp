@@ -13,6 +13,7 @@ import qualified Network.Wai as Wai
 import IHP.ViewPrelude
 import Data.Default
 import qualified IHP.QueryBuilder as QueryBuilder
+import qualified Data.Text.Lazy as LT
 
 
 tests = do
@@ -41,6 +42,39 @@ tests = do
                     {submitButton}
                 |]
                 form `shouldRenderTo` "<form method=\"GET\" action=\"/CreateProject\" id=\"\" class=\"new-form\" data-disable-javascript-submission=\"false\"><div class=\"mb-3\" id=\"form-group-project_title\"><label class=\"form-label\" for=\"project_title\">Title</label><input type=\"text\" name=\"title\" placeholder=\"\" id=\"project_title\" class=\"form-control\"> </div> <button class=\"btn btn-primary\" type=\"submit\">Create Project</button></form>"
+
+            it "should render a date field with empty value attribute when value is Nothing" do
+                context <- createControllerContext
+                let ?context = context
+                let event = newRecord @Event
+
+                let form = formFor event [hsx|
+                    {(dateField #date) { required = True }}
+                |]
+                
+                -- The date input should have value="" (not omit the value attribute)
+                -- This is necessary for HTML5 required validation to work properly
+                let rendered = Blaze.renderMarkup form
+                let renderedText = LT.toStrict rendered
+                renderedText `shouldSatisfy` (\t -> "type=\"date\"" `isInfixOf` t)
+                renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
+                renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
+
+            it "should render a datetime field with empty value attribute when value is Nothing" do
+                context <- createControllerContext
+                let ?context = context
+                let event = newRecord @Event
+
+                let form = formFor event [hsx|
+                    {(dateTimeField #createdAt) { required = True }}
+                |]
+                
+                -- The datetime input should have value="" (not omit the value attribute)
+                let rendered = Blaze.renderMarkup form
+                let renderedText = LT.toStrict rendered
+                renderedText `shouldSatisfy` (\t -> "type=\"datetime-local\"" `isInfixOf` t)
+                renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
+                renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
 
 shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
 
@@ -88,6 +122,61 @@ instance UpdateField "title" (Project' ) (Project' ) Text Text where
 instance UpdateField "meta" (Project' ) (Project' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Project id title meta) = Project id title newValue
+
+-- Event model for testing date fields
+data Event' = Event 
+    { id :: (Id' "events")
+    , date :: Maybe Day
+    , createdAt :: Maybe UTCTime
+    , meta :: MetaBag
+    } deriving (Eq, Show)
+
+instance InputValue Event where inputValue = IHP.ModelSupport.recordToInputValue
+type Event = Event'
+
+type instance GetTableName (Event' ) = "events"
+type instance GetModelByTableName "events" = Event
+type instance GetModelName (Event' ) = "Event"
+
+type instance PrimaryKey "events" = UUID
+
+instance Record Event where
+    {-# INLINE newRecord #-}
+    newRecord = Event def def def def
+instance Default (Id' "events") where def = Id def
+
+instance SetField "id" (Event' ) (Id' "events") where
+    {-# INLINE setField #-}
+    setField newValue (Event id date createdAt meta) =
+        Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+instance SetField "date" (Event' ) (Maybe Day) where
+    {-# INLINE setField #-}
+    setField newValue (Event id date createdAt meta) =
+        Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+instance SetField "createdAt" (Event' ) (Maybe UTCTime) where
+    {-# INLINE setField #-}
+    setField newValue (Event id date createdAt meta) =
+        Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+instance SetField "meta" (Event' ) MetaBag where
+    {-# INLINE setField #-}
+    setField newValue (Event id date createdAt meta) =
+        Event id date createdAt newValue
+
+instance UpdateField "id" (Event' ) (Event' ) (Id' "events") (Id' "events") where
+    {-# INLINE updateField #-}
+    updateField newValue (Event id date createdAt meta) = 
+        Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+instance UpdateField "date" (Event' ) (Event' ) (Maybe Day) (Maybe Day) where
+    {-# INLINE updateField #-}
+    updateField newValue (Event id date createdAt meta) = 
+        Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+instance UpdateField "createdAt" (Event' ) (Event' ) (Maybe UTCTime) (Maybe UTCTime) where
+    {-# INLINE updateField #-}
+    updateField newValue (Event id date createdAt meta) = 
+        Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
+    {-# INLINE updateField #-}
+    updateField newValue (Event id date createdAt meta) = Event id date createdAt newValue
 
 
 

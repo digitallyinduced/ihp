@@ -163,7 +163,11 @@ instance Default CSSFramework where
                     inputInvalidClass = styledInputInvalidClass cssFramework formField
                     helpText = styledFormFieldHelp cssFramework formField
                     -- If there's no value, then we want to hide the "value" attribute.
-                    maybeValue = if fieldValue == "" then Nothing else Just fieldValue
+                    -- Exception: date and datetime inputs need the value attribute even when empty
+                    -- for HTML5 validation to work properly with the required attribute.
+                    maybeValue = if fieldValue == "" && inputType /= "date" && inputType /= "datetime-local"
+                        then Nothing
+                        else Just fieldValue
 
             styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
             styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
@@ -560,7 +564,11 @@ bootstrap4 = def
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
                 -- If there's no value, then we want to hide the "value" attribute.
-                maybeValue = if fieldValue == "" then Nothing else Just fieldValue
+                -- Exception: date and datetime inputs need the value attribute even when empty
+                -- for HTML5 validation to work properly with the required attribute.
+                maybeValue = if fieldValue == "" && inputType /= "date" && inputType /= "datetime-local"
+                    then Nothing
+                    else Just fieldValue
 
         styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
         styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
@@ -836,7 +844,11 @@ tailwind = def
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
                 -- If there's no value, then we want to hide the "value" attribute.
-                maybeValue = if fieldValue == "" then Nothing else Just fieldValue
+                -- Exception: date and datetime inputs need the value attribute even when empty
+                -- for HTML5 validation to work properly with the required attribute.
+                maybeValue = if fieldValue == "" && inputType /= "date" && inputType /= "datetime-local"
+                    then Nothing
+                    else Just fieldValue
 
 
         styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
