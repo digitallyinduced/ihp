@@ -156,11 +156,11 @@ renderFilter placeholder =
         </form>
     |]
         where
-            formAction = Wai.rawPathInfo theRequest
+            path = Wai.rawPathInfo theRequest
+            formAction = path
             boxValue = fromMaybe "" (paramOrNothing "filter") :: Text
             clearFilterUrl = path <> Query.renderQuery True newQueryString
                 where
-                    path = Wai.rawPathInfo theRequest
                     queryString = Wai.queryString theRequest
                     newQueryString = queryString
                         |> removeQueryItem "filter"
