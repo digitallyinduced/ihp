@@ -156,6 +156,10 @@ negateFilterOperator InOp = NotInOp
 negateFilterOperator IsOp = IsNotOp
 negateFilterOperator (LikeOp matchSensitivity) = (NotLikeOp matchSensitivity)
 negateFilterOperator (MatchesOp matchSensitivity) = error "not supported"
+negateFilterOperator GreaterThanOp = LessThanOrEqualToOp
+negateFilterOperator GreaterThanOrEqualToOp = LessThanOp
+negateFilterOperator LessThanOp = GreaterThanOrEqualToOp
+negateFilterOperator LessThanOrEqualToOp = GreaterThanOp
 negateFilterOperator SqlOp = SqlOp
 
 data OrderByClause =
