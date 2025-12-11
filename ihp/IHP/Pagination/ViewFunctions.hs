@@ -141,7 +141,7 @@ renderFilter :: (?context::ControllerContext) =>
     -> Html
 renderFilter placeholder =
     [hsx|
-        <form method="GET" action="" class="mt-2 float-right">
+        <form method="GET" action={formAction} class="mt-2 float-right">
             <div class="form-row">
                 <div class="col-auto">
                 <label class="sr-only" for="inlineFormInput">Name</label>
@@ -156,6 +156,7 @@ renderFilter placeholder =
         </form>
     |]
         where
+            formAction = Wai.rawPathInfo theRequest
             boxValue = fromMaybe "" (paramOrNothing "filter") :: Text
             clearFilterUrl = path <> Query.renderQuery True newQueryString
                 where
