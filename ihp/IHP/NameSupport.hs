@@ -140,7 +140,8 @@ columnNameToFieldName' columnName
     | otherwise = unwrapEither columnName $ Inflector.toCamelCased False columnName
   where
     -- Check if there's a pattern like "_\d" (underscore followed by digit)
-    hasNumberAfterUnderscore text = "_" `Text.isInfixOf` text && any isDigitAfterUnderscore (Text.zip text (Text.tail text))
+    hasNumberAfterUnderscore text = 
+        not (Text.null text) && "_" `Text.isInfixOf` text && any isDigitAfterUnderscore (Text.zip text (Text.drop 1 text))
     isDigitAfterUnderscore ('_', c) = Char.isDigit c
     isDigitAfterUnderscore _ = False
     
@@ -156,7 +157,7 @@ columnNameToFieldName' columnName
         processSegments idx (segment:rest)
             | Text.null segment = processSegments idx rest
             | Char.isDigit (Text.head segment) = 
-                --  Digit-only segment (e.g., "123" from "test_123_column")
+                -- Digit-only segment (e.g., "123" from "test_123_column")
                 -- Keep as-is, don't increment word count
                 if Text.all Char.isDigit segment
                 then segment : processSegments idx rest
