@@ -55,7 +55,7 @@ mockContextNoDatabase application configBuilder = do
    -- Apply modelContextMiddleware to populate the vault
    requestRef <- newIORef (error "Request not captured")
    let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-   modelContextMiddleware modelContext captureApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
+   _ <- modelContextMiddleware modelContext captureApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
    requestWithModelContext <- readIORef requestRef
 
    let requestContext = RequestContext
