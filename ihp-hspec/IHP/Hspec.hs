@@ -28,6 +28,7 @@ import IHP.Controller.Session (sessionVaultKey)
 
 import qualified System.Process as Process
 import IHP.Test.Mocking
+import IHP.RequestVault (modelContextVaultKey)
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
 
@@ -44,9 +45,10 @@ withIHPApp application configBuilder hspecAction = do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+            let requestVault = Vault.insert modelContextVaultKey modelContext sessionVault
 
             let requestContext = RequestContext
-                 { request = defaultRequest {vault = sessionVault}
+                 { request = defaultRequest {vault = requestVault}
                  , requestBody = FormBody [] []
                  , respond = const (pure ResponseReceived)
                  , frameworkConfig = frameworkConfig }
