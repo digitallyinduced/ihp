@@ -77,6 +77,14 @@ tests = do
             let p = parseHsx settings position extensions "<div data-client_id=\"test\"/>"
             p `shouldBe` (Right (Children [Node "div" [StaticAttribute "data-client_id" (TextValue "test")] [] False]))
 
+        it "should accept autocapitalize attribute" do
+            let p = parseHsx settings position extensions "<input autocapitalize=\"off\"/>"
+            p `shouldBe` (Right (Children [Node "input" [StaticAttribute "autocapitalize" (TextValue "off")] [] True]))
+
+        it "should accept autocapitalize attribute on textarea" do
+            let p = parseHsx settings position extensions "<textarea autocapitalize=\"none\"></textarea>"
+            p `shouldBe` (Right (Children [Node "textarea" [StaticAttribute "autocapitalize" (TextValue "none")] [] False]))
+
         it "should accept doctype" do
             let p = parseHsx settings position extensions "<!DOCTYPE html><html lang=\"en\"><body>hello</body></html>"
             p `shouldBe` (Right (Children [Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True, Node "html" [StaticAttribute "lang" (TextValue "en")] [Node "body" [] [TextNode "hello"] False] False]))
