@@ -28,7 +28,7 @@ import IHP.Controller.Session (sessionVaultKey)
 
 import qualified System.Process as Process
 import IHP.Test.Mocking
-import IHP.RequestVault (modelContextVaultKey)
+import IHP.RequestVault (modelContextMiddleware)
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
 
@@ -45,10 +45,15 @@ withIHPApp application configBuilder hspecAction = do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-            let requestVault = Vault.insert modelContextVaultKey modelContext sessionVault
+            
+            -- Apply modelContextMiddleware to populate the vault
+            requestRef <- newIORef (error "Request not captured")
+            let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
+            modelContextMiddleware modelContext captureApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
+            requestWithModelContext <- readIORef requestRef
 
             let requestContext = RequestContext
-                 { request = defaultRequest {vault = requestVault}
+                 { request = requestWithModelContext
                  , requestBody = FormBody [] []
                  , respond = const (pure ResponseReceived)
                  , frameworkConfig = frameworkConfig }
