@@ -1,9 +1,9 @@
 {-|
-Module: Test.Hspec.WithIHPAppSpec
+Module: WithIHPAppSpec
 Copyright: (c) digitally induced GmbH, 2024
 Description: Test coverage for withIHPApp function
 -}
-module Test.Hspec.WithIHPAppSpec where
+module WithIHPAppSpec where
 
 import IHP.Prelude
 import IHP.FrameworkConfig

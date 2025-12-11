@@ -30,3 +30,26 @@ library
     build-depends: base >= 4.17.0 && < 4.22, ihp, wai, process, text, ihp-ide, vault, uuid, postgresql-simple
     hs-source-dirs: .
     exposed-modules: IHP.Hspec
+
+test-suite tests
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+        RecordWildCards
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: .
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-hspec, wai, hspec, http-types
+    other-modules: WithIHPAppSpec

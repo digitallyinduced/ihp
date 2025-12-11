@@ -1,4 +1,4 @@
--- Empty schema for testing withIHPApp
+-- Schema for testing withIHPApp
 -- This file is required by withIHPApp function during test execution
 
 -- Create a simple test table for test purposes

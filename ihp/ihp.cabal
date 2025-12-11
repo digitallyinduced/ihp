@@ -252,7 +252,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: Test
-    build-depends: ihp, ihp-hspec
+    build-depends: ihp 
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -270,4 +270,3 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
-        Test.Hspec.WithIHPAppSpec
