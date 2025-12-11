@@ -40,6 +40,8 @@ instance FrontController WebApplication where
 
 In a new IHP project, you usually have a [`startPage WelcomeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) defined. Make sure to remove this line. Otherwise, you will still see the default IHP welcome page.
 
+**Note:** The `WelcomeAction` controller is provided by the separate `ihp-welcome` package, which is typically only used in new projects for the initial boilerplate.
+
 ## URL Generation
 
 Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) to generate a path to a given action:

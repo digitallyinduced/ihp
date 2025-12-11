@@ -2,6 +2,22 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# UNRELEASED
+
+## `IHP.Welcome.Controller` moved to separate `ihp-welcome` package
+
+The welcome page controller has been moved to its own package `ihp-welcome`. If your project uses `IHP.Welcome.Controller` and `WelcomeAction`, you need to add the package to `flake.nix`:
+
+```diff
+                     haskellPackages = p: with p; [
+                         # Haskell dependencies go here
+                         p.ihp
++                        ihp-welcome
+                         cabal-install
+```
+
+Most production applications don't use the welcome controller and can safely ignore this change. The welcome controller is typically only used in new projects as initial boilerplate.
+
 # Upgrade to 1.4.0 from 1.3.0
 
 ## Switch IHP version
