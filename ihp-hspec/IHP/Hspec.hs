@@ -7,7 +7,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
 import qualified Control.Exception as Exception
-import IHP.IDE.CodeGen.MigrationGenerator (findIHPSchemaSql)
+import Paths_ihp_hspec (getDataFileName)
 
 
 import qualified Data.Vault.Lazy                           as Vault
@@ -95,6 +95,6 @@ importSchema databaseUrl = do
     -- complex Schema including variations in formatting, custom types, functions, and table definitions.
     let importSql file = Process.callCommand ("psql " <> (cs databaseUrl) <> " < " <> file)
 
-    ihpSchemaSql <- findIHPSchemaSql
+    ihpSchemaSql <- getDataFileName "IHPSchema.sql"
     importSql ihpSchemaSql
     importSql "Application/Schema.sql"
