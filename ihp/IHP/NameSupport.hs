@@ -144,19 +144,32 @@ columnNameToFieldName' columnName
     isDigitAfterUnderscore ('_', c) = Char.isDigit c
     isDigitAfterUnderscore _ = False
     
-    -- Custom camel case that preserves the number position
+    -- Custom camel case: split at digit-letter boundaries carefully
     customCamelCase text =
         text
         |> Text.split (== '_')
-        |> List.zipWith processSegment [0..]
+        |> processSegments 0
         |> mconcat
       where
-        processSegment :: Int -> Text -> Text
-        processSegment index segment
-            | Text.null segment = segment
-            | Char.isDigit (Text.head segment) = segment  -- Keep digit segments as-is
-            | index == 0 = lcfirstSegment segment         -- First segment: lowercase first char
-            | otherwise = ucfirstSegment segment           -- Other segments: uppercase first char
+        processSegments :: Int -> [Text] -> [Text]
+        processSegments _ [] = []
+        processSegments idx (segment:rest)
+            | Text.null segment = processSegments idx rest
+            | Char.isDigit (Text.head segment) = 
+                --  Digit-only segment (e.g., "123" from "test_123_column")
+                -- Keep as-is, don't increment word count
+                if Text.all Char.isDigit segment
+                then segment : processSegments idx rest
+                else 
+                    -- Mixed segment (e.g., "25bar" from "foo_25bar")
+                    -- Keep lowercase to indicate they're joined
+                    lcfirstSegment segment : processSegments (idx+1) rest
+            | idx == 0 = 
+                -- First word segment: lowercase
+                lcfirstSegment segment : processSegments (idx+1) rest
+            | otherwise =
+                -- Other word segments: capitalize
+                ucfirstSegment segment : processSegments (idx+1) rest
         
         lcfirstSegment seg
             | Text.null seg = seg
@@ -188,11 +201,9 @@ fieldNameToColumnName fieldName = fieldNameToColumnName' fieldName
 fieldNameToColumnName' :: Text -> Text
 fieldNameToColumnName' fieldName
     | Text.null fieldName = fieldName
-    | hasDigit fieldName = customUnderscore fieldName
+    | Text.any Char.isDigit fieldName = customUnderscore fieldName
     | otherwise = unwrapEither fieldName $ Inflector.toUnderscore fieldName
   where
-    hasDigit = Text.any Char.isDigit
-    
     -- Custom underscore conversion that inserts underscores before digit sequences
     -- and before uppercase letters
     customUnderscore text =

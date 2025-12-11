@@ -106,6 +106,12 @@ tests = do
                 roundTrip "user_2fa_enabled" `shouldBe` "user_2fa_enabled"
                 roundTrip "item_3d_model" `shouldBe` "item_3d_model"
 
+            it "should preserve existing round-trip behavior for names without numbers after underscores" do
+                let roundTrip name = fieldNameToColumnName (columnNameToFieldName name)
+                roundTrip "project_id" `shouldBe` "project_id"
+                roundTrip "user_name" `shouldBe` "user_name"
+                roundTrip "created_at" `shouldBe` "created_at"
+
         describe "lcfirst" do
             it "should deal with empty input" do
                 lcfirst "" `shouldBe` ""
