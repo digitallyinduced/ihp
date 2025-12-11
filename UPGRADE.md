@@ -12,7 +12,7 @@ The welcome page controller has been moved to its own package `ihp-welcome`. If 
                      haskellPackages = p: with p; [
                          # Haskell dependencies go here
                          p.ihp
-+                        p.ihp-welcome
++                        ihp-welcome
                          cabal-install
 ```
 
