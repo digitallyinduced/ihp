@@ -46,6 +46,14 @@ module IHP.QueryBuilder
 , filterWhereIMatchesJoinedTable
 , filterWherePast
 , filterWhereFuture
+, filterWhereGreaterThan
+, filterWhereLarger
+, filterWhereGreaterThanOrEqualTo
+, filterWhereAtLeast
+, filterWhereLessThan
+, filterWhereSmaller
+, filterWhereLessThanOrEqualTo
+, filterWhereAtMost
 , labelResults
 , EqOrIsOperator
 , filterWhereSql
@@ -109,6 +117,10 @@ data FilterOperator
     | LikeOp !MatchSensitivity -- ^ @col LIKE val@
     | NotLikeOp !MatchSensitivity -- ^ @col NOT LIKE val@
     | MatchesOp !MatchSensitivity -- ^ @col ~ pattern@
+    | GreaterThanOp -- ^ @col > val@
+    | GreaterThanOrEqualToOp -- ^ @col >= val@
+    | LessThanOp -- ^ @col < val@
+    | LessThanOrEqualToOp -- ^ @col <= val@
     | SqlOp -- ^ Used by 'filterWhereSql'
     deriving (Show, Eq)
 
@@ -126,6 +138,10 @@ compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
 compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
 compileOperator (MatchesOp CaseSensitive) = " ~ "
 compileOperator (MatchesOp CaseInsensitive) = " ~* "
+compileOperator GreaterThanOp = ">"
+compileOperator GreaterThanOrEqualToOp = ">="
+compileOperator LessThanOp = "<"
+compileOperator LessThanOrEqualToOp = "<="
 compileOperator SqlOp = ""
 {-# INLINE compileOperator #-}
 
@@ -140,6 +156,10 @@ negateFilterOperator InOp = NotInOp
 negateFilterOperator IsOp = IsNotOp
 negateFilterOperator (LikeOp matchSensitivity) = (NotLikeOp matchSensitivity)
 negateFilterOperator (MatchesOp matchSensitivity) = error "not supported"
+negateFilterOperator GreaterThanOp = LessThanOrEqualToOp
+negateFilterOperator GreaterThanOrEqualToOp = LessThanOp
+negateFilterOperator LessThanOp = GreaterThanOrEqualToOp
+negateFilterOperator LessThanOrEqualToOp = GreaterThanOp
 negateFilterOperator SqlOp = SqlOp
 
 data OrderByClause =
@@ -860,6 +880,122 @@ filterWhereFuture
     => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereFuture name = filterWhereSql (name, "> NOW()")
 {-# INLINE filterWhereFuture #-}
+
+-- | Adds a @WHERE x > y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade greater than 80.
+--
+-- > greatAssignments <- query @Assignment
+-- >     |> filterWhereGreaterThan (#grade, 80)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade > 80
+--
+-- See also: 'filterWhereLarger', 'filterWhereGreaterThanOrEqualTo', 'filterWhereAtLeast'
+filterWhereGreaterThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereGreaterThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereGreaterThan #-}
+
+-- | Alias for 'filterWhereGreaterThan'. Adds a @WHERE x > y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade larger than 80.
+--
+-- > greatAssignments <- query @Assignment
+-- >     |> filterWhereLarger (#grade, 80)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade > 80
+filterWhereLarger :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLarger = filterWhereGreaterThan
+{-# INLINE filterWhereLarger #-}
+
+-- | Adds a @WHERE x >= y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade at least 80.
+--
+-- > greatAssignments <- query @Assignment
+-- >     |> filterWhereGreaterThanOrEqualTo (#grade, 80)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade >= 80
+--
+-- See also: 'filterWhereAtLeast', 'filterWhereGreaterThan', 'filterWhereLarger'
+filterWhereGreaterThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereGreaterThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOrEqualToOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereGreaterThanOrEqualTo #-}
+
+-- | Alias for 'filterWhereGreaterThanOrEqualTo'. Adds a @WHERE x >= y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade at least 80.
+--
+-- > greatAssignments <- query @Assignment
+-- >     |> filterWhereAtLeast (#grade, 80)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade >= 80
+filterWhereAtLeast :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereAtLeast = filterWhereGreaterThanOrEqualTo
+{-# INLINE filterWhereAtLeast #-}
+
+-- | Adds a @WHERE x < y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade less than 60.
+--
+-- > poorAssignments <- query @Assignment
+-- >     |> filterWhereLessThan (#grade, 60)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade < 60
+--
+-- See also: 'filterWhereSmaller', 'filterWhereLessThanOrEqualTo', 'filterWhereAtMost'
+filterWhereLessThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLessThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereLessThan #-}
+
+-- | Alias for 'filterWhereLessThan'. Adds a @WHERE x < y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade smaller than 60.
+--
+-- > poorAssignments <- query @Assignment
+-- >     |> filterWhereSmaller (#grade, 60)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade < 60
+filterWhereSmaller :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereSmaller = filterWhereLessThan
+{-# INLINE filterWhereSmaller #-}
+
+-- | Adds a @WHERE x <= y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade at most 60.
+--
+-- > poorAssignments <- query @Assignment
+-- >     |> filterWhereLessThanOrEqualTo (#grade, 60)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade <= 60
+--
+-- See also: 'filterWhereAtMost', 'filterWhereLessThan', 'filterWhereSmaller'
+filterWhereLessThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLessThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOrEqualToOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+    where
+        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        queryBuilder = getQueryBuilder queryBuilderProvider
+{-# INLINE filterWhereLessThanOrEqualTo #-}
+
+-- | Alias for 'filterWhereLessThanOrEqualTo'. Adds a @WHERE x <= y@ condition to the query.
+--
+-- __Example:__ Find assignments with grade at most 60.
+--
+-- > poorAssignments <- query @Assignment
+-- >     |> filterWhereAtMost (#grade, 60)
+-- >     |> fetch
+-- > -- SELECT * FROM assignments WHERE grade <= 60
+filterWhereAtMost :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereAtMost = filterWhereLessThanOrEqualTo
+{-# INLINE filterWhereAtMost #-}
 
 
 -- | Allows to add a custom raw sql where condition
