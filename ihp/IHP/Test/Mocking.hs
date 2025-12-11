@@ -33,6 +33,7 @@ import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
+import IHP.RequestVault (modelContextVaultKey)
 
 type ContextParameters application = (?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -50,9 +51,10 @@ mockContextNoDatabase application configBuilder = do
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
+   let requestVault = Vault.insert modelContextVaultKey modelContext sessionVault
 
    let requestContext = RequestContext
-         { request = defaultRequest {vault = sessionVault}
+         { request = defaultRequest {vault = requestVault}
          , requestBody = FormBody [] []
          , respond = \resp -> pure ResponseReceived
          , frameworkConfig = frameworkConfig }
