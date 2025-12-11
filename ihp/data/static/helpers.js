@@ -196,7 +196,7 @@ window.submitForm = function (form, possibleClickedButton) {
         if (formMethod.toUpperCase() === 'GET') {
             var formData = new FormData(form);
             for (var pair of formData.entries()) {
-                url.searchParams.set(pair[0], pair[1]);
+                url.searchParams.append(pair[0], pair[1]);
             }
         }
         urlPathnameWithQuery += url.search; // Append the query parameters submitted via the form
