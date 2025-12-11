@@ -391,6 +391,42 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
+            it "should handle full-text search generated columns like in the issue" do
+                let statement = StatementCreateTable CreateTable
+                        { name = "posts"
+                        , columns =
+                            [ Column "id" PUUID Nothing True True Nothing
+                            , Column {name = "title", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing}
+                            , Column {name = "body", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing}
+                            , Column {name = "body_index_col", columnType = PTSVector, defaultValue = Nothing, notNull = False, isUnique = False, generator = Just (ColumnGenerator { generate = CallExpression "to_tsvector" [TextExpression "english", CallExpression "coalesce" [VarExpression "body", TextExpression ""]], stored = True }) }
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        }
+                let compileOutput = compileStatementPreview [statement] statement |> Text.strip
+
+                -- The key point: RETURNING clause should include body_index_col even though it's generated
+                getInstanceDecl "CanCreate" compileOutput `shouldBe` [trimming|
+                    instance CanCreate Generated.ActualTypes.Post where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO posts (id, title, body) VALUES (?, ?, ?) RETURNING id, title, body, body_index_col" ((model.id, model.title, model.body))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO posts (id, title, body) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?, ?)") models)) <> " RETURNING id, title, body, body_index_col") (List.concat $ List.map (\model -> [toField (model.id), toField (model.title), toField (model.body)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO posts (id, title, body) VALUES (?, ?, ?)" ((model.id, model.title, model.body))
+                    |]
+
+                getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
+                    instance CanUpdate Generated.ActualTypes.Post where
+                        updateRecord model = do
+                            sqlQuerySingleRow "UPDATE posts SET id = ?, title = ?, body = ? WHERE id = ? RETURNING id, title, body, body_index_col" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #body model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE posts SET id = ?, title = ?, body = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #body model, model.id))
+                    |]
             it "should deal with multiple has many relationships to the same table" do
                 let statements = parseSqlStatements [trimming|
                     CREATE TABLE landing_pages (
