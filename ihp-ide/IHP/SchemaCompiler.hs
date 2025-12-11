@@ -620,10 +620,6 @@ compileUpdate table@(CreateTable { name, columns }) =
 
         updates = commaSep (map (\column -> column.name <> " = " <> columnPlaceholder column ) writableColumns)
 
-        columnNames = writableColumns
-                |> map (.name)
-                |> intercalate ", "
-
         allColumnNames = columns
                 |> map (.name)
                 |> intercalate ", "
