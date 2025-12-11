@@ -319,7 +319,7 @@ hsxIdentifier = do
 attributes :: Set Text
 attributes = Set.fromList
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
-        , "autocomplete", "autofocus", "autoplay", "challenge", "charset"
+        , "autocapitalize", "autocomplete", "autofocus", "autoplay", "challenge", "charset"
         , "checked", "cite", "class", "cols", "colspan", "content"
         , "contenteditable", "contextmenu", "controls", "coords", "data"
         , "datetime", "defer", "dir", "disabled", "draggable", "enctype"
