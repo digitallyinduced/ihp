@@ -1,0 +1,58 @@
+cabal-version:       2.2
+name:                ihp-csp
+version:             1.4.0
+synopsis:            Type-safe Content Security Policy (CSP) for IHP
+description:         Provides a type-safe API for managing Content Security Policy headers with good defaults and nonce support
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Web, Security
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+common ihp-std
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+
+library
+    import: ihp-std
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , text
+        , ihp
+        , bytestring
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.CSP
+        , IHP.CSP.Types
+        , IHP.CSP.ControllerFunctions
+
+test-suite tests
+    import: ihp-std
+    type: exitcode-stdio-1.0
+    main-is: IHP/CSPSpec.hs
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , hspec
+        , ihp
+        , ihp-csp
+        , text
+        , bytestring
+    hs-source-dirs: Test
