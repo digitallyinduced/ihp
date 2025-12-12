@@ -1,9 +1,12 @@
-module IHP.CSPSpec (spec) where
+module Main where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.CSP.Types
 import qualified Data.Text as Text
+
+main :: IO ()
+main = hspec spec
 
 spec :: Spec
 spec = do
