@@ -50,6 +50,11 @@ test-suite tests
         OverloadedStrings
         ImplicitParams
         RecordWildCards
+        DataKinds
+        MultiParamTypeClasses
+        TypeFamilies
+        FlexibleInstances
+        UndecidableInstances
     type: exitcode-stdio-1.0
     main-is: Main.hs
     hs-source-dirs: Test

@@ -16,6 +16,7 @@ import IHP.Fetch
 import Network.HTTP.Types.Status
 import Network.Wai
 import IHP.Hspec (withIHPApp)
+import Database.PostgreSQL.Simple.FromRow
 
 -- Define a minimal test application
 data TestApplication = TestApplication deriving (Eq, Show)
@@ -38,8 +39,13 @@ type instance GetTableName Post = "posts"
 type instance GetModelByTableName "posts" = Post
 type instance PrimaryKey "posts" = UUID
 
+instance Default Post where
+    def = Post def "" "" def
+
+instance FromRow Post where
+    fromRow = Post <$> field <*> field <*> field <*> field
+
 instance Record Post where
-    newRecordInstance = Post def "" "" def
 
 -- Define a minimal config
 testConfig :: ConfigBuilder
