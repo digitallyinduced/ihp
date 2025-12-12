@@ -97,9 +97,11 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) | table.name == tableName = True
                 isCreateTableStatement otherwise = False
 
-                (Just actualTable) = actualSchema |> find \case
+                actualTable = case actualSchema |> find \case
                         StatementCreateTable { unsafeGetCreateTable = table } -> table.name == tableName
-                        otherwise                                                            -> False
+                        otherwise                                                            -> False of
+                    Just table -> table
+                    Nothing -> error $ "Internal error in patchTable: Could not find table " <> cs tableName <> " in actual schema"
         patchTable (s:rest) = s:(patchTable rest)
         patchTable [] = []
 
@@ -117,9 +119,11 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 isCreateEnumTypeStatement CreateEnumType { name = n } = name == n
                 isCreateEnumTypeStatement otherwise                   = False
 
-                (Just actualEnumType) = actualSchema |> find \case
+                actualEnumType = case actualSchema |> find \case
                         CreateEnumType { name = enum } -> enum == name
-                        otherwise                      -> False
+                        otherwise                      -> False of
+                    Just enumType -> enumType
+                    Nothing -> error $ "Internal error in patchEnumType: Could not find enum type " <> cs name <> " in actual schema"
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
 
@@ -134,6 +138,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                             to = createTable'.name
                         in
                             (RenameTable { from, to }):(applyRenameTable (fixIdentifiers from to (delete createTable statements)))
+                    Just _ -> s:(applyRenameTable statements)  -- Not a StatementCreateTable, skip rename
                     Nothing -> s:(applyRenameTable statements)
             where
                 createTable :: Maybe Statement
@@ -143,13 +148,14 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 isCreateTableStatement (StatementCreateTable { unsafeGetCreateTable = table }) = (table.name /= actualTable'.name) && ((actualTable' :: CreateTable) { name = "" } == (table :: CreateTable) { name = "" })
                 isCreateTableStatement otherwise = False
 
-                (Just actualTable) = actualSchema |> find \case
+                maybeActualTable = actualSchema |> find \case
                         StatementCreateTable { unsafeGetCreateTable = table } -> table.name == tableName
                         otherwise                                                            -> False
 
                 actualTable' :: CreateTable
-                actualTable' = case actualTable of
-                    StatementCreateTable { unsafeGetCreateTable = table } -> table
+                actualTable' = case maybeActualTable of
+                    Just (StatementCreateTable { unsafeGetCreateTable = table }) -> table
+                    _ -> error $ "Internal error in applyRenameTable: Could not find table " <> cs tableName <> " in actual schema"
 
                 fixIdentifiers :: Text -> Text -> [Statement] -> [Statement]
                 fixIdentifiers tableFrom tableTo statements = map fixIdentifier statements
@@ -252,9 +258,10 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         Nothing -> s:(applyMakeUnique statements)
                     where
                         dropColumn :: Column
-                        (Just dropColumn) = actualColumns
-                                |> find \case
-                                    Column { name } -> name == columnName
+                        dropColumn = case actualColumns |> find \case
+                                     Column { name } -> name == columnName of
+                            Just col -> col
+                            Nothing -> error $ "Internal error in applyMakeUnique: Could not find column " <> cs columnName <> " in actual columns"
 
                         updateConstraint = if dropColumn.isUnique
                             then DropConstraint { tableName, constraintName = tableName <> "_" <> (dropColumn.name) <> "_key" }
@@ -289,9 +296,10 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         Nothing -> s:(applySetDefault statements)
                     where
                         dropColumn :: Column
-                        (Just dropColumn) = actualColumns
-                                |> find \case
-                                    Column { name } -> name == columnName
+                        dropColumn = case actualColumns |> find \case
+                                     Column { name } -> name == columnName of
+                            Just col -> col
+                            Nothing -> error $ "Internal error in applySetDefault: Could not find column " <> cs columnName <> " in actual columns"
 
                         matchingCreateColumn :: Maybe Statement
                         matchingCreateColumn = find isMatchingCreateColumn statements
@@ -318,9 +326,10 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                         Nothing -> s:(applyToggleNull statements)
                     where
                         dropColumn :: Column
-                        (Just dropColumn) = actualColumns
-                                |> find \case
-                                    Column { name } -> name == columnName
+                        dropColumn = case actualColumns |> find \case
+                                     Column { name } -> name == columnName of
+                            Just col -> col
+                            Nothing -> error $ "Internal error in applyToggleNull: Could not find column " <> cs columnName <> " in actual columns"
 
                         updateConstraint = if dropColumn.notNull
                             then DropNotNull { tableName, columnName = dropColumn.name }
