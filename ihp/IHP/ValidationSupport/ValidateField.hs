@@ -135,7 +135,7 @@ withCustomErrorMessage :: Text -> (value -> ValidatorResult) -> value -> Validat
 withCustomErrorMessage errorMessage validator value =
     case validator value of
         Failure _ -> Failure errorMessage
-        FailureHtml _ -> Failure errorMessage
+        FailureHtml _ -> FailureHtml errorMessage
         Success -> Success
 {-# INLINABLE withCustomErrorMessage #-}
 
