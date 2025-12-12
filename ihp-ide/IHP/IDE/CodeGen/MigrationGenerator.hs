@@ -100,7 +100,8 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 actualTable = case actualSchema |> find \case
                         StatementCreateTable { unsafeGetCreateTable = table } -> table.name == tableName
                         otherwise                                                            -> False of
-                    Just table -> table
+                    Just stmt@(StatementCreateTable {}) -> stmt
+                    Just _ -> error $ "Internal error in patchTable: Expected StatementCreateTable but got different Statement type"
                     Nothing -> error $ "Internal error in patchTable: Could not find table " <> cs tableName <> " in actual schema"
         patchTable (s:rest) = s:(patchTable rest)
         patchTable [] = []
@@ -122,7 +123,8 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 actualEnumType = case actualSchema |> find \case
                         CreateEnumType { name = enum } -> enum == name
                         otherwise                      -> False of
-                    Just enumType -> enumType
+                    Just enumType@CreateEnumType{} -> enumType
+                    Just _ -> error $ "Internal error in patchEnumType: Expected CreateEnumType but got different Statement type"
                     Nothing -> error $ "Internal error in patchEnumType: Could not find enum type " <> cs name <> " in actual schema"
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
