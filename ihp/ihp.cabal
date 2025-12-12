@@ -40,10 +40,6 @@ data-files:
     , static/vendor/src-min/snippets/*.js
 extra-source-files: CHANGELOG.md
 
-Flag FastBuild
-    Default: False
-    Description: Disables all optimisations, leads to faster build time
-
 common shared-properties
     default-language: GHC2021
     build-depends:
@@ -136,6 +132,8 @@ common shared-properties
             , stm
             , wai-asset-path
             , wai-flash-messages
+            , slugger
+            , ihp-imagemagick
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -156,30 +154,6 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    if flag(FastBuild)
-        ghc-options:
-            -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-            -Wno-ambiguous-fields
-    else
-        ghc-options:
-            -fstatic-argument-transformation
-            -funbox-strict-fields
-            -haddock
-            +RTS -A256m -n4m -H512m -qg -N -RTS
-            -Wunused-imports
-            -Wunused-foralls
-            -Wmissing-fields
-            -Winaccessible-code
-            -Wmissed-specialisations
-            -Wall-missed-specialisations
-            -Wno-ambiguous-fields
 
 library
     import: shared-properties
@@ -212,7 +186,6 @@ library
         , IHP.Modal.ControllerFunctions
         , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
-        , IHP.Welcome.Controller
         , IHP.RequestVault
         , IHP.ControllerPrelude
         , IHP.ControllerSupport
@@ -261,7 +234,6 @@ library
         , IHP.FileStorage.Types
         , IHP.FileStorage.ControllerFunctions
         , IHP.FileStorage.Config
-        , IHP.FileStorage.Preprocessor.ImageMagick
         , IHP.Pagination.ControllerFunctions
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
@@ -288,7 +260,8 @@ test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
-    hs-source-dirs: .
+    hs-source-dirs: Test
+    build-depends: ihp 
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec

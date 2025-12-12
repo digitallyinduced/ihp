@@ -24,6 +24,9 @@ final: prev: {
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
             wai-asset-path = localPackage "wai-asset-path";
             wai-flash-messages = localPackage "wai-flash-messages";
+            ihp-imagemagick = localPackage "ihp-imagemagick";
+            ihp-hspec = localPackage "ihp-hspec";
+            ihp-welcome = localPackage "ihp-welcome";
 
             # ihp-pro
             ihp-stripe = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-stripe.nix" {};

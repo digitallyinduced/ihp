@@ -585,9 +585,17 @@ For explanations of these values, see GHC's [manual on the RTS](https://download
 
 ### Building
 
-First run `make prepare-optimized-nix-build` to enable optimized binary builds. You can skip this step in case you want faster build times, and are fine with slower runtime performance.
+Inside your project directory, build your app using one of these commands:
 
-Inside your project directory call `nix-build`. This will trigger a full clean build and place the output at `./result`.
+```bash
+# For optimized production builds (recommended for production)
+nix build .#optimized-prod-server
+
+# For faster unoptimized builds (useful for testing)
+nix build .#unoptimized-prod-server
+```
+
+This will trigger a full clean build and place the output at `./result`.
 
 After the build has finished, you can find the production binary at `result/bin/RunProdServer`.
 
@@ -786,23 +794,31 @@ Now sentry is set up.
 
 ## Building with Nix
 
-You can use `nix-build` to make a full build of your IHP app:
+You can use `nix build` to make a full build of your IHP app:
 
+```bash
+# Build an optimized production binary (recommended for production)
+nix build .#optimized-prod-server
+
+# Or build an unoptimized binary (faster builds, useful for testing)
+nix build .#unoptimized-prod-server
 ```
-# Optional, if you skip this the binary will not be optimized by GHC
-make prepare-optimized-nix-build
 
-# The actual build process
-nix-build
-```
+This will build a nix package in the `result` directory that contains the following binaries:
 
-This will build a nix package that contains the following binaries:
-
--   `RunProdServer`, the binary to start web server
--   `RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
--   a binary for each script in `Application/Script`, e.g. `Welcome` for `Application/Script/Welcome.hs`
+-   `result/bin/RunProdServer`, the binary to start web server
+-   `result/bin/RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
+-   a binary for each script in `Application/Script`, e.g. `result/bin/Welcome` for `Application/Script/Welcome.hs`
 
 The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.
+
+### Starting the app
+
+After building, you can start your app by running:
+
+```bash
+result/bin/RunProdServer
+```
 
 
 # Env Var Reference

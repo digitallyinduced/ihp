@@ -8,5 +8,5 @@ jobs:
   nix-flake-check:
     runs-on: ARM64
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L

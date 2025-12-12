@@ -379,8 +379,8 @@ class QueryBuilder extends ConditionBuildable {
     }
 }
 
-function query(table) {
-    return new QueryBuilder(table);
+function query(table, columns) {
+    return new QueryBuilder(table, columns);
 }
 
 function jsValueToDynamicValue(value) {

@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK not-home, hide #-}
 {-|
 Module: IHP.RouterPrelude
 Description: Prelude used by modules like Web.Routes, Admin.Routes, etc.

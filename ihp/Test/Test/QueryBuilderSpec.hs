@@ -331,6 +331,62 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "> NOW()"])
 
+        describe "filterWhereGreaterThan" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereGreaterThan (#likes, 100 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes > ?", [Plain "100"])
+
+        describe "filterWhereLarger" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereLarger (#likes, 100 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes > ?", [Plain "100"])
+
+        describe "filterWhereGreaterThanOrEqualTo" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereGreaterThanOrEqualTo (#likes, 80 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= ?", [Plain "80"])
+
+        describe "filterWhereAtLeast" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereAtLeast (#likes, 80 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= ?", [Plain "80"])
+
+        describe "filterWhereLessThan" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereLessThan (#likes, 50 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < ?", [Plain "50"])
+
+        describe "filterWhereSmaller" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereSmaller (#likes, 50 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < ?", [Plain "50"])
+
+        describe "filterWhereLessThanOrEqualTo" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereLessThanOrEqualTo (#likes, 60 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= ?", [Plain "60"])
+
+        describe "filterWhereAtMost" do
+            it "should produce a SQL with a WHERE condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereAtMost (#likes, 60 :: Int)
+
+                (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= ?", [Plain "60"])
+
         describe "filterWhereSql" do
             it "should produce a SQL with a WHERE condition" do
                 let theValues :: [Text] = ["first", "second"]

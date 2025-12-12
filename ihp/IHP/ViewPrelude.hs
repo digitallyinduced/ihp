@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK not-home, hide #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
