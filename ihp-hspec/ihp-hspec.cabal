@@ -51,7 +51,7 @@ test-suite tests
         ImplicitParams
         RecordWildCards
     type: exitcode-stdio-1.0
-    main-is: Test/Main.hs
-    hs-source-dirs: .
+    main-is: Main.hs
+    hs-source-dirs: Test
     build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-hspec, wai, hspec, http-types, process, text, vault, uuid, postgresql-simple
     other-modules: WithIHPAppSpec
