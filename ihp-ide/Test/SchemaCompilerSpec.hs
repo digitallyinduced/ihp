@@ -391,7 +391,7 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                 |]
-            it "should handle full-text search generated columns like in the issue" do
+            it "should handle tablets with generated columns" do
                 let statement = StatementCreateTable CreateTable
                         { name = "posts"
                         , columns =
