@@ -55,7 +55,9 @@ GHC_EXTENSIONS+= -XPartialTypeSignatures
 GHC_EXTENSIONS+= -XStandaloneDeriving
 GHC_EXTENSIONS+= -XDerivingVia
 GHC_EXTENSIONS+= -Werror=missing-fields
-GHC_EXTENSIONS+= -fwarn-incomplete-patterns
+# Incomplete patterns are treated as errors to catch potential bugs at compile time
+# If you need to disable this temporarily for a specific module, add {-# OPTIONS_GHC -Wno-error=incomplete-patterns #-} at the top of that module
+GHC_EXTENSIONS+= -Werror=incomplete-patterns
 GHC_EXTENSIONS+= -XTemplateHaskell
 GHC_EXTENSIONS+= -XDeepSubsumption
 GHC_EXTENSIONS+= -XOverloadedRecordDot
