@@ -10,7 +10,7 @@ module IHP.CSP.ControllerFunctions
     , CSPNonce(..)
     ) where
 
-import ClassyPrelude
+import IHP.Prelude
 import IHP.CSP.Types
 import IHP.ControllerSupport (setHeader)
 import IHP.Controller.Context

@@ -31,7 +31,7 @@ module IHP.CSP.Types
     , renderCSPSource
     ) where
 
-import ClassyPrelude
+import IHP.Prelude
 import qualified Data.Text as Text
 import Data.String (IsString(..))
 
