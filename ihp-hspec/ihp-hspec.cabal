@@ -9,6 +9,8 @@ maintainer:          support@digitallyinduced.com
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
 category:            Testing
 build-type:          Simple
+data-dir:            data
+data-files:          IHPSchema.sql
 
 library
     default-language: GHC2021
@@ -27,6 +29,34 @@ library
         OverloadedStrings
         ImplicitParams
         RecordWildCards
-    build-depends: base >= 4.17.0 && < 4.22, ihp, wai, process, text, ihp-ide, vault, uuid, postgresql-simple
+    build-depends: base >= 4.17.0 && < 4.22, ihp, wai, process, text, vault, uuid, postgresql-simple
     hs-source-dirs: .
     exposed-modules: IHP.Hspec
+
+test-suite tests
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        OverloadedLabels
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        TypeApplications
+        TemplateHaskell
+        QuasiQuotes
+        PackageImports
+        ScopedTypeVariables
+        BlockArguments
+        OverloadedStrings
+        ImplicitParams
+        RecordWildCards
+        DataKinds
+        MultiParamTypeClasses
+        TypeFamilies
+        FlexibleInstances
+        UndecidableInstances
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    hs-source-dirs: Test
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-hspec, wai, hspec, http-types, process, text, vault, uuid, postgresql-simple
+    other-modules: WithIHPAppSpec
