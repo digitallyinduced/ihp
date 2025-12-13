@@ -118,6 +118,54 @@ tests = do
                     instance DeepSeq.NFData PropertyType where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
                 |]
+            it "should compile uppercase quoted enum type correctly" do
+                let statement = CreateEnumType { name = "SYMBOL_TYPE", values = ["stock", "etf", "future", "option", "fund"] }
+                let output = compileStatementPreview [statement] statement |> Text.strip
+
+                output `shouldBe` [trimming|
+                    data SymbolType = Stock | Etf | Future | Option | Fund deriving (Eq, Show, Read, Enum, Bounded, Ord)
+                    instance FromField SymbolType where
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "stock") = pure Stock
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "etf") = pure Etf
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "future") = pure Future
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "option") = pure Option
+                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "fund") = pure Fund
+                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
+                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                    instance Default SymbolType where def = Stock
+                    instance ToField SymbolType where
+                        toField Stock = toField ("stock" :: Text)
+                        toField Etf = toField ("etf" :: Text)
+                        toField Future = toField ("future" :: Text)
+                        toField Option = toField ("option" :: Text)
+                        toField Fund = toField ("fund" :: Text)
+                    instance InputValue SymbolType where
+                        inputValue Stock = "stock" :: Text
+                        inputValue Etf = "etf" :: Text
+                        inputValue Future = "future" :: Text
+                        inputValue Option = "option" :: Text
+                        inputValue Fund = "fund" :: Text
+                    instance DeepSeq.NFData SymbolType where rnf a = seq a ()
+                    instance IHP.Controller.Param.ParamReader SymbolType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                |]
+            it "should compile a table with an uppercase quoted custom type column" do
+                let enumType = CreateEnumType { name = "SYMBOL_TYPE", values = ["stock", "etf", "future", "option", "fund"] }
+                let table = StatementCreateTable $ CreateTable {
+                        name = "symbol",
+                        columns = [
+                            Column "id" PUUID (Just (CallExpression "uuid_generate_v4" [])) True False Nothing,
+                            Column "code" PText Nothing True False Nothing,
+                            Column "name" PText Nothing True False Nothing,
+                            Column "symbol_type" (PCustomType "SYMBOL_TYPE") Nothing True False Nothing
+                        ],
+                        primaryKeyConstraint = PrimaryKeyConstraint ["id"],
+                        constraints = [],
+                        unlogged = False
+                    }
+                let output = compileStatementPreview [enumType, table] table |> Text.strip
+
+                -- The Haskell type should be SymbolType (converted from SYMBOL_TYPE)
+                output `shouldContain` "data Symbol'  = Symbol {id :: (Id' \"symbol\"), code :: Text, name :: Text, symbolType :: SymbolType, meta :: MetaBag}"
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
                     name = "users",

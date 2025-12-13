@@ -206,7 +206,7 @@ compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType PEventTrigger = "EVENT_TRIGGER"
-compilePostgresType (PCustomType theType) = theType
+compilePostgresType (PCustomType theType) = compileIdentifier theType
 
 compileIdentifier :: Text -> Text
 compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier

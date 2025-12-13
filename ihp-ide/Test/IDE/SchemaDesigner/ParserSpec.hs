@@ -151,6 +151,54 @@ tests = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
 
+        it "should parse a CREATE TABLE with uppercase custom type column" do
+            let sql = cs [plain|CREATE TABLE symbol (
+                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                code TEXT NOT NULL,
+                name TEXT NOT NULL,
+                symbol_type "SYMBOL_TYPE" NOT NULL
+            );|]
+            parseSql sql `shouldBe` StatementCreateTable CreateTable
+                    { name = "symbol"
+                    , columns = [
+                        Column
+                            { name = "id"
+                            , columnType = PUUID
+                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "code"
+                            , columnType = PText
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "name"
+                            , columnType = PText
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "symbol_type"
+                            , columnType = PCustomType "SYMBOL_TYPE"
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    , unlogged = False
+                    }
+
         it "should parse a CREATE TABLE with public schema prefix" do
             parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
 
@@ -481,6 +529,9 @@ tests = do
 
         it "should parse CREATE TYPE .. AS ENUM" do
             parseSql "CREATE TYPE colors AS ENUM ('yellow', 'red', 'green');" `shouldBe` CreateEnumType { name = "colors", values = ["yellow", "red", "green"] }
+
+        it "should parse CREATE TYPE .. AS ENUM with quoted uppercase name" do
+            parseSql "CREATE TYPE \"SYMBOL_TYPE\" AS ENUM ('stock', 'etf', 'future', 'option', 'fund');" `shouldBe` CreateEnumType { name = "SYMBOL_TYPE", values = ["stock", "etf", "future", "option", "fund"] }
 
         it "should parse CREATE TYPE .. AS ENUM with extra whitespace" do
             parseSql "CREATE TYPE Numbers AS ENUM (\n\t'One',\t'Two',\t'Three',\t'Four',\t'Five',\t'Six',\t'Seven',\t'Eight',\t'Nine',\t'Ten'\n);" `shouldBe` CreateEnumType { name = "Numbers", values = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"] }
@@ -1175,6 +1226,58 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                 \unrestrict LjgPjBgHVdXUE0a19ZenYCd3Zs2dsdUxghYk15OGwb4zzkNflnbsZ4rQo7Eqm5G
             |]
             parseSqlStatements sql `shouldBe` [Comment { content = "" }, Comment { content = "" }]
+
+        it "should parse schema with uppercase enum type and table using it" do
+            let sql = cs [plain|CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future', 'option', 'fund');
+CREATE TABLE symbol (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    symbol_type "SYMBOL_TYPE" NOT NULL
+);|]
+            parseSqlStatements sql `shouldBe`
+                [ CreateEnumType { name = "SYMBOL_TYPE", values = ["stock", "etf", "future", "option", "fund"] }
+                , StatementCreateTable CreateTable
+                    { name = "symbol"
+                    , columns =
+                        [ Column
+                            { name = "id"
+                            , columnType = PUUID
+                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "code"
+                            , columnType = PText
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "name"
+                            , columnType = PText
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "symbol_type"
+                            , columnType = PCustomType "SYMBOL_TYPE"
+                            , defaultValue = Nothing
+                            , notNull = True
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    , constraints = []
+                    , unlogged = False
+                    }
+                ]
 
 col :: Column
 col = Column

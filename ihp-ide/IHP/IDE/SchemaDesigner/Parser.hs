@@ -439,7 +439,7 @@ sqlType = choice $ map optionalArray
                     optional do
                         lexeme "public"
                         char '.'
-                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    theType <- try identifier
                     pure (PCustomType theType)
 
 
