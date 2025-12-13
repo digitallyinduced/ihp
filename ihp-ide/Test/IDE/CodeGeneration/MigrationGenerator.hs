@@ -300,6 +300,46 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
             
+            it "should handle uppercase quoted enum types with tables using them" do
+                let targetSchema = sql [i|
+                    CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future', 'option', 'fund');
+                    CREATE TABLE symbol (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        code TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        symbol_type "SYMBOL_TYPE" NOT NULL,
+                        list_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+                        delist_date TIMESTAMP WITHOUT TIME ZONE,
+                        UNIQUE(code, symbol_type)
+                    );
+                |]
+
+                let actualSchema = targetSchema
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+            
+            it "should handle creating a new table with uppercase quoted enum type" do
+                let targetSchema = sql [i|
+                    CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future');
+                    CREATE TABLE symbol (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        symbol_type "SYMBOL_TYPE" NOT NULL
+                    );
+                |]
+
+                let actualSchema = sql [i|
+                    CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future');
+                |]
+
+                let migration = sql [i|
+                    CREATE TABLE symbol (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        symbol_type "SYMBOL_TYPE" NOT NULL
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+            
             it "should handle a deleted table" do
                 let targetSchema = sql ""
                 let actualSchema = sql [i|
