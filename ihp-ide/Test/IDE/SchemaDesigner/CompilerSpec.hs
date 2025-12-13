@@ -489,6 +489,42 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE TYPE .. AS ENUM with uppercase name" do
+            let sql = cs [plain|CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future');\n|]
+            let statement = CreateEnumType
+                    { name = "SYMBOL_TYPE"
+                    , values = ["stock", "etf", "future"]
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE TABLE with uppercase custom type column" do
+            let sql = cs [plain|CREATE TABLE symbol (\n    id UUID,\n    symbol_type "SYMBOL_TYPE"\n);\n|]
+            let statement = StatementCreateTable CreateTable
+                    { name = "symbol"
+                    , columns =
+                        [ Column
+                            { name = "id"
+                            , columnType = PUUID
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        , Column
+                            { name = "symbol_type"
+                            , columnType = PCustomType "SYMBOL_TYPE"
+                            , defaultValue = Nothing
+                            , notNull = False
+                            , isUnique = False
+                            , generator = Nothing
+                            }
+                        ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint []
+                    , constraints = []
+                    , unlogged = False
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
             let statement = StatementCreateTable CreateTable
@@ -1091,4 +1127,58 @@ tests = do
                             , check = Just (VarExpression "false")
                             }
                         ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile schema with uppercase enum type and table using it" do
+            let sql = cs [plain|CREATE TYPE "SYMBOL_TYPE" AS ENUM ('stock', 'etf', 'future', 'option', 'fund');
+CREATE TABLE symbol (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    symbol_type "SYMBOL_TYPE" NOT NULL
+);
+|]
+            let statements =
+                    [ CreateEnumType { name = "SYMBOL_TYPE", values = ["stock", "etf", "future", "option", "fund"] }
+                    , StatementCreateTable CreateTable
+                        { name = "symbol"
+                        , columns =
+                            [ Column
+                                { name = "id"
+                                , columnType = PUUID
+                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
+                                , notNull = True
+                                , isUnique = False
+                                , generator = Nothing
+                                }
+                            , Column
+                                { name = "code"
+                                , columnType = PText
+                                , defaultValue = Nothing
+                                , notNull = True
+                                , isUnique = False
+                                , generator = Nothing
+                                }
+                            , Column
+                                { name = "name"
+                                , columnType = PText
+                                , defaultValue = Nothing
+                                , notNull = True
+                                , isUnique = False
+                                , generator = Nothing
+                                }
+                            , Column
+                                { name = "symbol_type"
+                                , columnType = PCustomType "SYMBOL_TYPE"
+                                , defaultValue = Nothing
+                                , notNull = True
+                                , isUnique = False
+                                , generator = Nothing
+                                }
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        }
+                    ]
             compileSql statements `shouldBe` sql
