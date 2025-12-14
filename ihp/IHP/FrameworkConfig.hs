@@ -289,7 +289,7 @@ data FrameworkConfig = FrameworkConfig
     -- | Max number of db connections the connection pool can open to the database
     , dbPoolMaxConnections :: !Int
 
-    -- | Bootstrap 5 by default
+    -- | Bootstrap 4 by default
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework

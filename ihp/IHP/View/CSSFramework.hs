@@ -296,7 +296,7 @@ instance Default CSSFramework where
                 [hsx|
 
                 <div class="d-flex justify-content-md-center">
-                    <nav aria-label="Page Navigator" class="me-2">
+                    <nav aria-label="Page Navigator" class="mr-2">
                         <ul class="pagination">
                             {paginationView.linkPrevious}
                             {paginationView.pageDotDotItems}
@@ -304,9 +304,9 @@ instance Default CSSFramework where
                         </ul>
                     </nav>
 
-                    <div class="row">
-                        <div class="col-auto me-2">
-                            <select class="form-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                    <div class="form-row">
+                        <div class="col-auto mr-2">
+                            <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                                 {paginationView.itemsPerPageSelector}
                             </select>
                         </div>
@@ -345,7 +345,7 @@ instance Default CSSFramework where
                         <li class={prevClass}>
                             <a class="page-link" href={url} aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
-                                <span class="visually-hidden">Previous</span>
+                                <span class="sr-only">Previous</span>
                             </a>
                         </li>
                     |]
@@ -360,7 +360,7 @@ instance Default CSSFramework where
                         <li class={nextClass}>
                             <a class="page-link" href={url} aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
-                                <span class="visually-hidden">Next</span>
+                                <span class="sr-only">Next</span>
                             </a>
                         </li>
                     |]
@@ -401,6 +401,7 @@ bootstrap = def
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
 
+        styledInputClass _ FormField { fieldType = FileInput } = "form-control-file"
         styledInputClass _ FormField {} = "form-control"
         styledInputInvalidClass _ _ = "is-invalid"
 
