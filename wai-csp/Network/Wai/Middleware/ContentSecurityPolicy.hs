@@ -1,17 +1,26 @@
 {-|
-Module: IHP.CSP.Types
-Description: Type-safe Content Security Policy (CSP) types
+Module: Network.Wai.Middleware.ContentSecurityPolicy
+Description: Type-safe Content Security Policy (CSP) middleware for WAI
 Copyright: (c) digitally induced GmbH, 2025
 
-This module provides type-safe representations for Content Security Policy directives.
+This module provides a WAI middleware for setting Content Security Policy headers.
 -}
-module IHP.CSP.Types
-    ( CSP (..)
+module Network.Wai.Middleware.ContentSecurityPolicy
+    ( -- * Middleware
+      cspMiddleware
+    , cspMiddlewareWithNonce
+    
+    -- * CSP Types
+    , CSP (..)
     , CSPDirective (..)
     , CSPSource (..)
     , CSPSourceList
+    
+    -- * Predefined Policies
     , defaultCSP
     , strictCSP
+    
+    -- * CSP Source Helpers
     , nonce
     , self
     , unsafeInline
@@ -26,14 +35,30 @@ module IHP.CSP.Types
     , filesystem
     , host
     , scheme
+    
+    -- * Rendering
     , renderCSP
     , renderCSPDirective
     , renderCSPSource
+    
+    -- * Nonce Support
+    , CSPNonce(..)
+    , generateNonce
+    , cspNonceKey
     ) where
 
-import IHP.Prelude
+import Prelude
+import Network.Wai
 import qualified Data.Text as Text
+import Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import qualified Data.Vault.Lazy as Vault
+import qualified Data.ByteString.Base64 as Base64
+import System.Random (randomIO)
+import qualified Data.ByteString as BS
+import Data.Word (Word8)
 import Data.String (IsString(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Represents a Content Security Policy
 data CSP = CSP
@@ -103,6 +128,42 @@ data CSPSource
 -- | A list of CSP sources for a directive
 type CSPSourceList = [CSPSource]
 
+-- | A newtype wrapper for CSP nonces stored in the request vault
+newtype CSPNonce = CSPNonce Text
+    deriving (Show, Eq)
+
+-- | Vault key for storing CSP nonce in request
+cspNonceKey :: Vault.Key CSPNonce
+cspNonceKey = unsafePerformIO Vault.newKey
+{-# NOINLINE cspNonceKey #-}
+
+-- | Generate a cryptographically secure nonce for CSP
+generateNonce :: IO Text
+generateNonce = do
+    bytes <- sequence [randomIO :: IO Word8 | _ <- [1..32]]
+    pure $ Text.decodeUtf8 $ Base64.encode $ BS.pack bytes
+
+-- | WAI middleware that adds CSP header with a fresh nonce for each request
+-- The nonce is stored in the request vault and can be retrieved using cspNonceKey
+cspMiddlewareWithNonce :: (Text -> CSP) -> Middleware
+cspMiddlewareWithNonce cspBuilder app req respond = do
+    nonceValue <- generateNonce
+    let csp = cspBuilder nonceValue
+    let cspHeader = ("Content-Security-Policy", Text.encodeUtf8 $ renderCSP csp)
+    let vault = Vault.insert cspNonceKey (CSPNonce nonceValue) req.vault
+    let req' = req { vault = vault }
+    
+    app req' $ \response ->
+        respond $ mapResponseHeaders (\headers -> cspHeader : headers) response
+
+-- | WAI middleware that adds CSP header
+cspMiddleware :: CSP -> Middleware
+cspMiddleware csp app req respond = do
+    let cspHeader = ("Content-Security-Policy", Text.encodeUtf8 $ renderCSP csp)
+    
+    app req $ \response ->
+        respond $ mapResponseHeaders (\headers -> cspHeader : headers) response
+
 -- | Default CSP with safe defaults
 defaultCSP :: CSP
 defaultCSP = CSP
@@ -128,7 +189,6 @@ defaultCSP = CSP
     }
 
 -- | Strict CSP with nonce-based script and style loading
--- This provides strong XSS protection
 strictCSP :: Text -> CSP
 strictCSP nonceValue = CSP
     { defaultSrc = Just [self]
@@ -154,59 +214,45 @@ strictCSP nonceValue = CSP
 
 -- | Helper functions to create CSP sources
 
--- | 'self' source
 self :: CSPSource
 self = Self
 
--- | 'unsafe-inline' source
 unsafeInline :: CSPSource
 unsafeInline = UnsafeInline
 
--- | 'unsafe-eval' source
 unsafeEval :: CSPSource
 unsafeEval = UnsafeEval
 
--- | 'strict-dynamic' source
 strictDynamic :: CSPSource
 strictDynamic = StrictDynamic
 
--- | 'none' source
 none :: CSPSource
 none = None
 
--- | 'data:' source
 data' :: CSPSource
 data' = Data
 
--- | 'https:' source
 https :: CSPSource
 https = Https
 
--- | 'http:' source
 http :: CSPSource
 http = Http
 
--- | 'blob:' source
 blob :: CSPSource
 blob = Blob
 
--- | 'mediastream:' source
 mediastream :: CSPSource
 mediastream = Mediastream
 
--- | 'filesystem:' source
 filesystem :: CSPSource
 filesystem = Filesystem
 
--- | Create a nonce source
 nonce :: Text -> CSPSource
 nonce = Nonce
 
--- | Create a host source (e.g., "example.com", "*.example.com")
 host :: Text -> CSPSource
 host = Host
 
--- | Create a scheme source (e.g., "https:", "data:")
 scheme :: Text -> CSPSource
 scheme = Scheme
 
@@ -282,3 +328,20 @@ renderCSP csp = Text.intercalate "; " $ catMaybes
     renderUriDirective :: Text -> Maybe Text -> Maybe Text
     renderUriDirective name (Just uri) = Just $ name <> " " <> uri
     renderUriDirective _ Nothing = Nothing
+
+-- Helper to add headers to response
+mapResponseHeaders :: (ResponseHeaders -> ResponseHeaders) -> Response -> Response
+mapResponseHeaders f (ResponseFile status headers filePath part) =
+    ResponseFile status (f headers) filePath part
+mapResponseHeaders f (ResponseBuilder status headers builder) =
+    ResponseBuilder status (f headers) builder
+mapResponseHeaders f (ResponseStream status headers stream) =
+    ResponseStream status (f headers) stream
+mapResponseHeaders f (ResponseRaw action response) =
+    ResponseRaw action (mapResponseHeaders f response)
+
+catMaybes :: [Maybe a] -> [a]
+catMaybes = foldr go []
+  where
+    go Nothing xs = xs
+    go (Just x) xs = x : xs

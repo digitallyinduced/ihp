@@ -7,7 +7,7 @@
 
 Content Security Policy (CSP) is a powerful security feature that helps protect your IHP application from cross-site scripting (XSS), clickjacking, and other code injection attacks. By specifying which sources of content are allowed to load and execute, you can significantly reduce the attack surface of your web application.
 
-IHP provides the `ihp-csp` package that offers a type-safe API for managing CSP headers with good defaults and built-in nonce support.
+IHP includes the `wai-csp` package that provides a type-safe WAI middleware for managing CSP headers with good defaults and built-in nonce support.
 
 ## Why Use CSP?
 
@@ -20,7 +20,7 @@ Without CSP, if an attacker can inject malicious JavaScript into your applicatio
 
 ## Installation
 
-Add `ihp-csp` to your project's dependencies in `default.nix`:
+Add `wai-csp` to your project's dependencies in `default.nix`:
 
 ```nix
 let
@@ -34,7 +34,7 @@ let
             text
             hlint
             p.ihp
-            ihp-csp  # Add this line
+            wai-csp  # Add this line
         ];
         otherDeps = p: with p; [
             # Native dependencies
@@ -47,35 +47,40 @@ in
 
 ## Quick Start
 
-The easiest way to add CSP to your IHP application is to use the strict CSP policy with nonces in your controller's `beforeAction`:
+The easiest way to add CSP to your IHP application is to add the middleware in your `Config/Config.hs`:
 
 ```haskell
-module Web.Controller.Posts where
+module Config where
 
-import Web.Controller.Prelude
-import qualified IHP.CSP as CSP
+import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
 
-instance Controller PostsController where
-    beforeAction = do
-        -- Generate a cryptographically secure nonce
-        nonce <- CSP.generateNonce
-        putContext (CSP.CSPNonce nonce)
-        
-        -- Set a strict CSP with the nonce
-        CSP.setCSP $ CSP.strictCSP nonce
-
-    action PostsAction = do
-        posts <- query @Post |> fetch
-        render IndexView { .. }
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppHostname "localhost")
+    
+    -- Add CSP middleware with nonce support
+    option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce CSP.strictCSP
 ```
 
-Then, in your view, add the nonce to any inline scripts or styles:
+This automatically:
+- Generates a fresh nonce for each request
+- Sets a strict Content-Security-Policy header
+- Stores the nonce in the request vault for use in views
+
+## Using Nonces in Views
+
+To use the nonce in your views for inline scripts or styles, retrieve it from the request:
 
 ```haskell
 module Web.View.Posts.Index where
 
 import Web.View.Prelude
-import qualified IHP.CSP as CSP
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+import qualified Data.Vault.Lazy as Vault
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
@@ -85,10 +90,10 @@ instance View IndexView where
         </div>
     |]
       where
-        customScript = do
-            let CSP.CSPNonce nonce = fromFrozenContext
-            [hsx|
-                <script nonce={nonce}>
+        customScript = 
+            let Just (CSP.CSPNonce nonceValue) = Vault.lookup CSP.cspNonceKey request.vault
+            in [hsx|
+                <script nonce={nonceValue}>
                     console.log("This script is allowed by CSP");
                 </script>
             |]
@@ -101,7 +106,11 @@ instance View IndexView where
 The `defaultCSP` provides a safe baseline that you can customize:
 
 ```haskell
-CSP.setCSP CSP.defaultCSP
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+
+config :: ConfigBuilder
+config = do
+    option $ CustomMiddleware $ CSP.cspMiddleware CSP.defaultCSP
 ```
 
 This sets:
@@ -114,9 +123,11 @@ This sets:
 The `strictCSP` policy provides stronger protection using nonces:
 
 ```haskell
-nonce <- CSP.generateNonce
-putContext (CSP.CSPNonce nonce)
-CSP.setCSP $ CSP.strictCSP nonce
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+
+config :: ConfigBuilder
+config = do
+    option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce CSP.strictCSP
 ```
 
 This sets:
@@ -134,7 +145,12 @@ This sets:
 You can create custom CSP policies by modifying the default policies:
 
 ```haskell
-import qualified IHP.CSP as CSP
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+import Data.Text (Text)
+
+config :: ConfigBuilder
+config = do
+    option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce myCustomCSP
 
 myCustomCSP :: Text -> CSP.CSP
 myCustomCSP nonce = CSP.defaultCSP
@@ -167,7 +183,7 @@ myCustomCSP nonce = CSP.defaultCSP
 
 ## CSP Sources
 
-The `ihp-csp` package provides helper functions for all CSP source values:
+The `wai-csp` package provides helper functions for all CSP source values:
 
 | Helper Function | CSP Source | Description |
 |----------------|------------|-------------|
@@ -189,27 +205,26 @@ The `ihp-csp` package provides helper functions for all CSP source values:
 You often need different CSP policies for development and production:
 
 ```haskell
-import qualified IHP.CSP as CSP
-import qualified IHP.EnvVar as EnvVar
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+import IHP.Environment
+import Data.Text (Text)
 
-instance Controller ApplicationController where
-    beforeAction = do
-        nonce <- CSP.generateNonce
-        putContext (CSP.CSPNonce nonce)
-        
-        env <- EnvVar.envOrDefault "development" "IHP_ENV"
-        
-        let csp = case env of
-                "development" -> devCSP nonce
-                _ -> prodCSP nonce
-        
-        CSP.setCSP csp
+config :: ConfigBuilder
+config = do
+    env <- option Development
+    
+    let cspPolicy = case env of
+            Development -> devCSP
+            Production -> prodCSP
+    
+    option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce cspPolicy
 
 devCSP :: Text -> CSP.CSP
 devCSP nonce = (CSP.strictCSP nonce)
     { CSP.connectSrc = Just 
         [ CSP.self
-        , CSP.host "ws://localhost:*"  -- IHP dev server
+        , CSP.host "ws://localhost:8001"  -- IHP dev server
+        , CSP.host "ws://localhost:*"
         ]
     , CSP.frameAncestors = Just 
         [ CSP.host "http://localhost:8000"
@@ -265,15 +280,55 @@ myCSP nonce = (CSP.strictCSP nonce)
 
 ## Using Nonces in Views
 
-When you have inline scripts or styles, you need to add the nonce attribute:
+When you have inline scripts or styles, you need to add the nonce attribute. The nonce is automatically stored in the request vault by the middleware.
+
+### Helper Function (Recommended)
+
+Create a helper function in `Web/View/Prelude.hs`:
+
+```haskell
+module Web.View.Prelude
+( module Web.View.Prelude
+, module IHP.ViewPrelude
+) where
+
+import IHP.ViewPrelude
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+import qualified Data.Vault.Lazy as Vault
+
+-- | Get the CSP nonce from the current request
+cspNonce :: (?context :: ControllerContext) => Text
+cspNonce = 
+    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
+    in nonce
+```
+
+Then use it in your views:
+
+```haskell
+instance View IndexView where
+    html IndexView { .. } = [hsx|
+        <div>
+            <script nonce={cspNonce}>
+                console.log("Hello from CSP-protected script!");
+            </script>
+            
+            <style nonce={cspNonce}>
+                .custom-class {
+                    color: blue;
+                }
+            </style>
+        </div>
+    |]
+```
 
 ### Inline Scripts
 
 ```haskell
 scripts :: Html
-scripts = do
-    let CSP.CSPNonce nonce = fromFrozenContext
-    [hsx|
+scripts = 
+    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
+    in [hsx|
         <script nonce={nonce}>
             // Your inline JavaScript
             console.log("Hello from CSP-protected script!");
@@ -285,9 +340,9 @@ scripts = do
 
 ```haskell
 styles :: Html
-styles = do
-    let CSP.CSPNonce nonce = fromFrozenContext
-    [hsx|
+styles = 
+    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
+    in [hsx|
         <style nonce={nonce}>
             .custom-class {
                 color: blue;
@@ -302,9 +357,9 @@ Even external scripts can use nonces:
 
 ```haskell
 externalScript :: Html
-externalScript = do
-    let CSP.CSPNonce nonce = fromFrozenContext
-    [hsx|
+externalScript = 
+    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
+    in [hsx|
         <script nonce={nonce} src="https://cdn.example.com/script.js"></script>
     |]
 ```
@@ -359,18 +414,16 @@ myCSP nonce = (CSP.strictCSP nonce)
 **Problem**: Your inline scripts are being blocked.
 
 **Solution**: Make sure you're:
-1. Generating a nonce and storing it in the context
-2. Setting the CSP with the nonce
+1. Using `cspMiddlewareWithNonce` in your config
+2. Retrieving the nonce from the request vault
 3. Adding the nonce attribute to your script tags
 
 ```haskell
--- In controller
-nonce <- CSP.generateNonce
-putContext (CSP.CSPNonce nonce)
-CSP.setCSP $ CSP.strictCSP nonce
+-- In Config/Config.hs
+option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce CSP.strictCSP
 
--- In view
-let CSP.CSPNonce nonce = fromFrozenContext
+-- In your view
+let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
 [hsx|<script nonce={nonce}>...</script>|]
 ```
 
@@ -398,6 +451,7 @@ csp { CSP.scriptSrc = Just
 csp { CSP.connectSrc = Just 
         [ CSP.self
         , CSP.host "wss://api.example.com"
+        , CSP.host "ws://localhost:8001"  -- For development
         ]
     }
 ```

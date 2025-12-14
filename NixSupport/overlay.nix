@@ -27,7 +27,7 @@ final: prev: {
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
-            ihp-csp = localPackage "ihp-csp";
+            wai-csp = localPackage "wai-csp";
 
             fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
             

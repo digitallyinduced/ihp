@@ -1,8 +1,7 @@
 module Main where
 
 import Test.Hspec
-import IHP.Prelude
-import IHP.CSP.Types
+import Network.Wai.Middleware.ContentSecurityPolicy
 import qualified Data.Text as Text
 
 main :: IO ()

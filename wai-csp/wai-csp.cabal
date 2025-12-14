@@ -1,8 +1,8 @@
 cabal-version:       2.2
-name:                ihp-csp
-version:             1.4.0
-synopsis:            Type-safe Content Security Policy (CSP) for IHP
-description:         Provides a type-safe API for managing Content Security Policy headers with good defaults and nonce support
+name:                wai-csp
+version:             1.0.0
+synopsis:            Type-safe Content Security Policy (CSP) middleware for WAI
+description:         Provides a type-safe API for managing Content Security Policy headers with nonce support for WAI applications
 license:             MIT
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
@@ -14,45 +14,42 @@ source-repository head
     type:     git
     location: https://github.com/digitallyinduced/ihp.git
 
-common ihp-std
+library
     default-language: GHC2021
     default-extensions:
-        NoImplicitPrelude
-        OverloadedLabels
         OverloadedRecordDot
         DuplicateRecordFields
         DisambiguateRecordFields
-        TypeApplications
-        TemplateHaskell
-        QuasiQuotes
-        PackageImports
-        ScopedTypeVariables
         BlockArguments
         OverloadedStrings
-        ImplicitParams
-
-library
-    import: ihp-std
     build-depends:
           base >= 4.17.0 && < 4.22
         , text
-        , ihp
+        , wai
+        , vault
         , bytestring
+        , base64-bytestring
+        , random
     hs-source-dirs: .
     exposed-modules:
-        IHP.CSP
-        , IHP.CSP.Types
-        , IHP.CSP.ControllerFunctions
+        Network.Wai.Middleware.ContentSecurityPolicy
 
 test-suite tests
-    import: ihp-std
+    default-language: GHC2021
+    default-extensions:
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        BlockArguments
+        OverloadedStrings
     type: exitcode-stdio-1.0
-    main-is: IHP/CSPSpec.hs
+    main-is: CSPSpec.hs
     build-depends:
         base >= 4.17.0 && < 4.22
         , hspec
-        , ihp
-        , ihp-csp
+        , wai-csp
         , text
         , bytestring
+        , wai
+        , vault
     hs-source-dirs: Test
