@@ -1186,6 +1186,15 @@ col = Column
     , generator = Nothing
     }
 
+table :: CreateTable
+table = CreateTable
+    { name = ""
+    , columns = []
+    , primaryKeyConstraint = PrimaryKeyConstraint []
+    , constraints = []
+    , unlogged = False
+    }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 

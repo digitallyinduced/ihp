@@ -10,12 +10,12 @@ import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
 import IHP.IDE.SchemaDesigner.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col, parseSql)
+import Test.IDE.SchemaDesigner.ParserSpec (col, table, parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do
         it "should compile an empty CREATE TABLE statement" do
-            compileSql [StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE users (\n\n);\n"
+            compileSql [StatementCreateTable table { name = "users" }] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
@@ -38,82 +38,24 @@ tests = do
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 |]
-            let statement = StatementCreateTable CreateTable
+            let statement = StatementCreateTable table
                     { name = "users"
                     , columns = [
-                        Column
-                            { name = "id"
-                            , columnType = PUUID
-                            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "firstname"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "lastname"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "password_hash"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "email"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "company_id"
-                            , columnType = PUUID
-                            , defaultValue = Nothing
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "picture_url"
-                            , columnType = PText
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "created_at"
-                            , columnType = PTimestampWithTimezone
-                            , defaultValue = Just (CallExpression "NOW" [])
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
+                        col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , col { name = "firstname", columnType = PText, notNull = True }
+                        , col { name = "lastname", columnType = PText, notNull = True }
+                        , col { name = "password_hash", columnType = PText, notNull = True }
+                        , col { name = "email", columnType = PText, notNull = True }
+                        , col { name = "company_id", columnType = PUUID, notNull = True }
+                        , col { name = "picture_url", columnType = PText }
+                        , col { name = "created_at", columnType = PTimestampWithTimezone, defaultValue = Just (CallExpression "NOW" []), notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
-                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE with quoted identifiers" do
-            compileSql [StatementCreateTable CreateTable { name = "quoted name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+            compileSql [StatementCreateTable table { name = "quoted name" }] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -463,21 +405,11 @@ tests = do
 
         it "should compile a CREATE TABLE with text default value in columns" do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
-            let statement = StatementCreateTable CreateTable
+            let statement = StatementCreateTable table
                     { name = "a"
                     , columns = [
-                        Column
-                            { name = "content"
-                            , columnType = PText
-                            , defaultValue = Just (TextExpression "example text")
-                            , notNull = True
-                            , isUnique = False
-                            , generator = Nothing
-                            }
+                        col { name = "content", columnType = PText, defaultValue = Just (TextExpression "example text"), notNull = True }
                         ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -491,51 +423,20 @@ tests = do
 
         it "should compile a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
-            let statement = StatementCreateTable CreateTable
+            let statement = StatementCreateTable table
                     { name = "deprecated_variables"
                     , columns =
-                        [ Column
-                            { name = "a"
-                            , columnType = (PNumeric Nothing Nothing)
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "b"
-                            , columnType = (PNumeric (Just 1) Nothing)
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "c"
-                            , columnType = (PNumeric (Just 1) (Just 2))
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
-                        , Column
-                            { name = "d"
-                            , columnType = (PVaryingN (Just 10))
-                            , defaultValue = Nothing
-                            , notNull = False
-                            , isUnique = False
-                            , generator = Nothing
-                            }
+                        [ col { name = "a", columnType = (PNumeric Nothing Nothing) }
+                        , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
+                        , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
+                        , col { name = "d", columnType = (PVaryingN (Just 10)) }
                         ]
-                    , primaryKeyConstraint = PrimaryKeyConstraint []
-                    , constraints = []
-                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
-            let statement = StatementCreateTable CreateTable
+            let statement = StatementCreateTable table
                     { name = "user_followers"
                     , columns =
                         [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
@@ -544,18 +445,15 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a serial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
-            let statement = StatementCreateTable CreateTable
+            let statement = StatementCreateTable table
                     { name = "orders"
                     , columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                    , constraints = []
-                    , unlogged = False
                     }
             compileSql [statement] `shouldBe` sql
 
