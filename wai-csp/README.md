@@ -119,9 +119,9 @@ instance View MyView where
         </div>
     |]
       where
-        scripts = do
+        scripts = 
             let CSPNonce nonce = fromFrozenContext
-            [hsx|
+            in [hsx|
                 <script nonce={nonce}>
                     console.log("This script is allowed by CSP");
                 </script>

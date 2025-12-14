@@ -116,9 +116,9 @@ instance View IndexView where
         </div>
     |]
       where
-        customScript = do
+        customScript = 
             let CSPNonce nonce = fromFrozenContext
-            [hsx|
+            in [hsx|
                 <script nonce={nonce}>
                     console.log("This script is allowed by CSP");
                 </script>
@@ -135,9 +135,9 @@ Once you've set up the middleware and controller as shown above, you can use non
 
 ```haskell
 scripts :: Html
-scripts = do
+scripts = 
     let CSPNonce nonce = fromFrozenContext
-    [hsx|
+    in [hsx|
         <script nonce={nonce}>
             console.log("Hello from CSP-protected script!");
         </script>
@@ -148,9 +148,9 @@ scripts = do
 
 ```haskell
 styles :: Html
-styles = do
+styles = 
     let CSPNonce nonce = fromFrozenContext
-    [hsx|
+    in [hsx|
         <style nonce={nonce}>
             .custom-class {
                 color: blue;
@@ -165,9 +165,9 @@ Even external scripts can use nonces for additional security:
 
 ```haskell
 externalScript :: Html
-externalScript = do
+externalScript = 
     let CSPNonce nonce = fromFrozenContext
-    [hsx|
+    in [hsx|
         <script nonce={nonce} src="https://cdn.example.com/script.js"></script>
     |]
 ```
