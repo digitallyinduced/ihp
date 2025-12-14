@@ -47,7 +47,9 @@ in
 
 ## Quick Start
 
-The easiest way to add CSP to your IHP application is to add the middleware in your `Config/Config.hs`:
+### Step 1: Add CSP Middleware
+
+Add the CSP middleware in your `Config/Config.hs`:
 
 ```haskell
 module Config where
@@ -67,20 +69,44 @@ config = do
 ```
 
 This automatically:
-- Generates a fresh nonce for each request
+- Generates a fresh cryptographic nonce for each request
 - Sets a strict Content-Security-Policy header
-- Stores the nonce in the request vault for use in views
+- Stores the nonce in the request vault
 
-## Using Nonces in Views
+### Step 2: Extract Nonce in Controller
 
-To use the nonce in your views for inline scripts or styles, retrieve it from the request:
+In your controller's `beforeAction`, extract the nonce from the request vault and put it into the context so views can access it:
+
+```haskell
+module Web.Controller.Posts where
+
+import Web.Controller.Prelude
+import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
+import qualified Data.Vault.Lazy as Vault
+
+-- Define a newtype for the nonce
+newtype CSPNonce = CSPNonce Text
+
+instance Controller PostsController where
+    beforeAction = do
+        -- Extract nonce from request vault and put in context
+        case Vault.lookup CSP.cspNonceKey request.vault of
+            Just (CSP.CSPNonce nonce) -> putContext (CSPNonce nonce)
+            Nothing -> pure ()  -- No nonce if not using cspMiddlewareWithNonce
+
+    action PostsAction = do
+        posts <- query @Post |> fetch
+        render IndexView { .. }
+```
+
+### Step 3: Use Nonce in Views
+
+Now in your views, retrieve the nonce using `fromFrozenContext`:
 
 ```haskell
 module Web.View.Posts.Index where
 
 import Web.View.Prelude
-import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
-import qualified Data.Vault.Lazy as Vault
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
@@ -90,13 +116,99 @@ instance View IndexView where
         </div>
     |]
       where
-        customScript = 
-            let Just (CSP.CSPNonce nonceValue) = Vault.lookup CSP.cspNonceKey request.vault
-            in [hsx|
-                <script nonce={nonceValue}>
+        customScript = do
+            let CSPNonce nonce = fromFrozenContext
+            [hsx|
+                <script nonce={nonce}>
                     console.log("This script is allowed by CSP");
                 </script>
             |]
+```
+
+That's it! Your application now has CSP protection with nonces.
+
+## Using Nonces in Views
+
+Once you've set up the middleware and controller as shown above, you can use nonces in your views for inline scripts and styles.
+
+### Inline Scripts
+
+```haskell
+scripts :: Html
+scripts = do
+    let CSPNonce nonce = fromFrozenContext
+    [hsx|
+        <script nonce={nonce}>
+            console.log("Hello from CSP-protected script!");
+        </script>
+    |]
+```
+
+### Inline Styles
+
+```haskell
+styles :: Html
+styles = do
+    let CSPNonce nonce = fromFrozenContext
+    [hsx|
+        <style nonce={nonce}>
+            .custom-class {
+                color: blue;
+            }
+        </style>
+    |]
+```
+
+### External Scripts with Nonces
+
+Even external scripts can use nonces for additional security:
+
+```haskell
+externalScript :: Html
+externalScript = do
+    let CSPNonce nonce = fromFrozenContext
+    [hsx|
+        <script nonce={nonce} src="https://cdn.example.com/script.js"></script>
+    |]
+```
+
+### Helper Function (Optional)
+
+For convenience, you can add a helper function to `Web/View/Prelude.hs`:
+
+```haskell
+module Web.View.Prelude
+( module Web.View.Prelude
+, module IHP.ViewPrelude
+, cspNonce
+) where
+
+import IHP.ViewPrelude
+
+-- | Get the CSP nonce from the context
+cspNonce :: (?context :: ControllerContext) => Text
+cspNonce = 
+    let CSPNonce nonce = fromFrozenContext
+    in nonce
+```
+
+Then use it directly in your views:
+
+```haskell
+instance View IndexView where
+    html IndexView { .. } = [hsx|
+        <div>
+            <script nonce={cspNonce}>
+                console.log("Hello from CSP-protected script!");
+            </script>
+            
+            <style nonce={cspNonce}>
+                .custom-class {
+                    color: blue;
+                }
+            </style>
+        </div>
+    |]
 ```
 
 ## CSP Policies
@@ -278,104 +390,16 @@ myCSP nonce = (CSP.strictCSP nonce)
     }
 ```
 
-## Using Nonces in Views
-
-When you have inline scripts or styles, you need to add the nonce attribute. The nonce is automatically stored in the request vault by the middleware.
-
-### Helper Function (Recommended)
-
-Create a helper function in `Web/View/Prelude.hs`:
-
-```haskell
-module Web.View.Prelude
-( module Web.View.Prelude
-, module IHP.ViewPrelude
-) where
-
-import IHP.ViewPrelude
-import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
-import qualified Data.Vault.Lazy as Vault
-
--- | Get the CSP nonce from the current request
--- The (?context :: ControllerContext) constraint is provided by IHP.ViewPrelude
--- which makes 'request' available in views
-cspNonce :: (?context :: ControllerContext) => Text
-cspNonce = 
-    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
-    in nonce
-```
-
-Then use it in your views:
-
-```haskell
-instance View IndexView where
-    html IndexView { .. } = [hsx|
-        <div>
-            <script nonce={cspNonce}>
-                console.log("Hello from CSP-protected script!");
-            </script>
-            
-            <style nonce={cspNonce}>
-                .custom-class {
-                    color: blue;
-                }
-            </style>
-        </div>
-    |]
-```
-
-### Inline Scripts
-
-```haskell
-scripts :: Html
-scripts = 
-    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
-    in [hsx|
-        <script nonce={nonce}>
-            // Your inline JavaScript
-            console.log("Hello from CSP-protected script!");
-        </script>
-    |]
-```
-
-### Inline Styles
-
-```haskell
-styles :: Html
-styles = 
-    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
-    in [hsx|
-        <style nonce={nonce}>
-            .custom-class {
-                color: blue;
-            }
-        </style>
-    |]
-```
-
-### External Scripts with Nonces
-
-Even external scripts can use nonces:
-
-```haskell
-externalScript :: Html
-externalScript = 
-    let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
-    in [hsx|
-        <script nonce={nonce} src="https://cdn.example.com/script.js"></script>
-    |]
-```
-
 ## Advanced Features
 
 ### Reporting CSP Violations
 
-You can configure CSP to report violations:
+You can configure CSP to report violations to a specific endpoint:
 
 ```haskell
 myCSP :: Text -> CSP.CSP
 myCSP nonce = (CSP.strictCSP nonce)
-    { CSP.reportUri = Just "https://myapp.com/csp-report"
+    { CSP.reportUri = Just "/csp-report"
     }
 ```
 
@@ -393,7 +417,7 @@ instance Controller CSPReportController where
     action CSPReportAction = do
         body <- getRequestBody
         -- Log or store the CSP violation report
-        logInfo ("CSP Violation: " <> show body)
+        putStrLn $ "CSP Violation: " <> show body
         
         renderPlain "OK"
 ```
@@ -415,17 +439,23 @@ myCSP nonce = (CSP.strictCSP nonce)
 
 **Problem**: Your inline scripts are being blocked.
 
-**Solution**: Make sure you're:
-1. Using `cspMiddlewareWithNonce` in your config
-2. Retrieving the nonce from the request vault
-3. Adding the nonce attribute to your script tags
+**Solution**: Make sure you:
+1. Added the CSP middleware with `cspMiddlewareWithNonce`
+2. Extract the nonce in your controller's `beforeAction` and put it in context
+3. Use the nonce in your script tags
 
 ```haskell
 -- In Config/Config.hs
 option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce CSP.strictCSP
 
+-- In your controller
+beforeAction = do
+    case Vault.lookup CSP.cspNonceKey request.vault of
+        Just (CSP.CSPNonce n) -> putContext (CSPNonce n)
+        Nothing -> pure ()
+
 -- In your view
-let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
+let CSPNonce nonce = fromFrozenContext
 [hsx|<script nonce={nonce}>...</script>|]
 ```
 
@@ -433,11 +463,13 @@ let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault
 
 **Problem**: Scripts, styles, or other resources from external domains are blocked.
 
-**Solution**: Add the domains to the appropriate directive:
+**Solution**: Add the domains to the appropriate directive in your custom CSP policy:
 
 ```haskell
-csp { CSP.scriptSrc = Just 
+myCSP nonce = CSP.strictCSP nonce
+    { CSP.scriptSrc = Just 
         [ CSP.nonce nonce
+        , CSP.strictDynamic
         , CSP.host "https://cdn.example.com"
         ]
     }
@@ -450,7 +482,8 @@ csp { CSP.scriptSrc = Just
 **Solution**: Add WebSocket origins to `connectSrc`:
 
 ```haskell
-csp { CSP.connectSrc = Just 
+myCSP nonce = CSP.strictCSP nonce
+    { CSP.connectSrc = Just 
         [ CSP.self
         , CSP.host "wss://api.example.com"
         , CSP.host "ws://localhost:8001"  -- For development
@@ -462,11 +495,12 @@ csp { CSP.connectSrc = Just
 
 1. **Start Strict**: Begin with `strictCSP` and relax only as needed
 2. **Use Nonces**: Prefer nonces over `unsafe-inline`
-3. **Test Thoroughly**: Check your CSP in all browsers you support
-4. **Monitor Violations**: Use `reportUri` to track CSP issues
-5. **Environment-Specific**: Use different policies for dev vs. prod
-6. **Avoid Wildcards**: Be specific about allowed sources
-7. **Regular Updates**: Review and update your CSP as your app evolves
+3. **Controller Injection**: Always extract nonces in the controller and put them in context, don't access the vault directly in views
+4. **Test Thoroughly**: Check your CSP in all browsers you support
+5. **Monitor Violations**: Use `reportUri` to track CSP issues
+6. **Environment-Specific**: Use different policies for dev vs. prod
+7. **Avoid Wildcards**: Be specific about allowed sources
+8. **Regular Updates**: Review and update your CSP as your app evolves
 
 ## Further Reading
 

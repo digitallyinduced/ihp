@@ -92,12 +92,26 @@ config = do
     option $ CustomMiddleware $ CSP.cspMiddlewareWithNonce CSP.strictCSP
 ```
 
-Then in your views, retrieve the nonce from the request:
+Extract the nonce in your controller's `beforeAction` and put it in context:
 
 ```haskell
 import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
 import qualified Data.Vault.Lazy as Vault
 
+-- Define a newtype for the nonce
+newtype CSPNonce = CSPNonce Text
+
+instance Controller MyController where
+    beforeAction = do
+        -- Extract nonce from request vault and put in context
+        case Vault.lookup CSP.cspNonceKey request.vault of
+            Just (CSP.CSPNonce nonce) -> putContext (CSPNonce nonce)
+            Nothing -> pure ()
+```
+
+Then in your views, use `fromFrozenContext` to retrieve it:
+
+```haskell
 instance View MyView where
     html MyView { .. } = [hsx|
         <div>
@@ -105,14 +119,16 @@ instance View MyView where
         </div>
     |]
       where
-        scripts = 
-            let Just (CSP.CSPNonce nonceValue) = Vault.lookup CSP.cspNonceKey request.vault
-            in [hsx|
-                <script nonce={nonceValue}>
+        scripts = do
+            let CSPNonce nonce = fromFrozenContext
+            [hsx|
+                <script nonce={nonce}>
                     console.log("This script is allowed by CSP");
                 </script>
             |]
 ```
+
+For more details on IHP integration, see the [IHP CSP Guide](https://ihp.digitallyinduced.com/Guide/csp.html).
 
 ## CSP Policies
 
