@@ -1186,9 +1186,9 @@ col = Column
     , generator = Nothing
     }
 
-table :: CreateTable
-table = CreateTable
-    { name = ""
+table :: Text -> CreateTable
+table name = CreateTable
+    { name = name
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
