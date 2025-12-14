@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 module IHP.SchemaCompiler
 ( compile
 , compileStatementPreview
@@ -10,7 +11,7 @@ import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueTo
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
 import qualified System.OsPath as OsPath
-import System.OsPath (OsPath)
+import System.OsPath (OsPath, osp)
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
@@ -32,8 +33,7 @@ compile = do
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
-            buildGenerated <- OsPath.encodeFS "build/Generated"
-            Directory.createDirectoryIfMissing True buildGenerated
+            Directory.createDirectoryIfMissing True [osp|build/Generated|]
 
             modules <- compileModules options (Schema statements)
             forEach modules \(path, body) -> do
@@ -41,15 +41,11 @@ compile = do
 
 compileModules :: CompilerOptions -> Schema -> IO [(OsPath, Text)]
 compileModules options schema = do
-    buildGenerated <- OsPath.encodeFS "build/Generated/"
-    enumsHs <- OsPath.encodeFS "Enums.hs"
-    actualTypesHs <- OsPath.encodeFS "ActualTypes.hs"
-    typesHs <- OsPath.encodeFS "Types.hs"
     tables <- tableModules options schema
-    pure $ [ (buildGenerated <> enumsHs, compileEnums options schema)
-           , (buildGenerated <> actualTypesHs, compileTypes options schema)
+    pure $ [ ([osp|build/Generated/Enums.hs|], compileEnums options schema)
+           , ([osp|build/Generated/ActualTypes.hs|], compileTypes options schema)
            ] <> tables <>
-           [ (buildGenerated <> typesHs, compileIndex schema)
+           [ ([osp|build/Generated/Types.hs|], compileIndex schema)
            ]
 
 applyTables :: (CreateTable -> IO (OsPath, Text)) -> Schema -> IO [(OsPath, Text)]
