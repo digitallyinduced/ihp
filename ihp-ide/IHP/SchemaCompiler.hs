@@ -33,7 +33,8 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             buildGenerated <- OsPath.encodeFS "build/Generated"
-            Directory.createDirectoryIfMissing True buildGenerated
+            buildGeneratedStr <- OsPath.decodeFS buildGenerated
+            Directory.createDirectoryIfMissing True buildGeneratedStr
 
             modules <- compileModules options (Schema statements)
             forEach modules \(path, body) -> do
