@@ -9,6 +9,8 @@ import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
 import qualified System.Directory as Directory
+import qualified System.OsPath as OsPath
+import System.OsPath (OsPath)
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
@@ -30,39 +32,50 @@ compile = do
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
-            Directory.createDirectoryIfMissing True "build/Generated"
+            buildGenerated <- OsPath.encodeFS "build/Generated"
+            Directory.createDirectoryIfMissing True buildGenerated
 
-            forEach (compileModules options (Schema statements)) \(path, body) -> do
+            modules <- compileModules options (Schema statements)
+            forEach modules \(path, body) -> do
                     writeIfDifferent path body
 
-compileModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
-compileModules options schema =
-    [ ("build/Generated/Enums.hs", compileEnums options schema)
-    , ("build/Generated/ActualTypes.hs", compileTypes options schema)
-    ] <> tableModules options schema <>
-    [ ("build/Generated/Types.hs", compileIndex schema)
-    ]
+compileModules :: CompilerOptions -> Schema -> IO [(OsPath, Text)]
+compileModules options schema = do
+    buildGenerated <- OsPath.encodeFS "build/Generated/"
+    enumsHs <- OsPath.encodeFS "Enums.hs"
+    actualTypesHs <- OsPath.encodeFS "ActualTypes.hs"
+    typesHs <- OsPath.encodeFS "Types.hs"
+    tables <- tableModules options schema
+    pure $ [ (buildGenerated <> enumsHs, compileEnums options schema)
+           , (buildGenerated <> actualTypesHs, compileTypes options schema)
+           ] <> tables <>
+           [ (buildGenerated <> typesHs, compileIndex schema)
+           ]
 
-applyTables :: (CreateTable -> (FilePath, Text)) -> Schema -> [(FilePath, Text)]
+applyTables :: (CreateTable -> IO (OsPath, Text)) -> Schema -> IO [(OsPath, Text)]
 applyTables applyFunction schema =
     let ?schema = schema
     in
-        schema.statements
+        sequence $ schema.statements
         |> mapMaybe (\case
                 StatementCreateTable table | tableHasPrimaryKey table -> Just (applyFunction table)
                 otherwise -> Nothing
             )
 
-tableModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+tableModules :: CompilerOptions -> Schema -> IO [(OsPath, Text)]
 tableModules options schema =
     let ?schema = schema
-    in
-        applyTables (tableModule options) schema
-        <> applyTables tableIncludeModule schema
+    in do
+        tables1 <- applyTables (tableModule options) schema
+        tables2 <- applyTables tableIncludeModule schema
+        pure $ tables1 <> tables2
 
-tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (FilePath, Text)
-tableModule options table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> ".hs", body)
+tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> IO (OsPath, Text)
+tableModule options table = do
+    buildGenerated <- OsPath.encodeFS "build/Generated/"
+    moduleSuffix <- OsPath.encodeFS $ cs (tableNameToModelName table.name) <> ".hs"
+    let path = buildGenerated <> moduleSuffix
+    pure (path, body)
     where
         body = Text.unlines
             [ prelude
@@ -78,9 +91,12 @@ tableModule options table =
             import Generated.ActualTypes
         |]
 
-tableIncludeModule :: (?schema :: Schema) => CreateTable -> (FilePath, Text)
-tableIncludeModule table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> "Include.hs", prelude <> compileInclude table)
+tableIncludeModule :: (?schema :: Schema) => CreateTable -> IO (OsPath, Text)
+tableIncludeModule table = do
+    buildGenerated <- OsPath.encodeFS "build/Generated/"
+    moduleSuffix <- OsPath.encodeFS $ cs (tableNameToModelName table.name) <> "Include.hs"
+    let path = buildGenerated <> moduleSuffix
+    pure (path, prelude <> compileInclude table)
     where
         moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
         prelude = [trimming|
@@ -169,9 +185,10 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
 -- haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
 
 
-writeIfDifferent :: FilePath -> Text -> IO ()
-writeIfDifferent path content = do
-    alreadyExists <- Directory.doesFileExist path
+writeIfDifferent :: OsPath -> Text -> IO ()
+writeIfDifferent osPath content = do
+    path <- OsPath.decodeFS osPath
+    alreadyExists <- Directory.doesFileExist osPath
     existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) do
         putStrLn $ "Updating " <> cs path

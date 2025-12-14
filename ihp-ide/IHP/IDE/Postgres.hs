@@ -14,6 +14,8 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -43,10 +45,11 @@ softStopPostgres processHandle = do
         interruptAndWait
         waitAndKill
 
-postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
+postgresProcessParams :: (?context :: Context) => OsPath -> Process.CreateProcess
 postgresProcessParams workingDirectory =
     let
-        args = ["-D", "build/db/state", "-k", workingDirectory <> "/build/db", "-c", "listen_addresses="]
+        workingDirStr = unsafePerformIO $ OsPath.decodeFS workingDirectory
+        args = ["-D", "build/db/state", "-k", workingDirStr <> "/build/db", "-c", "listen_addresses="]
     in (procDirenvAware "postgres" args)
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
