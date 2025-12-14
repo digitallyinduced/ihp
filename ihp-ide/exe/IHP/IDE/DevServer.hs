@@ -47,9 +47,9 @@ mainInParentDirectory = do
 mainInProjectDirectory :: OsPath -> IO ()
 mainInProjectDirectory projectDir = do
     cwd <- Directory.getCurrentDirectory
-    cwdStr <- OsPath.decodeFS cwd
 
     withCurrentWorkingDirectory projectDir do
+        cwdStr <- OsPath.decodeFS cwd
         Env.setEnv "IHP_LIB" (cwdStr <> "/ihp-ide/lib/IHP")
         Env.setEnv "TOOLSERVER_STATIC" (cwdStr <> "/ihp-ide/lib/IHP/static")
         Env.setEnv "IHP_STATIC" (cwdStr <> "/lib/IHP/static")
