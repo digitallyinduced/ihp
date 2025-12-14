@@ -401,7 +401,6 @@ bootstrap = def
         styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
         styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
 
-        styledInputClass _ FormField { fieldType = FileInput } = "form-control-file"
         styledInputClass _ FormField {} = "form-control"
         styledInputInvalidClass _ _ = "is-invalid"
 

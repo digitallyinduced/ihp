@@ -284,7 +284,7 @@ renderForm company = formFor company [hsx|
     <input
         type="file"
         name="logoUrl"
-        class="form-control-file"
+        class="form-control"
         accept="image/*"
     />
 
