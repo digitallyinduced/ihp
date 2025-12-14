@@ -297,6 +297,8 @@ import qualified Network.Wai.Middleware.ContentSecurityPolicy as CSP
 import qualified Data.Vault.Lazy as Vault
 
 -- | Get the CSP nonce from the current request
+-- The (?context :: ControllerContext) constraint is provided by IHP.ViewPrelude
+-- which makes 'request' available in views
 cspNonce :: (?context :: ControllerContext) => Text
 cspNonce = 
     let Just (CSP.CSPNonce nonce) = Vault.lookup CSP.cspNonceKey request.vault

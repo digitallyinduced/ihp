@@ -126,7 +126,7 @@ spec = do
                     }
             let rendered = renderCSP csp
             -- Should contain "; " between directives
-            (Text.splitOn "; " rendered |> length) `shouldSatisfy` (>= 2)
+            length (Text.splitOn "; " rendered) `shouldSatisfy` (>= 2)
 
         it "renders a complete valid CSP header" do
             let csp = strictCSP "nonce123"
@@ -134,4 +134,4 @@ spec = do
             -- Should be a non-empty string
             rendered `shouldNotBe` ""
             -- Should contain multiple directives
-            (Text.splitOn "; " rendered |> length) `shouldSatisfy` (> 5)
+            length (Text.splitOn "; " rendered) `shouldSatisfy` (> 5)

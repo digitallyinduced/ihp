@@ -133,6 +133,10 @@ newtype CSPNonce = CSPNonce Text
     deriving (Show, Eq)
 
 -- | Vault key for storing CSP nonce in request
+-- 
+-- Note: Uses unsafePerformIO to create a global vault key. This is a common
+-- pattern for vault keys and is safe when combined with NOINLINE pragma.
+-- The key is created once and reused across all requests.
 cspNonceKey :: Vault.Key CSPNonce
 cspNonceKey = unsafePerformIO Vault.newKey
 {-# NOINLINE cspNonceKey #-}
@@ -150,8 +154,7 @@ cspMiddlewareWithNonce cspBuilder app req respond = do
     nonceValue <- generateNonce
     let csp = cspBuilder nonceValue
     let cspHeader = ("Content-Security-Policy", Text.encodeUtf8 $ renderCSP csp)
-    let vault = Vault.insert cspNonceKey (CSPNonce nonceValue) req.vault
-    let req' = req { vault = vault }
+    let req' = req { vault = Vault.insert cspNonceKey (CSPNonce nonceValue) req.vault }
     
     app req' $ \response ->
         respond $ mapResponseHeaders (\headers -> cspHeader : headers) response
