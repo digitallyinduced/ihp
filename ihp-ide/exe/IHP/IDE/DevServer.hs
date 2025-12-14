@@ -41,26 +41,27 @@ import qualified System.OsPath as OsPath
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
     cwd <- Directory.getCurrentDirectory
+    cwdOs <- OsPath.encodeFS cwd
     parentDir <- OsPath.encodeFS "../"
-    mainInProjectDirectory (cwd <> parentDir)
+    mainInProjectDirectory (cwdOs <> parentDir)
 
 mainInProjectDirectory :: OsPath -> IO ()
 mainInProjectDirectory projectDir = do
     cwd <- Directory.getCurrentDirectory
 
     withCurrentWorkingDirectory projectDir do
-        cwdStr <- OsPath.decodeFS cwd
-        Env.setEnv "IHP_LIB" (cwdStr <> "/ihp-ide/lib/IHP")
-        Env.setEnv "TOOLSERVER_STATIC" (cwdStr <> "/ihp-ide/lib/IHP/static")
-        Env.setEnv "IHP_STATIC" (cwdStr <> "/lib/IHP/static")
+        Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
+        Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
+        Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
 
         mainWithOptions True
 
 withCurrentWorkingDirectory :: OsPath -> IO result -> IO result
 withCurrentWorkingDirectory workingDirectory callback = do
     cwd <- Directory.getCurrentDirectory
+    workingDirStr <- OsPath.decodeFS workingDirectory
     Exception.bracket_
-        (Directory.setCurrentDirectory workingDirectory)
+        (Directory.setCurrentDirectory workingDirStr)
         (Directory.setCurrentDirectory cwd)
         callback
 

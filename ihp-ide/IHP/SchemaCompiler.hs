@@ -188,7 +188,7 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
 writeIfDifferent :: OsPath -> Text -> IO ()
 writeIfDifferent osPath content = do
     path <- OsPath.decodeFS osPath
-    alreadyExists <- Directory.doesFileExist osPath
+    alreadyExists <- Directory.doesFileExist path
     existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) do
         putStrLn $ "Updating " <> cs path

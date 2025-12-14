@@ -24,7 +24,8 @@ withPostgres callback = do
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
 
-    Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
+    createProcess <- postgresProcessParams currentDir
+    Process.withCreateProcess createProcess \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         let main = do
                 standardOutput <- newIORef mempty
                 errorOutput <- newIORef mempty
@@ -45,12 +46,11 @@ softStopPostgres processHandle = do
         interruptAndWait
         waitAndKill
 
-postgresProcessParams :: (?context :: Context) => OsPath -> Process.CreateProcess
-postgresProcessParams workingDirectory =
-    let
-        workingDirStr = unsafePerformIO $ OsPath.decodeFS workingDirectory
-        args = ["-D", "build/db/state", "-k", workingDirStr <> "/build/db", "-c", "listen_addresses="]
-    in (procDirenvAware "postgres" args)
+postgresProcessParams :: (?context :: Context) => OsPath -> IO Process.CreateProcess
+postgresProcessParams workingDirectory = do
+    workingDirStr <- OsPath.decodeFS workingDirectory
+    let args = ["-D", "build/db/state", "-k", workingDirStr <> "/build/db", "-c", "listen_addresses="]
+    pure $ (procDirenvAware "postgres" args)
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
         , Process.std_err = Process.CreatePipe
