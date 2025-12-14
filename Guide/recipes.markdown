@@ -115,10 +115,10 @@ instance View EditView where
                     </h5>
 
                     <div style="max-width: 300px">
-                        <div class="form-group">
-                            <label for="user_picture_url">
+                        <div class="mb-3">
+                            <label for="user_picture_url" class="form-label">
                                 <img id="user_picture_url_preview" src={picturePath} style="width: 12rem; min-height: 12rem; min-width: 12rem" class="mt-2 img-thumbnail text-center text-muted" alt="Foto auswahlen"/>
-                                <input id="user_picture_url" type="file" name="pictureUrl" class="form-control form-control-file" style="display: none" data-preview="#user_picture_url_preview"/>
+                                <input id="user_picture_url" type="file" name="pictureUrl" class="form-control" style="display: none" data-preview="#user_picture_url_preview"/>
                                 <a class="d-block text-muted text-center" href="#" onclick="document.getElementById('user_picture_url_preview').click()">Neues Foto auswahlen</a>
                             </label>
                         </div>
@@ -242,12 +242,12 @@ navbar :: Html
 navbar = [hsx|
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <a class="navbar-brand" href="#">IHP Blog</a>
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
 
   <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav mr-auto">
+    <ul class="navbar-nav me-auto">
       <li class="nav-item">
         <a class="nav-link" href={PostsAction}>Posts</a>
       </li>

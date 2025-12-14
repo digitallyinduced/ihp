@@ -409,7 +409,7 @@ Next we're going to add a todo form to create new todos:
         }
 
         return <form onSubmit={this.handleSubmit} disabled={this.state.loading}>
-            <div className="form-group d-flex flex-row">
+            <div className="mb-3 d-flex flex-row">
                 <input
                     type="text"
                     className="form-control"
@@ -485,13 +485,13 @@ First we need to add a new `TodoItem` component. For that add this function to t
 function TodoItem({ todo }) {
     const todoIdAttr = "todo-" + todo.id;
 
-    return <div className="form-group form-check">
+    return <div className="mb-3 form-check">
         <input
             id={todoIdAttr}
             type="checkbox"
             checked={todo.isCompleted}
             onChange={() => updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })}
-            className="mr-2"
+            className="me-2"
         />
         <label className="form-check-label" htmlFor={todoIdAttr}>{todo.title}</label>
     </div>
@@ -528,7 +528,7 @@ To complete our todo list, we need to add a way to delete todos. For that we'll 
 function TodoItem({ todo }) {
     const todoIdAttr = "todo-" + todo.id;
 
-    return <div className="form-group form-check">
+    return <div className="mb-3 form-check">
         <!-- .. -->
 
         <button className="btn btn-link text-danger" onClick={() => deleteRecord('todos', todo.id) }>Delete</button>
@@ -541,7 +541,7 @@ function TodoItem({ todo }) {
 Our todo list is ready now. To make things look a little nicer you can optionally add this CSS to your `static/app.css`:
 
 ```css
-.form-group .text-danger {
+.mb-3 .text-danger {
     opacity: 0;
 }
 
@@ -551,7 +551,7 @@ Our todo list is ready now. To make things look a little nicer you can optionall
     font-size: 12px;
 }
 
-.form-group:hover .text-danger {
+.mb-3:hover .text-danger {
     opacity: 1;
 }
 
