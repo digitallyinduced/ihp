@@ -3,7 +3,7 @@ module IHP.IDE.Postgres (withPostgres, withBuiltinOrDevenvPostgres) where
 import IHP.IDE.Types
 import IHP.Prelude
 import qualified System.Process as Process
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)

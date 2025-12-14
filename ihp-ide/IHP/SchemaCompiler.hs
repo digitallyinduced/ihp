@@ -8,7 +8,7 @@ import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified System.OsPath as OsPath
 import System.OsPath (OsPath)
 import Data.List.Split
@@ -33,8 +33,7 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             buildGenerated <- OsPath.encodeFS "build/Generated"
-            buildGeneratedStr <- OsPath.decodeFS buildGenerated
-            Directory.createDirectoryIfMissing True buildGeneratedStr
+            Directory.createDirectoryIfMissing True buildGenerated
 
             modules <- compileModules options (Schema statements)
             forEach modules \(path, body) -> do
@@ -189,7 +188,7 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
 writeIfDifferent :: OsPath -> Text -> IO ()
 writeIfDifferent osPath content = do
     path <- OsPath.decodeFS osPath
-    alreadyExists <- Directory.doesFileExist path
+    alreadyExists <- Directory.doesFileExist osPath
     existingContent <- if alreadyExists then readFile path else pure ""
     when (existingContent /= cs content) do
         putStrLn $ "Updating " <> cs path
