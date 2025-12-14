@@ -645,7 +645,7 @@ bootstrap4 = def
             [hsx|
 
             <div class="d-flex justify-content-md-center">
-                <nav aria-label="Page Navigator" class="me-2">
+                <nav aria-label="Page Navigator" class="mr-2">
                     <ul class="pagination">
                         {paginationView.linkPrevious}
                         {paginationView.pageDotDotItems}
@@ -653,9 +653,9 @@ bootstrap4 = def
                     </ul>
                 </nav>
 
-                <div class="row">
-                    <div class="col-auto me-2">
-                        <select class="form-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                <div class="form-row">
+                    <div class="col-auto mr-2">
+                        <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                             {paginationView.itemsPerPageSelector}
                         </select>
                     </div>
@@ -694,7 +694,7 @@ bootstrap4 = def
                     <li class={prevClass}>
                         <a class="page-link" href={url} aria-label="Previous">
                             <span aria-hidden="true">&laquo;</span>
-                            <span class="visually-hidden">Previous</span>
+                            <span class="sr-only">Previous</span>
                         </a>
                     </li>
                 |]
@@ -709,7 +709,7 @@ bootstrap4 = def
                     <li class={nextClass}>
                         <a class="page-link" href={url} aria-label="Next">
                             <span aria-hidden="true">&raquo;</span>
-                            <span class="visually-hidden">Next</span>
+                            <span class="sr-only">Next</span>
                         </a>
                     </li>
                 |]
