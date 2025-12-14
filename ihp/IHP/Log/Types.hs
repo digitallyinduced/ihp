@@ -234,7 +234,11 @@ newLogger LoggerSettings { .. } = do
 
         makeFileLogger path NoRotate = LogFileNoRotate path
         makeFileLogger path (SizeRotate (Bytes size) count) = LogFile (FileLogSpec path size count)
-        makeFileLogger path (TimedRotate fmt cmp post) = LogFileTimedRotate (TimedFileLogSpec path fmt cmp post)
+        makeFileLogger path (TimedRotate fmt cmp post) = 
+            let postWrapper filePath = do
+                    osPath <- OsPath.encodeFS filePath
+                    post osPath
+            in LogFileTimedRotate (TimedFileLogSpec path fmt cmp postWrapper)
 
 -- | Formats logs as-is to stdout.
 defaultLogger :: IO Logger
