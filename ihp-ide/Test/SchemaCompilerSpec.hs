@@ -165,7 +165,9 @@ tests = do
                 let output = compileStatementPreview [enumType, table] table |> Text.strip
 
                 -- The Haskell type should be SymbolType (converted from SYMBOL_TYPE)
-                output `shouldContain` "data Symbol'  = Symbol {id :: (Id' \"symbol\"), code :: Text, name :: Text, symbolType :: SymbolType, meta :: MetaBag}"
+                -- Extract just the data type line to verify the custom type is correctly referenced
+                let dataTypeLine = output |> Text.lines |> find (Text.isPrefixOf "data Symbol'") |> fromMaybe ""
+                dataTypeLine `shouldBe` "data Symbol'  = Symbol {id :: (Id' \"symbol\"), code :: Text, name :: Text, symbolType :: SymbolType, meta :: MetaBag} deriving (Eq, Show)"
         describe "compileCreate" do
             let statement = StatementCreateTable $ CreateTable {
                     name = "users",
