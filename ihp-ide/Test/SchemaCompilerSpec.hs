@@ -498,7 +498,7 @@ tests = do
                 let statement = StatementCreateTable (table "users")
                         { columns =
                             [ (col "id" PUUID) { notNull = True, isUnique = True }
-                            , (col "keywords" PArray PText) { defaultValue = Just (VarExpression "NULL") }
+                            , (col "keywords" (PArray PText)) { defaultValue = Just (VarExpression "NULL") }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }

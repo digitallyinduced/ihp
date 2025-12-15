@@ -474,7 +474,7 @@ tests = do
         it "should compile a CREATE TABLE statement with an array column" do
             let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
             let statement = StatementCreateTable (table "array_tests")
-                    { columns = [ col "pay_by_quarter" PArray PInt ]
+                    { columns = [ col "pay_by_quarter" (PArray PInt) ]
                     }
             compileSql [statement] `shouldBe` sql
 
