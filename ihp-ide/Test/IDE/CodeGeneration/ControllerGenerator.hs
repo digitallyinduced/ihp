@@ -19,17 +19,17 @@ tests = do
         let schema = [
                     StatementCreateTable (table "pages") {
                         columns = [
-                            col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     },
                     StatementCreateTable (table "people") {
                         columns = [
-                            col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                             ,
-                            col { name = "name", columnType = PText, notNull = True }
+                            (col "name" PText) { notNull = True }
                             ,
-                            col { name = "email", columnType = PText, notNull = True }
+                            (col "email" PText) { notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }

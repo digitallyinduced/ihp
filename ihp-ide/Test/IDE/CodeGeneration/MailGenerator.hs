@@ -20,7 +20,7 @@ tests = do
         let schema = [
                     StatementCreateTable (table "users") {
                         columns = [
-                            col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }

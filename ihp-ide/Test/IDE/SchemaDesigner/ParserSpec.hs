@@ -45,14 +45,14 @@ tests = do
                 ); |]
             parseSql sql `shouldBe` StatementCreateTable (table "users")
                     { columns = [
-                        col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                        , col { name = "firstname", columnType = PText, notNull = True }
-                        , col { name = "lastname", columnType = PText, notNull = True }
-                        , col { name = "password_hash", columnType = PText, notNull = True }
-                        , col { name = "email", columnType = PText, notNull = True }
-                        , col { name = "company_id", columnType = PUUID, notNull = True }
-                        , col { name = "picture_url", columnType = PText }
-                        , col { name = "created_at", columnType = PTimestampWithTimezone, defaultValue = Just (CallExpression "NOW" []), notNull = True }
+                        (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , (col "firstname" PText) { notNull = True }
+                        , (col "lastname" PText) { notNull = True }
+                        , (col "password_hash" PText) { notNull = True }
+                        , (col "email" PText) { notNull = True }
+                        , (col "company_id" PUUID) { notNull = True }
+                        , col "picture_url" PText
+                        , (col "created_at" PTimestampWithTimezone) { defaultValue = Just (CallExpression "NOW" []), notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
@@ -67,10 +67,8 @@ tests = do
             |]
             parseSql sql `shouldBe` StatementCreateTable (table "products")
                     { columns = [
-                        col
-                            { name = "ts"
-                            , columnType = PTSVector
-                            , generator = Just $ ColumnGenerator
+                        (col "ts" PTSVector)
+                            { generator = Just $ ColumnGenerator
                                         { generate =
                                             ConcatenationExpression
                                                 (ConcatenationExpression
@@ -437,58 +435,58 @@ tests = do
         it "should parse a CREATE TABLE with INTEGER / INT / INT4 / SMALLINT / INT2 / BIGINT / INT8 columns" do
             parseSql "CREATE TABLE ints (int_a INTEGER, int_b INT, int_c int4, smallint_a SMALLINT, smallint_b INT2, bigint_a BIGINT, bigint_b int8);" `shouldBe` StatementCreateTable (table "ints")
                     { columns =
-                        [ col { name = "int_a", columnType = PInt }
-                        , col { name = "int_b", columnType = PInt }
-                        , col { name = "int_c", columnType = PInt }
-                        , col { name = "smallint_a", columnType = PSmallInt }
-                        , col { name = "smallint_b", columnType = PSmallInt }
-                        , col { name = "bigint_a", columnType = PBigInt }
-                        , col { name = "bigint_b", columnType = PBigInt }
+                        [ col "int_a" PInt
+                        , col "int_b" PInt
+                        , col "int_c" PInt
+                        , col "smallint_a" PSmallInt
+                        , col "smallint_b" PSmallInt
+                        , col "bigint_a" PBigInt
+                        , col "bigint_b" PBigInt
                         ]
                     }
 
         it "should parse a CREATE TABLE with TIMESTAMP WITH TIMEZONE / TIMESTAMPZ columns" do
             parseSql "CREATE TABLE timestamps (a TIMESTAMP WITH TIME ZONE, b TIMESTAMPZ);" `shouldBe` StatementCreateTable (table "timestamps")
                     { columns =
-                        [ col { name = "a", columnType = PTimestampWithTimezone }
-                        , col { name = "b", columnType = PTimestampWithTimezone }
+                        [ col "a" PTimestampWithTimezone
+                        , col "b" PTimestampWithTimezone
                         ]
                     }
 
         it "should parse a CREATE TABLE with BOOLEAN / BOOL columns" do
             parseSql "CREATE TABLE bools (a BOOLEAN, b BOOL);" `shouldBe` StatementCreateTable (table "bools")
                     { columns =
-                        [ col { name = "a", columnType = PBoolean }
-                        , col { name = "b", columnType = PBoolean }
+                        [ col "a" PBoolean
+                        , col "b" PBoolean
                         ]
                     }
 
         it "should parse a CREATE TABLE with REAL, FLOAT4, DOUBLE, FLOAT8 columns" do
             parseSql "CREATE TABLE bools (a REAL, b FLOAT4, c DOUBLE PRECISION, d FLOAT8);" `shouldBe` StatementCreateTable (table "bools")
                     { columns =
-                        [ col { name = "a", columnType = PReal }
-                        , col { name = "b", columnType = PReal }
-                        , col { name = "c", columnType = PDouble }
-                        , col { name = "d", columnType = PDouble }
+                        [ col "a" PReal
+                        , col "b" PReal
+                        , col "c" PDouble
+                        , col "d" PDouble
                         ]
                     }
 
         it "should parse a CREATE TABLE with (deprecated) NUMERIC, NUMERIC(x), NUMERIC (x,y), VARYING(n) columns" do
             parseSql ("CREATE TABLE deprecated_variables (a NUMERIC, b NUMERIC(1), c NUMERIC(1,2), d CHARACTER VARYING(10));") `shouldBe` StatementCreateTable (table "deprecated_variables")
                     { columns =
-                        [ col { name = "a", columnType = PNumeric Nothing Nothing}
-                        , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
-                        , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
-                        , col { name = "d", columnType = (PVaryingN (Just 10)) }
+                        [ col "a" (PNumeric Nothing Nothing)
+                        , col "b" (PNumeric (Just 1) Nothing)
+                        , col "c" (PNumeric (Just 1) (Just 2))
+                        , col "d" (PVaryingN (Just 10))
                         ]
                     }
 
         it "should parse a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
             parseSql "CREATE TABLE user_followers (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, user_id UUID NOT NULL, follower_id UUID NOT NULL, UNIQUE(user_id, follower_id));"  `shouldBe` StatementCreateTable (table "user_followers")
                     { columns =
-                        [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                        , col { name = "user_id", columnType = PUUID, notNull = True }
-                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , (col "user_id" PUUID) { notNull = True }
+                        , (col "follower_id" PUUID) { notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
@@ -502,8 +500,8 @@ tests = do
         it "should parse a CREATE TABLE statement with a multi-column PRIMARY KEY (a, b) constraint" do
             parseSql "CREATE TABLE user_followers (user_id UUID NOT NULL, follower_id UUID NOT NULL, PRIMARY KEY (user_id, follower_id));"  `shouldBe` StatementCreateTable (table "user_followers")
                     { columns =
-                        [ col { name = "user_id", columnType = PUUID, notNull = True }
-                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        [ (col "user_id" PUUID) { notNull = True }
+                        , (col "follower_id" PUUID) { notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint [ "user_id", "follower_id" ]
                     }
@@ -518,29 +516,29 @@ tests = do
 
         it "should parse a CREATE TABLE statement with a serial id" do
             parseSql "CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` StatementCreateTable (table "orders")
-                    { columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
+                    { columns = [ (col "id" PSerial) { notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
 
         it "should parse a CREATE TABLE statement with a bigserial id" do
             parseSql "CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n" `shouldBe` StatementCreateTable (table "orders")
-                    { columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
+                    { columns = [ (col "id" PBigserial) { notNull = True} ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
 
         it "should parse a CREATE TABLE statement with an array column" do
             parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable (table "array_tests")
-                    { columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    { columns = [ col "pay_by_quarter" (PArray PInt) ]
                     }
 
         it "should parse a CREATE TABLE statement with a point column" do
             parseSql "CREATE TABLE points (\n    pos POINT\n);\n" `shouldBe` StatementCreateTable (table "points")
-                    { columns = [ col { name = "pos", columnType = PPoint } ]
+                    { columns = [ col "pos" PPoint ]
                     }
 
         it "should parse a CREATE TABLE statement with a polygon column" do
             parseSql "CREATE TABLE polygons (\n    poly POLYGON\n);\n" `shouldBe` StatementCreateTable (table "polygons")
-                    { columns = [ col { name = "poly", columnType = PPolygon } ]
+                    { columns = [ col "poly" PPolygon ]
                     }
 
         it "should parse a CREATE INDEX statement" do
@@ -1057,10 +1055,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             |]
             parseSqlStatements sql `shouldBe` [Comment { content = "" }, Comment { content = "" }]
 
-col :: Column
-col = Column
-    { name = ""
-    , columnType = PCustomType ""
+col :: Text -> PostgresType -> Column
+col columnName columnType = Column
+    { name = columnName
+    , columnType = columnType
     , defaultValue = Nothing
     , notNull = False
     , isUnique = False

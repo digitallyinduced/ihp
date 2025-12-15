@@ -40,14 +40,14 @@ tests = do
 |]
             let statement = StatementCreateTable (table "users")
                     { columns = [
-                        col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                        , col { name = "firstname", columnType = PText, notNull = True }
-                        , col { name = "lastname", columnType = PText, notNull = True }
-                        , col { name = "password_hash", columnType = PText, notNull = True }
-                        , col { name = "email", columnType = PText, notNull = True }
-                        , col { name = "company_id", columnType = PUUID, notNull = True }
-                        , col { name = "picture_url", columnType = PText }
-                        , col { name = "created_at", columnType = PTimestampWithTimezone, defaultValue = Just (CallExpression "NOW" []), notNull = True }
+                        (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , (col "firstname" PText) { notNull = True }
+                        , (col "lastname" PText) { notNull = True }
+                        , (col "password_hash" PText) { notNull = True }
+                        , (col "email" PText) { notNull = True }
+                        , (col "company_id" PUUID) { notNull = True }
+                        , col "picture_url" PText
+                        , (col "created_at" PTimestampWithTimezone) { defaultValue = Just (CallExpression "NOW" []), notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
@@ -406,7 +406,7 @@ tests = do
             let sql = cs [plain|CREATE TABLE a (\n    content TEXT DEFAULT 'example text' NOT NULL\n);\n|]
             let statement = StatementCreateTable (table "a")
                     { columns = [
-                        col { name = "content", columnType = PText, defaultValue = Just (TextExpression "example text"), notNull = True }
+                        (col "content" PText) { defaultValue = Just (TextExpression "example text"), notNull = True }
                         ]
                     }
             compileSql [statement] `shouldBe` sql
@@ -423,10 +423,10 @@ tests = do
             let sql = cs [plain|CREATE TABLE deprecated_variables (\n    a NUMERIC,\n    b NUMERIC(1),\n    c NUMERIC(1,2),\n    d CHARACTER VARYING(10)\n);\n|]
             let statement = StatementCreateTable (table "deprecated_variables")
                     { columns =
-                        [ col { name = "a", columnType = (PNumeric Nothing Nothing) }
-                        , col { name = "b", columnType = (PNumeric (Just 1) Nothing) }
-                        , col { name = "c", columnType = (PNumeric (Just 1) (Just 2)) }
-                        , col { name = "d", columnType = (PVaryingN (Just 10)) }
+                        [ col "a" (PNumeric Nothing Nothing)
+                        , col "b" (PNumeric (Just 1) Nothing)
+                        , col "c" (PNumeric (Just 1) (Just 2))
+                        , col "d" (PVaryingN (Just 10))
                         ]
                     }
             compileSql [statement] `shouldBe` sql
@@ -435,9 +435,9 @@ tests = do
             let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
             let statement = StatementCreateTable (table "user_followers")
                     { columns =
-                        [ col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                        , col { name = "user_id", columnType = PUUID, notNull = True }
-                        , col { name = "follower_id", columnType = PUUID, notNull = True }
+                        [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        , (col "user_id" PUUID) { notNull = True }
+                        , (col "follower_id" PUUID) { notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
@@ -447,7 +447,7 @@ tests = do
         it "should compile a CREATE TABLE statement with a serial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id SERIAL PRIMARY KEY NOT NULL\n);\n|]
             let statement = StatementCreateTable (table "orders")
-                    { columns = [ col { name = "id", columnType = PSerial, notNull = True} ]
+                    { columns = [ (col "id" PSerial) { notNull = True } ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
             compileSql [statement] `shouldBe` sql
@@ -455,7 +455,7 @@ tests = do
         it "should compile a CREATE TABLE statement with a bigserial id" do
             let sql = cs [plain|CREATE TABLE orders (\n    id BIGSERIAL PRIMARY KEY NOT NULL\n);\n|]
             let statement = StatementCreateTable (table "orders")
-                    { columns = [ col { name = "id", columnType = PBigserial, notNull = True} ]
+                    { columns = [ (col "id" PBigserial) { notNull = True } ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
             compileSql [statement] `shouldBe` sql
@@ -464,8 +464,8 @@ tests = do
             let sql = cs [plain|CREATE TABLE "orderTrucks" (\n    order_id BIGSERIAL NOT NULL,\n    truck_id BIGSERIAL NOT NULL,\n    PRIMARY KEY(order_id, truck_id)\n);\n|]
             let statement = StatementCreateTable (table "orderTrucks")
                     { columns =
-                        [ col { name = "order_id", columnType = PBigserial, notNull = True}
-                        , col { name = "truck_id", columnType = PBigserial, notNull = True}
+                        [ (col "order_id" PBigserial) { notNull = True }
+                        , (col "truck_id" PBigserial) { notNull = True }
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["order_id", "truck_id"]
                     }
@@ -474,21 +474,21 @@ tests = do
         it "should compile a CREATE TABLE statement with an array column" do
             let sql = cs [plain|CREATE TABLE array_tests (\n    pay_by_quarter INT[]\n);\n|]
             let statement = StatementCreateTable (table "array_tests")
-                    { columns = [ col { name = "pay_by_quarter", columnType = PArray PInt } ]
+                    { columns = [ col "pay_by_quarter" PArray PInt ]
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an point column" do
             let sql = cs [plain|CREATE TABLE point_tests (\n    pos POINT\n);\n|]
             let statement = StatementCreateTable (table "point_tests")
-                    { columns = [ col { name = "pos", columnType = PPoint } ]
+                    { columns = [ col "pos" PPoint ]
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with an polygon column" do
             let sql = cs [plain|CREATE TABLE polygon_tests (\n    poly POLYGON\n);\n|]
             let statement = StatementCreateTable (table "polygon_tests")
-                    { columns = [ col { name = "poly", columnType = PPolygon } ]
+                    { columns = [ col "poly" PPolygon ]
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -675,12 +675,12 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable (table "a") { columns = [col {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True}] }
+            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price INT DEFAULT 0 NOT NULL\n);\n"
-            let statement = StatementCreateTable (table "a") { columns = [col {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True}] }
+            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PInt) { defaultValue = Just (IntExpression 0), notNull = True }] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a partial index" do
@@ -907,19 +907,14 @@ tests = do
             let statements = [
                         StatementCreateTable (table "products")
                             { columns = [
-                                col
-                                    { name = "ts"
-                                    , columnType = PTSVector
-                                    , generator = Just $ ColumnGenerator
+                                (col "ts" PTSVector) { generator = Just $ ColumnGenerator
                                                 { generate =
                                                     ConcatenationExpression
                                                         (ConcatenationExpression
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
-                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "name"],TextExpression "B"])
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english", VarExpression "sku"], TypeCastExpression (TextExpression "A") PSingleChar])
+                                                            (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english", VarExpression "name"], TextExpression "B"])
                                                         )
-                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english",VarExpression "description"],TextExpression "C"])
-                                                , stored = True
-                                                }
+                                                        (CallExpression "setweight" [CallExpression "to_tsvector" [TextExpression "english", VarExpression "description"], TextExpression "C"]), stored = True }
                                     }
                                 ]
                             }

@@ -120,7 +120,7 @@ tests = do
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
-                    columns = [ col { name = "id", columnType = PUUID } ],
+                    columns = [ col "id" PUUID ],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                 }
             let compileOutput = compileStatementPreview [statement] statement |> Text.strip
@@ -149,7 +149,7 @@ tests = do
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
                 let statement = StatementCreateTable $ (table "users") {
-                    columns = [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }, col { name = "ids", columnType = (PArray PUUID) }],
+                    columns = [ (col "id" PUUID) { notNull = True, isUnique = True }, col "ids" (PArray PUUID)],
                     primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                 }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
@@ -164,9 +164,9 @@ tests = do
             it "should deal with double default values" do
                 let statement = StatementCreateTable (table "users")
                         { columns =
-                            [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }
-                            , col { name = "ids", columnType = (PArray PUUID) }
-                            , col {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True}
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , col "ids" (PArray PUUID)
+                            , (col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }
@@ -237,9 +237,9 @@ tests = do
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable (table "users")
                         { columns =
-                            [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }
-                            , col { name = "ids", columnType = (PArray PUUID) }
-                            , col {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (IntExpression 0), notNull = True}
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , col "ids" (PArray PUUID)
+                            , (col "electricity_unit_price" PDouble) { defaultValue = Just (IntExpression 0), notNull = True }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }
@@ -310,8 +310,8 @@ tests = do
             it "should not touch GENERATED columns" do
                 let statement = StatementCreateTable (table "users")
                         { columns =
-                            [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }
-                            , col {name = "ts", columnType = PTSVector, notNull = True, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , (col "ts" PTSVector) { notNull = True, generator = Just (ColumnGenerator { generate = VarExpression "someResult", stored = False }) }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }
@@ -382,10 +382,10 @@ tests = do
                 let statement = StatementCreateTable CreateTable
                         { name = "posts"
                         , columns =
-                            [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }
-                            , col {name = "title", columnType = PText, notNull = True}
-                            , col {name = "body", columnType = PText, notNull = True}
-                            , col {name = "body_index_col", columnType = PTSVector, generator = Just (ColumnGenerator { generate = CallExpression "to_tsvector" [TextExpression "english", CallExpression "coalesce" [VarExpression "body", TextExpression ""]], stored = True }) }
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , (col "title" PText) { notNull = True }
+                            , (col "body" PText) { notNull = True }
+                            , (col "body_index_col" PTSVector) { generator = Just (ColumnGenerator { generate = CallExpression "to_tsvector" [TextExpression "english", CallExpression "coalesce" [VarExpression "body", TextExpression ""]], stored = True }) }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
@@ -497,8 +497,8 @@ tests = do
             it "should not use DEFAULT for array columns" do
                 let statement = StatementCreateTable (table "users")
                         { columns =
-                            [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True }
-                            , col {name = "keywords", columnType = PArray PText, defaultValue = Just (VarExpression "NULL")}
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , (col "keywords" PArray PText) { defaultValue = Just (VarExpression "NULL") }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }
@@ -663,7 +663,7 @@ tests = do
         describe "compileFilterPrimaryKeyInstance" do
             it "should compile FilterPrimaryKey instance when primary key is called id" do
                 let statement = StatementCreateTable $ (table "things") {
-                        columns = [ col { name = "id", columnType = PUUID, notNull = True, isUnique = True } ],
+                        columns = [ (col "id" PUUID) { notNull = True, isUnique = True } ],
                         primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
