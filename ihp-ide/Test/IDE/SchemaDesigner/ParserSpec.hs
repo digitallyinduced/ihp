@@ -818,10 +818,8 @@ $$;
                 );
             |]
             let statement = StatementCreateTable (table "a")
-                    { columns = [ col
-                            {name = "a"
-                            , columnType = PVaryingN (Just 510)
-                            , defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
+                    { columns = [ (col "a" (PVaryingN (Just 510)))
+                            { defaultValue = Just (TypeCastExpression (VarExpression "NULL") (PVaryingN Nothing))
                             }
                         ]
                     }
@@ -834,10 +832,8 @@ $$;
                 );
             |]
             let statement = StatementCreateTable (table "a")
-                    { columns = [ col
-                            {name = "a"
-                            , columnType = PBinary
-                            , defaultValue = Just (TypeCastExpression (TextExpression "") PBinary)
+                    { columns = [ (col "a" PBinary)
+                            { defaultValue = Just (TypeCastExpression (TextExpression "") PBinary)
                             , notNull = True
                             }
                         ]
