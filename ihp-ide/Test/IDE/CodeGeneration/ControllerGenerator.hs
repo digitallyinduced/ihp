@@ -26,10 +26,8 @@ tests = do
                     StatementCreateTable (table "people") {
                         columns = [
                             (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
-                            ,
-                            (col "name" PText) { notNull = True }
-                            ,
-                            (col "email" PText) { notNull = True }
+                            , (col "name" PText) { notNull = True }
+                            , (col "email" PText) { notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
