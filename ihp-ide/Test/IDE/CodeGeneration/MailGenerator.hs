@@ -12,26 +12,17 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
+import Test.IDE.SchemaDesigner.ParserSpec (col, table)
 
 
 tests = do
     describe "Mail Generator Tests:" do
         let schema = [
-                    StatementCreateTable CreateTable {
-                        name = "users"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
+                    StatementCreateTable (table "users") {
+                        columns = [
+                            col { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
                         }
                     ]
         it "should build a mail with name \"PurchaseConfirmationMail\"" do
