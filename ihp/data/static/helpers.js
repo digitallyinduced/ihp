@@ -269,19 +269,28 @@ window.submitForm = function (form, possibleClickedButton) {
     var hasFileInputs = form.querySelector('input[type="file"]');
     if (hasFileInputs) {
         request.open(formMethod, formAction, true);
-        request.send(formData);
+        try {
+            request.send(formData);
+        } catch (e) {
+            // If the send method throws an exception, redirect to the form action URL.
+            // This can happen for example if redirecting to an external site, which doesn't have CORS enabled,
+            // so we can't use Ajax.
+            window.location.href = formAction;
+        }
     } else {
         var parameters = [];
+        var requestUrl;
 
         if (formMethod.toUpperCase() === 'GET') {
             // Using document.baseURI here allows this to work with relative paths like `/Projects` instead
             // of full urls like `http://example.com/Projects`
             var url = new URL(formAction, document.baseURI);
             for (var pair of formData.entries()) {
-                url.searchParams.set(pair[0], pair[1]);
+                url.searchParams.append(pair[0], pair[1]);
             }
 
-            request.open(formMethod, url.toString(), true);
+            requestUrl = url.toString();
+            request.open(formMethod, requestUrl, true);
         } else {
             for (var pair of formData.entries()) {
                 parameters.push(
@@ -289,7 +298,8 @@ window.submitForm = function (form, possibleClickedButton) {
                 );
             }
 
-            request.open(formMethod, formAction, true);
+            requestUrl = formAction;
+            request.open(formMethod, requestUrl, true);
         }
 
         request.setRequestHeader(
@@ -303,7 +313,7 @@ window.submitForm = function (form, possibleClickedButton) {
             // If the send method throws an exception, redirect to the form action URL.
             // This can happen for example if redirecting to an external site, which doesn't have CORS enabled,
             // so we can't use Ajax.
-            window.location.href = url;
+            window.location.href = requestUrl;
         }
     }
 
@@ -393,7 +403,6 @@ function initFileUploadPreview() {
     }
 }
 
-var datePickers = [];
 function initDatePicker() {
     if (!('flatpickr' in window)) {
         return;
@@ -408,14 +417,6 @@ function initDatePicker() {
         altInput: true,
         altFormat: 'd.m.y, H:i',
     });
-}
-
-function removeDatePickers() {
-    for (var i = 0; i < datePickers.length; i++) {
-        console.log(datePickers[i]);
-        datePickers[i].destroy();
-    }
-    datePickers = [];
 }
 
 var locked = false;
