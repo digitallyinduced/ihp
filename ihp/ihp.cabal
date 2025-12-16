@@ -154,6 +154,9 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    ghc-options:
+        -Werror=incomplete-patterns
+        -Werror=missing-fields
 
 library
     import: shared-properties
