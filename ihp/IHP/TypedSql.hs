@@ -1,8 +1,8 @@
-{-# LANGUAGE ImplicitParams #-} -- allow ?modelContext implicit parameter
-{-# LANGUAGE NamedFieldPuns #-} -- allow record field puns like {field}
-{-# LANGUAGE QuasiQuotes #-} -- enable [typedSql|...|] quasiquoter syntax
-{-# LANGUAGE RecordWildCards #-} -- allow {..} to bind all record fields
-{-# LANGUAGE TemplateHaskell #-} -- allow compile-time code generation via TH
+{-# LANGUAGE ImplicitParams  #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE QuasiQuotes     #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- Module implementing the typed SQL quasiquoter and its supporting helpers.
 module IHP.TypedSql
@@ -12,48 +12,53 @@ module IHP.TypedSql
     , runTypedOne -- execute a typed query expecting exactly one row
     ) where
 
-import IHP.Prelude -- IHP's standard prelude with common utilities
-import           Control.Monad (guard) -- guard for Maybe-based checks
-import qualified Data.Aeson as Aeson -- JSON parsing for stub metadata
-import           Data.Aeson ((.:), (.:?), (.!=)) -- JSON field operators used in FromJSON instances
-import qualified Data.ByteString as BS -- byte string for raw SQL and file IO
-import qualified Data.List as List -- list helpers like groupBy
-import           Data.Maybe (mapMaybe) -- mapMaybe for grouping columns safely
-import qualified Data.Map.Strict as Map -- strict map used for metadata lookup
-import qualified Data.Set as Set -- set used for OID collection
-import qualified Data.String.Conversions as CS -- convert between Text/String/ByteString
-import           Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef) -- mutable cache for stubs
-import Data.Scientific (Scientific) -- numeric type for Postgres numeric
-import Data.Time (LocalTime, TimeOfDay, UTCTime) -- time types for mapping
-import Data.Time.Calendar (Day) -- date-only type
-import Data.UUID (UUID) -- UUID mapping
-import Data.Word (Word32) -- raw OID storage in stub files
-import qualified Database.PostgreSQL.LibPQ as PQ -- low-level libpq for describe/prepare
-import qualified Database.PostgreSQL.Simple as PG -- high-level postgres-simple API
-import qualified Database.PostgreSQL.Simple.FromRow as PGFR -- row parser typeclass
-import qualified Database.PostgreSQL.Simple.ToField as PGTF -- parameter encoding
-import qualified Database.PostgreSQL.Simple.ToRow as PGTR -- ToRow instance for PreparedRow
-import qualified Database.PostgreSQL.Simple.Types as PG -- extra postgres-simple types (Binary, Oid, etc.)
-import qualified Language.Haskell.Meta.Parse as HaskellMeta -- parse placeholder expressions as Haskell AST
-import qualified Language.Haskell.TH as TH -- Template Haskell core types
-import qualified Language.Haskell.TH.Quote as TH -- QuasiQuoter type
-import Net.IP (IP) -- inet type mapping
+import           Control.Monad                      (guard)
+import           Data.Aeson                         ((.!=), (.:), (.:?))
+import qualified Data.Aeson                         as Aeson
+import qualified Data.ByteString                    as BS
+import           Data.IORef                         (IORef, atomicModifyIORef',
+                                                     newIORef, readIORef)
+import qualified Data.List                          as List
+import qualified Data.Map.Strict                    as Map
+import           Data.Maybe                         (mapMaybe)
+import           Data.Scientific                    (Scientific)
+import qualified Data.Set                           as Set
+import qualified Data.String.Conversions            as CS
+import           Data.Time                          (LocalTime, TimeOfDay,
+                                                     UTCTime)
+import           Data.Time.Calendar                 (Day)
+import           Data.UUID                          (UUID)
+import           Data.Word                          (Word32)
+import qualified Database.PostgreSQL.LibPQ          as PQ
+import qualified Database.PostgreSQL.Simple         as PG
+import qualified Database.PostgreSQL.Simple.FromRow as PGFR
+import qualified Database.PostgreSQL.Simple.ToField as PGTF
+import qualified Database.PostgreSQL.Simple.ToRow   as PGTR
+import qualified Database.PostgreSQL.Simple.Types   as PG
+import           IHP.Prelude
+import qualified Language.Haskell.Meta.Parse        as HaskellMeta
+import qualified Language.Haskell.TH                as TH
+import qualified Language.Haskell.TH.Quote          as TH
+import           Net.IP                             (IP)
 
-import IHP.FrameworkConfig (defaultDatabaseUrl) -- resolve DB URL for describe
-import IHP.ModelSupport (Id', ModelContext, measureTimeIfLogging, withDatabaseConnection, withRLSParams) -- query helpers and Id type
-import IHP.NameSupport (tableNameToModelName) -- convert SQL table names to Haskell type names
-import qualified IHP.Postgres.Point as PGPoint -- Postgres point mapping
-import qualified IHP.Postgres.Polygon as PGPolygon -- Postgres polygon mapping
-import qualified IHP.Postgres.TSVector as PGTs -- tsvector mapping
-import qualified IHP.Postgres.TimeParser as PGTime -- interval mapping
-import System.Environment (lookupEnv) -- read stub path env var
-import System.IO.Unsafe (unsafePerformIO) -- top-level cache with IORef
+import           IHP.FrameworkConfig                (defaultDatabaseUrl)
+import           IHP.ModelSupport                   (Id', ModelContext,
+                                                     measureTimeIfLogging,
+                                                     withDatabaseConnection,
+                                                     withRLSParams)
+import           IHP.NameSupport                    (tableNameToModelName)
+import qualified IHP.Postgres.Point                 as PGPoint
+import qualified IHP.Postgres.Polygon               as PGPolygon
+import qualified IHP.Postgres.TimeParser            as PGTime
+import qualified IHP.Postgres.TSVector              as PGTs
+import           System.Environment                 (lookupEnv)
+import           System.IO.Unsafe                   (unsafePerformIO)
 
 -- | Prepared query with a custom row parser.
 -- High-level: this is the runtime value produced by the typed SQL quasiquoter.
 data TypedQuery result = TypedQuery
-    { tqQuery :: !PG.Query -- low-level: SQL text packaged for postgres-simple
-    , tqParams :: ![PGTF.Action] -- low-level: encoded parameter values for the query
+    { tqQuery     :: !PG.Query -- low-level: SQL text packaged for postgres-simple
+    , tqParams    :: ![PGTF.Action] -- low-level: encoded parameter values for the query
     , tqRowParser :: !(PGFR.RowParser result) -- low-level: how to decode each row into result
     }
 
@@ -103,33 +108,33 @@ typedSql =
 -- | Result of describing a statement.
 -- High-level: captures everything we need to infer Haskell types.
 data DescribeResult = DescribeResult
-    { drParams :: ![PQ.Oid] -- low-level: parameter OIDs in order
+    { drParams  :: ![PQ.Oid] -- low-level: parameter OIDs in order
     , drColumns :: ![DescribeColumn] -- low-level: column metadata in order
-    , drTables :: !(Map.Map PQ.Oid TableMeta) -- low-level: table metadata by OID
-    , drTypes :: !(Map.Map PQ.Oid PgTypeInfo) -- low-level: type metadata by OID
+    , drTables  :: !(Map.Map PQ.Oid TableMeta) -- low-level: table metadata by OID
+    , drTypes   :: !(Map.Map PQ.Oid PgTypeInfo) -- low-level: type metadata by OID
     }
 
 -- Metadata for a column in the result set.
 data DescribeColumn = DescribeColumn
-    { dcName :: !BS.ByteString -- low-level: column name as bytes
-    , dcType :: !PQ.Oid -- low-level: column type OID
-    , dcTable :: !PQ.Oid -- low-level: originating table OID (0 if none)
+    { dcName   :: !BS.ByteString -- low-level: column name as bytes
+    , dcType   :: !PQ.Oid -- low-level: column type OID
+    , dcTable  :: !PQ.Oid -- low-level: originating table OID (0 if none)
     , dcAttnum :: !(Maybe Int) -- low-level: attribute number inside table, if known
     }
 
 -- Column details extracted from pg_attribute.
 data ColumnMeta = ColumnMeta
-    { cmAttnum :: !Int -- low-level: attribute number within table
-    , cmName :: !Text -- low-level: column name
+    { cmAttnum  :: !Int -- low-level: attribute number within table
+    , cmName    :: !Text -- low-level: column name
     , cmTypeOid :: !PQ.Oid -- low-level: type OID for this column
     , cmNotNull :: !Bool -- low-level: whether the column is NOT NULL
     }
 
 -- Table metadata, including columns and key relationships.
 data TableMeta = TableMeta
-    { tmOid :: !PQ.Oid -- low-level: table OID
-    , tmName :: !Text -- low-level: table name
-    , tmColumns :: !(Map.Map Int ColumnMeta) -- low-level: columns keyed by attnum
+    { tmOid         :: !PQ.Oid -- low-level: table OID
+    , tmName        :: !Text -- low-level: table name
+    , tmColumns     :: !(Map.Map Int ColumnMeta) -- low-level: columns keyed by attnum
     , tmColumnOrder :: ![Int] -- low-level: column order as defined in table
     , tmPrimaryKeys :: !(Set.Set Int) -- low-level: attribute numbers of primary keys
     , tmForeignKeys :: !(Map.Map Int PQ.Oid) -- low-level: attnum -> referenced table oid
@@ -137,10 +142,10 @@ data TableMeta = TableMeta
 
 -- Postgres type metadata we need for Haskell mapping.
 data PgTypeInfo = PgTypeInfo
-    { ptiOid :: !PQ.Oid -- low-level: type OID
-    , ptiName :: !Text -- low-level: type name (typname)
-    , ptiElem :: !(Maybe PQ.Oid) -- low-level: element type for arrays
-    , ptiType :: !(Maybe Char) -- low-level: typtype code (e.g. 'e' for enum)
+    { ptiOid       :: !PQ.Oid -- low-level: type OID
+    , ptiName      :: !Text -- low-level: type name (typname)
+    , ptiElem      :: !(Maybe PQ.Oid) -- low-level: element type for arrays
+    , ptiType      :: !(Maybe Char) -- low-level: typtype code (e.g. 'e' for enum)
     , ptiNamespace :: !(Maybe Text) -- low-level: namespace name
     }
 
@@ -162,7 +167,7 @@ typedSqlExp rawSql = do
     stubPath <- TH.runIO (lookupEnv "IHP_TYPED_SQL_STUB") -- optional path to a stub file
     describeResult <- TH.runIO $ case stubPath of
         Just path -> describeUsingStub path sqlText -- offline: use stub metadata
-        Nothing -> describeStatement (CS.cs sqlText) -- online: ask Postgres to describe
+        Nothing   -> describeStatement (CS.cs sqlText) -- online: ask Postgres to describe
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult -- unpack metadata
     when (length drParams /= length parsedExprs) $ -- make sure counts match
@@ -433,11 +438,11 @@ instance Aeson.FromJSON DescribeStubFile where
 
 -- One stubbed SQL statement entry.
 data DescribeStubEntry = DescribeStubEntry
-    { stubEntrySql :: !Text -- SQL text used as lookup key
-    , stubEntryParams :: ![Word32] -- parameter type OIDs
+    { stubEntrySql     :: !Text -- SQL text used as lookup key
+    , stubEntryParams  :: ![Word32] -- parameter type OIDs
     , stubEntryColumns :: ![DescribeStubColumn] -- result columns
-    , stubEntryTables :: ![DescribeStubTable] -- table metadata
-    , stubEntryTypes :: ![DescribeStubType] -- type metadata
+    , stubEntryTables  :: ![DescribeStubTable] -- table metadata
+    , stubEntryTypes   :: ![DescribeStubType] -- type metadata
     }
 
 instance Aeson.FromJSON DescribeStubEntry where
@@ -451,9 +456,9 @@ instance Aeson.FromJSON DescribeStubEntry where
 
 -- Column description inside a stub entry.
 data DescribeStubColumn = DescribeStubColumn
-    { stubColumnName :: !Text -- column name
-    , stubColumnType :: !Word32 -- type OID
-    , stubColumnTable :: !Word32 -- table OID (0 if none)
+    { stubColumnName   :: !Text -- column name
+    , stubColumnType   :: !Word32 -- type OID
+    , stubColumnTable  :: !Word32 -- table OID (0 if none)
     , stubColumnAttnum :: !(Maybe Int) -- attribute number, if known
     }
 
@@ -467,9 +472,9 @@ instance Aeson.FromJSON DescribeStubColumn where
 
 -- Table description inside a stub entry.
 data DescribeStubTable = DescribeStubTable
-    { stubTableOid :: !Word32 -- table OID
-    , stubTableName :: !Text -- table name
-    , stubTableColumns :: ![DescribeStubTableColumn] -- table columns
+    { stubTableOid         :: !Word32 -- table OID
+    , stubTableName        :: !Text -- table name
+    , stubTableColumns     :: ![DescribeStubTableColumn] -- table columns
     , stubTablePrimaryKeys :: ![Int] -- primary key attnums
     , stubTableForeignKeys :: ![DescribeStubForeignKey] -- foreign keys
     }
@@ -485,9 +490,9 @@ instance Aeson.FromJSON DescribeStubTable where
 
 -- Column description inside a stubbed table.
 data DescribeStubTableColumn = DescribeStubTableColumn
-    { stubTableColumnAttnum :: !Int -- attribute number in table
-    , stubTableColumnName :: !Text -- column name
-    , stubTableColumnType :: !Word32 -- type OID
+    { stubTableColumnAttnum  :: !Int -- attribute number in table
+    , stubTableColumnName    :: !Text -- column name
+    , stubTableColumnType    :: !Word32 -- type OID
     , stubTableColumnNotNull :: !Bool -- NOT NULL flag
     }
 
@@ -501,7 +506,7 @@ instance Aeson.FromJSON DescribeStubTableColumn where
 
 -- Foreign key description inside a stubbed table.
 data DescribeStubForeignKey = DescribeStubForeignKey
-    { stubForeignKeyAttnum :: !Int -- local column attnum
+    { stubForeignKeyAttnum     :: !Int -- local column attnum
     , stubForeignKeyReferences :: !Word32 -- referenced table OID
     }
 
@@ -513,10 +518,10 @@ instance Aeson.FromJSON DescribeStubForeignKey where
 
 -- Type description inside a stub entry.
 data DescribeStubType = DescribeStubType
-    { stubTypeOid :: !Word32 -- type OID
-    , stubTypeName :: !Text -- type name
-    , stubTypeElemOid :: !(Maybe Word32) -- element type OID for arrays
-    , stubTypeTyptype :: !(Maybe Text) -- typtype as text
+    { stubTypeOid       :: !Word32 -- type OID
+    , stubTypeName      :: !Text -- type name
+    , stubTypeElemOid   :: !(Maybe Word32) -- element type OID for arrays
+    , stubTypeTyptype   :: !(Maybe Text) -- typtype as text
     , stubTypeNamespace :: !(Maybe Text) -- namespace name
     }
 
@@ -587,7 +592,7 @@ stubTypeToDescribe DescribeStubType { .. } =
     oid = oidFromWord stubTypeOid -- convert type OID
     extractTyptype text = case CS.cs text :: String of
         (c:_) -> Just c -- take the first character
-        _ -> Nothing -- empty or invalid typtype
+        _     -> Nothing -- empty or invalid typtype
     nonZeroOid w = if w == 0 then Nothing else Just (oidFromWord w) -- ignore 0 sentinel
 
 -- Convert a Word32 from JSON into a libpq Oid.
@@ -624,7 +629,7 @@ detectFullTable tables cols = do
                 |> List.groupBy (\a b -> dcTable a == dcTable b) -- group by table OID
                 |> mapMaybe (\group -> case List.uncons group of
                         Just (first, _) -> Just (dcTable first, group)
-                        Nothing -> Nothing
+                        Nothing         -> Nothing
                    ) -- pair table OID with group
     case grouped of
         [(tableOid, colGroup)] | tableOid /= PQ.Oid 0 -> do

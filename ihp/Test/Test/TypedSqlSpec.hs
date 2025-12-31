@@ -1,18 +1,18 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-|
 Module: Test.TypedSqlSpec
 -}
 module Test.TypedSqlSpec where
 
-import IHP.Prelude
-import Test.Hspec
-import IHP.TypedSql
-import IHP.ModelSupport
-import qualified Language.Haskell.TH.Syntax as TH
-import System.Environment (setEnv)
-import Database.PostgreSQL.Simple.Types (Query (..))
-import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Char8            as ByteString
+import           Database.PostgreSQL.Simple.Types (Query (..))
+import           IHP.ModelSupport
+import           IHP.Prelude
+import           IHP.TypedSql
+import qualified Language.Haskell.TH.Syntax       as TH
+import           System.Environment               (setEnv)
+import           Test.Hspec
 
 $(do
     TH.runIO (setEnv "IHP_TYPED_SQL_STUB" "Test/Test/TypedSqlStub.json")
