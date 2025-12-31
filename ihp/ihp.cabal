@@ -60,6 +60,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , postgresql-libpq
             , wai-app-static
             , wai-util
             , bytestring
@@ -198,6 +199,7 @@ library
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder
+        , IHP.TypedSql
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
@@ -270,3 +272,5 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.AutoRefreshSpec
+        Test.TypedSqlSpec

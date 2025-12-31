@@ -1,24 +1,25 @@
 module Main where
 
-import Test.Hspec
-import IHP.Prelude
+import           IHP.Prelude
+import           Test.Hspec
 
-import qualified Test.ValidationSupport.ValidateFieldSpec
-import qualified Test.NameSupportSpec
-import qualified Test.HaskellSupportSpec
-import qualified Test.View.CSSFrameworkSpec
-import qualified Test.View.FormSpec
-import qualified Test.Controller.ContextSpec
-import qualified Test.Controller.ParamSpec
-import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
+import qualified Test.Controller.ContextSpec
+import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.NotFoundSpec
+import qualified Test.Controller.ParamSpec
+import qualified Test.FileStorage.ControllerFunctionsSpec
+import qualified Test.HaskellSupportSpec
 import qualified Test.ModelSupportSpec
+import qualified Test.NameSupportSpec
+import qualified Test.PGListenerSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.TypedSqlSpec
+import qualified Test.ValidationSupport.ValidateFieldSpec
+import qualified Test.View.CSSFrameworkSpec
+import qualified Test.View.FormSpec
 import qualified Test.ViewSupportSpec
-import qualified Test.FileStorage.ControllerFunctionsSpec
-import qualified Test.PGListenerSpec
 
 main :: IO ()
 main = hspec do
@@ -38,3 +39,4 @@ main = hspec do
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
+    Test.TypedSqlSpec.tests
