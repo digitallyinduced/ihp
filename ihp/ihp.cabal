@@ -275,4 +275,3 @@ test-suite tests
         Test.Controller.CookieSpec
         Test.PGListenerSpec
         Test.AutoRefreshSpec
-        Test.TypedSqlSpec
