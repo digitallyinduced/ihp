@@ -7,7 +7,7 @@ final: prev: {
         overrides = self: super:
             let
                 filter = inputs.nix-filter.lib;
-                localPackage = name: super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {};
+                localPackage = name: super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") (filter.matchExt "json") filter.isDirectory "LICENSE" "data" ]; }) {};
         in {
             ihp = localPackage "ihp";
             ihp-ide = localPackage "ihp-ide";
