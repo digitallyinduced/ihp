@@ -15,7 +15,6 @@ import qualified Test.NameSupportSpec
 import qualified Test.PGListenerSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
-import qualified Test.TypedSqlSpec
 import qualified Test.ValidationSupport.ValidateFieldSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.View.FormSpec

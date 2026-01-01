@@ -40,7 +40,6 @@ data-files:
     , static/vendor/src-min/snippets/*.js
 extra-source-files:
     CHANGELOG.md
-    Test/Test/TypedSqlSchema.sql
 
 common shared-properties
     default-language: GHC2021
