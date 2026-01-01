@@ -12,15 +12,15 @@ module IHP.TypedSql
     , runTypedOne -- execute a typed query expecting exactly one row
     ) where
 
+import           Control.Exception                  (bracket_)
 import           Control.Monad                      (guard)
-import           Data.Aeson                         ((.!=), (.:), (.:?))
 import qualified Data.Aeson                         as Aeson
 import qualified Data.ByteString                    as BS
-import           Data.IORef                         (IORef, atomicModifyIORef',
-                                                     newIORef, readIORef)
+import qualified Data.ByteString.Char8              as BS8
+import qualified Data.Char                          as Char
 import qualified Data.List                          as List
 import qualified Data.Map.Strict                    as Map
-import           Data.Maybe                         (mapMaybe)
+import           Data.Maybe                         (catMaybes, mapMaybe)
 import           Data.Scientific                    (Scientific)
 import qualified Data.Set                           as Set
 import qualified Data.String.Conversions            as CS
@@ -28,7 +28,6 @@ import           Data.Time                          (LocalTime, TimeOfDay,
                                                      UTCTime)
 import           Data.Time.Calendar                 (Day)
 import           Data.UUID                          (UUID)
-import           Data.Word                          (Word32)
 import qualified Database.PostgreSQL.LibPQ          as PQ
 import qualified Database.PostgreSQL.Simple         as PG
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
@@ -51,8 +50,18 @@ import qualified IHP.Postgres.Point                 as PGPoint
 import qualified IHP.Postgres.Polygon               as PGPolygon
 import qualified IHP.Postgres.TimeParser            as PGTime
 import qualified IHP.Postgres.TSVector              as PGTs
+import           System.Directory                   (canonicalizePath,
+                                                     createDirectoryIfMissing,
+                                                     doesDirectoryExist,
+                                                     doesFileExist,
+                                                     findExecutable,
+                                                     removeDirectoryRecursive)
 import           System.Environment                 (lookupEnv)
-import           System.IO.Unsafe                   (unsafePerformIO)
+import           System.FilePath                    (isRelative, takeDirectory,
+                                                     takeFileName, (</>))
+import           System.IO                          (Handle, hIsEOF)
+import           System.IO.Temp                     (withSystemTempDirectory)
+import qualified System.Process                     as Process
 
 -- | Prepared query with a custom row parser.
 -- High-level: this is the runtime value produced by the typed SQL quasiquoter.
@@ -164,10 +173,13 @@ typedSqlExp rawSql = do
     let (sqlText, placeholderExprs) = substitutePlaceholders rawSql
     parsedExprs <- mapM parseExpr placeholderExprs -- parse each placeholder as Haskell code
 
-    stubPath <- TH.runIO (lookupEnv "IHP_TYPED_SQL_STUB") -- optional path to a stub file
-    describeResult <- TH.runIO $ case stubPath of
-        Just path -> describeUsingStub path sqlText -- offline: use stub metadata
-        Nothing   -> describeStatement (CS.cs sqlText) -- online: ask Postgres to describe
+    bootstrapEnv <- TH.runIO (lookupEnv "IHP_TYPED_SQL_BOOTSTRAP") -- optional bootstrap mode
+    loc <- TH.location
+    let useBootstrap = isBootstrapEnabled bootstrapEnv
+    describeResult <- TH.runIO $
+        if useBootstrap
+            then describeUsingBootstrap (TH.loc_filename loc) sqlText -- bootstrap DB from schema
+            else describeStatement (CS.cs sqlText) -- online: ask Postgres to describe
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult -- unpack metadata
     when (length drParams /= length parsedExprs) $ -- make sure counts match
@@ -217,18 +229,168 @@ parseExpr exprText =
         Left err -> fail ("typedSql: failed to parse expression {" <> exprText <> "}: " <> err) -- parse error
         Right expr -> pure expr -- success: return parsed TH expression
 
--- | Describe a statement using libpq, and fetch the additional metadata needed to map to Haskell types.
--- High-level: loads a DescribeResult from a stub JSON file.
-describeUsingStub :: FilePath -> String -> IO DescribeResult
-describeUsingStub path sqlText = do
-    entries <- loadStubEntries path -- load and cache stub entries
-    let key = CS.cs sqlText -- use the SQL text as the lookup key
-    maybe (fail ("typedSql: no stub entry for SQL: " <> sqlText)) pure (Map.lookup key entries) -- lookup or fail
+isBootstrapEnabled :: Maybe String -> Bool
+isBootstrapEnabled = \case
+    Nothing -> False
+    Just raw ->
+        let value = map Char.toLower raw
+        in not (value `elem` ["", "0", "false", "no", "off"])
+
+data BootstrapConfig = BootstrapConfig
+    { bcAppSchemaPath :: !FilePath
+    , bcIhpSchemaPath :: !(Maybe FilePath)
+    }
+
+data PgTools = PgTools
+    { pgInitdb   :: !FilePath
+    , pgPostgres :: !FilePath
+    , pgCreatedb :: !FilePath
+    , pgPsql     :: !FilePath
+    }
+
+describeUsingBootstrap :: FilePath -> String -> IO DescribeResult
+describeUsingBootstrap sourcePath sqlText = do
+    config <- resolveBootstrapConfig sourcePath
+    withBootstrapDatabase config \dbUrl ->
+        describeStatementWith dbUrl (CS.cs sqlText)
+
+resolveBootstrapConfig :: FilePath -> IO BootstrapConfig
+resolveBootstrapConfig sourcePath = do
+    sourceDir <- canonicalizePath (takeDirectory sourcePath)
+    appSchemaPath <- resolveSchemaPath sourceDir
+    ihpSchemaPath <- resolveIhpSchemaPath sourceDir
+    pure BootstrapConfig
+        { bcAppSchemaPath = appSchemaPath
+        , bcIhpSchemaPath = ihpSchemaPath
+        }
+
+resolveSchemaPath :: FilePath -> IO FilePath
+resolveSchemaPath sourceDir = do
+    envSchema <- lookupEnv "IHP_TYPED_SQL_SCHEMA"
+    case envSchema of
+        Just path -> resolveRelativePath sourceDir path >>= ensureFileExists "IHP_TYPED_SQL_SCHEMA"
+        Nothing -> do
+            findUpwards sourceDir ("Application" </> "Schema.sql") >>= \case
+                Just found -> pure found
+                Nothing ->
+                    fail "typedSql: could not find Application/Schema.sql. Set IHP_TYPED_SQL_SCHEMA to an absolute path."
+
+resolveIhpSchemaPath :: FilePath -> IO (Maybe FilePath)
+resolveIhpSchemaPath sourceDir = do
+    envSchema <- lookupEnv "IHP_TYPED_SQL_IHP_SCHEMA"
+    case envSchema of
+        Just path -> Just <$> (resolveRelativePath sourceDir path >>= ensureFileExists "IHP_TYPED_SQL_IHP_SCHEMA")
+        Nothing -> do
+            envLib <- lookupEnv "IHP_LIB"
+            fromLib <- case envLib of
+                Just libPath -> do
+                    let candidate = libPath </> "IHPSchema.sql"
+                    exists <- doesFileExist candidate
+                    pure (if exists then Just candidate else Nothing)
+                Nothing -> pure Nothing
+            case fromLib of
+                Just _ -> pure fromLib
+                Nothing -> findUpwards sourceDir ("ihp-ide" </> "data" </> "IHPSchema.sql")
+
+resolveRelativePath :: FilePath -> FilePath -> IO FilePath
+resolveRelativePath baseDir path = do
+    let resolved = if isRelative path then baseDir </> path else path
+    canonicalizePath resolved
+
+ensureFileExists :: String -> FilePath -> IO FilePath
+ensureFileExists label path = do
+    exists <- doesFileExist path
+    if exists
+        then pure path
+        else fail ("typedSql: " <> label <> " points to missing file: " <> path)
+
+findUpwards :: FilePath -> FilePath -> IO (Maybe FilePath)
+findUpwards startDir relativePath = go startDir
+  where
+    go current = do
+        let candidate = current </> relativePath
+        exists <- doesFileExist candidate
+        if exists
+            then Just <$> canonicalizePath candidate
+            else do
+                let parent = takeDirectory current
+                if parent == current
+                    then pure Nothing
+                    else go parent
+
+withBootstrapDatabase :: BootstrapConfig -> (BS.ByteString -> IO a) -> IO a
+withBootstrapDatabase BootstrapConfig { bcAppSchemaPath, bcIhpSchemaPath } action = do
+    PgTools { pgInitdb, pgPostgres, pgCreatedb, pgPsql } <- resolvePgTools
+    withSystemTempDirectory "ihp-typed-sql" \tempDir -> do
+        let dataDir = tempDir </> "state"
+        let socketDir = "/tmp" </> takeFileName tempDir
+        let cleanupSocket = do
+                exists <- doesDirectoryExist socketDir
+                when exists (removeDirectoryRecursive socketDir)
+        bracket_ (createDirectoryIfMissing True socketDir) cleanupSocket do
+            Process.callProcess pgInitdb [dataDir, "--no-locale", "--encoding", "UTF8"]
+
+            let params =
+                    (Process.proc pgPostgres ["-D", dataDir, "-k", socketDir, "-c", "listen_addresses="])
+                        { Process.std_in = Process.CreatePipe
+                        , Process.std_out = Process.CreatePipe
+                        , Process.std_err = Process.CreatePipe
+                        }
+            Process.withCreateProcess params \_ _ stderrHandle processHandle -> do
+                errHandle <- maybe (fail "typedSql: unable to read postgres logs") pure stderrHandle
+                let stop = do
+                        Process.terminateProcess processHandle
+                        _ <- Process.waitForProcess processHandle
+                        pure ()
+                let start = do
+                        waitUntilReady errHandle
+                        Process.callProcess pgCreatedb ["app", "-h", socketDir]
+                        let loadSchema file = Process.callProcess pgPsql ["-h", socketDir, "-d", "app", "-v", "ON_ERROR_STOP=1", "-f", file]
+                        forM_ (catMaybes [bcIhpSchemaPath, Just bcAppSchemaPath]) loadSchema
+                bracket_ start stop do
+                    let dbUrl = CS.cs ("postgresql:///app?host=" <> socketDir)
+                    action dbUrl
+
+resolvePgTools :: IO PgTools
+resolvePgTools = do
+    pgPostgres <- requireExecutable "postgres"
+    let binDir = takeDirectory pgPostgres
+    pgInitdb <- findInBinOrPath binDir "initdb"
+    pgCreatedb <- findInBinOrPath binDir "createdb"
+    pgPsql <- findInBinOrPath binDir "psql"
+    pure PgTools { pgInitdb, pgPostgres, pgCreatedb, pgPsql }
+
+findInBinOrPath :: FilePath -> String -> IO FilePath
+findInBinOrPath binDir name = do
+    let candidate = binDir </> name
+    exists <- doesFileExist candidate
+    if exists then pure candidate else requireExecutable name
+
+requireExecutable :: String -> IO FilePath
+requireExecutable name =
+    findExecutable name >>= \case
+        Just path -> pure path
+        Nothing -> fail ("typedSql: bootstrap requires '" <> name <> "' in PATH")
+
+waitUntilReady :: Handle -> IO ()
+waitUntilReady handle = do
+    done <- hIsEOF handle
+    if done
+        then fail "typedSql: postgres exited before it was ready"
+        else do
+            line <- BS8.hGetLine handle
+            if "database system is ready to accept connections" `BS8.isInfixOf` line
+                then pure ()
+                else waitUntilReady handle
 
 -- Describe a statement by asking a real Postgres server.
 describeStatement :: BS.ByteString -> IO DescribeResult
 describeStatement sql = do
     dbUrl <- defaultDatabaseUrl -- read database URL
+    describeStatementWith dbUrl sql
+
+describeStatementWith :: BS.ByteString -> BS.ByteString -> IO DescribeResult
+describeStatementWith dbUrl sql = do
     conn <- PQ.connectdb dbUrl -- open libpq connection
     status <- PQ.status conn -- check connection state
     unless (status == PQ.ConnectionOk) do
@@ -262,13 +424,24 @@ describeStatement sql = do
 
     pgConn <- PG.connectPostgreSQL dbUrl -- open postgres-simple connection for catalog queries
     tables <- loadTableMeta pgConn (Set.toList tableOids) -- load table metadata
+    let referencedOids =
+            tables
+                |> Map.elems
+                |> foldl'
+                    (\acc TableMeta { tmForeignKeys } ->
+                        acc <> Set.fromList (Map.elems tmForeignKeys)
+                    )
+                    mempty
+    let missingRefs = referencedOids `Set.difference` Map.keysSet tables
+    extraTables <- loadTableMeta pgConn (Set.toList missingRefs)
+    let tables' = tables <> extraTables
     types <- loadTypeInfo pgConn (Set.toList typeOids) -- load type metadata
     PG.close pgConn -- close postgres-simple connection
 
     _ <- PQ.exec conn ("DEALLOCATE " <> statementName) -- release prepared statement
     PQ.finish conn -- close libpq connection
 
-    pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables, drTypes = types } -- return full metadata
+    pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types } -- return full metadata
 
 -- Ensure libpq returned a successful result.
 ensureOk :: String -> Maybe PQ.Result -> IO PQ.Result
@@ -388,216 +561,6 @@ loadTypeInfo conn typeOids = do
                     (mempty, []) -- start with empty map and missing list
     extras <- loadTypeInfo conn missing -- recursively load missing element types
     pure (typeMap <> extras) -- merge base and extra type info
-
--- Stub metadata -------------------------------------------------------
-
--- Cache mapping stub file path to parsed SQL metadata.
-type StubCache = Map.Map FilePath (Map.Map Text DescribeResult)
-
-{-# NOINLINE describeStubCache #-} -- ensure the IORef is shared and not duplicated
--- Global cache for stub metadata (safe because file contents are immutable).
-describeStubCache :: IORef StubCache
-describeStubCache = unsafePerformIO (newIORef mempty) -- initialize to empty
-
--- Load stub entries from cache or parse if missing.
-loadStubEntries :: FilePath -> IO (Map.Map Text DescribeResult)
-loadStubEntries path = do
-    cache <- readIORef describeStubCache -- read current cache
-    case Map.lookup path cache of
-        Just entries -> pure entries -- cache hit
-        Nothing -> do
-            entries <- parseStubFile path -- parse the stub file
-            atomicModifyIORef' describeStubCache (\m -> (Map.insert path entries m, ())) -- store in cache
-            pure entries
-
--- Parse a stub file on disk into DescribeResult values.
-parseStubFile :: FilePath -> IO (Map.Map Text DescribeResult)
-parseStubFile path = do
-    bytes <- BS.readFile path -- read JSON file
-    stubFile <- either (fail . ("typedSql: failed to parse stub file: " <>) ) pure (Aeson.eitherDecodeStrict' bytes :: Either String DescribeStubFile) -- decode JSON
-    pure (buildStubEntries stubFile) -- build lookup map
-
--- Convert a DescribeStubFile into a map keyed by SQL text.
-buildStubEntries :: DescribeStubFile -> Map.Map Text DescribeResult
-buildStubEntries DescribeStubFile { stubFileQueries } =
-    foldl'
-        (\acc entry ->
-            Map.insert (stubEntrySql entry) (stubEntryToDescribe entry) acc
-        )
-        mempty
-        stubFileQueries
-
--- Top-level JSON structure for stub metadata.
-data DescribeStubFile = DescribeStubFile
-    { stubFileQueries :: ![DescribeStubEntry] -- list of stubbed statements
-    }
-
-instance Aeson.FromJSON DescribeStubFile where
-    parseJSON = Aeson.withObject "DescribeStubFile" \obj ->
-        DescribeStubFile <$> obj .:? "queries" .!= [] -- default to empty list
-
--- One stubbed SQL statement entry.
-data DescribeStubEntry = DescribeStubEntry
-    { stubEntrySql     :: !Text -- SQL text used as lookup key
-    , stubEntryParams  :: ![Word32] -- parameter type OIDs
-    , stubEntryColumns :: ![DescribeStubColumn] -- result columns
-    , stubEntryTables  :: ![DescribeStubTable] -- table metadata
-    , stubEntryTypes   :: ![DescribeStubType] -- type metadata
-    }
-
-instance Aeson.FromJSON DescribeStubEntry where
-    parseJSON = Aeson.withObject "DescribeStubEntry" \obj ->
-        DescribeStubEntry
-            <$> obj .: "sql" -- required SQL string
-            <*> obj .:? "params" .!= [] -- optional params list
-            <*> obj .:? "columns" .!= [] -- optional columns list
-            <*> obj .:? "tables" .!= [] -- optional tables list
-            <*> obj .:? "types" .!= [] -- optional types list
-
--- Column description inside a stub entry.
-data DescribeStubColumn = DescribeStubColumn
-    { stubColumnName   :: !Text -- column name
-    , stubColumnType   :: !Word32 -- type OID
-    , stubColumnTable  :: !Word32 -- table OID (0 if none)
-    , stubColumnAttnum :: !(Maybe Int) -- attribute number, if known
-    }
-
-instance Aeson.FromJSON DescribeStubColumn where
-    parseJSON = Aeson.withObject "DescribeStubColumn" \obj ->
-        DescribeStubColumn
-            <$> obj .: "name" -- required name
-            <*> obj .: "typeOid" -- required type OID
-            <*> obj .:? "tableOid" .!= 0 -- default to 0 (no table)
-            <*> obj .:? "attnum" -- optional attnum
-
--- Table description inside a stub entry.
-data DescribeStubTable = DescribeStubTable
-    { stubTableOid         :: !Word32 -- table OID
-    , stubTableName        :: !Text -- table name
-    , stubTableColumns     :: ![DescribeStubTableColumn] -- table columns
-    , stubTablePrimaryKeys :: ![Int] -- primary key attnums
-    , stubTableForeignKeys :: ![DescribeStubForeignKey] -- foreign keys
-    }
-
-instance Aeson.FromJSON DescribeStubTable where
-    parseJSON = Aeson.withObject "DescribeStubTable" \obj ->
-        DescribeStubTable
-            <$> obj .: "oid" -- required OID
-            <*> obj .: "name" -- required table name
-            <*> obj .:? "columns" .!= [] -- optional columns list
-            <*> obj .:? "primaryKeys" .!= [] -- optional PK list
-            <*> obj .:? "foreignKeys" .!= [] -- optional FK list
-
--- Column description inside a stubbed table.
-data DescribeStubTableColumn = DescribeStubTableColumn
-    { stubTableColumnAttnum  :: !Int -- attribute number in table
-    , stubTableColumnName    :: !Text -- column name
-    , stubTableColumnType    :: !Word32 -- type OID
-    , stubTableColumnNotNull :: !Bool -- NOT NULL flag
-    }
-
-instance Aeson.FromJSON DescribeStubTableColumn where
-    parseJSON = Aeson.withObject "DescribeStubTableColumn" \obj ->
-        DescribeStubTableColumn
-            <$> obj .: "attnum" -- required attribute number
-            <*> obj .: "name" -- required column name
-            <*> obj .: "typeOid" -- required type OID
-            <*> obj .:? "notNull" .!= False -- default false for nullable
-
--- Foreign key description inside a stubbed table.
-data DescribeStubForeignKey = DescribeStubForeignKey
-    { stubForeignKeyAttnum     :: !Int -- local column attnum
-    , stubForeignKeyReferences :: !Word32 -- referenced table OID
-    }
-
-instance Aeson.FromJSON DescribeStubForeignKey where
-    parseJSON = Aeson.withObject "DescribeStubForeignKey" \obj ->
-        DescribeStubForeignKey
-            <$> obj .: "attnum" -- required local attnum
-            <*> obj .: "references" -- required referenced table OID
-
--- Type description inside a stub entry.
-data DescribeStubType = DescribeStubType
-    { stubTypeOid       :: !Word32 -- type OID
-    , stubTypeName      :: !Text -- type name
-    , stubTypeElemOid   :: !(Maybe Word32) -- element type OID for arrays
-    , stubTypeTyptype   :: !(Maybe Text) -- typtype as text
-    , stubTypeNamespace :: !(Maybe Text) -- namespace name
-    }
-
-instance Aeson.FromJSON DescribeStubType where
-    parseJSON = Aeson.withObject "DescribeStubType" \obj ->
-        DescribeStubType
-            <$> obj .: "oid" -- required OID
-            <*> obj .: "name" -- required type name
-            <*> obj .:? "elemOid" -- optional element OID
-            <*> obj .:? "typtype" -- optional typtype
-            <*> obj .:? "namespace" -- optional namespace
-
--- Convert a stub entry into a DescribeResult.
-stubEntryToDescribe :: DescribeStubEntry -> DescribeResult
-stubEntryToDescribe DescribeStubEntry { .. } =
-    DescribeResult
-        { drParams = map oidFromWord stubEntryParams -- convert param OIDs
-        , drColumns = map stubColumnToDescribe stubEntryColumns -- convert columns
-        , drTables = Map.fromList (map stubTableToDescribe stubEntryTables) -- convert tables
-        , drTypes = Map.fromList (map stubTypeToDescribe stubEntryTypes) -- convert types
-        }
-
--- Convert a stub column into a DescribeColumn.
-stubColumnToDescribe :: DescribeStubColumn -> DescribeColumn
-stubColumnToDescribe DescribeStubColumn { .. } =
-    DescribeColumn
-        { dcName = CS.cs stubColumnName -- convert Text to ByteString
-        , dcType = oidFromWord stubColumnType -- convert type OID
-        , dcTable = oidFromWord stubColumnTable -- convert table OID
-        , dcAttnum = stubColumnAttnum -- keep attribute number
-        }
-
--- Convert a stub table into TableMeta.
-stubTableToDescribe :: DescribeStubTable -> (PQ.Oid, TableMeta)
-stubTableToDescribe DescribeStubTable { .. } =
-    ( tableOid
-    , TableMeta
-        { tmOid = tableOid
-        , tmName = stubTableName
-        , tmColumns = Map.fromList (map (\col -> (stubTableColumnAttnum col, stubColumnMeta col)) stubTableColumns)
-        , tmColumnOrder = map stubTableColumnAttnum stubTableColumns
-        , tmPrimaryKeys = Set.fromList stubTablePrimaryKeys
-        , tmForeignKeys = Map.fromList (map (\fk -> (stubForeignKeyAttnum fk, oidFromWord (stubForeignKeyReferences fk))) stubTableForeignKeys)
-        }
-    )
-  where
-    tableOid = oidFromWord stubTableOid -- convert table OID
-    stubColumnMeta DescribeStubTableColumn { .. } = ColumnMeta
-        { cmAttnum = stubTableColumnAttnum
-        , cmName = stubTableColumnName
-        , cmTypeOid = oidFromWord stubTableColumnType
-        , cmNotNull = stubTableColumnNotNull
-        }
-
--- Convert a stub type into PgTypeInfo.
-stubTypeToDescribe :: DescribeStubType -> (PQ.Oid, PgTypeInfo)
-stubTypeToDescribe DescribeStubType { .. } =
-    ( oid
-    , PgTypeInfo
-        { ptiOid = oid
-        , ptiName = stubTypeName
-        , ptiElem = stubTypeElemOid >>= nonZeroOid
-        , ptiType = stubTypeTyptype >>= extractTyptype
-        , ptiNamespace = stubTypeNamespace
-        }
-    )
-  where
-    oid = oidFromWord stubTypeOid -- convert type OID
-    extractTyptype text = case CS.cs text :: String of
-        (c:_) -> Just c -- take the first character
-        _     -> Nothing -- empty or invalid typtype
-    nonZeroOid w = if w == 0 then Nothing else Just (oidFromWord w) -- ignore 0 sentinel
-
--- Convert a Word32 from JSON into a libpq Oid.
-oidFromWord :: Word32 -> PQ.Oid
-oidFromWord = PQ.Oid . fromIntegral -- convert numeric width
 
 -- | Build the Haskell type for a parameter, based on its OID.
 -- High-level: map a PG type OID into a TH Type.

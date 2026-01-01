@@ -171,78 +171,92 @@ If you have custom types, add a `FromField` instance and extend
 
 There is no separate runtime connection layer.
 
+## How typedSql works internally
+
+`typedSql` is implemented as a Template Haskell quasiquoter. The pipeline
+looks like this:
+
+1. **Placeholder rewrite**: the SQL template is scanned for `${expr}`
+   placeholders. Each placeholder is replaced by `$1`, `$2`, ... and the
+   captured expressions are parsed as Haskell AST.
+2. **Statement describe**: at compile time, `typedSql` prepares the query
+   and runs `DESCRIBE` via libpq. This returns:
+   - parameter OIDs (types for each `$N`)
+   - result column OIDs, table OIDs, and attribute numbers
+3. **Catalog metadata fetch**: `typedSql` then queries `pg_catalog` to
+   resolve:
+   - table/column order (`pg_class`, `pg_attribute`)
+   - nullability (`pg_attribute.attnotnull`)
+   - primary/foreign keys (`pg_constraint`)
+   - enum/composite/array metadata (`pg_type`)
+4. **IHP type mapping**:
+   - Primary keys become `Id' "table"`.
+   - Single-column foreign keys become `Id' "ref_table"`.
+   - Enums map to `Generated.Enums.<Enum>`.
+   - Composite types map to `Generated.ActualTypes.<Type>`.
+   - If the select list exactly matches `table.*` order, the result type
+     becomes the generated record type (`Generated.ActualTypes.<Model>`).
+5. **TypedQuery generation**: the quasiquoter emits a `TypedQuery` value
+   with:
+   - `PG.Query` containing the rewritten SQL
+   - `toField`-encoded parameters
+   - a row parser (`field` for single column, `fromRow` for tuples)
+
+At runtime, `runTyped` executes the generated query using IHP's
+`ModelContext`, so it reuses the same logging, RLS parameters, and
+connection pool as the rest of IHP.
+
 ## Compile-time database access
 
-`typedSql` talks to your database at compile time. It uses
-`DATABASE_URL` or the same default used by IHP (`build/db`). Make sure
-the database is running and the schema is up to date when compiling.
+`typedSql` needs schema metadata at compile time. If
+`IHP_TYPED_SQL_BOOTSTRAP` is set, it uses bootstrap mode. Otherwise it
+connects to your live database.
+
+### Live database (default)
+
+`typedSql` connects to your database at compile time using `DATABASE_URL`
+or the same default used by IHP (`build/db`). Make sure the database is
+running and the schema is up to date when compiling.
 
 If the schema changes, recompile so the query description is refreshed.
 
-## Tests without a database: stub mode
+### Bootstrap mode (schema-only)
 
-For tests, you can skip the live DB by providing a JSON stub file. This
-lets you run `typedSql` in CI without a running Postgres.
+Bootstrap mode avoids a running database by creating a temporary local
+Postgres instance from your SQL files at compile time. This keeps the
+SQL/type checking fully real while remaining reproducible in CI.
 
-Set the environment variable before splicing any `typedSql`:
+Enable it with:
 
-```haskell
-{-# LANGUAGE TemplateHaskell #-}
-
-import Language.Haskell.TH.Syntax (runIO)
-import System.Environment (setEnv)
-
-$(do
-    runIO (setEnv "IHP_TYPED_SQL_STUB" "Test/Test/TypedSqlStub.json")
-    pure []
- )
+```bash
+export IHP_TYPED_SQL_BOOTSTRAP=1
 ```
 
-### Stub file format
+When enabled, `typedSql` will:
 
-A stub file is a JSON document with a list of query entries. Each entry
-contains:
+1. Run `initdb` into a temp directory.
+2. Start a local `postgres` instance bound to a unix socket.
+3. Load `IHPSchema.sql` (if found), then `Application/Schema.sql`.
+4. Run the same describe + catalog queries against the temporary DB.
 
-- the SQL string (after placeholder substitution)
-- parameter OIDs
-- column OIDs and table metadata
-- table metadata (columns, PKs, FKs)
-- type metadata (names, element OIDs, type category)
+Schema discovery rules:
 
-Example:
+- `IHP_TYPED_SQL_SCHEMA` overrides the app schema path.
+- Otherwise, `Application/Schema.sql` is discovered by walking upward from
+  the module containing the `[typedSql| ... |]`.
+- `IHP_TYPED_SQL_IHP_SCHEMA` overrides the IHP schema path.
+- Otherwise, if `IHP_LIB` is set, `IHP_LIB/IHPSchema.sql` is used.
+- Otherwise, it tries to locate `ihp-ide/data/IHPSchema.sql` when building
+  from the IHP repo.
 
-```json
-{
-  "queries": [
-    {
-      "sql": "SELECT users.id, users.name FROM users WHERE users.id = $1",
-      "params": [2950],
-      "columns": [
-        {"name": "id", "typeOid": 2950, "tableOid": 100000, "attnum": 1},
-        {"name": "name", "typeOid": 25, "tableOid": 100000, "attnum": 2}
-      ],
-      "tables": [
-        {
-          "oid": 100000,
-          "name": "users",
-          "columns": [
-            {"attnum": 1, "name": "id", "typeOid": 2950, "notNull": true},
-            {"attnum": 2, "name": "name", "typeOid": 25, "notNull": true}
-          ],
-          "primaryKeys": [1],
-          "foreignKeys": []
-        }
-      ],
-      "types": [
-        {"oid": 2950, "name": "uuid", "elemOid": null, "typtype": "b"},
-        {"oid": 25, "name": "text", "elemOid": null, "typtype": "b"}
-      ]
-    }
-  ]
-}
-```
+Tools required on `PATH`:
 
-Only the queries your tests use need to be present in the stub file.
+- `initdb`
+- `postgres`
+- `createdb`
+- `psql`
+
+If any tool is missing, `typedSql` will fail with a clear error.
 
 ## Limitations and gotchas
 
@@ -268,7 +282,17 @@ You get compile-time SQL validation with minimal changes.
 **Error: could not connect to database**
 
 - Ensure `DATABASE_URL` is set and reachable during compilation.
-- Or set `IHP_TYPED_SQL_STUB` to use stub mode.
+- Or set `IHP_TYPED_SQL_BOOTSTRAP=1` to use bootstrap mode.
+
+**Error: bootstrap requires 'initdb' in PATH**
+
+- Install the PostgreSQL client/server tools.
+- Make sure `initdb`, `postgres`, `createdb`, and `psql` are on `PATH`.
+
+**Error: could not find Application/Schema.sql**
+
+- Set `IHP_TYPED_SQL_SCHEMA` to an absolute path.
+- Or ensure the module using `typedSql` is inside your app directory.
 
 **Error: placeholder count mismatch**
 

@@ -38,7 +38,9 @@ data-files:
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
-extra-source-files: CHANGELOG.md
+extra-source-files:
+    CHANGELOG.md
+    Test/Test/TypedSqlSchema.sql
 
 common shared-properties
     default-language: GHC2021
@@ -48,6 +50,7 @@ common shared-properties
             , mono-traversable
             , transformers
             , directory
+            , filepath
             , string-conversions
             , warp
             , warp-systemd

@@ -11,14 +11,17 @@ import           IHP.ModelSupport
 import           IHP.Prelude
 import           IHP.TypedSql
 import qualified Language.Haskell.TH.Syntax       as TH
+import           System.Directory                 (canonicalizePath)
 import           System.Environment               (setEnv)
 import           System.FilePath                  (takeDirectory, (</>))
 import           Test.Hspec
 
 $(do
     loc <- TH.location
-    let stubPath = takeDirectory (TH.loc_filename loc) </> "TypedSqlStub.json"
-    TH.runIO (setEnv "IHP_TYPED_SQL_STUB" stubPath)
+    let baseDir = takeDirectory (TH.loc_filename loc)
+    schemaPath <- TH.runIO (canonicalizePath (baseDir </> "TypedSqlSchema.sql"))
+    TH.runIO (setEnv "IHP_TYPED_SQL_BOOTSTRAP" "1")
+    TH.runIO (setEnv "IHP_TYPED_SQL_SCHEMA" schemaPath)
     pure []
  )
 
