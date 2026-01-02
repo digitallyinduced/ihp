@@ -155,8 +155,12 @@ The mapping follows IHP's conventions. Summary of common types:
 - `polygon` -> `Polygon`
 - `inet` -> `IP`
 - `tsvector` -> `TSVector`
-- enums -> `Generated.Enums.<Enum>`
-- composite types -> `Generated.ActualTypes.<Type>`
+- enums -> `<Enum>` (re-exported from `Generated.Types`)
+- composite types -> `<Type>` (re-exported from `Generated.Types`)
+
+Single-column composite selects (e.g. `SELECT my_table FROM my_table`) are
+not supported because `postgresql-simple` cannot decode composite fields
+into record types. Use `SELECT my_table.*` or list columns explicitly.
 
 If you have custom types, add a `FromField` instance and extend
 `hsTypeForPg` in `IHP.TypedSql`.
@@ -177,8 +181,9 @@ There is no separate runtime connection layer.
 looks like this:
 
 1. **Placeholder rewrite**: the SQL template is scanned for `${expr}`
-   placeholders. Each placeholder is replaced by `$1`, `$2`, ... and the
-   captured expressions are parsed as Haskell AST.
+   placeholders. Each placeholder is replaced by `$1`, `$2`, ... for the
+   compile-time describe and by `?` for runtime execution. The captured
+   expressions are parsed as Haskell AST.
 2. **Statement describe**: at compile time, `typedSql` prepares the query
    and runs `DESCRIBE` via libpq. This returns:
    - parameter OIDs (types for each `$N`)
@@ -192,10 +197,10 @@ looks like this:
 4. **IHP type mapping**:
    - Primary keys become `Id' "table"`.
    - Single-column foreign keys become `Id' "ref_table"`.
-   - Enums map to `Generated.Enums.<Enum>`.
-   - Composite types map to `Generated.ActualTypes.<Type>`.
+   - Enums map to `<Enum>` (re-exported from `Generated.Types`).
+   - Composite types map to `<Type>` (re-exported from `Generated.Types`).
    - If the select list exactly matches `table.*` order, the result type
-     becomes the generated record type (`Generated.ActualTypes.<Model>`).
+     becomes the generated record type (`<Model>` from `Generated.Types`).
 5. **TypedQuery generation**: the quasiquoter emits a `TypedQuery` value
    with:
    - `PG.Query` containing the rewritten SQL

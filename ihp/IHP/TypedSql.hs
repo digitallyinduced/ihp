@@ -13,7 +13,7 @@ module IHP.TypedSql
     ) where
 
 import           Control.Exception                  (bracket_)
-import           Control.Monad                      (guard)
+import           Control.Monad                      (guard, when)
 import qualified Data.Aeson                         as Aeson
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Char8              as BS8
@@ -194,7 +194,18 @@ typedSqlExp rawSql = do
 
     let sqlLiteral = TH.SigE (TH.LitE (TH.StringL ppRuntimeSql)) (TH.ConT ''String)
         queryExpr = TH.AppE (TH.ConE 'PG.Query) (TH.AppE (TH.VarE 'CS.cs) sqlLiteral)
-        rowParserExpr = if length drColumns == 1 then TH.VarE 'PGFR.field else TH.VarE 'PGFR.fromRow
+        isCompositeColumn =
+            case drColumns of
+                [DescribeColumn { dcType }] ->
+                    case Map.lookup dcType drTypes of
+                        Just PgTypeInfo { ptiType = Just 'c' } -> True
+                        _ -> False
+                _ -> False
+    when (length drColumns == 1 && isCompositeColumn) $
+        fail
+            ("typedSql: composite columns must be expanded (use SELECT table.* "
+                <> "or list columns explicitly)")
+    let rowParserExpr = if length drColumns == 1 then TH.VarE 'PGFR.field else TH.VarE 'PGFR.fromRow
         typedQueryExpr =
             TH.AppE
                 (TH.AppE
@@ -434,7 +445,11 @@ describeStatementWith dbUrl sql = do
         tableOid <- PQ.ftable desc colIndex -- table OID for the column
         attnumRaw <- PQ.ftablecol desc colIndex -- attribute number in table
         let PQ.Col attnumCInt = attnumRaw
-        let attnum = if tableOid == PQ.Oid 0 then Nothing else Just (fromIntegral attnumCInt) -- ignore attnum when table is 0
+        let attnumInt = fromIntegral attnumCInt :: Int
+        let attnum =
+                if tableOid == PQ.Oid 0 || attnumInt <= 0
+                    then Nothing -- no reliable column info for composites/expressions
+                    else Just attnumInt
         pure DescribeColumn { dcName = name, dcType = colType, dcTable = tableOid, dcAttnum = attnum } -- build column meta
         ) [0 .. columnCountInt - 1]
 
