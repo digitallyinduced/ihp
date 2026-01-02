@@ -201,6 +201,7 @@ library
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder
+        , IHP.Postgres.Typed
         , IHP.TypedSql
         , IHP.Fetch
         , IHP.RouterPrelude

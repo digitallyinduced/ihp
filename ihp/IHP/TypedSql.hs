@@ -169,17 +169,17 @@ toPQOid (PG.Oid w) = PQ.Oid w -- low-level: wrap the same numeric value
 -- Build the TH expression for a typed SQL quasiquote.
 typedSqlExp :: String -> TH.ExpQ
 typedSqlExp rawSql = do
-    -- Replace ${expr} placeholders with $1, $2, ... and collect expressions.
-    let (sqlText, placeholderExprs) = substitutePlaceholders rawSql
-    parsedExprs <- mapM parseExpr placeholderExprs -- parse each placeholder as Haskell code
+    -- Replace ${expr} placeholders with $1, $2, ... for describe and ? for runtime.
+    let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
+    parsedExprs <- mapM parseExpr ppExprs -- parse each placeholder as Haskell code
 
     bootstrapEnv <- TH.runIO (lookupEnv "IHP_TYPED_SQL_BOOTSTRAP") -- optional bootstrap mode
     loc <- TH.location
     let useBootstrap = isBootstrapEnabled bootstrapEnv
     describeResult <- TH.runIO $
         if useBootstrap
-            then describeUsingBootstrap (TH.loc_filename loc) sqlText -- bootstrap DB from schema
-            else describeStatement (CS.cs sqlText) -- online: ask Postgres to describe
+            then describeUsingBootstrap (TH.loc_filename loc) ppDescribeSql -- bootstrap DB from schema
+            else describeStatement (CS.cs ppDescribeSql) -- online: ask Postgres to describe
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult -- unpack metadata
     when (length drParams /= length parsedExprs) $ -- make sure counts match
@@ -192,28 +192,48 @@ typedSqlExp rawSql = do
 
     resultType <- hsTypeForColumns drTypes drTables drColumns -- compute result type from columns
 
-    let sqlLiteral = TH.SigE (TH.LitE (TH.StringL sqlText)) (TH.ConT ''String)
+    let sqlLiteral = TH.SigE (TH.LitE (TH.StringL ppRuntimeSql)) (TH.ConT ''String)
         queryExpr = TH.AppE (TH.ConE 'PG.Query) (TH.AppE (TH.VarE 'CS.cs) sqlLiteral)
         rowParserExpr = if length drColumns == 1 then TH.VarE 'PGFR.field else TH.VarE 'PGFR.fromRow
         typedQueryExpr =
-            TH.RecConE
-                'TypedQuery
-                [ (TH.mkName "tqQuery", queryExpr) -- build query text
-                , (TH.mkName "tqParams", TH.ListE (map (TH.AppE (TH.VarE 'PGTF.toField)) annotatedParams)) -- encode params
-                , (TH.mkName "tqRowParser", rowParserExpr) -- parse single column or full row
-                ]
+            TH.AppE
+                (TH.AppE
+                    (TH.AppE
+                        (TH.ConE 'TypedQuery)
+                        queryExpr
+                    )
+                    (TH.ListE (map (TH.AppE (TH.VarE 'PGTF.toField)) annotatedParams))
+                )
+                rowParserExpr
 
     pure (TH.SigE typedQueryExpr (TH.AppT (TH.ConT ''TypedQuery) resultType)) -- add overall type signature
 
--- | Replace ${expr} placeholders with PostgreSQL-style $1 placeholders.
--- High-level: turns a templated SQL string into a PG-ready SQL string plus expr list.
-substitutePlaceholders :: String -> (String, [String])
-substitutePlaceholders = go 1 "" [] where
-    go _ acc exprs [] = (reverse acc, reverse exprs) -- done: reverse accumulators
-    go n acc exprs ('$':'{':rest) =
+data PlaceholderPlan = PlaceholderPlan
+    { ppDescribeSql :: !String
+    , ppRuntimeSql  :: !String
+    , ppExprs       :: ![String]
+    }
+
+-- | Replace ${expr} placeholders with PostgreSQL-style $1 for describe and ? for runtime.
+-- High-level: turns a templated SQL string into SQL strings plus expr list.
+planPlaceholders :: String -> PlaceholderPlan
+planPlaceholders = go 1 "" "" [] where
+    go _ accDescribe accRuntime exprs [] =
+        PlaceholderPlan
+            { ppDescribeSql = reverse accDescribe
+            , ppRuntimeSql = reverse accRuntime
+            , ppExprs = reverse exprs
+            }
+    go n accDescribe accRuntime exprs ('$':'{':rest) =
         let (expr, after) = breakOnClosing 0 "" rest -- parse until matching }
-        in go (n + 1) (reverse ('$' : CS.cs (show n)) <> acc) (expr : exprs) after -- replace with $n
-    go n acc exprs (c:rest) = go n (c : acc) exprs rest -- copy non-placeholder chars
+            describeToken = reverse ('$' : CS.cs (show n))
+        in go (n + 1)
+              (describeToken <> accDescribe)
+              ('?' : accRuntime)
+              (expr : exprs)
+              after
+    go n accDescribe accRuntime exprs (c:rest) =
+        go n (c : accDescribe) (c : accRuntime) exprs rest
 
     breakOnClosing depth acc [] = (reverse acc, []) -- no closing brace found
     breakOnClosing depth acc ('{':xs) = breakOnClosing (depth + 1) ('{':acc) xs -- nested { increases depth
@@ -575,7 +595,7 @@ hsTypeForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> [De
 hsTypeForColumns typeInfo tables cols = do
     case detectFullTable tables cols of
         Just tableName ->
-            pure (TH.ConT (TH.mkName (CS.cs ("Generated.ActualTypes." <> tableNameToModelName tableName)))) -- use model type
+            pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName tableName)))) -- use model type
         Nothing -> do
             hsCols <- mapM (hsTypeForColumn typeInfo tables) cols -- map each column to a type
             case hsCols of
@@ -662,8 +682,8 @@ hsTypeForPg typeInfo nullable PgTypeInfo { ptiName, ptiElem, ptiType } = do
         _ | ptiName == "tsvector" -> pure (TH.ConT ''PGTs.TSVector) -- full-text search vector
         _ | ptiName == "interval" -> pure (TH.ConT ''PGTime.PGInterval) -- interval type
         _ | ptiType == Just 'e' ->
-            pure (TH.ConT (TH.mkName (CS.cs ("Generated.Enums." <> tableNameToModelName ptiName)))) -- enum type
+            pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName)))) -- enum type
         _ | ptiType == Just 'c' ->
-            pure (TH.ConT (TH.mkName (CS.cs ("Generated.ActualTypes." <> tableNameToModelName ptiName)))) -- composite type
-        _ -> pure (TH.ConT (TH.mkName (CS.cs ("Generated.ActualTypes." <> tableNameToModelName ptiName)))) -- fallback to generated type
+            pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName)))) -- composite type
+        _ -> pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName)))) -- fallback to generated type
     pure (wrapNull nullable base) -- apply nullability wrapper
