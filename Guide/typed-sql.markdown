@@ -33,7 +33,7 @@ Enable Template Haskell and QuasiQuotes in a module where you want to use
 {-# LANGUAGE DataKinds #-}
 ```
 
-Import the module and run the query using `runTyped`:
+Import the module and run the query using `sqlQueryTyped`:
 
 ```haskell
 module Web.Controller.Users where
@@ -44,7 +44,7 @@ import IHP.TypedSql
 indexAction :: ?modelContext => IO ()
 indexAction = do
     let userId = "00000000-0000-0000-0000-000000000001" :: Id User
-    users <- runTyped [typedSql|
+    users <- sqlQueryTyped [typedSql|
         SELECT users.id, users.name
         FROM users
         WHERE users.id = ${userId}
@@ -54,7 +54,7 @@ indexAction = do
 ```
 
 `typedSql` produces a `TypedQuery` value that is executed using
-`runTyped` or `runTypedOne`.
+`sqlQueryTyped`. If you expect a single row, pattern match on the result list.
 
 ## Result type inference
 
@@ -65,7 +65,7 @@ the schema (e.g. `SELECT users.*`), then the result is the generated
 record type:
 
 ```haskell
-user :: User <- runTypedOne [typedSql|
+[user] <- sqlQueryTyped [typedSql|
     SELECT users.* FROM users WHERE users.id = ${userId}
 |]
 ```
@@ -75,7 +75,7 @@ user :: User <- runTypedOne [typedSql|
 When you return a subset of columns, the result is a tuple:
 
 ```haskell
-userInfo :: [(Id User, Text)] <- runTyped [typedSql|
+userInfo :: [(Id User, Text)] <- sqlQueryTyped [typedSql|
     SELECT users.id, users.name FROM users
 |]
 ```
@@ -86,7 +86,7 @@ If a column is a single-column foreign key, `typedSql` maps it to
 `Id' "other_table"` automatically:
 
 ```haskell
-authorIds :: [Maybe (Id User)] <- runTyped [typedSql|
+authorIds :: [Maybe (Id User)] <- sqlQueryTyped [typedSql|
     SELECT posts.author_id FROM posts WHERE posts.slug = ${slug}
 |]
 ```
@@ -99,7 +99,7 @@ This follows IHP's usual `Id` mapping rules.
 parameter and is type-checked against the database.
 
 ```haskell
-runTyped [typedSql|
+sqlQueryTyped [typedSql|
     SELECT * FROM posts WHERE posts.id = ${postId}
 |]
 ```
@@ -107,14 +107,18 @@ runTyped [typedSql|
 Notes:
 
 - Do not use `?` or `$1` placeholders directly.
-- Parameter types come from OIDs only, so UUID parameters are typed as
-  `UUID`. Placeholders are coerced, so passing an `Id` works too. The
-  database does not report which table a parameter belongs to, so any
-  `Id` with a matching primary key type will typecheck.
+- Parameter types come from OIDs by default, so UUID parameters are typed
+  as `UUID`. Placeholders are coerced, so passing an `Id` works too.
+- When a placeholder is compared to a table-qualified column
+  (e.g. `cv_setups.id = ${...}`) or to an unqualified column in a
+  single-table query, `typedSql` treats the parameter as the column's
+  Haskell type (including `Id` for PK/FK columns). This lets you pass
+  `Id CvSetup` or `UUID`, and rejects `Id` values from other tables.
+  Use explicit table/alias qualification for best results in joins.
 - Use explicit type annotations for ambiguous values:
 
 ```haskell
-runTyped [typedSql|
+sqlQueryTyped [typedSql|
     SELECT * FROM posts WHERE posts.score > ${10 :: Int}
 |]
 ```
@@ -131,7 +135,7 @@ If you want to force a non-null result, use SQL functions such as
 `COALESCE`:
 
 ```haskell
-runTyped [typedSql|
+sqlQueryTyped [typedSql|
     SELECT COALESCE(posts.title, '') FROM posts
 |]
 ```
@@ -169,7 +173,7 @@ If you have custom types, add a `FromField` instance and extend
 
 ## Runtime behavior
 
-`runTyped` uses IHP's `ModelContext`, so it automatically:
+`sqlQueryTyped` uses IHP's `ModelContext`, so it automatically:
 
 - uses the pooled connection
 - respects row-level security (RLS)
@@ -209,7 +213,7 @@ looks like this:
    - `toField`-encoded parameters
    - a row parser (`field` for single column, `fromRow` for tuples)
 
-At runtime, `runTyped` executes the generated query using IHP's
+At runtime, `sqlQueryTyped` executes the generated query using IHP's
 `ModelContext`, so it reuses the same logging, RLS parameters, and
 connection pool as the rest of IHP.
 
@@ -280,9 +284,18 @@ If you currently use `sqlQuery` for complex queries:
 1. Wrap the query in `[typedSql| ... |]`.
 2. Replace `?` placeholders with `${expr}`.
 3. Replace custom `FromRow` with inferred tuples or records.
-4. Use `runTyped` instead of `sqlQuery`.
+4. Use `sqlQueryTyped` instead of `sqlQuery`.
 
 You get compile-time SQL validation with minimal changes.
+
+If you currently use `sqlExec` for statements:
+
+1. Wrap the statement in `[typedSql| ... |]`.
+2. Replace `?` placeholders with `${expr}`.
+3. Use `sqlExecTyped` instead of `sqlExec`.
+
+If you want rows back from an `INSERT`/`UPDATE`/`DELETE`, add a `RETURNING`
+clause and use `sqlQueryTyped`.
 
 ## Troubleshooting
 
@@ -317,8 +330,8 @@ You get compile-time SQL validation with minimal changes.
 
 ```haskell
 typedSql :: QuasiQuoter
-runTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO [result]
-runTypedOne :: (?modelContext :: ModelContext) => TypedQuery result -> IO result
+sqlQueryTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO [result]
+sqlExecTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO Int64
 ```
 
 See `IHP.TypedSql` for the full implementation.

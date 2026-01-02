@@ -8,8 +8,8 @@
 module IHP.TypedSql
     ( typedSql -- expose the SQL quasiquoter entry point
     , TypedQuery (..) -- expose the query container and its fields
-    , runTyped -- execute a typed query returning all rows
-    , runTypedOne -- execute a typed query expecting exactly one row
+    , sqlQueryTyped -- execute a typed query returning all rows
+    , sqlExecTyped -- execute a typed statement and return affected rows
     ) where
 
 import           Control.Exception                  (bracket_)
@@ -25,6 +25,7 @@ import           Data.Maybe                         (catMaybes, mapMaybe)
 import           Data.Scientific                    (Scientific)
 import qualified Data.Set                           as Set
 import qualified Data.String.Conversions            as CS
+import qualified Data.Text                          as Text
 import           Data.Time                          (LocalTime, TimeOfDay,
                                                      UTCTime)
 import           Data.Time.Calendar                 (Day)
@@ -79,8 +80,8 @@ instance PGTR.ToRow PreparedRow where
 
 -- | Run a typed query and return all rows.
 -- High-level: delegates to postgres-simple with logging and RLS params.
-runTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO [result]
-runTyped TypedQuery { tqQuery, tqParams, tqRowParser } =
+sqlQueryTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO [result]
+sqlQueryTyped TypedQuery { tqQuery, tqParams, tqRowParser } =
     withDatabaseConnection \connection -> -- obtain a DB connection from the model context
         withRLSParams -- apply row-level security parameters if configured
             (\query params ->
@@ -92,15 +93,20 @@ runTyped TypedQuery { tqQuery, tqParams, tqRowParser } =
             tqQuery -- the SQL to execute
             (PreparedRow tqParams) -- wrap params to match ToRow
 
--- | Run a typed query that is expected to return a single row.
--- High-level: enforces exactly-one-row semantics.
-runTypedOne :: (?modelContext :: ModelContext) => TypedQuery result -> IO result
-runTypedOne typed = do
-    rows <- runTyped typed -- execute query and collect rows
-    case rows of
-        [row] -> pure row -- success: exactly one row
-        [] -> error "runTypedOne: expected exactly one row but got none" -- error on zero rows
-        _ -> error ("runTypedOne: expected a single row but got " <> show (length rows)) -- error on too many rows
+-- | Run a typed statement (INSERT/UPDATE/DELETE) and return affected row count.
+-- High-level: mirrors 'sqlExec' but keeps typed SQL parameters.
+sqlExecTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO Int64
+sqlExecTyped TypedQuery { tqQuery, tqParams } =
+    withDatabaseConnection \connection -> -- obtain a DB connection from the model context
+        withRLSParams -- apply row-level security parameters if configured
+            (\query params ->
+                measureTimeIfLogging "💾" connection -- measure/log query runtime with a label
+                    (PG.execute connection query (PreparedRow params)) -- execute without returning rows
+                    query -- log the SQL query
+                    (PreparedRow params) -- log the query parameters
+            )
+            tqQuery -- the SQL to execute
+            (PreparedRow tqParams) -- wrap params to match ToRow
 
 -- * Template Haskell quasiquoter
 
@@ -188,9 +194,18 @@ typedSqlExp rawSql = do
 
     paramTypes <- mapM (hsTypeForParam drTypes) drParams -- map param OIDs to Haskell types
 
+    let sqlTokens = tokenizeSql ppDescribeSql
+    let aliasMap = buildAliasMap sqlTokens
+    let paramHints = collectParamHints sqlTokens aliasMap
+    paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
+
     let annotatedParams =
-            zipWith
-                (\expr paramTy -> TH.SigE (TH.AppE (TH.VarE 'coerce) expr) paramTy)
+            zipWith3
+                (\index expr paramTy ->
+                    let expectedType = fromMaybe paramTy (Map.lookup index paramHintTypes)
+                    in TH.SigE (TH.AppE (TH.VarE 'coerce) expr) expectedType
+                )
+                [1..]
                 parsedExprs
                 paramTypes -- coerce placeholder expressions into expected param types
 
@@ -209,7 +224,11 @@ typedSqlExp rawSql = do
         fail
             ("typedSql: composite columns must be expanded (use SELECT table.* "
                 <> "or list columns explicitly)")
-    let rowParserExpr = if length drColumns == 1 then TH.VarE 'PGFR.field else TH.VarE 'PGFR.fromRow
+    let rowParserExpr =
+            case length drColumns of
+                0 -> TH.AppE (TH.VarE 'pure) (TH.ConE '())
+                1 -> TH.VarE 'PGFR.field
+                _ -> TH.VarE 'PGFR.fromRow
         typedQueryExpr =
             TH.AppE
                 (TH.AppE
@@ -256,6 +275,274 @@ planPlaceholders = go 1 "" "" [] where
         | depth == 0 = (reverse acc, xs) -- close the current placeholder
         | otherwise = breakOnClosing (depth - 1) ('}':acc) xs -- close a nested brace
     breakOnClosing depth acc (x:xs) = breakOnClosing depth (x:acc) xs -- accumulate placeholder chars
+
+data SqlToken
+    = TokIdent !Text
+    | TokSymbol !Char
+    | TokParam !Int
+    deriving (Eq, Show)
+
+data ParamHint = ParamHint
+    { phIndex  :: !Int
+    , phTable  :: !Text
+    , phColumn :: !Text
+    , phArray  :: !Bool
+    }
+    deriving (Eq, Show)
+
+tokenizeSql :: String -> [SqlToken]
+tokenizeSql = go [] where
+    go acc [] = reverse acc
+    go acc ('-':'-':rest) = go acc (dropLineComment rest)
+    go acc ('/':'*':rest) = go acc (dropBlockComment rest)
+    go acc ('\'':rest) = go acc (dropStringLiteral rest)
+    go acc ('"':rest) =
+        let (ident, remaining) = parseQuotedIdent rest
+        in go (TokIdent ident : acc) remaining
+    go acc ('$':rest) =
+        let (digits, remaining) = span Char.isDigit rest
+        in if null digits
+            then go acc remaining
+            else go (TokParam (digitsToInt digits) : acc) remaining
+    go acc (c:rest)
+        | Char.isSpace c = go acc rest
+        | isIdentStart c =
+            let (identTail, remaining) = span isIdentChar rest
+                identText = Text.toLower (CS.cs (c : identTail))
+            in go (TokIdent identText : acc) remaining
+        | isSymbolToken c = go (TokSymbol c : acc) rest
+        | otherwise = go acc rest
+
+    isIdentStart ch = Char.isLetter ch || ch == '_'
+    isIdentChar ch = Char.isAlphaNum ch || ch == '_' || ch == '$'
+    isSymbolToken ch = ch `elem` ['.', '=', '(', ')', ',']
+
+    dropLineComment = dropWhile (/= '\n')
+    dropBlockComment = dropUntil "*/"
+    dropStringLiteral = dropSingleQuoted
+
+    dropUntil _ [] = []
+    dropUntil pattern@(p1:p2:_) (x:y:rest)
+        | x == p1 && y == p2 = rest
+        | otherwise = dropUntil pattern (y:rest)
+    dropUntil _ rest = rest
+
+    dropSingleQuoted [] = []
+    dropSingleQuoted ('\'':'\'':xs) = dropSingleQuoted xs
+    dropSingleQuoted ('\'':xs) = xs
+    dropSingleQuoted (_:xs) = dropSingleQuoted xs
+
+    parseQuotedIdent = go "" where
+        go acc [] = (Text.toLower (CS.cs (reverse acc)), [])
+        go acc ('"':'"':xs) = go ('"':acc) xs
+        go acc ('"':xs) = (Text.toLower (CS.cs (reverse acc)), xs)
+        go acc (x:xs) = go (x:acc) xs
+
+digitsToInt :: String -> Int
+digitsToInt = foldl' (\acc digit -> acc * 10 + Char.digitToInt digit) 0
+
+tokenAtIndex :: [a] -> Int -> Maybe a
+tokenAtIndex xs ix =
+    case List.drop ix xs of
+        (value:_) -> Just value
+        [] -> Nothing
+
+reservedKeywords :: Set.Set Text
+reservedKeywords =
+    Set.fromList (map Text.pack
+        [ "as", "where", "join", "inner", "left", "right", "full", "cross"
+        , "on", "group", "order", "limit", "offset", "having", "union"
+        , "intersect", "except", "returning", "set", "values", "from", "update"
+        , "delete", "insert", "select"
+        ])
+
+clauseKeywords :: Set.Set Text
+clauseKeywords = Set.fromList (map Text.pack ["from", "join", "update", "into"])
+
+buildAliasMap :: [SqlToken] -> Map.Map Text Text
+buildAliasMap tokens = go tokens Map.empty where
+    go [] acc = acc
+    go (TokIdent keyword : rest) acc
+        | keyword `Set.member` clauseKeywords =
+            case parseTable rest of
+                Nothing -> go rest acc
+                Just (tableName, afterTable) ->
+                    let (alias, afterAlias) = parseAlias afterTable
+                        acc' = Map.insert tableName tableName acc
+                        acc'' = maybe acc' (\name -> Map.insert name tableName acc') alias
+                    in go afterAlias acc''
+        | otherwise = go rest acc
+    go (_:rest) acc = go rest acc
+
+    parseTable (TokIdent _schemaName : TokSymbol '.' : TokIdent tableName : rest) =
+        Just (tableName, rest)
+    parseTable (TokIdent tableName : rest) =
+        Just (tableName, rest)
+    parseTable _ = Nothing
+
+    parseAlias (TokIdent aliasKeyword : TokIdent alias : rest)
+        | aliasKeyword == Text.pack "as" = (Just alias, rest)
+    parseAlias (TokIdent alias : rest)
+        | alias `Set.notMember` reservedKeywords = (Just alias, rest)
+    parseAlias rest = (Nothing, rest)
+
+collectParamHints :: [SqlToken] -> Map.Map Text Text -> Map.Map Int ParamHint
+collectParamHints tokens aliasMap =
+    let defaultTable = singleTable aliasMap
+    in tokens
+        |> zip [0..]
+        |> mapMaybe (hintForToken aliasMap defaultTable)
+        |> foldl' mergeHints Map.empty
+        |> Map.mapMaybe id
+  where
+    tokenAt ix
+        | ix < 0 = Nothing
+        | otherwise = tokenAtIndex tokens ix
+
+    singleTable aliases =
+        case Set.toList (Set.fromList (Map.elems aliases)) of
+            [table] -> Just table
+            _ -> Nothing
+
+    hasDotBefore ix =
+        case tokenAt (ix - 1) of
+            Just (TokSymbol '.') -> True
+            _ -> False
+
+    hasDotAfter ix =
+        case tokenAt (ix + 1) of
+            Just (TokSymbol '.') -> True
+            _ -> False
+
+    hintForToken aliases defaultTable (ix, TokParam index) =
+        let matches = catMaybes
+                [ matchEqRight aliases ix index
+                , matchEqLeft aliases ix index
+                , matchInRight aliases ix index
+                , matchAnyRight aliases ix index
+                , matchEqRightUnqualified defaultTable ix index
+                , matchEqLeftUnqualified defaultTable ix index
+                , matchInRightUnqualified defaultTable ix index
+                , matchAnyRightUnqualified defaultTable ix index
+                ]
+        in listToMaybe matches
+    hintForToken _ _ _ = Nothing
+
+    matchEqRight aliases ix index = do
+        TokSymbol '=' <- tokenAt (ix - 1)
+        TokIdent column <- tokenAt (ix - 2)
+        TokSymbol '.' <- tokenAt (ix - 3)
+        TokIdent tableRef <- tokenAt (ix - 4)
+        tableName <- Map.lookup tableRef aliases
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+
+    matchEqRightUnqualified defaultTable ix index = do
+        tableName <- defaultTable
+        TokSymbol '=' <- tokenAt (ix - 1)
+        TokIdent column <- tokenAt (ix - 2)
+        guard (not (hasDotBefore (ix - 2)))
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+
+    matchEqLeft aliases ix index = do
+        TokSymbol '=' <- tokenAt (ix + 1)
+        TokIdent tableRef <- tokenAt (ix + 2)
+        TokSymbol '.' <- tokenAt (ix + 3)
+        TokIdent column <- tokenAt (ix + 4)
+        tableName <- Map.lookup tableRef aliases
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+
+    matchEqLeftUnqualified defaultTable ix index = do
+        tableName <- defaultTable
+        TokSymbol '=' <- tokenAt (ix + 1)
+        TokIdent column <- tokenAt (ix + 2)
+        guard (not (hasDotAfter (ix + 2)))
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+
+    matchInRight aliases ix index = do
+        TokSymbol '(' <- tokenAt (ix - 1)
+        TokIdent keyword <- tokenAt (ix - 2)
+        guard (keyword == Text.pack "in")
+        TokIdent column <- tokenAt (ix - 3)
+        TokSymbol '.' <- tokenAt (ix - 4)
+        TokIdent tableRef <- tokenAt (ix - 5)
+        tableName <- Map.lookup tableRef aliases
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+
+    matchInRightUnqualified defaultTable ix index = do
+        tableName <- defaultTable
+        TokSymbol '(' <- tokenAt (ix - 1)
+        TokIdent keyword <- tokenAt (ix - 2)
+        guard (keyword == Text.pack "in")
+        TokIdent column <- tokenAt (ix - 3)
+        guard (not (hasDotBefore (ix - 3)))
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+
+    matchAnyRight aliases ix index = do
+        TokSymbol '(' <- tokenAt (ix - 1)
+        TokIdent keyword <- tokenAt (ix - 2)
+        guard (keyword == Text.pack "any")
+        TokSymbol '=' <- tokenAt (ix - 3)
+        TokIdent column <- tokenAt (ix - 4)
+        TokSymbol '.' <- tokenAt (ix - 5)
+        TokIdent tableRef <- tokenAt (ix - 6)
+        tableName <- Map.lookup tableRef aliases
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+
+    matchAnyRightUnqualified defaultTable ix index = do
+        tableName <- defaultTable
+        TokSymbol '(' <- tokenAt (ix - 1)
+        TokIdent keyword <- tokenAt (ix - 2)
+        guard (keyword == Text.pack "any")
+        TokSymbol '=' <- tokenAt (ix - 3)
+        TokIdent column <- tokenAt (ix - 4)
+        guard (not (hasDotBefore (ix - 4)))
+        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+
+    mergeHints acc hint =
+        Map.alter (mergeHint hint) (phIndex hint) acc
+
+    mergeHint hint Nothing = Just (Just hint)
+    mergeHint hint (Just Nothing) = Just Nothing
+    mergeHint hint (Just (Just existing))
+        | existing == hint = Just (Just existing)
+        | otherwise = Just Nothing
+
+resolveParamHintTypes :: Map.Map PQ.Oid TableMeta -> Map.Map PQ.Oid PgTypeInfo -> Map.Map Int ParamHint -> TH.Q (Map.Map Int TH.Type)
+resolveParamHintTypes tables typeInfo hints = do
+    let tablesByName = tables
+            |> Map.toList
+            |> mapMaybe (\(oid, table@TableMeta { tmName }) -> Just (tmName, (oid, table)))
+            |> Map.fromList
+    resolved <- mapM (resolveHint tablesByName) (Map.toList hints)
+    pure (Map.fromList (catMaybes resolved))
+  where
+    resolveHint tablesByName (index, ParamHint { phTable, phColumn, phArray }) = do
+        case Map.lookup phTable tablesByName of
+            Nothing -> pure Nothing
+            Just (tableOid, table@TableMeta { tmColumns }) ->
+                case findColumn tmColumns phColumn of
+                    Nothing -> pure Nothing
+                    Just (attnum, ColumnMeta { cmTypeOid }) -> do
+                        baseType <- hsTypeForColumn typeInfo tables DescribeColumn
+                            { dcName = CS.cs phColumn
+                            , dcType = cmTypeOid
+                            , dcTable = tableOid
+                            , dcAttnum = Just attnum
+                            }
+                        let stripped = stripMaybeType baseType
+                        let hintedType = if phArray then TH.AppT TH.ListT stripped else stripped
+                        pure (Just (index, hintedType))
+
+    findColumn columns columnName =
+        columns
+            |> Map.toList
+            |> List.find (\(_, ColumnMeta { cmName }) -> Text.toLower cmName == Text.toLower columnName)
+            |> fmap (\(attnum, column) -> (attnum, column))
+
+stripMaybeType :: TH.Type -> TH.Type
+stripMaybeType (TH.AppT (TH.ConT maybeName) inner)
+    | maybeName == ''Maybe = inner
+stripMaybeType other = other
 
 -- Parse a placeholder expression into TH.
 parseExpr :: String -> TH.ExpQ
