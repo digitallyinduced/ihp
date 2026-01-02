@@ -18,6 +18,7 @@ import qualified Data.Aeson                         as Aeson
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Char8              as BS8
 import qualified Data.Char                          as Char
+import           Data.Coerce                        (coerce)
 import qualified Data.List                          as List
 import qualified Data.Map.Strict                    as Map
 import           Data.Maybe                         (catMaybes, mapMaybe)
@@ -188,7 +189,10 @@ typedSqlExp rawSql = do
     paramTypes <- mapM (hsTypeForParam drTypes) drParams -- map param OIDs to Haskell types
 
     let annotatedParams =
-            zipWith (\expr paramTy -> TH.SigE expr paramTy) parsedExprs paramTypes -- add type sigs to args
+            zipWith
+                (\expr paramTy -> TH.SigE (TH.AppE (TH.VarE 'coerce) expr) paramTy)
+                parsedExprs
+                paramTypes -- coerce placeholder expressions into expected param types
 
     resultType <- hsTypeForColumns drTypes drTables drColumns -- compute result type from columns
 

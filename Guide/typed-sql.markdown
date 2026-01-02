@@ -107,8 +107,10 @@ runTyped [typedSql|
 Notes:
 
 - Do not use `?` or `$1` placeholders directly.
-- Parameter types come from OIDs only, so UUID parameters are `UUID` (not
-  `Id'`). Use `get #id record` or `unId` if you want to pass an `Id'`.
+- Parameter types come from OIDs only, so UUID parameters are typed as
+  `UUID`. Placeholders are coerced, so passing an `Id` works too. The
+  database does not report which table a parameter belongs to, so any
+  `Id` with a matching primary key type will typecheck.
 - Use explicit type annotations for ambiguous values:
 
 ```haskell
