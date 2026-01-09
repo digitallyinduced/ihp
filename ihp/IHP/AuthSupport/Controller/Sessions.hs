@@ -37,7 +37,7 @@ newSessionAction :: forall record action.
     ) => IO ()
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
-    when alreadyLoggedIn (redirectToPath (afterLoginRedirectPath @record))
+    when alreadyLoggedIn (redirectToPathSeeOther (afterLoginRedirectPath @record))
 
     let user = newRecord @record
     render NewView { .. }
@@ -85,7 +85,7 @@ createSessionAction = do
                             |> set #failedLoginAttempts 0
                             |> updateRecord
                     redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
-                    redirectToPath (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
+                    redirectToPathSeeOther (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
                 else do
                     setErrorMessage "Invalid Credentials"
                     user :: record <- user
@@ -117,7 +117,7 @@ deleteSessionAction = do
             beforeLogout user
             logout user
         Nothing -> pure ()
-    redirectToPath (afterLogoutRedirectPath @record)
+    redirectToPathSeeOther (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
 
 currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
