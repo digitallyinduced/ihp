@@ -12,59 +12,24 @@ import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.IDE.SchemaDesigner.Types
 import IHP.NameSupport
+import Test.IDE.SchemaDesigner.ParserSpec (col, table)
 
 tests = do
     describe "Controller Generator Tests:" do
         let schema = [
-                    StatementCreateTable CreateTable {
-                        name = "pages"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
+                    StatementCreateTable (table "pages") {
+                        columns = [
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
                     },
-                    StatementCreateTable CreateTable {
-                        name = "people"
-                        , columns = [
-                            Column
-                                { name = "id"
-                                , columnType = PUUID
-                                , defaultValue = Just (CallExpression "uuid_generate_v4" [])
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                                ,
-                            Column
-                                { name = "name"
-                                , columnType = PText
-                                , defaultValue = Nothing
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
-                                ,
-                            Column
-                                { name = "email"
-                                , columnType = PText
-                                , defaultValue = Nothing
-                                , notNull = True
-                                , isUnique = False
-                                , generator = Nothing
-                                }
+                    StatementCreateTable (table "people") {
+                        columns = [
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                            , (col "name" PText) { notNull = True }
+                            , (col "email" PText) { notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
                     }
                 ]
 

@@ -121,13 +121,13 @@ instance View (NewView User) where
 renderForm :: User -> Html
 renderForm user = [hsx|
     <form method="POST" action={CreateSessionAction}>
-        <div class="form-group">
+        <div class="mb-3">
             <input name="email" value={user.email} type="email" class="form-control" placeholder="E-Mail" required="required" autofocus="autofocus" />
         </div>
-        <div class="form-group">
+        <div class="mb-3">
             <input name="password" type="password" class="form-control" placeholder="Password"/>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Login</button>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
     </form>
 |]
 ```
