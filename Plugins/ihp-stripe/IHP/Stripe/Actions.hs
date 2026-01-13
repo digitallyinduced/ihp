@@ -13,17 +13,19 @@ import Data.Time.Clock.POSIX
 
 data CheckoutSession = CheckoutSession
     { id :: Text
-    , url :: Text
+    , url :: Maybe Text
+    , clientSecret :: !(Maybe Text)
     }
 
 data CreateCheckoutSession = CreateCheckoutSession
-    { successUrl :: Text
-    , cancelUrl :: Text
+    { successUrl :: Maybe Text
+    , cancelUrl :: Maybe Text
+    , returnUrl :: Maybe Text
     , mode :: Text
-    , paymentMethodTypes :: [Text]
     , customer :: Maybe Text
     , lineItem :: LineItem
     , metadata :: [(Text, Text)]
+    , uiMode :: Maybe Text
     }
 
 data LineItem = LineItem
@@ -93,7 +95,7 @@ data Price = Price
     }
 
 instance FromJSON CheckoutSession where
-    parseJSON (Object v) = CheckoutSession <$> v .: "id" <*> v .: "url"
+    parseJSON (Object v) = CheckoutSession <$> v .: "id" <*> v .: "url" <*> v .: "client_secret"
 
 instance FromJSON Customer where
     parseJSON (Object v) = Customer <$> v .: "id"
@@ -132,10 +134,7 @@ instance StripeAction CreateCheckoutSession where
         let metadataPayload = metadata
                 |> map (\(key, value) -> ("metadata[" <> cs key <> "]", cs value))
         in
-                    [ ("success_url", cs successUrl)
-                    , ("cancel_url", cs cancelUrl)
-                    , ("payment_method_types[0]", "card")
-                    , ("line_items[0][price]", lineItem |> get #price |> cs)
+                    [ ("line_items[0][price]", lineItem |> get #price |> cs)
                     , ("line_items[0][quantity]", lineItem |> get #quantity |> tshow |> cs)
                     , ("automatic_tax[enabled]", "true")
                     , ("tax_id_collection[enabled]", "true")
@@ -154,6 +153,13 @@ instance StripeAction CreateCheckoutSession where
                         _ -> []
                     )
                     <> metadataPayload
+                    <> (case uiMode of
+                        Just uiMode -> [ ("ui_mode", cs uiMode) ]
+                        Nothing -> []
+                    )
+                    <> (maybe [] (\url -> [("success_url", cs url)]) successUrl)
+                    <> (maybe [] (\url -> [("cancel_url", cs url)]) cancelUrl)
+                    <> (maybe [] (\url -> [("return_url", cs url)]) returnUrl)
 
 
 
