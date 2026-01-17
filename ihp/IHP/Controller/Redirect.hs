@@ -7,6 +7,9 @@ module IHP.Controller.Redirect
 ( redirectTo
 , redirectToPath
 , redirectToUrl
+, redirectToSeeOther
+, redirectToPathSeeOther
+, redirectToUrlSeeOther
 , redirectBack
 , redirectBackWithFallback
 ) where
@@ -33,6 +36,13 @@ redirectTo :: (?context :: ControllerContext, HasPath action) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
 {-# INLINABLE redirectTo #-}
 
+-- | Redirects to an action using HTTP 303 See Other
+--
+-- Forces the follow-up request to be a GET (useful after POST/DELETE).
+redirectToSeeOther :: (?context :: ControllerContext, HasPath action) => action -> IO ()
+redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
+{-# INLINABLE redirectToSeeOther #-}
+
 -- TODO: redirectTo user
 
 -- | Redirects to a path (given as a string)
@@ -47,6 +57,15 @@ redirectToPath path = redirectToUrl (convertString baseUrl <> path)
     where
         baseUrl = Approot.getApproot ?context.requestContext.request
 {-# INLINABLE redirectToPath #-}
+
+-- | Redirects to a path using HTTP 303 See Other
+--
+-- Forces the follow-up request to be a GET (useful after POST/DELETE).
+redirectToPathSeeOther :: (?context :: ControllerContext) => Text -> IO ()
+redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> path)
+    where
+        baseUrl = Approot.getApproot ?context.requestContext.request
+{-# INLINABLE redirectToPathSeeOther #-}
 
 -- | Redirects to a url (given as a string)
 --
@@ -67,6 +86,20 @@ redirectToUrl url = do
     respondAndExit redirectResponse
 {-# INLINABLE redirectToUrl #-}
 
+-- | Redirects to a url using HTTP 303 See Other
+--
+-- Forces the follow-up request to be a GET (useful after POST/DELETE).
+redirectToUrlSeeOther :: (?context :: ControllerContext) => Text -> IO ()
+redirectToUrlSeeOther url = do
+    let RequestContext { respond } = ?context.requestContext
+    let !parsedUrl = fromMaybe
+            (error ("redirectToUrlSeeOther: Unable to parse url: " <> show url))
+            (parseURI (cs url))
+    let !redirectResponse = fromMaybe
+            (error "redirectToUrlSeeOther: Unable to construct redirect response")
+            (Network.Wai.Util.redirect status303 [] parsedUrl)
+    respondAndExit redirectResponse
+{-# INLINABLE redirectToUrlSeeOther #-}
 
 -- | Redirects back to the last page
 --
