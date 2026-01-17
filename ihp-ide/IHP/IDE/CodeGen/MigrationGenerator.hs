@@ -6,7 +6,8 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.IDE.CodeGen.MigrationGenerator where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
+import qualified System.OsPath as OsPath
 import qualified Data.Text as Text
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
@@ -58,8 +59,9 @@ diffAppDatabase includeIHPSchema databaseUrl = do
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
-    ihpSchemaSql <- findIHPSchemaSql
-    Parser.parseSqlFile ihpSchemaSql
+    pathStr <- findIHPSchemaSql
+    osPath <- OsPath.encodeFS pathStr
+    Parser.parseSqlFile osPath
 
 findIHPSchemaSql :: IO FilePath
 findIHPSchemaSql = getDataFileName "IHPSchema.sql"
