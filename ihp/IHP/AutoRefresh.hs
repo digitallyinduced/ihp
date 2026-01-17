@@ -7,18 +7,23 @@ module IHP.AutoRefresh where
 
 import IHP.Prelude
 import IHP.AutoRefresh.Types
+import IHP.AutoRefresh.View (autoRefreshMeta)
 import IHP.ControllerSupport
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
 import qualified Network.Wai.Internal as Wai
 import qualified Data.Binary.Builder as ByteString
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.Text.Encoding.Error as TextEncodingError
 import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response 
@@ -29,10 +34,17 @@ import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
+import Network.HTTP.Types.Header (hContentType)
+import qualified Text.Blaze.Html.Renderer.Text as BlazeText
 
 initAutoRefresh :: (?context :: ControllerContext) => IO ()
 initAutoRefresh = do
     putContext AutoRefreshDisabled
+
+-- | Limits the client-side morphing to the DOM node matching the given CSS selector.
+-- Useful when combining Auto Refresh with fragment based renderers such as HTMX.
+setAutoRefreshTarget :: (?context :: ControllerContext) => Text -> IO ()
+setAutoRefreshTarget selector = putContext (AutoRefreshTarget selector)
 
 autoRefresh :: (
     ?theAction :: action
@@ -88,7 +100,12 @@ autoRefresh runAction = do
                             -- it will render a 'error "JSON not implemented"'. After this curl request
                             -- all future HTML requests to the current action will fail with a 503.
                             --
-                            lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+                            rawResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+                            lastResponse <- ensureAutoRefreshMeta headers rawResponse
+                            let response' =
+                                    if lastResponse == rawResponse
+                                        then response
+                                        else Wai.ResponseBuilder status headers (ByteString.fromLazyByteString lastResponse)
 
                             event <- MVar.newEmptyMVar
                             let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
@@ -97,7 +114,7 @@ autoRefresh runAction = do
 
                             registerNotificationTrigger ?touchedTables autoRefreshServer
 
-                            throw exception
+                            throw (ResponseException response')
                         _   -> error "Unimplemented WAI response type."
 
                 runAction `Exception.catch` handleResponse
@@ -121,7 +138,8 @@ instance WSApp AutoRefreshWSApp where
 
             let handleResponseException (ResponseException response) = case response of
                     Wai.ResponseBuilder status headers builder -> do                        
-                        let html = ByteString.toLazyByteString builder
+                        rawHtml <- pure (ByteString.toLazyByteString builder)
+                        html <- ensureAutoRefreshMeta headers rawHtml
 
                         Log.info ("AutoRefresh: inner = " <> show (status, headers, builder) <> " END")
 
@@ -254,6 +272,61 @@ notificationTrigger tableName = PG.Query [i|
         insertTriggerName = "ar_did_insert_" <> tableName
         updateTriggerName = "ar_did_update_" <> tableName
         deleteTriggerName = "ar_did_delete_" <> tableName
+
+ensureAutoRefreshMeta :: (?context :: ControllerContext) => ResponseHeaders -> LByteString -> IO LByteString
+ensureAutoRefreshMeta headers html
+    | not (isHtmlResponse headers) = pure html
+    | LBS.isInfixOf "ihp-auto-refresh-id" html = pure html
+    | otherwise = do
+        meta <- renderAutoRefreshMeta
+        if LBS.null meta
+            then pure html
+            else pure (insertAutoRefreshMeta meta html)
+
+renderAutoRefreshMeta :: (?context :: ControllerContext) => IO LByteString
+renderAutoRefreshMeta = do
+    frozenContext <- freeze ?context
+    let ?context = frozenContext
+    let metaText = BlazeText.renderHtml autoRefreshMeta
+    pure (encodeUtf8Text metaText)
+
+insertAutoRefreshMeta :: LByteString -> LByteString -> LByteString
+insertAutoRefreshMeta meta html =
+    let metaText = decodeUtf8Text meta
+        htmlText = decodeUtf8Text html
+        resultText = insertMetaText metaText htmlText
+    in encodeUtf8Text resultText
+
+insertMetaText :: Text -> Text -> Text
+insertMetaText meta html =
+    case findHeadInsertionIndex html of
+        Just index -> Text.take index html <> meta <> Text.drop index html
+        Nothing -> meta <> html
+
+findHeadInsertionIndex :: Text -> Maybe Int
+findHeadInsertionIndex html =
+    let lowerHtml = Text.toLower html
+        (beforeHead, rest) = Text.breakOn "<head" lowerHtml
+    in if Text.null rest
+        then Nothing
+        else
+            let afterHead = Text.dropWhile (/= '>') rest
+            in if Text.null afterHead
+                then Nothing
+                else
+                    let headOpenLen = Text.length rest - Text.length afterHead
+                    in Just (Text.length beforeHead + headOpenLen + 1)
+
+isHtmlResponse :: ResponseHeaders -> Bool
+isHtmlResponse headers = case lookup hContentType headers of
+    Just value -> "text/html" `BS.isPrefixOf` value
+    Nothing -> False
+
+decodeUtf8Text :: LByteString -> Text
+decodeUtf8Text = TextEncoding.decodeUtf8With TextEncodingError.lenientDecode . LBS.toStrict
+
+encodeUtf8Text :: Text -> LByteString
+encodeUtf8Text = LBS.fromStrict . TextEncoding.encodeUtf8
 
 autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
 autoRefreshVaultKey = unsafePerformIO Vault.newKey
