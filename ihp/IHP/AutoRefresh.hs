@@ -22,6 +22,7 @@ import qualified Control.Exception as Exception
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LazyText
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.Encoding.Error as TextEncodingError
 import IHP.WebSocket
@@ -34,7 +35,7 @@ import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
-import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types.Header (ResponseHeaders, hContentType)
 import qualified Text.Blaze.Html.Renderer.Text as BlazeText
 
 initAutoRefresh :: (?context :: ControllerContext) => IO ()
@@ -276,7 +277,7 @@ notificationTrigger tableName = PG.Query [i|
 ensureAutoRefreshMeta :: (?context :: ControllerContext) => ResponseHeaders -> LByteString -> IO LByteString
 ensureAutoRefreshMeta headers html
     | not (isHtmlResponse headers) = pure html
-    | LBS.isInfixOf "ihp-auto-refresh-id" html = pure html
+    | BS.isInfixOf "ihp-auto-refresh-id" (LBS.toStrict html) = pure html
     | otherwise = do
         meta <- renderAutoRefreshMeta
         if LBS.null meta
@@ -287,7 +288,7 @@ renderAutoRefreshMeta :: (?context :: ControllerContext) => IO LByteString
 renderAutoRefreshMeta = do
     frozenContext <- freeze ?context
     let ?context = frozenContext
-    let metaText = BlazeText.renderHtml autoRefreshMeta
+    let metaText = LazyText.toStrict (BlazeText.renderHtml autoRefreshMeta)
     pure (encodeUtf8Text metaText)
 
 insertAutoRefreshMeta :: LByteString -> LByteString -> LByteString

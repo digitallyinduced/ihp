@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -iTest #-}
 module Main where
 
 import IHP.Prelude

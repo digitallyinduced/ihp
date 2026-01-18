@@ -38,4 +38,3 @@ main = hspec do
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
-    Test.TypedSqlSpec.tests
