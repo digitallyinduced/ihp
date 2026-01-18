@@ -6,46 +6,17 @@
 
 ## 1. Dependency: Nix Package Manager
 
-The framework uses the nix package manager to manage the whole set of dependencies of your application. Nix is the equivalent of `npm`, but for Haskell and much more.
+The framework uses the Nix package manager to manage the whole set of dependencies of your application. Nix is the equivalent of `npm`, but for Haskell and much more.
 
-For example, PostgreSQL and the Haskell compiler are both dependencies of your app, as well as all the Haskell or JavaScript packages you want to use. We use nix to make sure that these dependencies are available to the app - in development, as well as in production.
+For example, PostgreSQL and the Haskell compiler are both dependencies of your app, as well as all the Haskell or JavaScript packages you want to use. We use Nix to make sure that these dependencies are available to the app - in development, as well as in production.
 
-That's why we first need to make sure that you have nix installed. Follow the installation instructions from https://docs.determinate.systems/
+That's why we first need to make sure that you have Nix installed.
 
-### Enabling Flakes
+### Installing Nix
 
-Flakes is an experimental, yet very popular feature of Nix, so the installation steps above would not have enabled this useful feature.
-We also recommend enabling the [lazy-trees](https://determinate.systems/posts/changelog-determinate-nix-352/) features that will result in faster downloads.
-Furhermore, we need to define the current user as a "trusted user". This script will add this to `/etc/nix/nix.custom.conf`:
+We recommend using the [Determinate Nix Installer](https://docs.determinate.systems/). Follow the installation instructions on their website.
 
-```bash
-# This script:
-# - Backs up ~/.config/nix/nix.conf if it exists
-# - Removes conflicting lines from /etc/nix/nix.custom.conf
-# - Appends proper trusted-users and experimental-features
-# - Restarts the nix-daemon to apply changes
-
-USERNAME=$(whoami)
-CONF_FILE="/etc/nix/nix.custom.conf"
-
-# Backup user-level nix config to avoid conflicts
-if [ -f ~/.config/nix/nix.conf ]; then
-    mv ~/.config/nix/nix.conf ~/.config/nix/nix.conf-bkp
-fi
-
-# Remove old settings from the system config
-sudo sed -i '/^trusted-users/d;/^experimental-features/d;/^lazy-trees/d' "$CONF_FILE"
-
-# Add correct settings
-sudo tee -a "$CONF_FILE" > /dev/null <<EOF
-trusted-users = root $USERNAME
-experimental-features = nix-command flakes
-lazy-trees = true
-EOF
-
-# Restart nix to apply the config
-sudo systemctl restart nix-daemon.service
-```
+Determinate Nix comes with Flakes and lazy-trees enabled by default, so no additional configuration is needed.
 
 ## 2. Installing IHP
 
@@ -65,16 +36,7 @@ nix profile add nixpkgs#direnv
 
 Next you need to enable `direnv` in your shell. Follow the instructions from the [direnv website](https://direnv.net/docs/hook.html) to do this.
 
-
-### GitHub Codespaces / VSCode Devcontainers
-
-To get started with IHP on [GitHub Codespaces](https://docs.github.com/en/codespaces/getting-started/quickstart), simply use the [Codespaces IHP Template](https://github.com/rvarun11/codespaces-ihp) to create a new GitHub repo. On the first start up, a new IHP boilerplate will be generated which you can commit.
-
-To try it out before making your own repo, you can simply start a Codespace from the template itself.
-
-If you have Docker installed locally, then you can use this configuration to work with [VSCode Devcontainers](https://code.visualstudio.com/docs/devcontainers/containers) as well.
-
-## 3. Setting up your editor
+## 4. Setting up your editor
 
 Also, check this out if your editor is already set up. You might miss a plugin that's recommended for IHP to work well.
 
