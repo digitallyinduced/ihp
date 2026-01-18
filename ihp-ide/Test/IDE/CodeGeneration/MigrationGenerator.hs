@@ -23,7 +23,7 @@ tests = do
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -35,7 +35,7 @@ tests = do
             it "should skip tables that are equals in both schemas" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -47,14 +47,14 @@ tests = do
             it "should handle new columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
@@ -66,14 +66,14 @@ tests = do
             it "should handle multiple new columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL
                     );
                 |]
                 let migration = sql [i|
@@ -86,13 +86,13 @@ tests = do
             it "should handle deleted columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -107,13 +107,13 @@ tests = do
             it "should handle renamed columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
@@ -124,13 +124,13 @@ tests = do
             it "should handle UNIQUE constraints added to columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL UNIQUE
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL
                     );
                 |]
@@ -141,13 +141,13 @@ tests = do
             it "should handle changing default values for columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT DEFAULT 'new value' NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT DEFAULT 'old value' NOT NULL
                     );
                 |]
@@ -158,13 +158,13 @@ tests = do
             it "should handle default values added to columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT DEFAULT 'value' NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL
                     );
                 |]
@@ -175,13 +175,13 @@ tests = do
             it "should handle default values removed from columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT DEFAULT 'value' NOT NULL
                     );
                 |]
@@ -192,13 +192,13 @@ tests = do
             it "should handle UNIQUE constraints removed from columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         full_name TEXT NOT NULL UNIQUE
                     );
                 |]
@@ -209,14 +209,14 @@ tests = do
             it "should handle new enums" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                     CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
@@ -246,7 +246,7 @@ tests = do
             it "should handle a real world table" do
                 let targetSchema = sql [i|
                     CREATE TABLE subscribe_to_convert_kit_tag_jobs (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,
@@ -304,7 +304,7 @@ tests = do
                 let targetSchema = sql ""
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -351,14 +351,14 @@ tests = do
             it "should handle columns that have been made nullable" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -372,14 +372,14 @@ tests = do
             it "should handle columns that have been made not nullable" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT
                     );
@@ -393,14 +393,14 @@ tests = do
             it "should handle table renames" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE profiles (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -414,13 +414,13 @@ tests = do
             it "should not do a rename if tables are different" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE profiles (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         email TEXT NOT NULL
                     );
@@ -428,7 +428,7 @@ tests = do
                 let migration = sql [i|
                     DROP TABLE profiles;
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL
                     );
                 |]
@@ -483,7 +483,7 @@ tests = do
             it "should normalize primary keys" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         email TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
                         locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -491,7 +491,7 @@ tests = do
                         access_token TEXT DEFAULT NULL
                     );
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         body TEXT NOT NULL
                     );
@@ -563,7 +563,7 @@ tests = do
                 |]
                 let migration = sql [i|
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         body TEXT NOT NULL
                     );
@@ -573,7 +573,7 @@ tests = do
             it "should generate statements in the right order" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         email TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
                         locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -581,7 +581,7 @@ tests = do
                         access_token TEXT DEFAULT NULL
                     );
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         body TEXT NOT NULL,
                         user_id UUID NOT NULL
@@ -650,7 +650,7 @@ tests = do
                 |]
                 let migration = sql [i|
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         body TEXT NOT NULL,
                         user_id UUID NOT NULL
@@ -665,7 +665,7 @@ tests = do
             it "should normalize unique constraints on columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         github_user_id INT DEFAULT NULL UNIQUE
                     );
                 |]
@@ -812,7 +812,7 @@ tests = do
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE projects (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         user_id UUID NOT NULL
                     );
@@ -849,7 +849,7 @@ tests = do
             it "should run not generate a default value for a generated column" do
                 let targetSchema = sql [i|
                     CREATE TABLE products (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         description TEXT NOT NULL,
                         sku TEXT NOT NULL,
@@ -862,7 +862,7 @@ tests = do
                 |]
                 let actualSchema = sql [i|
                     CREATE TABLE products (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         description TEXT NOT NULL,
                         sku TEXT NOT NULL
@@ -877,7 +877,7 @@ tests = do
             it "should normalize generated columns" do
                 let targetSchema = sql [i|
                     CREATE TABLE products (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         name TEXT NOT NULL,
                         description TEXT NOT NULL,
                         sku TEXT NOT NULL,
@@ -943,7 +943,7 @@ tests = do
             it "should not try dropping an index after already droping a column" do
                 let targetSchema = sql [trimming|
                     CREATE TABLE tasks (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL,
@@ -953,7 +953,7 @@ tests = do
                 |]
                 let actualSchema = sql [trimming|
                     CREATE TABLE tasks (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL,
@@ -1130,7 +1130,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     END;
                     $$ language plpgsql;
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         email TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
                         locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -1142,7 +1142,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE POLICY "Users can read their own record" ON users USING (id = ihp_user_id()) WITH CHECK (false);
                     ALTER TABLE users ENABLE ROW LEVEL SECURITY;
                     CREATE TABLE artefacts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL
@@ -1162,7 +1162,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     END;
                     $$ language plpgsql;
                     CREATE TABLE users (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         email TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
                         locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -1174,7 +1174,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE POLICY "Users can read their own record" ON users USING (id = ihp_user_id()) WITH CHECK (false);
                     ALTER TABLE users ENABLE ROW LEVEL SECURITY;
                     CREATE TABLE media (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL
@@ -1211,7 +1211,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 -- https://github.com/digitallyinduced/ihp/issues/1480
                 let targetSchema = sql $ cs [plain|
                     CREATE TABLE artefacts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
                     );
@@ -1219,7 +1219,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
                 let actualSchema = sql $ cs [plain|
                     CREATE TABLE artefacts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL
@@ -1238,7 +1238,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 -- https://github.com/digitallyinduced/thin-backend/issues/69
                 let actualSchema = sql $ cs [plain|
                     CREATE TABLE tests (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         user_id UUID DEFAULT ihp_user_id() NOT NULL
                     );
                     CREATE INDEX tests_user_id_index ON tests (user_id);
@@ -1265,7 +1265,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
             it "should ignore the large_pg_notifications table" do
                 let actualSchema = sql $ cs [plain|
                     CREATE UNLOGGED TABLE large_pg_notifications (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         payload TEXT DEFAULT null,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
                     );
@@ -1326,7 +1326,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     END;
                     $$ language plpgsql;
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
                     );
@@ -1340,7 +1340,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     END;
                     $$ language plpgsql;
                     CREATE TABLE posts (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL
                     );
                 |]

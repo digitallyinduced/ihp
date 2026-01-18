@@ -68,13 +68,17 @@ isBoolField fieldName tableCols = case (find (\c -> c.columnName == (cs fieldNam
 
 isSqlFunction :: Text -> Bool
 isSqlFunction text = text `elem`
-    [ "uuid_generate_v4()"
+    [ "uuidv7()"
+    , "uuidv4()"
+    , "uuid_generate_v4()"
     , "NOW()"
     , "NULL"]
 
 isSqlFunction_ :: ByteString -> Bool
 isSqlFunction_ text = text `elem`
-    [ "uuid_generate_v4()"
+    [ "uuidv7()"
+    , "uuidv4()"
+    , "uuid_generate_v4()"
     , "NOW()"
     , "NULL"]
 
