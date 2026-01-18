@@ -56,7 +56,7 @@ function initSchemaDesigner() {
             case "UUID":
                 if ($('div[data-attribute="' + $("#colName").val() +'"]').length == 0) {
                     $('#defaultSelector').empty()
-                    .append(new Option("uuid_generate_v4()", 'uuid_generate_v4()', true, true))
+                    .append(new Option("uuidv7()", 'uuidv7()', true, true))
                     .append(new Option("no default", "", false, false))
                     .trigger('change');
                 } else {

@@ -32,13 +32,13 @@ Database name: `app`.
 
 Once you have created your project, the first step is to define a database schema. The database schema is a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP.
+In a new project, this file will be empty. PostgreSQL 18+ provides native `uuidv7()` and `uuidv4()` functions for generating UUIDs without requiring any extensions.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL
 );
@@ -120,7 +120,7 @@ For every table in the `Schema.sql` a corresponding data structure will be gener
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL
 );
@@ -190,7 +190,7 @@ Sometimes you have an optional id field, like e.g. when having a database schema
 
 ```sql
 CREATE TABLE tasks (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     description TEXT,
     assigned_user_id UUID
 );
@@ -690,7 +690,7 @@ You can use the enum as a field type for another record. E.g. we can have `posts
 
 ```sql
 CREATE TABLE posts (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     body TEXT NOT NULL,
     color colors
 );
@@ -847,7 +847,7 @@ It's possible to use the UI to set the unique constraint on a column. However, s
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     email TEXT NOT NULL,
     username TEXT NOT NULL,
     UNIQUE (email, username)

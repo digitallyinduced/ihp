@@ -35,7 +35,7 @@ To generate our new posts table we copy the DDL statement from `Schema.sql` into
 
 ```sql
 CREATE TABLE posts (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL
 );

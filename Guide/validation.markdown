@@ -324,7 +324,7 @@ Here's an excerpt from the `Schema.sql`:
 CREATE TYPE comment_moderation AS ENUM ('comment_moderation_pending', 'comment_moderation_approved', 'comment_moderation_rejected');
 
 CREATE TABLE comments (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     post_id UUID NOT NULL,
     body TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
