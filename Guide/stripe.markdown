@@ -93,7 +93,7 @@ Open the `Application/Schema.sql` and add this:
 
 ```sql
 CREATE TABLE plans (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     stripe_price_id TEXT NOT NULL
 );
@@ -109,7 +109,7 @@ Open `Application/Schema.sql` and add this `subscriptions` table:
 
 ```sql
 CREATE TABLE subscriptions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     user_id UUID NOT NULL,
     starts_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     ends_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -127,7 +127,7 @@ Additionally you also need to add the following fields to your `users` table:
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     -- ...,
 
     stripe_customer_id TEXT DEFAULT NULL,
@@ -415,7 +415,7 @@ Open `Application/Schema.sql` and add a `invoices` table:
 
 ```sql
 CREATE TABLE invoices (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     subscription_id UUID NOT NULL,
     stripe_invoice_id TEXT NOT NULL,
     invoice_url TEXT NOT NULL,

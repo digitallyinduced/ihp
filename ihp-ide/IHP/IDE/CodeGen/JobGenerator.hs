@@ -54,7 +54,7 @@ buildPlan' config =
             schemaSql =
                 ""
                 <> "CREATE TABLE " <> tableName <> " (\n"
-                <> "    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n"
+                <> "    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,\n"
                 <> "    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,\n"

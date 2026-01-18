@@ -599,10 +599,10 @@ tests = do
             it "should deal with multiple has many relationships to the same table" do
                 let statements = parseSqlStatements [trimming|
                     CREATE TABLE landing_pages (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL
                     );
                     CREATE TABLE paragraph_ctas (
-                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                         landing_page_id UUID NOT NULL,
                         to_landing_page_id UUID NOT NULL
                     );
@@ -752,10 +752,10 @@ tests = do
         describe "compileStatementPreview for table with arbitrarily named primary key" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE things (
-                    thing_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    thing_arbitrary_ident UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL
                 );
                 CREATE TABLE others (
-                    other_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    other_arbitrary_ident UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                     thing_ref UUID NOT NULL
                 );
                 ALTER TABLE others ADD CONSTRAINT other_thing_refs FOREIGN KEY (thing_ref) REFERENCES things (thing_arbitrary_ident) ON DELETE NO ACTION;
@@ -808,10 +808,10 @@ tests = do
         describe "compileStatementPreview for table with composite primary key" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE bits (
-                    bit_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    bit_arbitrary_ident UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL
                 );
                 CREATE TABLE parts (
-                    part_arbitrary_ident UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    part_arbitrary_ident UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL
                 );
                 CREATE TABLE bit_part_refs (
                     bit_ref UUID NOT NULL,

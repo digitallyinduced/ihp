@@ -179,7 +179,7 @@ In this example we're going to build a simple todo list.
 
     ```sql
     CREATE TABLE todos (
-        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
         title TEXT NOT NULL,
         is_completed BOOLEAN DEFAULT false NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,

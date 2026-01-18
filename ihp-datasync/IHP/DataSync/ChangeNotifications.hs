@@ -132,7 +132,7 @@ createNotificationFunction table = Snippet.sql [i|
               AND n.nspname = 'public'
         ) THEN
             CREATE UNLOGGED TABLE large_pg_notifications (
-                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
                 payload TEXT DEFAULT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
             );

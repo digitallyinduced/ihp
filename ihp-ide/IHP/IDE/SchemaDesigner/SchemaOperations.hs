@@ -22,7 +22,7 @@ addTable tableName list = list <> [StatementCreateTable CreateTable
         [Column
             { name = "id"
             , columnType = PUUID
-            , defaultValue = Just (CallExpression "uuid_generate_v4" [])
+            , defaultValue = Just (CallExpression "uuidv7" [])
             , notNull = True
             , isUnique = False
             , generator = Nothing
