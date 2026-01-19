@@ -198,6 +198,12 @@ library
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder
+        , IHP.QueryBuilder.Types
+        , IHP.QueryBuilder.Compiler
+        , IHP.QueryBuilder.Filter
+        , IHP.QueryBuilder.Join
+        , IHP.QueryBuilder.Order
+        , IHP.QueryBuilder.Union
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
