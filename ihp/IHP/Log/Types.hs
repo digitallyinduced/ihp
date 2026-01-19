@@ -31,8 +31,8 @@ module IHP.Log.Types
 , withTimeAndLevelFormatter
 ) where
 
-import qualified Prelude
-import CorePrelude hiding (putStr, putStrLn, print, error, show)
+import Prelude
+import Data.ByteString (ByteString)
 import Data.Text as Text
 import Data.Default (Default (def))
 import System.Log.FastLogger (
