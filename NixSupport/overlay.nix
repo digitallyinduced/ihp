@@ -40,10 +40,6 @@ final: prev: {
                     hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
                 };
             };
-
-            # Fix HLS build on nixos-25.11 (backport of nixpkgs PR #458029)
-            # Can be removed once the fix is backported to the stable branch
-            haskell-language-server = final.haskell.lib.addBuildDepends super.haskell-language-server [ self.markdown-unlit ];
         };
     };
 }
