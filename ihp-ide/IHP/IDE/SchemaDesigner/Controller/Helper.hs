@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.Controller.Helper where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.SchemaDesigner.Types
 import qualified IHP.IDE.SchemaDesigner.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
