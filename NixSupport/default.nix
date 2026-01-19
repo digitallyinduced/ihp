@@ -1,7 +1,7 @@
-{ compiler ? "ghc98"
+{ compiler ? null  # Uses haskellPackages (default GHC) when null
 , additionalNixpkgsOptions ? {}
 , pkgs ? import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; }
-, ghc ? pkgs.haskell.packages.${compiler}
+, ghc ? if compiler == null then pkgs.haskellPackages else pkgs.haskell.packages.${compiler}
 , ihp
 , haskellDeps ? (p: [])
 , otherDeps ? (p: [])
@@ -109,7 +109,7 @@ CABAL_EOF
     };
 
     # Build the models package as a proper Haskell package
-    modelsPackage = ghc.callCabal2nix "${appName}-models" modelsPackageSrc {};
+    modelsPackage = pkgs.haskell.lib.dontHaddock (ghc.callCabal2nix "${appName}-models" modelsPackageSrc {});
 
     allHaskellPackages =
         (if withHoogle

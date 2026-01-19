@@ -142,7 +142,8 @@ library
     hs-source-dirs: .
     build-depends: ihp
     exposed-modules:
-          IHP.IDE.SchemaDesigner.Controller.Columns
+          IHP.IDE.Prelude
+        , IHP.IDE.SchemaDesigner.Controller.Columns
         , IHP.IDE.SchemaDesigner.Controller.EnumValues
         , IHP.IDE.SchemaDesigner.Controller.Enums
         , IHP.IDE.SchemaDesigner.Controller.Helper

@@ -9,10 +9,11 @@ that is defined in flake-module.nix
     let
                     hsDataDir = package:
                             let
-                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.8.4"
+                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
                                 shareRoot = "${package.data}/share/${ghcName}";
-                                # Pick the only dir ending with "-${ghcName}", e.g. "aarch64-osx-ghc-9.8.4"
-                                sys = lib.head (lib.filter (n: lib.hasSuffix "-${ghcName}" n) (builtins.attrNames (builtins.readDir shareRoot)));
+                                # Pick the first (typically only) platform-specific directory
+                                dirs = builtins.attrNames (builtins.readDir shareRoot);
+                                sys = lib.head dirs;
                             in
                                 "${shareRoot}/${sys}/${package.name}";
     in

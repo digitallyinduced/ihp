@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.Controller.Policies where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Policies.New

@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.Controller.Columns where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Columns.New
