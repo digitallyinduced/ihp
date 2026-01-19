@@ -17,29 +17,27 @@ direnv allow
 
 ## Running Tests
 
-**IHP Core Tests** (from the `ihp/` directory):
+**IHP IDE Tests** (from the repo root):
 ```bash
-cd ihp
+# Interactive (allows :r to reload after changes):
 ghci
-:l Test/Main.hs
+:l ihp-ide/Test/Main.hs
 main
-
-# After making changes, reload and rerun:
 :r
 main
+
+# One-liner:
+echo -e ':l ihp-ide/Test/Main.hs\nmain' | ghci
 ```
 
-**IHP IDE Tests** (from the `ihp-ide/` directory):
-```bash
-cd ihp-ide
-ghci
-:l Test/Main.hs
-main
-```
-
-**All tests via Nix:**
+**All tests via Nix** (slower but comprehensive):
 ```bash
 nix flake check --impure
+```
+
+**Verify a single module compiles:**
+```bash
+echo ':l ihp-ide/IHP/IDE/CodeGen/MigrationGenerator.hs' | ghci
 ```
 
 When adding new tests, add them to `Test/Main.hs` in the appropriate package.
