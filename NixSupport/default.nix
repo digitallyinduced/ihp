@@ -1,7 +1,7 @@
-{ compiler ? "ghc98"
+{ compiler ? null  # Uses haskellPackages (default GHC) when null
 , additionalNixpkgsOptions ? {}
 , pkgs ? import "${toString projectPath}/Config/nix/nixpkgs-config.nix" { ihp = ihp; additionalNixpkgsOptions = additionalNixpkgsOptions; }
-, ghc ? pkgs.haskell.packages.${compiler}
+, ghc ? if compiler == null then pkgs.haskellPackages else pkgs.haskell.packages.${compiler}
 , ihp
 , haskellDeps ? (p: [])
 , otherDeps ? (p: [])

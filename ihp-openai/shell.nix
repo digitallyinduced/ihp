@@ -3,7 +3,7 @@ let
         ihp = ./../.;
         haskellPackagesDir = ./../NixSupport/haskell-packages;
     };
-    ghc = pkgs.haskell.packages.ghc98;
+    ghc = pkgs.haskellPackages;
     haskellDeps = ghc.ghcWithPackages (p: with p; [
         text
         bytestring
