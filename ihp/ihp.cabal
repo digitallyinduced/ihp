@@ -104,6 +104,7 @@ common shared-properties
             , http-client-tls
             , resource-pool
             , unordered-containers
+            , hashable
             , scientific
             , vector
             , wreq
