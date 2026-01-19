@@ -38,7 +38,16 @@ module IHP.HaskellSupport
 , allEnumValues
 ) where
 
-import ClassyPrelude
+import Control.Monad (when, unless, forM_)
+import Data.Functor ((<&>))
+import Data.String (IsString(..))
+import Data.MonoTraversable (MonoFoldable, Element, oelem, oforM_)
+import Data.Time.Clock (UTCTime(..), getCurrentTime)
+import Data.Time.Calendar (Day, toGregorian)
+import Data.Map (Map)
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import Prelude
 import qualified Data.Default
 import qualified Data.UUID as UUID
 import Data.Proxy
@@ -112,7 +121,7 @@ whenNonEmpty condition = unless (isEmpty condition)
 -- >>> "Hello" |> includes 'H'
 -- True
 includes :: (MonoFoldable container, Eq (Element container)) => Element container -> container -> Bool
-includes = elem
+includes = oelem
 {-# INLINE includes #-}
 
 instance Data.Default.Default UUID.UUID where
@@ -279,7 +288,7 @@ instance IsString string => IsString (Maybe string) where
 -- > render = [hsx|{forEach users renderUser}|]
 --
 forEach :: (MonoFoldable mono, Applicative m) => mono -> (Element mono -> m ()) -> m ()
-forEach elements function = forM_ elements function
+forEach elements function = oforM_ elements function
 {-# INLINE forEach #-}
 
 
@@ -303,8 +312,8 @@ forEach elements function = forM_ elements function
 -- >
 -- > render = [hsx|{forEachWithIndex users renderUser}|]
 --
-forEachWithIndex :: (Applicative m) => [a] -> ((Int, a) -> m ()) -> m ()
-forEachWithIndex elements function = forM_ (ClassyPrelude.zip [0..] elements) function
+forEachWithIndex :: (Monad m) => [a] -> ((Int, a) -> m ()) -> m ()
+forEachWithIndex elements function = forM_ (zip [0..] elements) function
 {-# INLINE forEachWithIndex #-}
 
 -- | Parses a text to an int. Returns @Nothing@ on failure.
