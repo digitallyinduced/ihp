@@ -63,7 +63,7 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Aeson.Key as Aeson
 
-import IHP.Record ((|>), get, set, setJust, setMaybe, modify, modifyJust, SetField(..), UpdateField(..), incrementField, decrementField, copyFields, CopyFields(..))
+import IHP.Record ((|>), get, set, setJust, setMaybe, modify, modifyJust, SetField(..), UpdateField(..), incrementField, decrementField, CopyFields(..))
 
 infixl 8 |>>
 a |>> b = a <&> b

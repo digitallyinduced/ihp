@@ -17,7 +17,6 @@ module IHP.Record
 , UpdateField (..)
 , incrementField
 , decrementField
-, copyFields
 , CopyFields (..)
 ) where
 
