@@ -17,40 +17,112 @@
 }:
 
 let
+    splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
+
+    # Common IHP environment setup
+    ihpEnvSetup = ''
+        export IHP_LIB=${ihp-env-var-backwards-compat}
+        export IHP=${ihp-env-var-backwards-compat}
+    '';
+
+    # Generate the models package source from Schema.sql
+    modelsPackageSrc = pkgs.stdenv.mkDerivation {
+        name = "${appName}-models-src";
+        src = filter {
+            root = projectPath;
+            include = ["Application/Schema.sql" "Makefile"];
+            name = "${appName}-models-source";
+        };
+        nativeBuildInputs = [
+            (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
+            pkgs.gnumake # Needed for make print-ghc-options
+        ];
+        buildPhase = ''
+            # Generate types from schema
+            build-generated-code
+
+            # Find all generated modules and create cabal file
+            MODULES=$(find build/Generated -name '*.hs' -printf '%f\n' | sed 's/\.hs$//' | sort)
+
+            # Create cabal file
+            cat > ${appName}-models.cabal <<'CABAL_EOF'
+cabal-version: 2.2
+name: ${appName}-models
+version: 0.1.0
+build-type: Simple
+
+library
+    default-language: GHC2021
+    hs-source-dirs: build
+    build-depends:
+        base
+        , ihp
+        , basic-prelude
+        , text
+        , bytestring
+        , time
+        , uuid
+        , aeson
+        , postgresql-simple
+        , deepseq
+        , data-default
+        , ip
+        , scientific
+        , string-conversions
+    exposed-modules:
+CABAL_EOF
+
+            # Add each module to exposed-modules
+            for mod in $MODULES; do
+                echo "        Generated.$mod" >> ${appName}-models.cabal
+            done
+
+            # Add default extensions matching the generated code
+            cat >> ${appName}-models.cabal <<'CABAL_EOF'
+    default-extensions:
+        OverloadedStrings
+        NoImplicitPrelude
+        ImplicitParams
+        TypeSynonymInstances
+        FlexibleInstances
+        FlexibleContexts
+        InstanceSigs
+        MultiParamTypeClasses
+        TypeFamilies
+        DataKinds
+        TypeOperators
+        UndecidableInstances
+        ConstraintKinds
+        StandaloneDeriving
+        DuplicateRecordFields
+        OverloadedLabels
+        OverloadedRecordDot
+    ghc-options: -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches
+CABAL_EOF
+        '';
+        installPhase = ''
+            mkdir -p $out/build
+            cp -r build/Generated $out/build/
+            cp ${appName}-models.cabal $out/
+        '';
+        disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
+    };
+
+    # Build the models package as a proper Haskell package
+    modelsPackage = ghc.callCabal2nix "${appName}-models" modelsPackageSrc {};
+
     allHaskellPackages =
         (if withHoogle
         then ghc.ghcWithHoogle
-        else ghc.ghcWithPackages) haskellDeps;
+        else ghc.ghcWithPackages) (p: haskellDeps p ++ [ modelsPackage ]);
+
     allNativePackages = builtins.concatLists [
         (otherDeps pkgs)
     ];
 
-    splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
-
-    schemaObjectFiles =
-        let
-            self = projectPath;
-        in
-            pkgs.stdenv.mkDerivation {
-                name = appName + "-schema";
-                buildPhase = ''
-                    mkdir -p build/Generated
-                    build-generated-code
-
-                    export IHP=${ihp-env-var-backwards-compat}
-                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) --make build/Generated/Types.hs -odir build/RunProdServer -hidir build/RunProdServer
-
-                    cp -r build $out
-                '';
-                src = filter { root = self; include = ["Application/Schema.sql" "Makefile"]; name = "schemaObjectFiles-source"; };
-                nativeBuildInputs =
-                    [ (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
-                    ]
-                ;
-                dontInstall = true;
-                dontFixup = false;
-                disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
-            };
+    # Common derivation attributes
+    commonBuildInputs = [ allHaskellPackages ];
+    commonNativeBuildInputs = [ pkgs.gnumake ];
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
 
@@ -84,17 +156,12 @@ let
                 name = "${appName}-script-${scriptName}";
                 src = appSrc;
 
-                buildInputs = [ allHaskellPackages ];
-                nativeBuildInputs = [ pkgs.gnumake schemaObjectFiles ];
+                buildInputs = commonBuildInputs;
+                nativeBuildInputs = commonNativeBuildInputs;
 
                 buildPhase = ''
-                    mkdir -p build/bin build/Generated build/RunProdServer
-                    cp -r ${schemaObjectFiles}/RunProdServer build/
-                    cp -r ${schemaObjectFiles}/Generated build/
-                    chmod -R +w build/RunProdServer build/Generated || true
-
-                    export IHP_LIB=${ihp-env-var-backwards-compat}
-                    export IHP=${ihp-env-var-backwards-compat}
+                    mkdir -p build/bin
+                    ${ihpEnvSetup}
 
                     mkdir -p build/Script/Main
                     cat > build/Script/Main/${scriptName}.hs <<'EOF'
@@ -107,7 +174,7 @@ let
 
                     mkdir -p build/RunScript/${scriptName}
 
-                    ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                         $(make print-ghc-options) \
                         ${if optimized then prodGhcOptions else ""} \
                         build/Script/Main/${scriptName}.hs \
@@ -121,6 +188,7 @@ let
                     mv build/bin/${scriptName} $out/bin/${scriptName}
                 '';
 
+                enableParallelBuilding = true;
                 disallowedReferences = [ ihp ];
             };
 
@@ -151,24 +219,19 @@ let
                     in
                         hasHsHere || hasHsBelow;
         in
-            anyJobHsIn appSrc;
+            anyJobHsIn projectPath;
 
     runJobs =
         pkgs.stdenv.mkDerivation {
             name = "${appName}-run-jobs";
             src = appSrc;
 
-            buildInputs = [ allHaskellPackages ];
-            nativeBuildInputs = [ pkgs.gnumake schemaObjectFiles ];
+            buildInputs = commonBuildInputs;
+            nativeBuildInputs = commonNativeBuildInputs;
 
             buildPhase = ''
-                mkdir -p build/Generated build/RunProdServer build/bin
-                cp -r ${schemaObjectFiles}/RunProdServer build/
-                cp -r ${schemaObjectFiles}/Generated build/
-                chmod -R +w build/RunProdServer build/Generated || true
-
-                export IHP_LIB=${ihp-env-var-backwards-compat}
-                export IHP=${ihp-env-var-backwards-compat}
+                mkdir -p build/bin build/RunProdServer
+                ${ihpEnvSetup}
 
                 cat > build/RunJobs.hs <<'EOF'
                 module RunJobs (main) where
@@ -181,7 +244,7 @@ let
                 main = runScript Config.config (runJobWorkers (workers RootApplication))
                 EOF
 
-                ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                     -main-is 'RunJobs.main' \
                     $(make print-ghc-options) \
                     ${if optimized then prodGhcOptions else ""} \
@@ -194,35 +257,30 @@ let
                 mv build/bin/RunJobs $out/bin/RunJobs
             '';
 
+            enableParallelBuilding = true;
             disallowedReferences = [ ihp ];
         };
 
     runServer =
         pkgs.stdenv.mkDerivation {
             name = appName + "-binaries";
+            src = appSrc;
+
+            buildInputs = commonBuildInputs;
+            nativeBuildInputs = commonNativeBuildInputs;
+
             buildPhase = ''
-                mkdir -p build/Generated build/RunProdServer
-                cp -r ${schemaObjectFiles}/RunProdServer build/
-                cp -r ${schemaObjectFiles}/Generated build/
+                mkdir -p build/bin build/RunProdServer
+                ${ihpEnvSetup}
 
-                chmod -R +w build/RunProdServer/*
-
-                export IHP_LIB=${ihp-env-var-backwards-compat}
-                export IHP=${ihp-env-var-backwards-compat}
-
-                mkdir -p build/bin build/RunUnoptimizedProdServer
-
-                ghc -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
+                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
             '';
-            installPhase = ''
-                mkdir -p "$out"
-                mkdir -p $out/bin $out/lib
 
+            installPhase = ''
+                mkdir -p $out/bin
                 mv build/bin/RunProdServer $out/bin/RunProdServer
             '';
-            src = appSrc;
-            buildInputs = [allHaskellPackages];
-            nativeBuildInputs = [schemaObjectFiles];
+
             enableParallelBuilding = true;
             disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
         };

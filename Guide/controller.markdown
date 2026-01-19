@@ -350,6 +350,13 @@ When you need to pass a custom query parameter, you cannot use the [`redirectTo`
 
 The redirect will use HTTP status code `302`. The [`baseUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:FrameworkConfig) in `Config/Config.hs` will be used. In development mode, the [`baseUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#t:FrameworkConfig) might not be specified in `Config/Config.hs`. Then it will be set to localhost by default.
 
+If you need to force the follow-up request to be a `GET` (e.g. after a `POST` or `DELETE`), use [`redirectToSeeOther`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToSeeOther) to send a 303 See Other:
+
+```haskell
+action ExampleAction = do
+    redirectToSeeOther ShowPostAction { postId = ... }
+```
+
 ### Redirect to a Path
 
 Use [`redirectToPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToPath) when you want to redirect to a path on the same domain:
@@ -366,6 +373,13 @@ action ExampleAction = do
     redirectToPath ((pathTo ShowPostAction { .. }) <> "&details=on")
 ```
 
+Use [`redirectToPathSeeOther`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToPathSeeOther) to send a 303 redirect to a path:
+
+```haskell
+action ExampleAction = do
+    redirectToPathSeeOther "/blog/wp-login.php"
+```
+
 ### Redirect to a URL
 
 Use [`redirectToUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToUrl) to redirect to some external URL:
@@ -373,6 +387,13 @@ Use [`redirectToUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-R
 ```haskell
 action ExampleAction = do
     redirectToUrl "https://example.com/hello-world.html"
+```
+
+Use [`redirectToUrlSeeOther`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToUrlSeeOther) to send a 303 redirect to some external URL:
+
+```haskell
+action ExampleAction = do
+    redirectToUrlSeeOther "https://example.com/hello-world.html"
 ```
 
 ## Action Execution
