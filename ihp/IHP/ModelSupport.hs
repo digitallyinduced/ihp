@@ -11,7 +11,19 @@ module IHP.ModelSupport
 
 import IHP.HaskellSupport
 import IHP.NameSupport
-import ClassyPrelude hiding (UTCTime, find, ModifiedJulianDay)
+import Prelude
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.Int (Int64)
+import Data.IORef (IORef, newIORef, modifyIORef')
+import Data.Hashable (Hashable)
+import Control.DeepSeq (NFData)
+import Control.Exception (finally, throwIO, catch, Exception)
+import Data.Maybe (fromMaybe, isNothing)
+import Data.List (filter, elem)
+import qualified Data.ByteString.Char8 as BS8
+import Data.String (IsString(..))
 import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query)
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
@@ -132,10 +144,10 @@ instance InputValue Text where
     inputValue text = text
 
 instance InputValue Int where
-    inputValue = tshow
+    inputValue = Text.pack . show
 
 instance InputValue Integer where
-    inputValue = tshow
+    inputValue = Text.pack . show
 
 instance InputValue Double where
     inputValue double = cs (Numeric.showFFloat Nothing double "")
@@ -163,23 +175,23 @@ instance InputValue Day where
     inputValue date = cs (iso8601Show date)
 
 instance InputValue TimeOfDay where
-    inputValue timeOfDay = tshow timeOfDay
+    inputValue timeOfDay = Text.pack (show timeOfDay)
 
 instance InputValue PGInterval where
-    inputValue (PGInterval pgInterval) = tshow pgInterval
+    inputValue (PGInterval pgInterval) = Text.pack (show pgInterval)
 
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value
     inputValue Nothing = ""
 
 instance InputValue value => InputValue [value] where
-    inputValue list = list |> map inputValue |> intercalate ","
+    inputValue list = list |> map inputValue |> Text.intercalate ","
 
 instance InputValue Aeson.Value where
     inputValue json = json |> Aeson.encode |> cs
 
 instance InputValue Scientific where
-    inputValue = tshow
+    inputValue = Text.pack . show
 
 instance Default Text where
     {-# INLINE def #-}
@@ -281,7 +293,7 @@ recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTa
 recordToInputValue entity =
     entity.id
     |> unpackId
-    |> tshow
+    |> Text.pack . show
 {-# INLINE recordToInputValue #-}
 
 instance FromField (PrimaryKey model) => FromField (Id' model) where
@@ -639,7 +651,7 @@ primaryKeyConditionColumnSelector =
     case primaryKeyColumnNames @record of
             [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
             [s] -> qualifyColumnName s
-            conds -> "(" <> intercalate ", " (map qualifyColumnName conds) <> ")"
+            conds -> "(" <> BS8.intercalate ", " (map qualifyColumnName conds) <> ")"
 
 -- | Returns WHERE conditions to match an entity by it's primary key
 --
@@ -664,11 +676,11 @@ logQuery logPrefix connection query parameters time = do
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
-                Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (tshow rlsUserId)
+                Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (Text.pack (show rlsUserId))
                 Nothing -> ""
 
         formatted <- PG.formatQuery connection query parameters
-        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> tshow queryTimeInMs <> "ms)")
+        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
 {-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
@@ -926,7 +938,7 @@ data FieldWithUpdate name value
 
 instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
   toField (NoUpdate name) =
-    Plain (ClassyPrelude.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
+    Plain (Data.String.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
   toField (Update a) = toField a
 
 -- | Construct a 'FieldWithUpdate'
@@ -1023,7 +1035,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set ByteString)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set ByteString)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
