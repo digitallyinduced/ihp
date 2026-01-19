@@ -519,6 +519,7 @@ normalizeExpression (SelectExpression Select { columns, from, whereClause, alias
         unqualifiedName name = name
 normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
+normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
 
 -- | Replaces @table.field@ with just @field@
 --

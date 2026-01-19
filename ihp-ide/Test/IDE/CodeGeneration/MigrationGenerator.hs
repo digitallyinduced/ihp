@@ -1429,6 +1429,25 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "should normalize InArrayExpression in check constraints" do
+                -- Ensures normalizeExpression handles InArrayExpression (tuple literals like ('a', 'b'))
+                -- This pattern appears more frequently in PostgreSQL 17's pg_dump output
+                let targetSchema = sql $ cs [plain|
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        status TEXT NOT NULL
+                    );
+                    ALTER TABLE posts ADD CONSTRAINT posts_status_check CHECK (status IN ('draft', 'published', 'archived'));
+                |]
+                let actualSchema = sql $ cs [plain|
+                    CREATE TABLE public.posts (
+                        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+                        status text NOT NULL,
+                        CONSTRAINT posts_status_check CHECK ((status IN ('draft', 'published', 'archived')))
+                    );
+                |]
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
