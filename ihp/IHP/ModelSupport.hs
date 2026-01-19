@@ -7,10 +7,12 @@ module IHP.ModelSupport
 , module IHP.Postgres.Inet
 , module IHP.Postgres.TSVector
 , module IHP.Postgres.TimeParser
+, module IHP.InputValue
 ) where
 
 import IHP.HaskellSupport
 import IHP.NameSupport
+import IHP.InputValue
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
@@ -136,62 +138,6 @@ class CanUpdate a where
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
 createRecord = create
-
-class InputValue a where
-    inputValue :: a -> Text
-
-instance InputValue Text where
-    inputValue text = text
-
-instance InputValue Int where
-    inputValue = Text.pack . show
-
-instance InputValue Integer where
-    inputValue = Text.pack . show
-
-instance InputValue Double where
-    inputValue double = cs (Numeric.showFFloat Nothing double "")
-
-instance InputValue Float where
-    inputValue float = cs (Numeric.showFFloat Nothing float "")
-
-instance InputValue Bool where
-    inputValue True = "on"
-    inputValue False = "off"
-
-instance InputValue Data.UUID.UUID where
-    inputValue = Data.UUID.toText
-
-instance InputValue () where
-    inputValue () = "error: inputValue(()) not supported"
-
-instance InputValue UTCTime where
-    inputValue time = cs (iso8601Show time)
-
-instance InputValue LocalTime where
-    inputValue time = cs (iso8601Show time)
-
-instance InputValue Day where
-    inputValue date = cs (iso8601Show date)
-
-instance InputValue TimeOfDay where
-    inputValue timeOfDay = Text.pack (show timeOfDay)
-
-instance InputValue PGInterval where
-    inputValue (PGInterval pgInterval) = Text.pack (show pgInterval)
-
-instance InputValue fieldType => InputValue (Maybe fieldType) where
-    inputValue (Just value) = inputValue value
-    inputValue Nothing = ""
-
-instance InputValue value => InputValue [value] where
-    inputValue list = list |> map inputValue |> Text.intercalate ","
-
-instance InputValue Aeson.Value where
-    inputValue json = json |> Aeson.encode |> cs
-
-instance InputValue Scientific where
-    inputValue = Text.pack . show
 
 instance Default Text where
     {-# INLINE def #-}

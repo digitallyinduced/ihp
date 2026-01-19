@@ -196,6 +196,7 @@ library
         , IHP.Record
         , IHP.Log
         , IHP.Log.Types
+        , IHP.InputValue
         , IHP.ModelSupport
         , IHP.NameSupport
         , IHP.QueryBuilder
