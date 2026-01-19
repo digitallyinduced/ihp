@@ -192,6 +192,7 @@ library
         , IHP.Environment
         , IHP.FetchRelated
         , IHP.FrameworkConfig
+        , IHP.FrameworkConfig.Types
         , IHP.HaskellSupport
         , IHP.Record
         , IHP.Log

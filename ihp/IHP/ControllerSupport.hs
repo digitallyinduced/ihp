@@ -46,7 +46,7 @@ import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
-import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
+import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import IHP.Controller.Response
