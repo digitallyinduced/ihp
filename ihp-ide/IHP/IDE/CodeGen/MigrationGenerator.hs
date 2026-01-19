@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-|
 Module: IHP.IDE.CodeGen.MigrationGenerator
 Description: Generates database migration sql files
@@ -555,6 +556,7 @@ unqualifyExpression scope expression = doUnqualify expression
             in
                 SelectExpression Select { columns = (recurse <$> columns), from = from, whereClause = recurse whereClause, alias }
         doUnqualify (ExistsExpression a) = ExistsExpression (doUnqualify a)
+        doUnqualify (InArrayExpression exprs) = InArrayExpression (map doUnqualify exprs)
         doUnqualify (DotExpression (VarExpression scope') b) | scope == scope' = VarExpression b
         doUnqualify (DotExpression a b) = DotExpression (doUnqualify a) b
 
@@ -586,6 +588,8 @@ resolveAlias (Just alias) fromExpression expression =
         e@(SelectExpression Select { columns, from, whereClause, alias }) -> SelectExpression Select { columns = rec <$> columns, from = rec from, whereClause = rec whereClause, alias = alias }
         e@(DotExpression a b) -> DotExpression (rec a) b
         e@(ExistsExpression a) -> ExistsExpression (rec a)
+        e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
+        e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
