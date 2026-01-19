@@ -12,7 +12,7 @@ import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
 import IHP.View.Types
-import IHP.View.CSSFramework
+import IHP.View.CSSFramework.Bootstrap (bootstrap)
 import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import Network.Wai

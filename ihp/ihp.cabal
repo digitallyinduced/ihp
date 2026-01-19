@@ -226,6 +226,9 @@ library
         , IHP.MailPrelude
         , IHP.View.Classes
         , IHP.View.CSSFramework
+        , IHP.View.CSSFramework.Unstyled
+        , IHP.View.CSSFramework.Bootstrap
+        , IHP.View.CSSFramework.Tailwind
         , IHP.View.Types
         , IHP.FlashMessages
         , IHP.Test.Mocking
