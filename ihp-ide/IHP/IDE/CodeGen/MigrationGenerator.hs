@@ -135,6 +135,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                             to = createTable'.name
                         in
                             (RenameTable { from, to }):(applyRenameTable (fixIdentifiers from to (delete createTable statements)))
+                    Just _ -> s:(applyRenameTable statements)  -- Not a StatementCreateTable, skip rename
                     Nothing -> s:(applyRenameTable statements)
             where
                 createTable :: Maybe Statement
@@ -151,6 +152,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 actualTable' :: CreateTable
                 actualTable' = case actualTable of
                     StatementCreateTable { unsafeGetCreateTable = table } -> table
+                    _ -> error "diffSchemas: expected StatementCreateTable"
 
                 fixIdentifiers :: Text -> Text -> [Statement] -> [Statement]
                 fixIdentifiers tableFrom tableTo statements = map fixIdentifier statements
@@ -340,6 +342,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                 normalizeCol col = col { notNull = False, defaultValue = Just (VarExpression "null") }
                 applyToggleNull (statement:rest) = statement:(applyToggleNull rest)
                 applyToggleNull [] = []
+migrateTable _ _ = error "migrateTable: expected StatementCreateTable"
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues
@@ -349,6 +352,7 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
 
         addValue :: Text -> Statement
         addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
+migrateEnum _ _ = error "migrateEnum: expected CreateEnumType"
 
 getAppDBSchema :: Text -> IO [Statement]
 getAppDBSchema databaseUrl = do
@@ -668,6 +672,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                                     |> isNothing
                             Nothing -> True
                     )
+                Just _ -> True  -- Not a CreateIndex, keep it
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
@@ -687,6 +692,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
         (dropTableName, dropColumnName) = case dropStatement of
             DropTable { tableName } -> (tableName, Nothing)
             DropColumn { tableName, columnName } -> (tableName, Just columnName)
+            _ -> error "removeImplicitDeletions: unexpected statement type"  -- Guard ensures only DropTable/DropColumn reach here
 removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
 removeImplicitDeletions actualSchema [] = []
 

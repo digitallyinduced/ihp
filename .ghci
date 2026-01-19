@@ -3,6 +3,8 @@
 :set -iihp
 :set -iihp-ide
 :set -iihp-ssc
+:set -iihp-imagemagick
+:set -iihp-hspec
 :set -iwai-asset-path
 :set -iwai-flash-messages
 :set -threaded

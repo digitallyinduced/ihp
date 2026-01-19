@@ -116,6 +116,12 @@ that is defined in flake-module.nix
                         ihp-hsx
                         ihp-postgresql-simple-extra
 
+                        # Packages needed for ghci to load IHP modules
+                        slugger
+                        megaparsec
+                        cryptohash
+                        pwstore-fast
+                        vault
 
                         http-streams
                         HsOpenSSL
