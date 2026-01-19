@@ -5,7 +5,9 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Router.Types where
 
-import IHP.Prelude
+import Prelude
+import Data.ByteString (ByteString)
+import Control.Exception (Exception)
 import Network.HTTP.Types.Method
 
 data TypedAutoRouteError

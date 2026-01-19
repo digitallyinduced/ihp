@@ -70,6 +70,7 @@ import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import Data.Dynamic
 import IHP.Router.Types
+import IHP.Router.UrlGenerator
 import IHP.WebSocket (WSApp)
 import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
@@ -117,16 +118,6 @@ defaultRouter additionalControllers = do
     applications <- choice $ map (\r -> r <* endOfInput) allControllers
     pure applications
 {-# INLINABLE defaultRouter #-}
-
-class HasPath controller where
-    -- | Returns the path to a given action
-    --
-    -- >>> pathTo UsersAction
-    -- "/Users"
-    --
-    -- >>> pathTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
-    -- "/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
-    pathTo :: controller -> Text
 
 -- | Returns the url to a given action.
 --
