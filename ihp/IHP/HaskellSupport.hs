@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies, DataKinds, MultiParamTypeClasses, PolyKinds, TypeApplications, ScopedTypeVariables, TypeOperators, GADTs, StandaloneDeriving, IncoherentInstances, AllowAmbiguousTypes, FunctionalDependencies #-}
 
 {-|
 Module: IHP.HaskellSupport
@@ -63,10 +63,7 @@ import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Aeson.Key as Aeson
 
---(|>) :: a -> f -> f a
-infixl 8 |>
-a |> f = f a
-{-# INLINE (|>) #-}
+import IHP.Record ((|>), get, set, setJust, setMaybe, modify, modifyJust, SetField(..), UpdateField(..), incrementField, decrementField, copyFields, CopyFields(..))
 
 infixl 8 |>>
 a |>> b = a <&> b
@@ -131,133 +128,6 @@ instance Data.Default.Default UUID.UUID where
 instance forall name name'. (KnownSymbol name, name' ~ name) => IsLabel name (Proxy name') where
     fromLabel = Proxy @name'
     {-# INLINE fromLabel #-}
-
--- | Returns the field value for a field name
---
--- __Example:__
---
--- > data Project = Project { name :: Text, isPublic :: Bool }
--- >
--- > let project = Project { name = "Hello World", isPublic = False }
---
--- >>> project.name
--- "Hello World"
---
--- >>> project.isPublic
--- False
-get :: forall model name value. (KnownSymbol name, Record.HasField name model value) => Proxy name -> model -> value
-get _ record = Record.getField @name record
-{-# INLINE get #-}
-
--- | Sets a field of a record and returns the new record.
---
--- __Example:__
---
--- > data Project = Project { name :: Text, isPublic :: Bool }
--- >
--- > let project = Project { name = "Hello World", isPublic = False }
---
--- >>> set #name "New Name" project
--- Project { name = "New Name", isPublic = False }
---
--- >>> set #isPublic True project
--- Project { name = "Hello World", isPublic = True }
-set :: forall model name value. (KnownSymbol name, SetField name model value) => Proxy name -> value -> model -> model
-set name value record = setField @name value record
-{-# INLINE set #-}
-
-
--- | Like 'set' but doesn't set the value if it's 'Nothing'. Useful when you update NULL values
--- | e.g. via a cron job and don't want to lose that work on subsequent updates.
---
--- __Example:__
---
--- > data Project = Project { name :: Maybe Text }
--- >
--- > let project = Project { name = Nothing }
---
--- >>> setMaybe #name (Just "New Name") project
--- Project { name = Just "New Name" }
---
--- >>> setMaybe #name Nothing project
--- Project { name = Just "New Name" } -- previous value is kept
---
-setMaybe :: forall model name value. (KnownSymbol name, SetField name model (Maybe value)) => Proxy name -> Maybe value -> model -> model
-setMaybe name value record = case value of
-    Just value -> setField @name (Just value) record
-    Nothing    -> record
-{-# INLINE setMaybe #-}
-
-
--- | Like 'set' but wraps the value with a 'Just'. Useful when you want to set a 'Maybe' field
---
--- __Example:__
---
--- > data Project = Project { name :: Maybe Text }
--- >
--- > let project = Project { name = Nothing }
---
--- >>> setJust #name "New Name" project
--- Project { name = Just "New Name" }
---
-setJust :: forall model name value. (KnownSymbol name, SetField name model (Maybe value)) => Proxy name -> value -> model -> model
-setJust name value record = setField @name (Just value) record
-{-# INLINE setJust #-}
-
-
-modify :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value) => Proxy name -> (value -> value) -> model -> model
-modify _ updateFunction model = let value = Record.getField @name model in setField @name (updateFunction value) model
-{-# INLINE modify #-}
-
--- Like 'modify', but only modifies the value if it's not Nothing.
---
--- __Example:__
---
--- > let pauseDuration = now `diffUTCTime` pausedAt
--- >
--- > floorTimer <- floorTimer
--- >         |> modifyJust #startedAt (addUTCTime pauseDuration)
--- >         |> updateRecord
---
-modifyJust :: forall model name value. (KnownSymbol name, Record.HasField name model (Maybe value), SetField name model (Maybe value)) => Proxy name -> (value -> value) -> model -> model
-modifyJust _ updateFunction model = case Record.getField @name model of
-        Just value -> setField @name (Just (updateFunction value)) model
-        Nothing -> model
-{-# INLINE modifyJust #-}
-
--- | Plus @1@ on record field.
---
--- __Example:__
---
--- > data Project = Project { name :: Text, followersCount :: Int }
--- >
--- > let project = Project { name = "Hello World", followersCount = 0 }
---
--- >>> project |> incrementField #followersCount
--- Project { name = "Hello World", followersCount = 1 }
-incrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
-incrementField _ model = let value = Record.getField @name model in setField @name (value + 1) model
-{-# INLINE incrementField #-}
-
--- | Minus @1@ on a record field.
---
--- __Example:__
---
--- > data Project = Project { name :: Text, followersCount :: Int }
--- >
--- > let project = Project { name = "Hello World", followersCount = 1337 }
---
--- >>> project |> decrementField #followersCount
--- Project { name = "Hello World", followersCount = 1336 }
-decrementField :: forall model name value. (KnownSymbol name, Record.HasField name model value, SetField name model value, Num value) => Proxy name -> model -> model
-decrementField _ model = let value = Record.getField @name model in setField @name (value - 1) model
-{-# INLINE decrementField #-}
-
-class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value where
-    setField :: value -> model -> model
-
-class Record.HasField field model value => UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
-    updateField :: value' -> model -> model'
 
 utcTimeToYearMonthDay :: UTCTime -> (Integer, Int, Int)
 utcTimeToYearMonthDay = toGregorian . utctDay -- (year,month,day)
@@ -400,39 +270,6 @@ instance IsString UUID.UUID where
     fromString string = case UUID.fromString string of
             Just uuid -> uuid
             Nothing -> error ("Invalid UUID: " <> string)
-
-
-class CopyFields (fields :: [Symbol]) destinationRecord sourceRecord where
-    -- | Provides the 'copyFields' function
-    --
-    -- Useful to rewrite getter-setter code like this:
-    --
-    -- > let newProject = newRecord @Project
-    -- >     |> set #name (otherProject.name)
-    -- >     |> set #isPublic (otherProject.isPublic)
-    -- >     |> set #userId (otherProject.userId)
-    --
-    -- With 'copyFields' this can be written like this:
-    --
-    -- > let newProject = newRecord @Project
-    -- >     |> copyFields @["name", "isPublic", "userId"] otherProject
-    --
-    copyFields :: sourceRecord -> destinationRecord -> destinationRecord
-
-instance CopyFields ('[]) destinationRecord sourceRecord where
-    copyFields sourceRecord destinationRecord = destinationRecord
-    {-# INLINE copyFields #-}
-
-instance (CopyFields rest destinationRecord sourceRecord
-    , KnownSymbol fieldName
-    , SetField fieldName destinationRecord fieldType
-    , Record.HasField fieldName sourceRecord fieldType
-    ) => CopyFields (fieldName:rest) destinationRecord sourceRecord where
-    copyFields sourceRecord destinationRecord =
-            destinationRecord
-            |> set (Proxy @fieldName) (Record.getField @fieldName sourceRecord)
-            |> copyFields @rest sourceRecord
-    {-# INLINE copyFields #-}
 
 -- | Returns a list of all values of an enum type
 --

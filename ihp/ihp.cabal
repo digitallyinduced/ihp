@@ -193,6 +193,7 @@ library
         , IHP.FetchRelated
         , IHP.FrameworkConfig
         , IHP.HaskellSupport
+        , IHP.Record
         , IHP.Log
         , IHP.Log.Types
         , IHP.ModelSupport
