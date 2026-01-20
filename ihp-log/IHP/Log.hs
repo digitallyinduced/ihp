@@ -100,7 +100,7 @@ writeLog :: (FastLogger.ToLogStr string) => LogLevel -> Logger -> string -> IO (
 writeLog level logger text = do
     let write = logger.write
     let formatter = logger.formatter
-    when (level >= logger.level) do
+    when (level >= logger.level) $
         write (\time -> formatter time level (toLogStr text))
 
 -- | Wraps 'RequestLogger' from wai-extra to log to an IHP logger.
