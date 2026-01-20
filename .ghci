@@ -1,6 +1,7 @@
 :set -i.
 :set -idev
 :set -iihp
+:set -iihp-context
 :set -iihp-ide
 :set -iihp-migrate
 :set -iihp-ssc

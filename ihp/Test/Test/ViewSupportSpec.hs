@@ -30,6 +30,7 @@ import qualified IHP.ErrorController as ErrorController
 import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
+import IHP.RequestVault (frameworkConfigMiddleware, modelContextMiddleware)
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -97,26 +98,30 @@ config = do
     option Development
     option (AppPort 8000)
 
-application :: Application
-application = Server.application handleNotFound (\app -> app)
+-- Application needs middleware to populate request vault with frameworkConfig
+-- so that ?context.frameworkConfig works during request handling
+mkApplication :: (?context :: RequestContext, ?modelContext :: ModelContext) => Application
+mkApplication = frameworkConfigMiddleware ?context.frameworkConfig
+              $ modelContextMiddleware ?modelContext
+              $ Server.application handleNotFound (\app -> app)
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "isActiveAction" $ do
         it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction foo: True"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActiveAction foo: True"
         it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction bar: False"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActiveAction bar: False"
     describe "isActivePath" $ do
         it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActivePath foo: True"
         it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActivePath bar: False"
     describe "isActiveController" $ do
         it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActiveController TestController: True"
         it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
+            runSession (testGet "test/TestWithParam?param=foo") mkApplication >>= assertTextExists "isActiveController AnotherTestAction: False"
 
     describe "HSX" $ do
         it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContext do

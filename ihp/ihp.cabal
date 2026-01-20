@@ -126,6 +126,7 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-postgresql-simple-extra
+            , ihp-context
             , mime-types
             , safe-exceptions
             , resourcet
