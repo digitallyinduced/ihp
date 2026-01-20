@@ -2,6 +2,7 @@
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
+, module IHP.ModelSupport.Types
 , module IHP.Postgres.Point
 , module IHP.Postgres.Polygon
 , module IHP.Postgres.Inet
@@ -9,6 +10,8 @@ module IHP.ModelSupport
 , module IHP.Postgres.TimeParser
 , module IHP.InputValue
 ) where
+
+import IHP.ModelSupport.Types
 
 import IHP.HaskellSupport
 import IHP.NameSupport
@@ -67,25 +70,6 @@ import qualified Numeric
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Builder as Builder
 
--- | Provides the db connection and some IHP-specific db configuration
-data ModelContext = ModelContext
-    { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
-    , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
-    -- | Logs all queries to this logger at log level info
-    , logger :: Logger
-    -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (ByteString -> IO ())
-    -- | Is set to a value if row level security was enabled at runtime
-    , rowLevelSecurity :: Maybe RowLevelSecurityContext
-    }
-
--- | When row level security is enabled at runtime, this keeps track of the current
--- logged in user and the postgresql role to switch to.
-data RowLevelSecurityContext = RowLevelSecurityContext
-    { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
-    , rlsUserId :: PG.Action -- ^ The user id of the current logged in user
-    }
-
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
 notConnectedModelContext logger = ModelContext
@@ -109,31 +93,6 @@ createModelContext idleTime maxConnections databaseUrl logger = do
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext =
     Pool.destroyAllResources modelContext.connectionPool
-
-type family GetModelById id :: Type where
-    GetModelById (Maybe (Id' tableName)) = Maybe (GetModelByTableName tableName)
-    GetModelById (Id' tableName) = GetModelByTableName tableName
-type family GetTableName model :: Symbol
-type family GetModelByTableName (tableName :: Symbol) :: Type
-
-class CanCreate a where
-    create :: (?modelContext :: ModelContext) => a -> IO a
-    createMany :: (?modelContext :: ModelContext) => [a] -> IO [a]
-    
-    -- | Like 'createRecord' but doesn't return the created record
-    createRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
-    createRecordDiscardResult record = do
-        _ <- createRecord record
-        pure ()
-
-class CanUpdate a where
-    updateRecord :: (?modelContext :: ModelContext) => a -> IO a
-
-    -- | Like 'updateRecord' but doesn't return the updated record
-    updateRecordDiscardResult :: (?modelContext :: ModelContext) => a -> IO ()
-    updateRecordDiscardResult record = do
-        _ <- updateRecord record
-        pure ()
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -161,8 +120,6 @@ instance Default TSVector where
 instance Default Scientific where
     def = 0
 
-type FieldName = ByteString
-
 -- | Returns @True@ when the record has not been saved to the database yet. Returns @False@ otherwise.
 --
 -- __Example:__ Returns @True@ when a record has not been inserted yet.
@@ -186,22 +143,6 @@ isNew :: forall model. (HasField "meta" model MetaBag) => model -> Bool
 isNew model = isNothing model.meta.originalDatabaseRecord
 {-# INLINABLE isNew #-}
 
-type family GetModelName model :: Symbol
-
--- | Provides the primary key type for a given table. The instances are usually declared
--- by the generated haskell code in Generated.Types
---
--- __Example:__ Defining the primary key for a users table
---
--- > type instance PrimaryKey "users" = UUID
---
---
--- __Example:__ Defining the primary key for a table with a SERIAL pk
---
--- > type instance PrimaryKey "projects" = Int
---
-type family PrimaryKey (tableName :: Symbol)
-
 -- | Returns the model name of a given model as Text
 --
 -- __Example:__
@@ -214,19 +155,6 @@ type family PrimaryKey (tableName :: Symbol)
 getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 {-# INLINE getModelName #-}
-
-newtype Id' table = Id (PrimaryKey table)
-
-deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
-deriving instance (Ord (PrimaryKey table)) => Ord (Id' table)
-deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
-deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
-deriving instance (KnownSymbol table, NFData (PrimaryKey table)) => NFData (Id' table)
-
--- | We need to map the model to its table name to prevent infinite recursion in the model data definition
--- E.g. `type Project = Project' { id :: Id Project }` will not work
--- But `type Project = Project' { id :: Id "projects" }` will
-type Id model = Id' (GetTableName model)
 
 instance InputValue (PrimaryKey model') => InputValue (Id' model') where
     {-# INLINE inputValue #-}
@@ -272,10 +200,6 @@ packId uuid = Id uuid
 unpackId :: Id' model -> PrimaryKey model
 unpackId (Id uuid) = uuid
 
--- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
-data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
-    deriving (Show)
-
 instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
     fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
@@ -286,9 +210,6 @@ instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) w
 instance (Read (PrimaryKey model), ParsePrimaryKey (PrimaryKey model)) => IsString (Id' model) where
     fromString uuid = textToId uuid
     {-# INLINE fromString #-}
-
-class ParsePrimaryKey primaryKey where
-    parsePrimaryKey :: Text -> Maybe primaryKey
 
 instance ParsePrimaryKey UUID where
     parsePrimaryKey = Read.readMaybe . cs
@@ -691,12 +612,6 @@ deleteAll = do
     pure ()
 {-# INLINABLE deleteAll #-}
 
-type family Include (name :: GHC.Types.Symbol) model
-
-type family Include' (name :: [GHC.Types.Symbol]) model where
-    Include' '[] model = model
-    Include' (x:xs) model = Include' xs (Include x model)
-
 instance Default NominalDiffTime where
     def = 0
 
@@ -721,16 +636,6 @@ instance Default PGInterval where
 class Record model where
     newRecord :: model
 
--- | Helper type to deal with models where relations are included or that are only partially fetched
--- Examples:
---
--- >>> NormalizeModel (Include "author_id" Post)
--- Post
---
--- >>> NormalizeModel Post
--- Post
-type NormalizeModel model = GetModelByTableName (GetTableName model)
-
 -- | Returns the ids for a list of models
 --
 -- Shorthand for @map (.id) records@.
@@ -741,22 +646,6 @@ type NormalizeModel model = GetModelByTableName (GetTableName model)
 ids :: (HasField "id" record id) => [record] -> [id]
 ids records = map (.id) records
 {-# INLINE ids #-}
-
--- | The error message of a validator can be either a plain text value or a HTML formatted value
-data Violation
-    = TextViolation { message :: !Text } -- ^ Plain text validation error, like "cannot be empty"
-    | HtmlViolation { message :: !Text } -- ^ HTML formatted, already pre-escaped validation error, like "Invalid, please <a href="http://example.com">check the documentation</a>"
-    deriving (Eq, Show)
-
--- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
-data MetaBag = MetaBag
-    { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", TextViolation "cannot be empty") ]@
-    , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
-    , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
-    } deriving (Show)
-
-instance Eq MetaBag where
-    MetaBag { annotations, touchedFields } == MetaBag { annotations = annotations', touchedFields = touchedFields' } = annotations == annotations' && touchedFields == touchedFields'
 
 instance Default MetaBag where
     def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
@@ -845,12 +734,6 @@ didTouchField field record =
     record.meta.touchedFields
     |> includes (symbolToText @fieldName)
 
--- | Represents fields that have a default value in an SQL schema
---
---   The 'Default' constructor represents the default value from the schema,
---   while the 'NonDefault' constructor holds some other value for the field
-data FieldWithDefault valueType = Default | NonDefault valueType deriving (Eq, Show)
-
 instance ToField valueType => ToField (FieldWithDefault valueType) where
   toField Default = Plain "DEFAULT"
   toField (NonDefault a) = toField a
@@ -872,15 +755,6 @@ fieldWithDefault name model
   | cs (symbolVal name) `elem` model.meta.touchedFields =
     NonDefault (get name model)
   | otherwise = Default
-
--- | Represents fields that may have been updated
---
---   The 'NoUpdate' constructor represents the existing value in the database,
---   while the 'Update' constructor holds some new value for the field
-data FieldWithUpdate name value
-  = NoUpdate (Proxy name)
-  | Update value
-  deriving (Eq, Show)
 
 instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
   toField (NoUpdate name) =
@@ -911,29 +785,10 @@ instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
 instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
     parseJSON value = Id <$> parseJSON value
 
--- | Thrown by 'fetchOne' when the query result is empty
-data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
-    deriving (Show)
-
-instance Exception RecordNotFoundException
-
--- | Whenever calls to 'Database.PostgreSQL.Simple.query' or 'Database.PostgreSQL.Simple.execute'
--- raise an 'Database.PostgreSQL.Simple.SqlError' exception, we wrap that exception in this data structure.
--- This allows us to show the actual database query that has triggered the error.
-data EnhancedSqlError
-    = EnhancedSqlError
-    { sqlErrorQuery :: Query
-    , sqlErrorQueryParams :: [Action]
-    , sqlError :: PG.SqlError
-    } deriving (Show)
-
 -- | Catches 'SqlError' and wraps them in 'EnhancedSqlError'
 enhanceSqlError :: PG.ToRow parameters => Query -> parameters -> IO a -> IO a
 enhanceSqlError sqlErrorQuery sqlErrorQueryParams block = catch block (\sqlError -> throwIO EnhancedSqlError { sqlErrorQuery, sqlErrorQueryParams = PG.toRow sqlErrorQueryParams, sqlError })
 {-# INLINE enhanceSqlError #-}
-
-instance Exception EnhancedSqlError
 
 instance Default Aeson.Value where
     def = Aeson.Null

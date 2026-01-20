@@ -200,6 +200,7 @@ library
         , IHP.Log.Types
         , IHP.InputValue
         , IHP.ModelSupport
+        , IHP.ModelSupport.Types
         , IHP.NameSupport
         , IHP.QueryBuilder
         , IHP.QueryBuilder.Types

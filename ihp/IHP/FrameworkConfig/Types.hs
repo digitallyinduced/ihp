@@ -48,7 +48,7 @@ import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
 import IHP.Log.Types (Logger)
 import IHP.Mail.Types (MailServer)
-import IHP.ModelSupport (ModelContext)
+import IHP.ModelSupport.Types (ModelContext)
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
