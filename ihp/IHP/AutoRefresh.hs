@@ -24,7 +24,8 @@ import IHP.WebSocket
 import IHP.Controller.Context (ControllerContext(..), freeze, unfreeze, putContext, fromContext)
 import IHP.Controller.RequestContext (RequestContext(..))
 import qualified IHP.Controller.RequestContext
-import IHP.Controller.Response 
+import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString
@@ -144,7 +145,8 @@ instance WSApp AutoRefreshWSApp where
                         pure (error "AutoRefresh: ResponseReceived placeholder" :: ResponseReceived)
 
                 let requestContext = ?context.requestContext { respond = captureRespond }
-                _ <- handleEarlyReturn $ renderView requestContext
+                let app _ _ = renderView requestContext
+                _ <- earlyReturnMiddleware app requestContext.request captureRespond
 
                 -- Check if we captured a response and if it differs from the last one
                 capturedResponse <- readIORef capturedResponseRef

@@ -52,6 +52,7 @@ common shared-properties
             , warp
             , warp-systemd
             , wai
+            , wai-early-return
             , mtl
             , blaze-html
             , blaze-markup
@@ -175,7 +176,6 @@ library
         , IHP.Controller.AccessDenied
         , IHP.Controller.NotFound
         , IHP.Controller.Response
-        , IHP.Controller.EarlyReturn
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware

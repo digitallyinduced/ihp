@@ -52,7 +52,7 @@ import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import IHP.Controller.Response (respondWith, addResponseHeadersFromContext)
-import IHP.Controller.EarlyReturn
+import Network.Wai.Middleware.EarlyReturn
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -89,7 +89,7 @@ runAction controller = do
             beforeAction
             action controller
 
-    handleEarlyReturn doRunAction
+    doRunAction
         `catch` (\exception -> ErrorController.displayException exception controller "")
 
 {-# INLINE newContextForAction #-}

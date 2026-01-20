@@ -2,10 +2,8 @@ module IHP.Controller.Response
 ( respondWith
 , addResponseHeaders
 , addResponseHeadersFromContext
--- Re-exported from EarlyReturn for backwards compatibility
+-- Re-exported from Network.Wai.Middleware.EarlyReturn
 , earlyReturn
-, handleEarlyReturn
-, EarlyReturnException (..)
 )
 where
 
@@ -16,7 +14,7 @@ import IHP.Controller.Context (ControllerContext(..))
 import IHP.Controller.RequestContext (RequestContext(..))
 import qualified Network.Wai
 import Network.Wai (Response, ResponseReceived)
-import IHP.Controller.EarlyReturn
+import Network.Wai.Middleware.EarlyReturn (earlyReturn)
 
 -- | Sends a response to the client. Used by render functions.
 --
