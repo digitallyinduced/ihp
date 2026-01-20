@@ -29,6 +29,7 @@ common shared-properties
         , DataKinds
         , RecordWildCards
         , OverloadedRecordDot
+        , DuplicateRecordFields
 
 library
     import: shared-properties
