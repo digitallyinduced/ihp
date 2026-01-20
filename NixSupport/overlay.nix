@@ -32,6 +32,7 @@ final: prev: {
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            wai-csp = localPackage "wai-csp";
 
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
