@@ -29,6 +29,7 @@ final: prev: {
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
             wai-asset-path = localPackage "wai-asset-path";
             wai-flash-messages = localPackage "wai-flash-messages";
+            wai-early-return = localPackage "wai-early-return";
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";

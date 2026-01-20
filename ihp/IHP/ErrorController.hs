@@ -5,12 +5,13 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ErrorController
 ( displayException
-, handleNoResponseReturned
 , handleRouterException
+, errorHandlerMiddleware
+, RouterException(..)
 ) where
 
 import Prelude
-import Control.Exception.Safe (SomeException, fromException)
+import Control.Exception.Safe (SomeException, fromException, catch)
 import Control.Monad (when)
 import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
 import Data.String.Conversions (cs)
@@ -24,7 +25,7 @@ import qualified Control.Exception as Exception
 import Data.Text (Text)
 import IHP.Controller.RequestContext
 import Network.HTTP.Types (status500, status400)
-import Network.Wai
+import Network.Wai (Request, Application, Middleware, Response, ResponseReceived, responseBuilder, queryString)
 import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
@@ -37,26 +38,22 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
-import IHP.Controller.NotFound (handleNotFound)
+import IHP.Controller.NotFound (handleNotFound, buildNotFoundResponse)
 import qualified IHP.Log as Log
+import IHP.Log (writeLog)
+import IHP.Log.Types (LogLevel(..))
+import IHP.RequestVault (requestActionType)
 
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
 
-handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
-handleNoResponseReturned controller = do
-    let codeSample :: Text = "render MyView { .. }"
-    let errorMessage = [hsx|
-            <h2>Possible Solutions</h2>
-            <p>You can fix this by calling '{codeSample}' at the end of your action.</p>
+-- | Wrapper for exceptions that occur during routing.
+-- This allows the error handler middleware to distinguish routing errors
+-- from action errors and display appropriate error messages.
+newtype RouterException = RouterException SomeException
+    deriving (Show)
 
-            <h2>Details</h2>
-            <p style="font-size: 16px">No response was returned while running the action {tshow controller}</p>
-
-        |]
-    let title = [hsx|No response returned in {tshow controller}|]
-    let RequestContext { respond } = ?context.requestContext
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
+instance Exception.Exception RouterException
 
 displayException :: (Show action, ?context :: ControllerContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -506,3 +503,369 @@ renderError environment errorTitle view = [hsx|
                     <a href="https://stackshare.io/ihp" target="_blank">StackShare</a>
                 </div>
             |]
+
+-- | Middleware that catches exceptions and displays appropriate error pages.
+--
+-- This middleware should be placed near the top of the middleware stack so it can
+-- catch exceptions from controllers, routing, and other middleware.
+errorHandlerMiddleware :: FrameworkConfig -> Middleware
+errorHandlerMiddleware frameworkConfig app request respond =
+    app request respond `catch` \(exception :: SomeException) -> do
+        let environment = frameworkConfig.environment
+        let actionType = requestActionType request
+        let actionDescription = maybe "" (\t -> " while running " <> tshow t) actionType
+
+        -- Call exception tracker in production
+        when (environment == Environment.Production) do
+            frameworkConfig.exceptionTracker.onException (Just request) exception
+
+        response <- handleExceptionMiddleware frameworkConfig request exception actionDescription
+        respond response
+
+-- | Handle an exception and return an appropriate Response.
+--
+-- This is used by the error handler middleware.
+handleExceptionMiddleware :: FrameworkConfig -> Request -> SomeException -> Text -> IO Response
+handleExceptionMiddleware frameworkConfig request exception actionDescription = do
+    let environment = frameworkConfig.environment
+
+    -- Dev handlers display helpful tips on how to resolve the problem
+    let devHandlers =
+            [ routerExceptionHandlerMiddleware frameworkConfig
+            , postgresHandlerMiddleware frameworkConfig request actionDescription
+            , paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescription
+            , patternMatchFailureHandlerMiddleware frameworkConfig request actionDescription
+            , recordNotFoundExceptionHandlerDevMiddleware frameworkConfig request actionDescription
+            ]
+
+    -- Prod handlers should not leak any information about the system
+    let prodHandlers =
+            [ routerExceptionHandlerMiddleware frameworkConfig
+            , recordNotFoundExceptionHandlerProdMiddleware frameworkConfig request
+            ]
+
+    let allHandlers = if environment == Environment.Development
+            then devHandlers
+            else prodHandlers
+
+    let supportingHandlers = allHandlers |> mapMaybe (\f -> f exception)
+
+    let displayGenericError = genericHandlerMiddleware frameworkConfig request exception actionDescription
+
+    supportingHandlers
+        |> listToMaybe
+        |> fromMaybe displayGenericError
+
+-- | Generic error handler for middleware - returns a Response
+genericHandlerMiddleware :: FrameworkConfig -> Request -> Exception.SomeException -> Text -> IO Response
+genericHandlerMiddleware frameworkConfig request exception actionDescription = do
+    let environment = frameworkConfig.environment
+    let errorMessageText = "An exception was raised" <> actionDescription
+    let errorMessageTitle = Exception.displayException exception
+
+    let devErrorMessage = [hsx|{errorMessageText}|]
+    let devTitle = [hsx|{errorMessageTitle}|]
+
+    writeLog Error frameworkConfig.logger (errorMessageText <> ": " <> cs errorMessageTitle)
+
+    let prodErrorMessage = [hsx|An exception was raised while running the action|]
+    let prodTitle = [hsx|An error happened|]
+
+    let (errorMessage, errorTitle) = if environment == Environment.Development
+            then (devErrorMessage, devTitle)
+            else (prodErrorMessage, prodTitle)
+
+    pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment errorTitle errorMessage))
+
+-- | Postgres error handler for middleware - returns Maybe (IO Response)
+postgresHandlerMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
+postgresHandlerMiddleware frameworkConfig request actionDescription exception = do
+    let
+        handlePostgresOutdatedError :: Show exception => exception -> H.Html -> IO Response
+        handlePostgresOutdatedError exception errorText = do
+            let ihpIdeBaseUrl = frameworkConfig.ideBaseUrl
+            let title = [hsx|Database looks outdated. {errorText}|]
+            let errorMessage = [hsx|
+                        <h2>Possible Solutions</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            Have you clicked on
+                            <form method="POST" action={ihpIdeBaseUrl <> "/NewMigration"} target="_blank" style="display: inline">
+                                <button type="submit">Migrate DB</button>
+                            </form>
+                            after updating the Schema?
+                        </div>
+
+                        <h2>Details</h2>
+                        <p style="font-size: 16px">The exception was raised{actionDescription}</p>
+                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                    |]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+
+        handleSqlError :: ModelSupport.EnhancedSqlError -> IO Response
+        handleSqlError exception = do
+            let ihpIdeBaseUrl = frameworkConfig.ideBaseUrl
+            let sqlError = exception.sqlError
+            let title = [hsx|{sqlError.sqlErrorMsg}|]
+            let errorMessage = [hsx|
+                        <h2>While running the following Query:</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            <code>{exception.sqlErrorQuery}</code>
+                        </div>
+
+                        <h2>With Query Parameters:</h2>
+                        <div style="margin-bottom: 2rem; font-weight: 400;">
+                            <code>{exception.sqlErrorQueryParams}</code>
+                        </div>
+
+                        <h2>Details:</h2>
+                        <p style="font-size: 16px">The exception was raised{actionDescription}</p>
+                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                    |]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+
+    case fromException exception of
+        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
+        Nothing -> case fromException exception of
+            -- Catching  `relation "..." does not exist`
+            Just exception@ModelSupport.EnhancedSqlError { sqlError }
+                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+                -> Just (handlePostgresOutdatedError exception "A table is missing.")
+
+            -- Catching  `columns "..." does not exist`
+            Just exception@ModelSupport.EnhancedSqlError { sqlError }
+                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+                -> Just (handlePostgresOutdatedError exception "A column is missing.")
+            -- Catching other SQL Errors
+            Just exception -> Just (handleSqlError exception)
+            Nothing -> Nothing
+
+-- | Pattern match failure handler for middleware - returns Maybe (IO Response)
+patternMatchFailureHandlerMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
+patternMatchFailureHandlerMiddleware frameworkConfig request actionDescription exception = do
+    case fromException exception of
+        Just (exception :: Exception.PatternMatchFail) -> Just do
+            let (controllerPath, _) = Text.breakOn ":" (tshow exception)
+            let errorMessage = [hsx|
+                    <h2>Possible Solutions</h2>
+                    <p>a) Maybe the action function is missing? You can fix this by adding an action handler like this to the controller '{controllerPath}':</p>
+                    <pre>{codeSample}</pre>
+                    <p style="margin-bottom: 2rem">b) A pattern match like 'let (Just value) = ...' failed. Please see the details section.</p>
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+                    where
+                        codeSample = "    action (MyAction) = do\n        renderPlain \"Hello World\"" :: Text
+
+            let title = [hsx|Pattern match failed{actionDescription}|]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+        Nothing -> Nothing
+
+-- | Param not found handler for middleware - returns Maybe (IO Response)
+paramNotFoundExceptionHandlerMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
+paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescription exception = do
+    let allParams = queryString request
+    let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {fromMaybe "" paramValue}</li>|]
+    case fromException exception of
+        Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
+            let solutionHint =
+                    if isEmpty allParams
+                        then [hsx|
+                                This action was called without any parameters at all.
+                                You can pass this parameter by appending <code>?{paramName}=someValue</code> to the URL.
+                            |]
+                        else [hsx|
+                            <p>The following parameters are provided by the request:</p>
+                            <ul>{forEach allParams renderParam}</ul>
+
+                            <p>a) Is there a typo in your call to <code>param {tshow paramName}</code>?</p>
+                            <p>b) You can pass this parameter by appending <code>&{paramName}=someValue</code> to the URL.</p>
+                            <p>c) You can pass this parameter using a form input like <code>{"<input type=\"text\" name=\"" <> paramName <> "\"/>" :: ByteString}</code>.</p>
+                        |]
+            let errorMessage = [hsx|
+                    <h2>
+                        This exception was caused by a call to <code>param {tshow paramName}</code>{actionDescription}.
+                    </h2>
+                    <p>
+                        A request parameter is just a query parameter like <code>/MyAction?someParameter=someValue&secondParameter=1</code>
+                        or a form input when the request was submitted from a html form or via ajax.
+                    </p>
+                    <h2>Possible Solutions:</h2>
+                    {solutionHint}
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+            let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+        Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
+            let errorMessage = [hsx|
+                    <h2>
+                        This exception was caused by a call to <code>param {tshow name}</code>{actionDescription}.
+                    </h2>
+                    <p>
+                        Here's the error output from the parser: {parserError}
+                    </p>
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+            let title = [hsx|Parameter <q>{name}</q> was invalid|]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+        Nothing -> Nothing
+
+-- | Record not found handler for middleware (dev mode) - returns Maybe (IO Response)
+recordNotFoundExceptionHandlerDevMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
+recordNotFoundExceptionHandlerDevMiddleware frameworkConfig request actionDescription exception =
+    case fromException exception of
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+            let errorMessage = [hsx|
+                    <p>
+                        The following SQL was executed:
+                        <pre class="ihp-error-code">{query}</pre>
+                    </p>
+                    <p>
+                        These query parameters have been used:
+                        <pre class="ihp-error-code">{params}</pre>
+                    </p>
+
+                    <p>
+                        This exception was caused by a call to <code>fetchOne</code>{actionDescription}.
+                    </p>
+
+                    <h2>Possible Solutions:</h2>
+
+                    <p>
+                        a) Use <span class="ihp-error-inline-code">fetchOneOrNothing</span>. This will return a <span class="ihp-error-inline-code">Nothing</span>
+                        when no results are returned by the database.
+                    </p>
+
+                    <p>
+                        b) Make sure the the data you are querying is actually there.
+                    </p>
+
+
+                    <h2>Details</h2>
+                    <p style="font-size: 16px">{exception}</p>
+                |]
+
+            let title = [hsx|Call to fetchOne failed. No records returned.|]
+            pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+        Nothing -> Nothing
+
+-- | Record not found handler for middleware (prod mode) - returns Maybe (IO Response)
+recordNotFoundExceptionHandlerProdMiddleware :: FrameworkConfig -> Request -> SomeException -> Maybe (IO Response)
+recordNotFoundExceptionHandlerProdMiddleware frameworkConfig request exception =
+    case fromException exception of
+        Just (exception@(ModelSupport.RecordNotFoundException {})) ->
+            Just buildNotFoundResponse
+        Nothing -> Nothing
+
+-- | Router exception handler for middleware - returns Maybe (IO Response)
+--
+-- Handles exceptions thrown during routing. These are wrapped in RouterException
+-- by frontControllerToWAIApp to distinguish them from action exceptions.
+routerExceptionHandlerMiddleware :: FrameworkConfig -> SomeException -> Maybe (IO Response)
+routerExceptionHandlerMiddleware frameworkConfig exception =
+    let environment = frameworkConfig.environment
+    in case fromException exception of
+        Just (RouterException innerException) ->
+            -- This is a router exception - handle specific types or show generic "Routing failed"
+            Just $ handleRouterExceptionImpl environment innerException
+        Nothing ->
+            -- Not a router exception
+            Nothing
+
+-- | Implementation for handling unwrapped router exceptions
+handleRouterExceptionImpl :: Environment.Environment -> SomeException -> IO Response
+handleRouterExceptionImpl environment exception =
+    case fromException exception of
+        Just Router.NoConstructorMatched { expectedType, value, field } -> do
+            let routingError = if environment == Environment.Development
+                then [hsx|<p>Routing failed with: {tshow exception}</p>|]
+                else ""
+
+            let errorMessage = [hsx|
+                    { routingError }
+
+                    <h2>Possible Solutions</h2>
+                    <p>You can pass this parameter by appending <code>&{field}=someValue</code> to the URL.</p>
+                |]
+
+            let title = case value of
+                    Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
+                    Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
+            pure $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
+        Just Router.BadType { expectedType, value = Just value, field } -> do
+            let errorMessage = [hsx|
+                    <p>Routing failed with: {tshow exception}</p>
+                |]
+            let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
+            pure $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
+        _ -> case fromException exception of
+            Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
+                let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
+                let formExample :: Text = "<form method=\"POST\" action={DeleteProjectAction}>\n    <input type=\"hidden\" name=\"_method\" value=\"DELETE\"/>\n    <button type=\"submit\">Delete Project</button>\n</form>"
+                let errorMessage = [hsx|
+                        <p>
+                            You cannot directly link to Delete Action.
+                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
+                        </p>
+
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            a) Add a <code>js-delete</code> class to your link. IHP's helper.js will intercept link clicks on these links and use a form with a DELETE request to submit the request.
+                            <br /><br/>
+
+                            Example: <br /><br />
+                            <code>{exampleLink}</code>
+                        </p>
+                        <p>
+                            b) Use a form to submit the request as a DELETE request:
+                            <br /><br/>
+
+                            Example: <br />
+                            <pre>{formExample}</pre>
+                            HTML forms don't support DELETE requests natively, therefore we use the hidden input field to work around this browser limitation.
+                        </p>
+                    |]
+                let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
+                pure $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
+            Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
+                let errorMessage = [hsx|
+                        <p>
+                            You cannot directly link to Create Action.
+                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
+                        </p>
+
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
+                        </p>
+                    |]
+                let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
+                pure $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
+            Just Router.UnexpectedMethodException { allowedMethods, method } -> do
+                let errorMessage = [hsx|
+                        <p>Routing failed with: {tshow exception}</p>
+                        <h2>Possible Solutions</h2>
+                        <p>
+                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
+                        </p>
+                    |]
+                let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
+                pure $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
+            -- Fallback for any other exception during routing
+            _ -> do
+                let errorMessage = [hsx|
+                        Routing failed with: {tshow exception}
+
+                        <h2>Possible Solutions</h2>
+                        <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+                    |]
+                let title = H.text "Routing failed"
+                pure $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))

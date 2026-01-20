@@ -31,6 +31,8 @@ import Data.String.Conversions
 import Unsafe.Coerce
 import IHP.RequestVault
 import System.IO.Unsafe (unsafePerformIO)
+import qualified IHP.ErrorController as ErrorController
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -144,7 +146,10 @@ config = do
 initApplication :: IO Application
 initApplication = do
     frameworkConfig <- buildFrameworkConfig (pure ())
-    pure (frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app))
+    pure $ ErrorController.errorHandlerMiddleware frameworkConfig
+         $ earlyReturnMiddleware
+         $ frameworkConfigMiddleware frameworkConfig
+         $ Server.application handleNotFound (\app -> app)
 
 application = unsafePerformIO initApplication
 

@@ -9,12 +9,13 @@ import IHP.Prelude
 import IHP.Controller.RequestContext
 import Control.Concurrent.MVar (MVar)
 import qualified IHP.PGListener as PGListener
+import Network.Wai (ResponseReceived)
 
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within a given request context
-        , renderView :: !(RequestContext -> IO ())
+        , renderView :: !(RequestContext -> IO ResponseReceived)
         -- | MVar that is filled whenever some table changed
         , event :: !(MVar ())
         -- | All tables this auto refresh session watches

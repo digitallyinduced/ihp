@@ -23,6 +23,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 
 import qualified System.Directory as Directory
 import qualified GHC.IO.Encoding as IO
@@ -37,6 +38,7 @@ import IHP.RequestVault
 
 import IHP.Controller.NotFound (handleNotFound)
 import Paths_ihp (getDataFileName)
+import qualified IHP.ErrorController as ErrorController
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -78,6 +80,8 @@ run configBuilder = do
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
                         . customMiddleware
+                        . ErrorController.errorHandlerMiddleware frameworkConfig
+                        . earlyReturnMiddleware
                         . corsMiddleware
                         . methodOverridePost
                         . sessionMiddleware

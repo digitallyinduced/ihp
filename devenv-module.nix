@@ -151,6 +151,7 @@ that is defined in flake-module.nix
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
             wai-flash-messages = pkgs.ghc.wai-flash-messages;
+            wai-early-return = pkgs.ghc.wai-early-return;
             ihp-imagemagick = pkgs.ghc.ihp-imagemagick;
             ihp-hspec = pkgs.ghc.ihp-hspec;
             ihp-welcome = pkgs.ghc.ihp-welcome;

@@ -36,11 +36,13 @@ instance Controller CodeGenController where
         let pagination = paramOrDefault False "pagination"
         controllerAlreadyExists <- doesControllerExist controllerName applicationName
         applications <- findApplications
-        when controllerAlreadyExists do
-            setErrorMessage "Controller with this name does already exist."
-            redirectTo NewControllerAction
-        plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
-        render NewControllerView { .. }
+        if controllerAlreadyExists
+            then do
+                setErrorMessage "Controller with this name does already exist."
+                redirectTo NewControllerAction
+            else do
+                plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
+                render NewControllerView { .. }
         where
             doesControllerExist controllerName applicationName = doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName <> ".hs"
 
@@ -56,11 +58,13 @@ instance Controller CodeGenController where
     action NewScriptAction = do
         let scriptName = paramOrDefault "" "name"
         scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
-        when scriptAlreadyExists do
-            setErrorMessage "Script with this name already exists."
-            redirectTo NewScriptAction
-        let plan = ScriptGenerator.buildPlan scriptName
-        render NewScriptView { .. }
+        if scriptAlreadyExists
+            then do
+                setErrorMessage "Script with this name already exists."
+                redirectTo NewScriptAction
+            else do
+                let plan = ScriptGenerator.buildPlan scriptName
+                render NewScriptView { .. }
 
     action CreateScriptAction = do
         let scriptName = paramOrDefault "" "name"
@@ -74,13 +78,15 @@ instance Controller CodeGenController where
         let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
-        when viewAlreadyExists do
-            setErrorMessage "View with this name already exists."
-            redirectTo NewViewAction
-        controllers <- findControllers applicationName
-        applications <- findApplications
-        plan <- ViewGenerator.buildPlan viewName applicationName controllerName
-        render NewViewView { .. }
+        if viewAlreadyExists
+            then do
+                setErrorMessage "View with this name already exists."
+                redirectTo NewViewAction
+            else do
+                controllers <- findControllers applicationName
+                applications <- findApplications
+                plan <- ViewGenerator.buildPlan viewName applicationName controllerName
+                render NewViewView { .. }
 
     action CreateViewAction = do
         let viewName = paramOrDefault "" "name"
@@ -96,13 +102,15 @@ instance Controller CodeGenController where
         let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
         mailAlreadyExists <- doesFileExist $ (cs applicationName) <> "/Mail/" <> (cs controllerName) <> "/" <> (cs mailName) <>".hs"
-        when mailAlreadyExists do
-            setErrorMessage "Mail with this name already exists."
-            redirectTo NewMailAction
-        controllers <- findControllers applicationName
-        applications <- findApplications
-        plan <- MailGenerator.buildPlan mailName applicationName controllerName
-        render NewMailView { .. }
+        if mailAlreadyExists
+            then do
+                setErrorMessage "Mail with this name already exists."
+                redirectTo NewMailAction
+            else do
+                controllers <- findControllers applicationName
+                applications <- findApplications
+                plan <- MailGenerator.buildPlan mailName applicationName controllerName
+                render NewMailView { .. }
 
     action CreateMailAction = do
         let mailName = paramOrDefault "" "name"

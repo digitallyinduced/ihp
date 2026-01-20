@@ -44,6 +44,17 @@ pgListenerVaultKey = unsafePerformIO Vault.newKey
 
 (pgListenerMiddleware, requestPGListener) = insertVaultMiddlewareAndGetter pgListenerVaultKey
 
+-- request.actionType (Maybe - not always set, e.g., during routing)
+actionTypeVaultKey :: Vault.Key TypeRep
+actionTypeVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE actionTypeVaultKey #-}
+
+requestActionType :: Request -> Maybe TypeRep
+requestActionType req = Vault.lookup actionTypeVaultKey req.vault
+
+setActionType :: Typeable action => action -> Request -> Request
+setActionType action req = req { vault = Vault.insert actionTypeVaultKey (typeOf action) req.vault }
+
 -- Field access helpers
 instance HasField "frameworkConfig" Request FrameworkConfig where getField request = requestFrameworkConfig request
 instance HasField "modelContext" Request ModelContext where getField request = requestModelContext request

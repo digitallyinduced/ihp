@@ -47,18 +47,18 @@ instance Controller DataController where
     action QueryAction = do
         connection <- connectToAppDb
         let queryText = param @Text "query"
-        when (isEmpty queryText) do
-            redirectTo NewQueryAction
+        if isEmpty queryText
+            then redirectTo NewQueryAction
+            else do
+                let query = fromString $ cs queryText
 
-        let query = fromString $ cs queryText
+                queryResult :: Maybe (Either PG.SqlError SqlConsoleResult) <- Just <$> if isQuery queryText then
+                        (Right . SelectQueryResult <$> PG.query_ connection query) `catch` (pure . Left)
+                    else
+                        (Right . InsertOrUpdateResult <$> PG.execute_ connection query) `catch` (pure . Left)
 
-        queryResult :: Maybe (Either PG.SqlError SqlConsoleResult) <- Just <$> if isQuery queryText then
-                (Right . SelectQueryResult <$> PG.query_ connection query) `catch` (pure . Left)
-            else
-                (Right . InsertOrUpdateResult <$> PG.execute_ connection query) `catch` (pure . Left)
-
-        PG.close connection
-        render ShowQueryView { .. }
+                PG.close connection
+                render ShowQueryView { .. }
 
     action DeleteEntryAction { primaryKey, tableName } = do
         connection <- connectToAppDb

@@ -34,6 +34,7 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
+import Network.Wai (ResponseReceived)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
@@ -116,27 +117,27 @@ class JobsDashboard (jobs :: [Type]) where
     includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ResponseReceived
 
-    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
-    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ResponseReceived
+    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ResponseReceived
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ResponseReceived
+    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ResponseReceived
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
-    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ResponseReceived
+    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ResponseReceived
 
     -- | Deletes a job from the database.
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ResponseReceived
+    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ResponseReceived
 
-    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ResponseReceived
+    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ResponseReceived
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
@@ -250,7 +251,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (listJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ listJob' @'[] False)
 
         if tableName @job == table
             then listJob @(job:rest) table
@@ -273,7 +274,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (viewJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ viewJob' @'[] False)
 
         if tableName @job == table
             then viewJob @(job:rest) table (param "id")
@@ -301,7 +302,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (newJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ newJob' @'[] False)
 
         if tableName @job == table
             then newJob @(job:rest) table
@@ -322,7 +323,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (deleteJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ deleteJob' @'[] False)
 
         if tableName @job == table
             then deleteJob @(job:rest) table (param "id")

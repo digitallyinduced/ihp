@@ -1,23 +1,30 @@
 module IHP.Controller.Response
-( respondAndExit
+( respondWith
 , addResponseHeaders
 , addResponseHeadersFromContext
-, ResponseException (..)
+-- Re-exported from Network.Wai.Middleware.EarlyReturn
+, earlyReturn
 )
 where
 
 import ClassyPrelude
 import Network.HTTP.Types.Header
 import qualified IHP.Controller.Context as Context
+import IHP.Controller.Context (ControllerContext(..))
+import IHP.Controller.RequestContext (RequestContext(..))
 import qualified Network.Wai
-import Network.Wai (Response)
-import qualified Control.Exception as Exception
+import Network.Wai (Response, ResponseReceived)
+import Network.Wai.Middleware.EarlyReturn (earlyReturn)
 
-respondAndExit :: (?context :: Context.ControllerContext) => Response -> IO ()
-respondAndExit response = do
+-- | Sends a response to the client. Used by render functions.
+--
+-- This is the normal way to respond - it calls the WAI respond callback directly
+-- and returns the ResponseReceived.
+respondWith :: (?context :: Context.ControllerContext) => Response -> IO ResponseReceived
+respondWith response = do
     responseWithHeaders <- addResponseHeadersFromContext response
-    Exception.throwIO (ResponseException responseWithHeaders)
-{-# INLINE respondAndExit #-}
+    ?context.requestContext.respond responseWithHeaders
+{-# INLINE respondWith #-}
 
 -- | Add headers to current response
 -- | Returns a Response with headers
@@ -41,11 +48,3 @@ addResponseHeadersFromContext response = do
     let responseWithHeaders = addResponseHeaders headers response
     pure responseWithHeaders
 {-# INLINABLE addResponseHeadersFromContext #-}
-
--- Can be thrown from inside the action to abort the current action execution.
--- Does not indicates a runtime error. It's just used for control flow management.
-newtype ResponseException = ResponseException Response
-
-instance Show ResponseException where show _ = "ResponseException { .. }"
-
-instance Exception ResponseException

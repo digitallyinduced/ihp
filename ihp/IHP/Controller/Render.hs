@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import Network.Wai (responseLBS, responseBuilder, responseFile)
+import Network.Wai (responseLBS, responseBuilder, responseFile, ResponseReceived)
 import qualified Network.Wai
 import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
@@ -19,15 +19,16 @@ import IHP.Controller.Layout
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 import qualified IHP.Controller.RequestContext
+import IHP.Controller.Response (respondWith)
 
-renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
-renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
+renderPlain :: (?context :: ControllerContext) => LByteString -> IO ResponseReceived
+renderPlain text = respondWith $ responseLBS status200 [(hContentType, "text/plain")] text
 {-# INLINABLE renderPlain #-}
 
-respondHtml :: (?context :: ControllerContext) => Html -> IO ()
+respondHtml :: (?context :: ControllerContext) => Html -> IO ResponseReceived
 respondHtml html =
         -- The seq is required to force evaluation of `evaluatedBuilder` before returning the IO action. See below for details
-        evaluatedBuilder `seq` (respondAndExit $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] evaluatedBuilder)
+        evaluatedBuilder `seq` (respondWith $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] evaluatedBuilder)
     where
         builder = Blaze.renderHtmlBuilder html
         builderAsByteString = ByteString.toLazyByteString builder
@@ -40,8 +41,8 @@ respondHtml html =
         evaluatedBuilder = Data.ByteString.Lazy.length builderAsByteString `seq` ByteString.lazyByteString builderAsByteString
 {-# INLINABLE respondHtml #-}
 
-respondSvg :: (?context :: ControllerContext) => Html -> IO ()
-respondSvg html = respondAndExit $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+respondSvg :: (?context :: ControllerContext) => Html -> IO ResponseReceived
+respondSvg html = respondWith $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
 renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
@@ -59,31 +60,31 @@ renderHtml !view = do
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
-renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
-renderFile filePath contentType = respondAndExit $ responseFile status200 [(hContentType, contentType)] filePath Nothing
+renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ResponseReceived
+renderFile filePath contentType = respondWith $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 {-# INLINABLE renderFile #-}
 
-renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
 renderJson json = renderJsonWithStatusCode status200 json
 {-# INLINABLE renderJson #-}
 
-renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
-renderJsonWithStatusCode statusCode json = respondAndExit $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
+renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ResponseReceived
+renderJsonWithStatusCode statusCode json = respondWith $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
 {-# INLINABLE renderJsonWithStatusCode #-}
 
-renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
-renderXml xml = respondAndExit $ responseLBS status200 [(hContentType, "application/xml")] xml
+renderXml :: (?context :: ControllerContext) => LByteString -> IO ResponseReceived
+renderXml xml = respondWith $ responseLBS status200 [(hContentType, "application/xml")] xml
 {-# INLINABLE renderXml #-}
 
 -- | Use 'setHeader' intead
-renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
-renderJson' additionalHeaders json = respondAndExit $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
+renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ResponseReceived
+renderJson' additionalHeaders json = respondWith $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINABLE renderJson' #-}
 
 data PolymorphicRender
     = PolymorphicRender
-        { html :: Maybe (IO ())
-        , json :: Maybe (IO ())
+        { html :: Maybe (IO ResponseReceived)
+        , json :: Maybe (IO ResponseReceived)
         }
 
 -- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
@@ -98,11 +99,11 @@ data PolymorphicRender
 --
 -- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
 {-# INLINABLE renderPolymorphic #-}
-renderPolymorphic :: (?context :: ControllerContext) => PolymorphicRender -> IO ()
+renderPolymorphic :: (?context :: ControllerContext) => PolymorphicRender -> IO ResponseReceived
 renderPolymorphic PolymorphicRender { html, json } = do
     let headers = Network.Wai.requestHeaders request
     let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
-    let send406Error = respondAndExit $ responseLBS status406 [] "Could not find any acceptable response format"
+    let send406Error = respondWith $ responseLBS status406 [] "Could not find any acceptable response format"
     let formats = concat [
                 case html of
                     Just handler -> [("text/html", handler)]
@@ -119,7 +120,7 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINABLE render #-}
-render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ResponseReceived
 render !view = do
     renderPolymorphic PolymorphicRender
             { html = Just do
@@ -127,9 +128,7 @@ render !view = do
                             let requestContext' = ?context.requestContext { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
                             let context' = ?context { Context.requestContext = requestContext' }
                             let ?context = context' in (renderHtml view) >>= respondHtml
-                            error "unreachable"
-                    _ <- consumeFlashMessagesMiddleware next request ?context.requestContext.respond
-                    pure ()
+                    consumeFlashMessagesMiddleware next request ?context.requestContext.respond
             , json = Just $ renderJson (ViewSupport.json view)
             }
 

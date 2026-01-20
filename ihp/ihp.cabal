@@ -52,6 +52,7 @@ common shared-properties
             , warp
             , warp-systemd
             , wai
+            , wai-early-return
             , mtl
             , blaze-html
             , blaze-markup

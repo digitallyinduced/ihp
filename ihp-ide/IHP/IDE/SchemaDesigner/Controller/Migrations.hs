@@ -54,6 +54,7 @@ instance Controller MigrationsController where
             then do
                 setSuccessMessage ("Migration generated: " <> path)
                 openEditor path 0 0
+                redirectTo MigrationsAction
             else do
                 result <- Exception.try (migrateAppDB revision)
                 case result of
@@ -67,8 +68,6 @@ instance Controller MigrationsController where
                     Right _ -> do
                         clearDatabaseNeedsMigration
                         redirectTo MigrationsAction
-
-        redirectTo MigrationsAction
 
     action EditMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId

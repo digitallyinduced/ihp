@@ -17,7 +17,7 @@ import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Context
-import IHP.Controller.Response (respondAndExit)
+import IHP.Controller.Response (respondWith, earlyReturn)
 
 
 -- | Stops the action execution with a not found message (404) when the access condition is True.
@@ -32,7 +32,7 @@ import IHP.Controller.Response (respondAndExit)
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 notFoundWhen :: (?context :: ControllerContext) => Bool -> IO ()
-notFoundWhen condition = when condition renderNotFound
+notFoundWhen condition = when condition (earlyReturn renderNotFound)
 
 -- | Stops the action execution with a not found message (404) when the access condition is False.
 --
@@ -46,7 +46,7 @@ notFoundWhen condition = when condition renderNotFound
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
 notFoundUnless :: (?context :: ControllerContext) => Bool -> IO ()
-notFoundUnless condition = unless condition renderNotFound
+notFoundUnless condition = unless condition (earlyReturn renderNotFound)
 
 
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
@@ -151,9 +151,9 @@ customNotFoundResponse = do
 -- > action ExampleAction = do
 -- >     renderNotFound
 --
--- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+-- You can override the default access denied page by creating a new file at @static/404.html@. Then IHP will render that HTML file instead of displaying the default IHP not found page.
 --
-renderNotFound :: (?context :: ControllerContext) => IO ()
+renderNotFound :: (?context :: ControllerContext) => IO ResponseReceived
 renderNotFound = do
     response <- buildNotFoundResponse
-    respondAndExit response
+    respondWith response

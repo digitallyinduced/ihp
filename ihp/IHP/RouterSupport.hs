@@ -38,7 +38,6 @@ import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>))
 import Text.Read (readMaybe)
-import Control.Exception.Safe (SomeException)
 import Control.Exception (evaluate)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
@@ -63,8 +62,9 @@ import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
-import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
+import Control.Exception.Safe (SomeException, catch, throwIO)
+import qualified IHP.ErrorController as ErrorController
 import qualified Data.List.Split as List
 import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
@@ -78,6 +78,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import IHP.Environment
+import IHP.RequestVault (setActionType)
 
 runAction'
     :: forall application controller
@@ -89,8 +90,10 @@ runAction'
        )
      => controller -> Application
 runAction' controller request respond = do
-    let ?modelContext = request.modelContext
-    requestContext <- createRequestContext request respond
+    -- Store the action type in the vault so it can be accessed by error handlers
+    let request' = setActionType controller request
+    let ?modelContext = request'.modelContext
+    requestContext <- createRequestContext request' respond
     let ?context = requestContext
     let ?requestContext = requestContext
     contextOrErrorResponse <- newContextForAction controller
@@ -805,28 +808,20 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction request respond = do
-    let
-        environment = request.frameworkConfig.environment
-        requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = error "Cannot use frameworkConfig here" }
+    let requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = error "Cannot use frameworkConfig here" }
 
     let ?context = requestContext
 
     let
         path = request.rawPathInfo
-        handleException :: SomeException -> IO (Either String Application)
-        handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
-
         routes = let ?application = application in router [let ?application = () in webSocketApp @autoRefreshApp]
 
-    routedAction :: Either String Application <-
-        (do
-            res <- evaluate $ parseOnly (routes <* endOfInput) path
-            case res of
-                Left s -> pure $ Left s
-                Right action -> do
-                    pure $ Right action
-            )
-        `Exception.catch` handleException
+    -- Wrap any exceptions during routing in RouterException so the error handler
+    -- middleware can distinguish them from action exceptions
+    let wrapRouterException :: SomeException -> IO a
+        wrapRouterException e = throwIO (ErrorController.RouterException e)
+
+    routedAction <- (evaluate $ parseOnly (routes <* endOfInput) path) `catch` wrapRouterException
     case routedAction of
         Left message -> notFoundAction request respond
         Right action -> (middleware action) request respond
