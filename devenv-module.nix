@@ -218,9 +218,9 @@ that is defined in flake-module.nix
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp ];
+                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp-with-docs ];
                     buildPhase = ''
-                        cp -r ${pkgs.ghc.ihp.doc}/share/doc/ihp-*/html haddock-build
+                        cp -r ${pkgs.ghc.ihp-with-docs.doc}/share/doc/ihp-*/html haddock-build
                         chmod -R u+w haddock-build
 
                         cd haddock-build
