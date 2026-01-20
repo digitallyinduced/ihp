@@ -18,20 +18,22 @@ module IHP.ControllerSupport
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
-, respondAndExit
+, respondWith
+, earlyReturn
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
 , startWebSocketAppAndFailOnHTTP
 , setHeader
 , getAppConfig
+, ResponseReceived
 ) where
 
 import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
+import Control.Exception.Safe (SomeException, fromException, try, catch)
 import Data.Typeable (Typeable)
 import qualified Data.Text as Text
 import IHP.HaskellSupport
@@ -49,7 +51,8 @@ import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
-import IHP.Controller.Response
+import IHP.Controller.Response (respondWith, addResponseHeadersFromContext)
+import IHP.Controller.EarlyReturn
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -64,7 +67,7 @@ class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => controller -> IO ()
+    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller) => controller -> IO ResponseReceived
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?requestContext :: RequestContext, ?context :: ControllerContext) => IO ()
@@ -78,19 +81,16 @@ instance InitControllerContext () where
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let respond = ?context.requestContext.respond
 
     let doRunAction = do
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
 
             let ?modelContext = authenticatedModelContext
             beforeAction
-            (action controller)
-            ErrorController.handleNoResponseReturned controller
+            action controller
 
-    let handleResponseException  (ResponseException response) = respond response
-
-    doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
+    handleEarlyReturn doRunAction
+        `catch` (\exception -> ErrorController.displayException exception controller "")
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -114,9 +114,8 @@ newContextForAction controller = do
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
             pure $ Left $ case fromException exception of
-                Just (ResponseException response) ->
-                    let respond = ?context.requestContext.respond
-                    in respond response
+                Just (EarlyReturnException responseReceived) ->
+                    pure responseReceived
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
 
@@ -177,7 +176,7 @@ startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @a
         respond = ?context.respond
 
 
-jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext) => action -> IO ResponseReceived
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action

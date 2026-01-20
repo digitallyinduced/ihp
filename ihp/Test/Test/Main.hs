@@ -13,6 +13,7 @@ import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
 import qualified Test.Controller.NotFoundSpec
+import qualified Test.Controller.EarlyReturnSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
@@ -31,6 +32,7 @@ main = hspec do
     Test.Controller.ParamSpec.tests
     Test.Controller.AccessDeniedSpec.tests
     Test.Controller.NotFoundSpec.tests
+    Test.Controller.EarlyReturnSpec.tests
     Test.ModelSupportSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests

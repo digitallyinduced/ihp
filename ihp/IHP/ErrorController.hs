@@ -5,7 +5,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ErrorController
 ( displayException
-, handleNoResponseReturned
 , handleRouterException
 ) where
 
@@ -42,21 +41,6 @@ import qualified IHP.Log as Log
 
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
-
-handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
-handleNoResponseReturned controller = do
-    let codeSample :: Text = "render MyView { .. }"
-    let errorMessage = [hsx|
-            <h2>Possible Solutions</h2>
-            <p>You can fix this by calling '{codeSample}' at the end of your action.</p>
-
-            <h2>Details</h2>
-            <p style="font-size: 16px">No response was returned while running the action {tshow controller}</p>
-
-        |]
-    let title = [hsx|No response returned in {tshow controller}|]
-    let RequestContext { respond } = ?context.requestContext
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
 displayException :: (Show action, ?context :: ControllerContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do

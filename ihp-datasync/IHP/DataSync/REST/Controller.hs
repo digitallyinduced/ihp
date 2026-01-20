@@ -2,6 +2,7 @@
 module IHP.DataSync.REST.Controller where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
+import Network.Wai (ResponseReceived)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Database.PostgreSQL.Simple.ToField as PG
@@ -192,7 +193,7 @@ instance ToJSON PG.SqlError where
 instance ToJSON EnhancedSqlError where
     toJSON EnhancedSqlError { sqlError } = toJSON sqlError
 
-renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 

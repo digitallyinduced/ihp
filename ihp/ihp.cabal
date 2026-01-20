@@ -175,6 +175,7 @@ library
         , IHP.Controller.AccessDenied
         , IHP.Controller.NotFound
         , IHP.Controller.Response
+        , IHP.Controller.EarlyReturn
         , IHP.LoginSupport.Helper.Controller
         , IHP.LoginSupport.Helper.View
         , IHP.LoginSupport.Middleware
