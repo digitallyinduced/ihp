@@ -23,6 +23,7 @@ import qualified Data.Text as Text
 import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
 import qualified IHP.Log as Log
@@ -97,7 +98,7 @@ autoRefresh runAction = do
                             let ?request = originalRequest
                             let ?respond = waiRespond
                             putContext originalRequest
-                            handleEarlyReturn (action ?theAction)
+                            action ?theAction
 
                     -- We save the allowed session ids to the session cookie to only grant a client access
                     -- to sessions it initially opened itself
@@ -173,7 +174,8 @@ instance WSApp AutoRefreshWSApp where
                         pure (error "AutoRefresh: ResponseReceived placeholder" :: ResponseReceived)
 
                 (do
-                    _ <- renderView currentRequest captureRespond
+                    let app _ _ = renderView currentRequest captureRespond
+                    _ <- earlyReturnMiddleware app currentRequest captureRespond
 
                     -- Check if we captured a response and if it differs from the last one
                     capturedResponse <- readIORef capturedResponseRef

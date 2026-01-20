@@ -2,9 +2,8 @@ module IHP.Controller.Response
 ( respondWith
 , addResponseHeaders
 , addResponseHeadersFromContext
--- Re-exported from EarlyReturn for backwards compatibility
+-- Re-exported from Network.Wai.Middleware.EarlyReturn
 , earlyReturn
-, handleEarlyReturn
 , EarlyReturnException (..)
 , ResponseException (..)
 , responseHeadersVaultKey
@@ -19,7 +18,7 @@ import Wai.Request.Params.Middleware (Respond)
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.RequestVault.Helper (lookupRequestVault)
-import IHP.Controller.EarlyReturn
+import Network.Wai.Middleware.EarlyReturn (earlyReturn, EarlyReturnException(..))
 import qualified Control.Exception as Exception
 
 -- | Sends a response to the client. Used by render functions.

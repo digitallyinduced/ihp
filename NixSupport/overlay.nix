@@ -69,6 +69,7 @@ let
             wai-asset-path = hackageOrLocal "wai-asset-path";
             wai-flash-messages = hackageOrLocal "wai-flash-messages";
             wai-request-params = hackageOrLocal "wai-request-params";
+            wai-early-return = hackageOrLocal "wai-early-return";
             ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
             ihp-hspec = hackageOrLocal "ihp-hspec";
             ihp-welcome = hackageOrLocal "ihp-welcome";

@@ -82,8 +82,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import qualified Data.TMap as TypeMap
-import IHP.Controller.Response (ResponseException(..))
-import IHP.Controller.EarlyReturn (EarlyReturnException(..))
+import IHP.Controller.Response (ResponseException(..), EarlyReturnException(..))
 
 -- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
 --
