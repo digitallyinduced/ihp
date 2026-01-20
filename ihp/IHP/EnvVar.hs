@@ -16,7 +16,6 @@ import Data.String.Conversions (cs)
 import IHP.HaskellSupport (textToInt)
 import qualified System.Posix.Env.ByteString as Posix
 import Network.Socket (PortNumber)
-import IHP.Mail.Types
 import IHP.Environment
 
 -- | Returns a env variable. The raw string
@@ -105,10 +104,3 @@ instance EnvVarReader PortNumber where
 
 convertIntToPortNumber :: Int -> PortNumber
 convertIntToPortNumber int = fromIntegral (int :: Int) :: PortNumber
-
--- | Allow reading the env var of an SMTP encryption method.
-instance EnvVarReader SMTPEncryption where
-    envStringToValue "Unencrypted" = Right Unencrypted
-    envStringToValue "TLS"  = Right TLS
-    envStringToValue "STARTTLS"  = Right STARTTLS
-    envStringToValue otherwise = Left ("Expected 'Unencrypted', 'TLS' or 'STARTTLS', got " <> cs otherwise)

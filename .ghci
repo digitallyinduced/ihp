@@ -2,6 +2,7 @@
 :set -idev
 :set -iihp
 :set -iihp-ide
+:set -iihp-mail
 :set -iihp-ssc
 :set -iihp-imagemagick
 :set -iihp-hspec

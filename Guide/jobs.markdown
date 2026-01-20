@@ -33,6 +33,7 @@ A pseudocode implementation of a job that sends a marketing email to all of the 
 ```haskell
 module Web.Job.EmailCustomers where
 import Web.Controller.Prelude
+import IHP.Mail (sendMail)
 
 instance Job EmailCustomersJob where
     perform EmailCustomersJob { .. } = do

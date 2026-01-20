@@ -11,6 +11,7 @@ final: prev: {
         in {
             ihp = localPackage "ihp";
             ihp-ide = localPackage "ihp-ide";
+            ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-postgresql-simple-extra = localPackage "ihp-postgresql-simple-extra";
