@@ -36,7 +36,7 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catch)
+import Control.Exception.Safe (SomeException, fromException, try, throwIO)
 import qualified Control.Exception as Exception
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
@@ -47,7 +47,6 @@ import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
 import Wai.Request.Params.Middleware (Respond)
 import qualified Data.CaseInsensitive
-import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
@@ -89,15 +88,12 @@ runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
 
-    let doRunAction = do
-            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+    -- Exceptions are now caught by the error handler middleware
+    authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
 
-            let ?modelContext = authenticatedModelContext
-            beforeAction
-            action controller
-
-    doRunAction
-        `catch` (\exception -> ErrorController.displayException exception controller "")
+    let ?modelContext = authenticatedModelContext
+    beforeAction
+    action controller
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -119,10 +115,13 @@ newContextForAction controller = do
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
-            pure $ Left $ case fromException exception of
+            case fromException exception of
                 Just (EarlyReturnException responseReceived) ->
-                    pure responseReceived
-                Nothing -> ErrorController.displayException exception controller " while calling initContext"
+                    -- Early return is expected behavior, not an error
+                    pure $ Left $ pure responseReceived
+                Nothing ->
+                    -- Re-throw exception so the error handler middleware can catch it
+                    throwIO exception
         Right _ -> pure $ Right ?context
 
 -- | Shared request context setup, specialized once per application type.

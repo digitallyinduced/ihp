@@ -34,6 +34,8 @@ import qualified IHP.Server as Server
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.RouterSupport (FrontController)
 import qualified IHP.PGListener as PGListener
+import qualified IHP.ErrorController as ErrorController
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -103,10 +105,17 @@ withMockContext application configBuilder action =
                 action MockContext{..}
 
 -- | Build a WAI 'Application' from a 'MockContext' for use with @runSession@.
+--
+-- This mirrors the middleware stack from 'IHP.Server.run':
+-- errorHandlerMiddleware wraps the app to catch exceptions and render error pages,
+-- earlyReturnMiddleware catches EarlyReturnException (used by accessDeniedWhen, notFoundWhen, etc.).
 initTestApplication :: (FrontController RootApplication) => MockContext application -> IO Application
 initTestApplication MockContext { frameworkConfig, modelContext, pgListener } = do
     middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
-    pure (middleware $ Server.application handleNotFound (\app -> app))
+    pure $ ErrorController.errorHandlerMiddleware frameworkConfig
+         $ earlyReturnMiddleware
+         $ middleware
+         $ Server.application handleNotFound (\app -> app)
 
 -- | Combines 'withMockContext' and 'initTestApplication' into a single bracket.
 --

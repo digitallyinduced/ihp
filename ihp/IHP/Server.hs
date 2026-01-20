@@ -51,6 +51,7 @@ import qualified System.Environment as Env
 import qualified Text.Read as Read
 import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
+import qualified IHP.ErrorController as ErrorController
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -76,6 +77,7 @@ run configBuilder = do
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
+                        . ErrorController.errorHandlerMiddleware frameworkConfig
                         . earlyReturnMiddleware
                         $ staticShortcut
 

@@ -43,7 +43,7 @@ import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
 import Text.Read (readMaybe)
-import Control.Exception.Safe (SomeException, fromException)
+import Control.Exception.Safe (SomeException, fromException, catch, throwIO)
 import Control.Exception (evaluate)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
@@ -67,8 +67,8 @@ import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
-import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
+import qualified IHP.ErrorController as ErrorController
 import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import Data.Dynamic
@@ -114,7 +114,8 @@ runAction' controller waiRequest waiRespond = do
                 Just (EarlyReturnException responseReceived) -> pure responseReceived
                 Nothing -> case fromException exception of
                     Just (ResponseException response) -> waiRespond response
-                    Nothing -> ErrorController.displayException exception controller " while calling initContext"
+                    -- Re-throw so the error handler middleware can catch it
+                    Nothing -> throwIO exception
         Nothing -> do
             let ?modelContext = ?request.modelContext
             runAction controller
@@ -932,11 +933,6 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction waiRequest waiRespond = do
-    let
-        -- Use lazy pattern to defer vault lookup until environment is actually needed
-        -- This is needed for tests that don't have frameworkConfig in the vault
-        ~environment = waiRequest.frameworkConfig.environment
-
     let ?request = waiRequest
     let ?respond = waiRespond
 
@@ -960,8 +956,10 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
         Just handler -> (middleware (handler application)) waiRequest waiRespond
         Nothing -> do
             -- Slow path: Attoparsec for custom/dynamic route parsers only
-            let handleException :: SomeException -> IO (Either String Application)
-                handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
+            -- Wrap any exceptions during routing in RouterException so the error handler
+            -- middleware can distinguish them from action exceptions
+            let wrapRouterException :: SomeException -> IO (Either String Application)
+                wrapRouterException e = throwIO (ErrorController.RouterException e)
 
                 customParsers = concatMap getRouteParsers allRoutes
 
@@ -972,7 +970,7 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
                         Left s -> pure $ Left s
                         Right action -> pure $ Right action
                     )
-                `Exception.catch` handleException
+                `catch` wrapRouterException
             case routedAction of
                 Left _ -> notFoundAction waiRequest waiRespond
                 Right action -> (middleware action) waiRequest waiRespond
