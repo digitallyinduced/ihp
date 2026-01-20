@@ -28,8 +28,6 @@ final: prev: {
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
-            fsnotify = final.haskell.lib.dontCheck (super.callHackageDirect { pkg = "fsnotify"; ver = "0.4.3.0"; sha256 = "sha256-6SJ8w2p0HNhMPjdQzxx4oqsyI48/C/K7wh+kLNy9/fM="; } {});
-            
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
                 version = "0.3.2";
