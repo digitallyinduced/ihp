@@ -27,6 +27,10 @@ import Network.HTTP.Types
 import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
+import System.IO.Unsafe (unsafePerformIO)
+import qualified IHP.ErrorController as ErrorController
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
+import IHP.RequestVault (frameworkConfigMiddleware)
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -70,8 +74,16 @@ config = do
     option Development
     option (AppPort 8000)
 
+initApplication :: IO Application
+initApplication = do
+    frameworkConfig <- buildFrameworkConfig (pure ())
+    pure $ ErrorController.errorHandlerMiddleware frameworkConfig
+         $ earlyReturnMiddleware
+         $ frameworkConfigMiddleware frameworkConfig
+         $ Server.application handleNotFound (\app -> app)
+
 application :: Application
-application = Server.application handleNotFound (\app -> app)
+application = unsafePerformIO initApplication
 
 assertAccessDenied :: SResponse -> IO ()
 assertAccessDenied response = do

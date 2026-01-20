@@ -7,6 +7,7 @@
 :set -iihp-hspec
 :set -iwai-asset-path
 :set -iwai-flash-messages
+:set -iwai-early-return
 :set -threaded
 
 :set -XGHC2021
