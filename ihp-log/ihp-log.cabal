@@ -1,0 +1,38 @@
+cabal-version:       2.2
+name:                ihp-log
+version:             1.4.0
+synopsis:            Lightweight logging for IHP applications
+description:         Provides structured logging with configurable levels, formatters, and destinations.
+                     Can be used standalone or with the full IHP framework.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, Logging, IHP
+
+common shared-properties
+    default-language: GHC2021
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , text
+        , bytestring
+        , data-default
+        , fast-logger
+        , wai
+        , wai-extra
+    default-extensions:
+        OverloadedStrings
+        , ImplicitParams
+        , DataKinds
+        , RecordWildCards
+        , OverloadedRecordDot
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.Log
+        , IHP.Log.Types

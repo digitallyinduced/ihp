@@ -128,6 +128,7 @@ common shared-properties
             , ihp-postgresql-simple-extra
             , ihp-context
             , ihp-pagehead
+            , ihp-log
             , mime-types
             , safe-exceptions
             , resourcet
@@ -198,8 +199,6 @@ library
         , IHP.FrameworkConfig.Types
         , IHP.HaskellSupport
         , IHP.Record
-        , IHP.Log
-        , IHP.Log.Types
         , IHP.InputValue
         , IHP.ModelSupport
         , IHP.ModelSupport.Types
