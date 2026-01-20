@@ -2,6 +2,7 @@
 module IHP.DataSync.REST.Controller where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
+import Network.Wai (ResponseReceived)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Data.Vector as Vector
@@ -201,7 +202,7 @@ encodeKeyMapToSetSql columnTypes hashMap =
         setSnippets = map encodeSetClause pairsList
     in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
-renderErrorJson :: (?context :: ControllerContext, ?request :: Request) => ToJSON json => json -> IO ()
+renderErrorJson :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ToJSON json => json -> IO ResponseReceived
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 

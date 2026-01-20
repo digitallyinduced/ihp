@@ -16,8 +16,8 @@ module IHP.ControllerSupport
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
-, respondAndExit
-, respondAndExitWithHeaders
+, respondWith
+, earlyReturn
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
@@ -28,6 +28,7 @@ module IHP.ControllerSupport
 , Request
 , rlsContextVaultKey
 , setupActionContext
+, ResponseReceived
 ) where
 
 import Prelude
@@ -35,7 +36,8 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catch, throwIO)
+import Control.Exception.Safe (SomeException, fromException, try, catch)
+import qualified Control.Exception as Exception
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
 import Network.Wai
@@ -50,6 +52,7 @@ import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Response
+import IHP.Controller.EarlyReturn
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -70,7 +73,7 @@ class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ()
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
@@ -91,12 +94,10 @@ runAction controller = do
 
             let ?modelContext = authenticatedModelContext
             beforeAction
-            (action controller)
-            ErrorController.handleNoResponseReturned controller
+            action controller
 
-    doRunAction `catch` \(exception :: SomeException) -> case fromException exception of
-        Just (ResponseException response) -> ?respond response
-        Nothing -> ErrorController.displayException exception controller ""
+    handleEarlyReturn doRunAction
+        `catch` (\exception -> ErrorController.displayException exception controller "")
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -119,7 +120,8 @@ newContextForAction controller = do
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
             pure $ Left $ case fromException exception of
-                Just (ResponseException response) -> ?respond response
+                Just (EarlyReturnException responseReceived) ->
+                    pure responseReceived
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
 
@@ -212,7 +214,7 @@ startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: 
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
@@ -270,7 +272,7 @@ getFiles =
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?request :: Request) => IO Aeson.Value
+requestBodyJSON :: (?request :: Request, ?respond :: Respond) => IO Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> pure value
@@ -295,7 +297,9 @@ requestBodyJSON =
             throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
                 Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
     where
-        throwResponseException response = throwIO (ResponseException response)
+        throwResponseException response = do
+            received <- respondWith response
+            Exception.throwIO (EarlyReturnException received)
 
 -- | Returns a custom config parameter
 --

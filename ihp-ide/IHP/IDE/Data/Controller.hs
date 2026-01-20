@@ -48,28 +48,30 @@ instance Controller DataController where
 
     action QueryAction = do
         let queryText = param @Text "query"
-        when (isEmpty queryText) do
-            redirectTo NewQueryAction
+        if isEmpty queryText
+            then redirectTo NewQueryAction
+            else do
+                let query = fromString $ cs queryText
 
-        queryResult :: Maybe (Either SqlConsoleError SqlConsoleResult) <- do
-            let pool = ?modelContext.hasqlPool
-            Just <$> if isQuery queryText then do
-                    let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
-                    let statement = Snippet.toStatement snippet dynamicFieldDecoder
-                    let session = Session.statement () statement
-                    result <- HasqlPool.use pool session
-                    case result of
-                        Right rows -> pure (Right (SelectQueryResult rows))
-                        Left err -> pure (Left (usageErrorToConsoleError err))
-                else do
-                    let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
-                    let session = Session.statement () statement
-                    result <- HasqlPool.use pool session
-                    case result of
-                        Right count -> pure (Right (InsertOrUpdateResult count))
-                        Left err -> pure (Left (usageErrorToConsoleError err))
+                queryResult :: Maybe (Either SqlConsoleError SqlConsoleResult) <- do
+                    let pool = ?modelContext.hasqlPool
+                    Just <$> if isQuery queryText then do
+                            let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
+                            let statement = Snippet.toStatement snippet dynamicFieldDecoder
+                            let session = Session.statement () statement
+                            result <- HasqlPool.use pool session
+                            case result of
+                                Right rows -> pure (Right (SelectQueryResult rows))
+                                Left err -> pure (Left (usageErrorToConsoleError err))
+                        else do
+                            let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
+                            let session = Session.statement () statement
+                            result <- HasqlPool.use pool session
+                            case result of
+                                Right count -> pure (Right (InsertOrUpdateResult count))
+                                Left err -> pure (Left (usageErrorToConsoleError err))
 
-        render ShowQueryView { .. }
+                render ShowQueryView { .. }
 
     action DeleteEntryAction { primaryKey, tableName } = do
         primaryKeyFields <- tablePrimaryKeyFields tableName

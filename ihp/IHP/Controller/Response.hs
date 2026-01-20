@@ -1,8 +1,11 @@
 module IHP.Controller.Response
-( respondAndExit
-, respondAndExitWithHeaders
+( respondWith
 , addResponseHeaders
 , addResponseHeadersFromContext
+-- Re-exported from EarlyReturn for backwards compatibility
+, earlyReturn
+, handleEarlyReturn
+, EarlyReturnException (..)
 , ResponseException (..)
 , responseHeadersVaultKey
 )
@@ -11,23 +14,23 @@ where
 import ClassyPrelude
 import Network.HTTP.Types.Header
 import qualified Network.Wai
-import Network.Wai (Response, Request)
-import qualified Control.Exception as Exception
+import Network.Wai (Response, Request, ResponseReceived)
+import Wai.Request.Params.Middleware (Respond)
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.RequestVault.Helper (lookupRequestVault)
+import IHP.Controller.EarlyReturn
+import qualified Control.Exception as Exception
 
--- | Simple version - just throws the response, no context needed
-respondAndExit :: Response -> IO ()
-respondAndExit response = Exception.throwIO (ResponseException response)
-{-# INLINE respondAndExit #-}
-
--- | Version that adds headers from context (for render, etc.)
-respondAndExitWithHeaders :: (?request :: Request) => Response -> IO ()
-respondAndExitWithHeaders response = do
+-- | Sends a response to the client. Used by render functions.
+--
+-- This is the normal way to respond - it calls the WAI respond callback directly
+-- and returns the ResponseReceived.
+respondWith :: (?request :: Request, ?respond :: Respond) => Response -> IO ResponseReceived
+respondWith response = do
     responseWithHeaders <- addResponseHeadersFromContext response
-    Exception.throwIO (ResponseException responseWithHeaders)
-{-# INLINE respondAndExitWithHeaders #-}
+    ?respond responseWithHeaders
+{-# INLINE respondWith #-}
 
 -- | Add headers to current response
 -- | Returns a Response with headers
@@ -51,14 +54,15 @@ addResponseHeadersFromContext response = do
     pure responseWithHeaders
 {-# INLINE addResponseHeadersFromContext #-}
 
--- Can be thrown from inside the action to abort the current action execution.
--- Does not indicates a runtime error. It's just used for control flow management.
+responseHeadersVaultKey :: Vault.Key (IORef [Header])
+responseHeadersVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE responseHeadersVaultKey #-}
+
+-- | Can be thrown from inside the action to abort the current action execution.
+-- This is kept for backwards compatibility with code that throws response exceptions
+-- (e.g. requestBodyJSON). Prefer using 'earlyReturn' for new code.
 newtype ResponseException = ResponseException Response
 
 instance Show ResponseException where show _ = "ResponseException { .. }"
 
 instance Exception ResponseException
-
-responseHeadersVaultKey :: Vault.Key (IORef [Header])
-responseHeadersVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE responseHeadersVaultKey #-}

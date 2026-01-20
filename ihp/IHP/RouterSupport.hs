@@ -83,6 +83,7 @@ import IHP.Controller.Param
 import Data.Kind
 import qualified Data.TMap as TypeMap
 import IHP.Controller.Response (ResponseException(..))
+import IHP.Controller.EarlyReturn (EarlyReturnException(..))
 
 -- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
 --
@@ -111,8 +112,10 @@ runAction' controller waiRequest waiRespond = do
     case maybeException of
         Just exception ->
             case fromException exception of
-                Just (ResponseException response) -> waiRespond response
-                Nothing -> ErrorController.displayException exception controller " while calling initContext"
+                Just (EarlyReturnException responseReceived) -> pure responseReceived
+                Nothing -> case fromException exception of
+                    Just (ResponseException response) -> waiRespond response
+                    Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Nothing -> do
             let ?modelContext = ?request.modelContext
             runAction controller
