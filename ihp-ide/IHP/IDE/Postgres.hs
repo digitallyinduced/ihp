@@ -3,7 +3,7 @@ module IHP.IDE.Postgres (withPostgres, withBuiltinOrDevenvPostgres) where
 import IHP.IDE.Types
 import IHP.Prelude
 import qualified System.Process as Process
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)
@@ -14,6 +14,8 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -22,7 +24,8 @@ withPostgres callback = do
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
 
-    Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
+    createProcess <- postgresProcessParams currentDir
+    Process.withCreateProcess createProcess \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         let main = do
                 standardOutput <- newIORef mempty
                 errorOutput <- newIORef mempty
@@ -43,11 +46,11 @@ softStopPostgres processHandle = do
         interruptAndWait
         waitAndKill
 
-postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
-postgresProcessParams workingDirectory =
-    let
-        args = ["-D", "build/db/state", "-k", workingDirectory <> "/build/db", "-c", "listen_addresses="]
-    in (procDirenvAware "postgres" args)
+postgresProcessParams :: (?context :: Context) => OsPath -> IO Process.CreateProcess
+postgresProcessParams workingDirectory = do
+    workingDirStr <- OsPath.decodeFS workingDirectory
+    let args = ["-D", "build/db/state", "-k", workingDirStr <> "/build/db", "-c", "listen_addresses="]
+    pure $ (procDirenvAware "postgres" args)
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
         , Process.std_err = Process.CreatePipe

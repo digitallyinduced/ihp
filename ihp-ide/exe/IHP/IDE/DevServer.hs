@@ -30,29 +30,33 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
 import qualified System.Environment as Env
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
     cwd <- Directory.getCurrentDirectory
-    mainInProjectDirectory (cwd <> "/../")
+    parentDir <- OsPath.encodeFS "../"
+    mainInProjectDirectory (cwd <> parentDir)
 
-mainInProjectDirectory :: FilePath -> IO ()
+mainInProjectDirectory :: OsPath -> IO ()
 mainInProjectDirectory projectDir = do
     cwd <- Directory.getCurrentDirectory
 
     withCurrentWorkingDirectory projectDir do
-        Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
-        Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
-        Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
+        cwdStr <- OsPath.decodeFS cwd
+        Env.setEnv "IHP_LIB" (cwdStr <> "/ihp-ide/lib/IHP")
+        Env.setEnv "TOOLSERVER_STATIC" (cwdStr <> "/ihp-ide/lib/IHP/static")
+        Env.setEnv "IHP_STATIC" (cwdStr <> "/lib/IHP/static")
 
         mainWithOptions True
 
-withCurrentWorkingDirectory :: FilePath -> IO result -> IO result
+withCurrentWorkingDirectory :: OsPath -> IO result -> IO result
 withCurrentWorkingDirectory workingDirectory callback = do
     cwd <- Directory.getCurrentDirectory
     Exception.bracket_

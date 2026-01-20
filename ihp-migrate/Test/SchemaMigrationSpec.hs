@@ -9,7 +9,7 @@ import Prelude
 import IHP.SchemaMigration
 import qualified System.Directory as Directory
 import qualified Data.List as List
-import System.FilePath.Posix
+import System.OsPath.Posix ((</>))
 import System.IO.Temp
 
 main :: IO ()

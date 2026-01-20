@@ -25,16 +25,20 @@ import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Char
 import Control.Monad.Combinators.Expr
 import Data.Functor
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
 
-schemaFilePath = "Application/Schema.sql"
+schemaFilePath :: IO OsPath
+schemaFilePath = OsPath.encodeFS "Application/Schema.sql"
 
 parseSchemaSql :: IO (Either ByteString [Statement])
-parseSchemaSql = parseSqlFile schemaFilePath
+parseSchemaSql = schemaFilePath >>= parseSqlFile
 
-parseSqlFile :: FilePath -> IO (Either ByteString [Statement])
-parseSqlFile schemaFilePath = do
-    schemaSql <- Text.readFile schemaFilePath
-    let result = runParser parseDDL (cs schemaFilePath) schemaSql
+parseSqlFile :: OsPath -> IO (Either ByteString [Statement])
+parseSqlFile osPath = do
+    schemaFilePathStr <- OsPath.decodeFS osPath
+    schemaSql <- Text.readFile schemaFilePathStr
+    let result = runParser parseDDL (cs schemaFilePathStr) schemaSql
     case result of
         Left error -> pure (Left (cs $ errorBundlePretty error))
         Right r -> pure (Right r)

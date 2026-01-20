@@ -17,18 +17,23 @@ import IHP.IDE.SchemaDesigner.Controller.Tables ()
 import IHP.IDE.SchemaDesigner.View.Layout
 import IHP.IDE.ToolServer.Routes ()
 import IHP.IDE.SchemaDesigner.Controller.Helper
+import qualified System.OsPath as OsPath
 
 instance Controller SchemaController where
     beforeAction = setLayout schemaDesignerLayout
 
     action ShowCodeAction = do
-        schema <- Text.readFile schemaFilePath
+        osPath <- schemaFilePath
+        pathStr <- OsPath.decodeFS osPath
+        schema <- Text.readFile pathStr
         error <- getSqlError
         render CodeView { .. }
 
     action SaveCodeAction = do
         let schema = param "schemaSql"
-        Text.writeFile schemaFilePath schema
+        osPath <- schemaFilePath
+        pathStr <- OsPath.decodeFS osPath
+        Text.writeFile pathStr schema
         redirectTo ShowCodeAction
 
     action PushToDbAction = do
