@@ -3,6 +3,7 @@
 :set -iihp-context
 :set -iihp-pagehead
 :set -iihp-log
+:set -iihp-modal
 :set -iihp
 :set -iihp/Test
 :set -iihp-ide

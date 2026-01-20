@@ -129,6 +129,7 @@ common shared-properties
             , ihp-context
             , ihp-pagehead
             , ihp-log
+            , ihp-modal
             , mime-types
             , safe-exceptions
             , resourcet
@@ -186,9 +187,6 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
-        , IHP.Modal.Types
-        , IHP.Modal.ControllerFunctions
-        , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.ControllerPrelude

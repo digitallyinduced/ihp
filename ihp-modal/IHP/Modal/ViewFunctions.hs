@@ -5,13 +5,17 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Modal.ViewFunctions (modal, renderModal) where
 
-import IHP.Prelude
-import IHP.Controller.Context
+import Prelude
+import Data.Text (Text)
+import IHP.ControllerContext (ControllerContext, maybeFromFrozenContext)
 import IHP.HSX.QQ (hsx)
 import IHP.Modal.Types
 import Text.Blaze.Html5 (Html)
 
+renderModal :: Modal -> Html
 renderModal modal = renderModal' modal True
+
+renderModal' :: Modal -> Bool -> Html
 renderModal' Modal { .. } show = [hsx|
         <div class={modalClassName} id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-title" aria-hidden="true" style={displayStyle} onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
             {modalInner}
