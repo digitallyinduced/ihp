@@ -398,19 +398,26 @@ action ExampleAction = do
 
 ## Action Execution
 
-When calling a function to send the response, IHP will stop executing the action. Internally this is implemented by throwing and catching a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#ResponseException). Any code after e.g. a `render SomeView { .. }` call will not be called. This also applies to all redirect helpers.
+When calling a function to send the response like `render` or `redirectTo`, the response is sent to the client and the action returns. Since these functions return `IO ResponseReceived`, any code after them would be unreachable.
 
-Here is an example of this behavior:
+Here is an example:
 
 ```haskell
 action ExampleAction = do
     redirectTo SomeOtherAction
-    putStrLn "This line here is not reachable"
+    -- Any code here would be unreachable since redirectTo returns the response
 ```
 
-The [`putStrLn`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:putStrLn) will never be called because the [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) already stops execution.
+For conditional early exits (like access control), use `earlyReturn`:
 
-When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Response) manually, you can use [`respondAndExit`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#respondAndExit) to send your response and stop action execution.
+```haskell
+action ExampleAction = do
+    when (not loggedIn) do
+        earlyReturn (redirectTo LoginAction)
+
+    -- This code runs only if loggedIn is True
+    render MyView
+```
 
 ## Controller Context
 

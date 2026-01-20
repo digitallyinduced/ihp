@@ -15,9 +15,10 @@ module IHP.Controller.EarlyReturn
 )
 where
 
-import ClassyPrelude
+import Prelude
 import Network.Wai (ResponseReceived)
 import qualified Control.Exception as Exception
+import Control.Exception (Exception)
 
 -- | Exit the action early by running another action that returns a response.
 --
