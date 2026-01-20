@@ -127,6 +127,7 @@ common shared-properties
             , ihp-hsx
             , ihp-postgresql-simple-extra
             , ihp-context
+            , ihp-pagehead
             , mime-types
             , safe-exceptions
             , resourcet
@@ -242,9 +243,6 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
-        , IHP.PageHead.ControllerFunctions
-        , IHP.PageHead.Types
-        , IHP.PageHead.ViewFunctions
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
