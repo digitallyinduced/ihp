@@ -148,8 +148,8 @@ ihpFlake:
                     let
                         ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
                         shareRoot = "${package.data}/share/${ghcName}";
-                        # Pick the first (typically only) platform-specific directory
-                        dirs = builtins.attrNames (builtins.readDir shareRoot);
+                        # Pick the first (typically only) platform-specific directory, filtering out "doc"
+                        dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
                         sys = lib.head dirs;
                     in
                         "${shareRoot}/${sys}/${package.name}";
