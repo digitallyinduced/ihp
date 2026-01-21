@@ -294,7 +294,9 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
 
     let startApp = do
             -- Pass the socket file descriptor to the app so it can accept connections
-            -- on the same socket without rebinding the port
+            -- on the same socket without rebinding the port.
+            -- Note: GHCi is a child process with its own FD table, so the app closing
+            -- its copy of the FD won't affect RunDevServer's copy.
             socketFd <- Socket.unsafeFdSocket ?context.appSocket
             sendGhciCommand inputHandle $ "System.Environment.setEnv \"IHP_SOCKET_FD\" \"" <> cs (show socketFd) <> "\""
             sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
@@ -302,11 +304,25 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
     let stopApp = do
             sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
             sendGhciCommand inputHandle "ClassyPrelude.cancel app"
+            -- Give GHCi a moment to process the stop commands before signaling completion
+            -- This prevents the status server from starting while the app is still running
+            threadDelay 100000 -- 100ms
             -- No need to wait for port availability - we use a persistent socket
             putMVar serverStopped ()
 
+    let waitForServerStart = do
+            -- Wait up to 60 seconds for "Server started" message
+            -- If the app crashes during startup, "Server started" will never be printed
+            maybeStarted <- timeout (60 * 1000000) (takeMVar serverStarted)
+            case maybeStarted of
+                Just () -> callback
+                Nothing -> do
+                    logLine (ErrorOutput "App startup timed out after 60 seconds. Check for runtime errors above.")
+                    -- Throw exception to trigger bracket cleanup and return to status server
+                    Exception.throwString "App startup timeout"
+
     (result, _, _) <- runConcurrently $ (,,)
-        <$> Concurrently (Exception.bracket_ startApp stopApp (do takeMVar serverStarted; callback))
+        <$> Concurrently (Exception.bracket_ startApp stopApp waitForServerStart)
         <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
         <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
 
