@@ -27,7 +27,13 @@ module IHP.ControllerSupport
 , getAppConfig
 ) where
 
-import ClassyPrelude
+import Prelude
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Maybe (fromMaybe)
+import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
+import Data.Typeable (Typeable)
+import qualified Data.Text as Text
 import IHP.HaskellSupport
 import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
 import qualified Network.HTTP.Types as HTTP
@@ -40,7 +46,7 @@ import IHP.Controller.RequestContext (RequestContext, Respond)
 import qualified Data.CaseInsensitive
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
-import IHP.FrameworkConfig (FrameworkConfig (..), ConfigProvider(..))
+import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import IHP.Controller.Response
@@ -153,7 +159,7 @@ startWebSocketApp initialState onHTTP request respond = do
             Context.putContext ?application
 
             try (initContext @application) >>= \case
-                Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> tshow exception
+                Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> show exception
                 Right context -> do
                     WebSockets.startWSApp initialState connection
 
@@ -178,7 +184,7 @@ jumpToAction theAction = do
     action theAction
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?context :: ControllerContext) => IO LByteString
+getRequestBody :: (?context :: ControllerContext) => IO LBS.ByteString
 getRequestBody =
     case ?context.requestContext.requestBody of
         RequestContext.JSONBody { rawPayload } -> pure rawPayload

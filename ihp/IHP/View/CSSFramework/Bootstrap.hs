@@ -103,6 +103,7 @@ bootstrap4 = def
                     EmailInput -> styledTextFormField cssFramework "email" formField validationResult
                     DateInput -> styledTextFormField cssFramework "date" formField validationResult
                     DateTimeInput -> styledTextFormField cssFramework "datetime-local" formField validationResult
+                    UrlInput -> styledTextFormField cssFramework "url" formField validationResult
                     CheckboxInput -> styledCheckboxFormField cssFramework formField validationResult
                     HiddenInput -> styledTextFormField cssFramework "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True } validationResult
                     TextareaInput -> styledTextareaFormField cssFramework formField validationResult

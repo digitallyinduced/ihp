@@ -104,6 +104,7 @@ common shared-properties
             , http-client-tls
             , resource-pool
             , unordered-containers
+            , hashable
             , scientific
             , vector
             , wreq
@@ -192,10 +193,14 @@ library
         , IHP.Environment
         , IHP.FetchRelated
         , IHP.FrameworkConfig
+        , IHP.FrameworkConfig.Types
         , IHP.HaskellSupport
+        , IHP.Record
         , IHP.Log
         , IHP.Log.Types
+        , IHP.InputValue
         , IHP.ModelSupport
+        , IHP.ModelSupport.Types
         , IHP.NameSupport
         , IHP.QueryBuilder
         , IHP.QueryBuilder.Types
@@ -212,6 +217,7 @@ library
         , IHP.ViewSupport
         , IHP.RouterSupport
         , IHP.Router.Types
+        , IHP.Router.UrlGenerator
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport

@@ -8,7 +8,7 @@ import IHP.Prelude
 import qualified Data.TMap as TypeMap
 import qualified Data.Typeable as Typeable
 import IHP.Controller.RequestContext
-import IHP.FrameworkConfig
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
 

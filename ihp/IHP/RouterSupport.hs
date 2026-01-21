@@ -30,8 +30,16 @@ CanRoute (..)
 , routeParam
 ) where
 
-import qualified Prelude
-import ClassyPrelude hiding (index, delete, take)
+import Prelude hiding (take)
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import Data.Maybe (fromMaybe, catMaybes)
+import Data.List (find, isPrefixOf)
+import Control.Monad (unless, join)
+import Control.Applicative ((<|>))
+import Text.Read (readMaybe)
+import Control.Exception.Safe (SomeException)
+import Control.Exception (evaluate)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
@@ -62,6 +70,7 @@ import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import Data.Dynamic
 import IHP.Router.Types
+import IHP.Router.UrlGenerator
 import IHP.WebSocket (WSApp)
 import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
@@ -110,16 +119,6 @@ defaultRouter additionalControllers = do
     pure applications
 {-# INLINABLE defaultRouter #-}
 
-class HasPath controller where
-    -- | Returns the path to a given action
-    --
-    -- >>> pathTo UsersAction
-    -- "/Users"
-    --
-    -- >>> pathTo ShowUserAction { userId = "a32913dd-ef80-4f3e-9a91-7879e17b2ece" }
-    -- "/ShowUser?userId=a32913dd-ef80-4f3e-9a91-7879e17b2ece"
-    pathTo :: controller -> Text
-
 -- | Returns the url to a given action.
 --
 -- Uses the baseUrl configured in @Config/Config.hs@. When no @baseUrl@
@@ -154,12 +153,12 @@ parseFuncs parseIdType = [
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
-                    Just Refl -> readMay (cs queryValue :: String)
+                    Just Refl -> readMaybe (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
                             Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
-                        Just Refl -> Right $ readMay (cs queryValue :: String)
+                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                     Just Refl -> Right Nothing
@@ -167,12 +166,12 @@ parseFuncs parseIdType = [
 
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Integer) of
-                    Just Refl -> readMay (cs queryValue :: String)
+                    Just Refl -> readMaybe (cs queryValue :: String)
                         |> \case
                             Just int -> Right int
                             Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
-                        Just Refl -> Right $ readMay (cs queryValue :: String)
+                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                     Just Refl -> Right Nothing
@@ -207,7 +206,7 @@ parseFuncs parseIdType = [
             \queryValue -> case eqT :: Maybe (d :~: [Int]) of
                 Just Refl -> case queryValue of
                     Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map readMay
+                        |> map (readMaybe . cs)
                         |> catMaybes
                         |> Right
                     Nothing -> Right []
@@ -216,7 +215,7 @@ parseFuncs parseIdType = [
             \queryValue -> case eqT :: Maybe (d :~: [Integer]) of
                 Just Refl -> case queryValue of
                     Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map readMay
+                        |> map (readMaybe . cs)
                         |> catMaybes
                         |> Right
                     Nothing -> Right []
@@ -468,7 +467,7 @@ createAction = fmap fromConstr createConstructor
         allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
         isCreateConstructor :: Constr -> Bool
-        isCreateConstructor constructor = "Create" `isPrefixOf` showConstr constructor && ClassyPrelude.null (constrFields constructor)
+        isCreateConstructor constructor = "Create" `isPrefixOf` showConstr constructor && Prelude.null (constrFields constructor)
 {-# INLINE createAction #-}
 
 -- | Returns the update action when given a controller and id.
@@ -903,7 +902,7 @@ parseText = Text.decodeUtf8 <$> takeTill ('/' ==)
 
 parseIntegerId :: (Data idType) => ByteString -> Maybe idType
 parseIntegerId queryVal = let
-    rawValue :: Maybe Integer = readMay (cs queryVal :: String)
+    rawValue :: Maybe Integer = readMaybe (cs queryVal :: String)
     in
        rawValue >>= Just . unsafeCoerce
 

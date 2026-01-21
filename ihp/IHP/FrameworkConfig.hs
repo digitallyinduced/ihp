@@ -1,7 +1,32 @@
 {-# LANGUAGE ConstraintKinds #-}
-module IHP.FrameworkConfig where
+module IHP.FrameworkConfig
+( -- * Re-exports from IHP.FrameworkConfig.Types
+  module IHP.FrameworkConfig.Types
+  -- * Configuration helpers
+, option
+, addInitializer
+, findOption
+, findOptionOrNothing
+, ihpDefaultConfig
+, buildFrameworkConfig
+, defaultIHPSessionCookie
+, RootApplication (..)
+, defaultPort
+, defaultDatabaseUrl
+, defaultLoggerForEnv
+, isEnvironment
+, isDevelopment
+, isProduction
+, defaultCorsResourcePolicy
+, withFrameworkConfig
+, initModelContext
+, withModelContext
+, configIO
+, ExceptionWithCallStack (..)
+) where
 
 import IHP.Prelude
+import IHP.FrameworkConfig.Types
 import System.Directory (getCurrentDirectory)
 import IHP.Environment
 import qualified Data.Text as Text
@@ -27,62 +52,6 @@ import qualified Prelude
 import qualified GHC.Stack as Stack
 
 import qualified Control.Concurrent as Concurrent
-
-newtype AppHostname = AppHostname Text
-newtype AppPort = AppPort Int
-newtype BaseUrl = BaseUrl Text
-
--- | Provides IHP with a middleware to log requests and responses.
---
--- By default this uses the RequestLogger middleware from wai-extra. Take a look at the wai-extra
--- documentation when you want to customize the request logging.
---
--- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
---
---
--- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
-newtype RequestLoggerMiddleware = RequestLoggerMiddleware Middleware
-
--- | Provides the default settings for the session cookie.
---
--- - Max Age: 30 days
--- - Same Site Policy: Lax
--- - HttpOnly (no access through JS)
--- - secure, when baseUrl is a https url
---
--- Override this to set e.g. a custom max age or change the default same site policy.
---
--- __Example: Set max age to 90 days__
--- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
-newtype SessionCookie = SessionCookie Cookie.SetCookie
-
--- | How long db connection are kept alive inside the connecton pool when they're idle
-newtype DBPoolIdleTime = DBPoolIdleTime NominalDiffTime
-
--- | Max number of db connections the connection pool can open to the database
-newtype DBPoolMaxConnections = DBPoolMaxConnections Int
-
-newtype DatabaseUrl = DatabaseUrl ByteString
-
-type ConfigBuilder = State.StateT TMap.TMap IO ()
-
--- | Interface for exception tracking services such as sentry
-newtype ExceptionTracker = ExceptionTracker { onException :: Maybe Request -> SomeException -> IO () }
-
--- | Typically "http://localhost:8001", Url where the IDE is running
-newtype IdeBaseUrl = IdeBaseUrl Text
-
--- | Postgres role to be used for making queries with Row level security enabled
-newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
-
-newtype AssetVersion = AssetVersion Text
-
-newtype CustomMiddleware = CustomMiddleware Middleware
-
-newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
-newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
-
-newtype Initializer = Initializer { onStartup :: (?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO () }
 
 -- | Puts an option into the current configuration
 --
@@ -249,154 +218,6 @@ buildFrameworkConfig appConfig = do
 
     pure frameworkConfig
 {-# INLINABLE buildFrameworkConfig #-}
-
-data FrameworkConfig = FrameworkConfig
-    { appHostname :: !Text
-    , environment :: !Environment
-    , appPort :: !Int
-    , baseUrl :: !Text
-
-    -- | Provides IHP with a middleware to log requests and responses.
-    --
-    -- By default this uses the RequestLogger middleware from wai-extra. Take a look at the wai-extra
-    -- documentation when you want to customize the request logging.
-    --
-    -- See https://hackage.haskell.org/package/wai-extra-3.0.29.2/docs/Network-Wai-Middleware-RequestLogger.html
-    --
-    --
-    -- Set @requestLoggerMiddleware = \application -> application@ to disable request logging.
-    , requestLoggerMiddleware :: !Middleware
-
-    -- | Provides the default settings for the session cookie.
-    --
-    -- - Max Age: 30 days
-    -- - Same Site Policy: Lax
-    -- - HttpOnly (no access through JS)
-    -- - secure, when baseUrl is a https url
-    --
-    -- Override this to set e.g. a custom max age or change the default same site policy.
-    --
-    -- __Example: Set max age to 90 days__
-    -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
-    , sessionCookie :: !Cookie.SetCookie
-
-    , mailServer :: !MailServer
-
-    , databaseUrl :: !ByteString
-    -- | How long db connection are kept alive inside the connecton pool when they're idle
-    , dbPoolIdleTime :: !NominalDiffTime
-
-    -- | Max number of db connections the connection pool can open to the database
-    , dbPoolMaxConnections :: !Int
-
-    -- | Bootstrap 4 by default
-    --
-    -- Override this if you use a CSS framework that is not bootstrap
-    , cssFramework :: !CSSFramework
-    , logger :: !Logger
-    , exceptionTracker :: !ExceptionTracker
-
-    -- | Custom 'option's from @Config.hs@ are stored here
-    --
-    -- To access a custom option here, first set it up inside @Config.hs@. This example
-    -- reads a string from a env variable on app startup and makes it available to the app
-    -- by saving it into the application context:
-    --
-    -- > -- Config.hs:
-    -- >
-    -- > newtype RedisUrl = RedisUrl String
-    -- >
-    -- > config :: ConfigBuilder
-    -- > config = do
-    -- >     option Development
-    -- >     option (AppHostname "localhost")
-    -- >
-    -- >     redisUrl <- env "REDIS_URL"
-    -- >     option (RedisUrl redisUrl)
-    --
-    -- This redis url can be access from all IHP entrypoints using the request.frameworkConfig.appConfig that is in scope:
-    --
-    -- > import qualified Data.TMap as TMap
-    -- > import Config -- For accessing the RedisUrl data type
-    -- >
-    -- > action MyAction = do
-    -- >     let appConfig = ?context.frameworkConfig.appConfig
-    -- >     let (RedisUrl redisUrl) = appConfig
-    -- >                |> TMap.lookup @RedisUrl
-    -- >                |> fromMaybe (error "Could not find RedisUrl in config")
-    -- >
-    , appConfig :: !TMap.TMap
-
-    -- | Configures CORS headers for the application. By default this is set to 'Nothing', and the server will not respond with any CORS headers
-    --
-    -- You can provide a custom CORS policy in @Config.hs@:
-    --
-    -- > -- Config.hs
-    -- > import qualified Network.Wai.Middleware.Cors as Cors
-    -- >
-    -- > config :: ConfigBuilder
-    -- > config = do
-    -- >     option Development
-    -- >     option (AppHostname "localhost")
-    -- >
-    -- >     option Cors.simpleCorsResourcePolicy
-    -- >
-    --
-    -- Take a look at the documentation of wai-cors https://hackage.haskell.org/package/wai-cors-0.2.7/docs/Network-Wai-Middleware-Cors.html for understanding what @simpleCorsResourcePolicy@ is doing
-    --
-    -- You can specify CORS origins like this:
-    --
-    -- > -- Config.hs
-    -- > import qualified Network.Wai.Middleware.Cors as Cors
-    -- >
-    -- > config :: ConfigBuilder
-    -- > config = do
-    -- >     option Development
-    -- >     option (AppHostname "localhost")
-    -- >
-    -- >     -- The boolean True specifies if credentials are allowed for the request. You still need to set withCredentials on your XmlHttpRequest
-    -- >     option Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (["localhost"], True) }
-    -- >
-    , corsResourcePolicy :: !(Maybe Cors.CorsResourcePolicy)
-
-    -- | Configures the limits for request parameters, uploaded files, maximum number of headers etc.
-    --
-    -- IHP is using 'Network.Wai.Parse.parseRequestBodyEx' for parsing the HTTP request. By default it applies certain limits
-    -- to avoid a single request overloading the server.
-    --
-    -- You can find the default limits here: https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions
-    --
-    -- You can override the default limits like this:
-    --
-    -- > -- Config.hs
-    -- > import qualified Network.Wai.Parse as WaiParse
-    -- >
-    -- > config :: ConfigBuilder
-    -- > config = do
-    -- >     option Development
-    -- >     option (AppHostname "localhost")
-    -- >
-    -- >     -- We extend the default options here
-    -- >     option $ WaiParse.defaultParseRequestBodyOptions
-    -- >             |> WaiParse.setMaxRequestNumFiles 20 -- Increase count of allowed files per request
-    -- >
-    , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
-
-    -- | Used by the dev server. This field cannot be strict.
-    , ideBaseUrl :: Text
-
-    -- | See IHP.DataSync.Role
-    , rlsAuthenticatedRole :: !Text
-
-    -- | User provided WAI middleware that is run after IHP's middleware stack.
-    , customMiddleware :: !CustomMiddleware
-    , initializers :: ![Initializer]
-}
-
-instance HasField "frameworkConfig" FrameworkConfig FrameworkConfig where
-    getField frameworkConfig = frameworkConfig
-
-type ConfigProvider context = HasField "frameworkConfig" context FrameworkConfig
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
 defaultIHPSessionCookie :: Text -> Cookie.SetCookie

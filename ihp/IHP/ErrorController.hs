@@ -9,12 +9,19 @@ module IHP.ErrorController
 , handleRouterException
 ) where
 
-import IHP.Prelude hiding (displayException)
+import Prelude
+import Control.Exception.Safe (SomeException, fromException)
+import Control.Monad (when)
+import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
+import Data.String.Conversions (cs)
+import Data.ByteString (ByteString)
+import qualified Data.Text as Text
+import IHP.HaskellSupport (isEmpty, forEach, (|>))
 import qualified IHP.Controller.Param as Param
 import qualified IHP.Router.Types as Router
 import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
-import qualified Data.Text as Text
+import Data.Text (Text)
 import IHP.Controller.RequestContext
 import Network.HTTP.Types (status500, status400)
 import Network.Wai
@@ -32,6 +39,9 @@ import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import IHP.Controller.NotFound (handleNotFound)
 import qualified IHP.Log as Log
+
+tshow :: Show a => a -> Text
+tshow = Text.pack . show
 
 handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
@@ -84,7 +94,7 @@ displayException exception action additionalInfo = do
         exceptionTracker (Just request) exception
 
     supportingHandlers
-        |> head
+        |> listToMaybe
         |> fromMaybe displayGenericError
 
 -- | Responds to all exceptions with a generic error message.
@@ -350,12 +360,7 @@ handleRouterException environment exception request respond =
         _ -> case fromException exception of
             Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
                 let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
-                let formExample :: Text = cs [plain|
-<form method="POST" action={DeleteProjectAction}>
-    <input type="hidden" name="_method" value="DELETE"/>
-    <button type="submit">Delete Project</button>
-</form>
-                |]
+                let formExample :: Text = "<form method=\"POST\" action={DeleteProjectAction}>\n    <input type=\"hidden\" name=\"_method\" value=\"DELETE\"/>\n    <button type=\"submit\">Delete Project</button>\n</form>"
                 let errorMessage = [hsx|
                         <p>
                             You cannot directly link to Delete Action.

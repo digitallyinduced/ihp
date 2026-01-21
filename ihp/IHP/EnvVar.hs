@@ -7,8 +7,13 @@ module IHP.EnvVar
 )
 where
 
-import IHP.Prelude
-import Data.String.Interpolate.IsString (i)
+import Prelude
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Maybe (isJust, fromMaybe)
+import Data.String.Conversions (cs)
+import IHP.HaskellSupport (textToInt)
 import qualified System.Posix.Env.ByteString as Posix
 import Network.Socket (PortNumber)
 import IHP.Mail.Types
@@ -44,7 +49,7 @@ import IHP.Environment
 -- "Env var 'PORT' not set, but it's required for the app to run"
 --
 env :: forall result monad. (MonadIO monad) => EnvVarReader result => ByteString -> monad result
-env name = envOrDefault name (error [i|Env var '#{name}' not set, but it's required for the app to run|])
+env name = envOrDefault name (error ("Env var '" <> cs name <> "' not set, but it's required for the app to run"))
 {-# INLINE env #-}
 
 envOrDefault :: (MonadIO monad) => EnvVarReader result => ByteString -> result -> monad result
@@ -55,7 +60,7 @@ envOrNothing :: (MonadIO monad) => EnvVarReader result => ByteString -> monad (M
 envOrNothing name = liftIO $ fmap parseString <$> Posix.getEnv name
     where
         parseString string = case envStringToValue string of
-            Left errorMessage -> error [i|Env var '#{name}' is invalid: #{errorMessage}|]
+            Left errorMessage -> error ("Env var '" <> cs name <> "' is invalid: " <> cs errorMessage)
             Right value -> value
 {-# INLINE envOrNothing #-}
 
@@ -76,7 +81,7 @@ instance EnvVarReader Environment where
 instance EnvVarReader Int where
     envStringToValue string = case textToInt (cs string) of
         Just integer -> Right integer
-        Nothing -> Left [i|Expected integer, got #{string}|]
+        Nothing -> Left ("Expected integer, got " <> cs string)
 
 instance EnvVarReader Text where
     envStringToValue string = Right (cs string)
@@ -96,7 +101,7 @@ instance EnvVarReader Bool where
 instance EnvVarReader PortNumber where
     envStringToValue string = case textToInt (cs string) of
         Just integer -> Right $ convertIntToPortNumber integer
-        Nothing -> Left [i|Expected integer to be used as a Port number, got #{string}|]
+        Nothing -> Left ("Expected integer to be used as a Port number, got " <> cs string)
 
 convertIntToPortNumber :: Int -> PortNumber
 convertIntToPortNumber int = fromIntegral (int :: Int) :: PortNumber
@@ -106,4 +111,4 @@ instance EnvVarReader SMTPEncryption where
     envStringToValue "Unencrypted" = Right Unencrypted
     envStringToValue "TLS"  = Right TLS
     envStringToValue "STARTTLS"  = Right STARTTLS
-    envStringToValue otherwise = Left [i|Expected 'Unencrypted', 'TLS' or 'STARTTLS', got #{otherwise}|]
+    envStringToValue otherwise = Left ("Expected 'Unencrypted', 'TLS' or 'STARTTLS', got " <> cs otherwise)
