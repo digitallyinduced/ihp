@@ -328,14 +328,6 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
 
     pure result
 
-waitForPortAvailable :: Socket.PortNumber -> IO ()
-waitForPortAvailable port = do
-    isAvailable <- isPortAvailable port
-    unless isAvailable do
-        putStrLn "waitForPortAvailable: wait"
-        threadDelay 100000
-        waitForPortAvailable port
-
 refresh :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> IO (Either LByteString LByteString)
 refresh inputHandle outputHandle errorHandle logOutput = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
