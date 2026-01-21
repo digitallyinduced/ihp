@@ -348,7 +348,8 @@ refresh inputHandle outputHandle errorHandle logOutput = do
                     logLine line
                     case line of
                         line | "Failed," `isInfixOf` line -> putMVar resultVar False
-                        line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
+                        -- Match both "modules loaded." (initial) and "modules reloaded." (after :r)
+                        line | "modules loaded." `isInfixOf` line || "modules reloaded." `isInfixOf` line -> putMVar resultVar True
                         line | "cannot find object file for module" `isInfixOf` line -> do
                             -- https://gitlab.haskell.org/ghc/ghc/-/issues/11596
                             sendGhciCommand inputHandle ":l"
