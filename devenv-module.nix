@@ -47,6 +47,9 @@ that is defined in flake-module.nix
         devenv.shells.default = {
             packages = with pkgs; [];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
+            # Required for devenv v1.11+ to fix flake check
+            process.manager.implementation = "process-compose";
+            process.managers.process-compose.enable = true;
 
             languages.haskell.enable = true;
             languages.haskell.package =
