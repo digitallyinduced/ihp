@@ -79,11 +79,16 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- Like: $ DEBUG=1 devenv up
     isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
+    -- Create a persistent listening socket for the app port
+    -- This socket is shared between the status server and the app,
+    -- ensuring seamless transitions during app restarts (no connection refused errors)
+    appSocket <- createListeningSocket portConfig.appPort
+
     bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing
-        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError }
+        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
         -- Print IHP Version when in debug mode
         when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -118,8 +123,12 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
 fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer =
     FileWatcherParams
-        { onHaskellFileChanged = putMVar reloadGhciVar ()
-        , onSchemaChanged = concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
+        { onHaskellFileChanged = do
+            -- Use tryPutMVar to avoid blocking if a reload is already pending.
+            -- This handles the case where multiple file changes happen in quick succession.
+            void $ tryPutMVar reloadGhciVar ()
+        , onSchemaChanged = do
+            concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
 
@@ -172,7 +181,6 @@ initGHCICommands =
 
 runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
 runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
-    let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
@@ -183,33 +191,53 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
             callback
 
     let processResult inputHandle outputHandle errorHandle processHandle result = do
-            hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
-            -- This branch blocks until .hs file change happens
+            -- Handle the result of GHCi compilation, then wait for the next file change
             case result of
-                Left failed -> takeMVar reloadGhciVar
-                Right _ | hasSchemaCompilerError -> takeMVar reloadGhciVar
+                Left failed -> do
+                    writeIORef ghciIsLoadingVar False
+                    -- Clear any stale reload signals to prevent rapid retry loops.
+                    -- This can happen when schema compilation fails and generates
+                    -- invalid files, triggering multiple file watcher events.
+                    void $ tryTakeMVar reloadGhciVar
+                    -- Wait for the next file change before retrying
+                    takeMVar reloadGhciVar
                 Right loaded -> do
-                    withoutStatusServer do
-                        withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
+                    -- Check for schema error fresh here to avoid race condition with tryCompileSchema.
+                    -- The schema compiler runs concurrently and may have set an error after GHCi loaded.
+                    hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
+                    writeIORef ghciIsLoadingVar False
+                    if hasSchemaCompilerError
+                        then do
+                            -- Don't start the app if there's a schema error - wait for fix
                             takeMVar reloadGhciVar
-
-
-                    pure ()
-            
+                        else do
+                            -- Clear any stale reload signal (e.g. from tryCompileSchema triggering
+                            -- a reload after recovering from a previous schema error)
+                            void $ tryTakeMVar reloadGhciVar
+                            -- Catch any exceptions from withRunningApp (e.g., startup timeout)
+                            -- so we can return to the status server gracefully
+                            result <- Exception.tryAny $ withoutStatusServer do
+                                withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
+                                    -- App is running, wait for next file change
+                                    takeMVar reloadGhciVar
+                            case result of
+                                Left ex -> do
+                                    -- App startup failed, wait for a reload signal before trying again
+                                    takeMVar reloadGhciVar
+                                Right () -> pure ()
 
             writeIORef ghciIsLoadingVar True
-            
+
             -- Clear logs in web ui
             clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
 
             result <- refresh inputHandle outputHandle errorHandle receiveAppOutput
-            
+
             -- reload app
             notifyHaskellChange ?context.liveReloadClients
 
             processResult inputHandle outputHandle errorHandle processHandle result
 
-    
     withGHCI \inputHandle outputHandle errorHandle processHandle -> do
         writeIORef ghciIsLoadingVar True
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
@@ -265,28 +293,40 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
                 )
 
     let startApp = do
+            -- Pass the socket file descriptor to the app so it can accept connections
+            -- on the same socket without rebinding the port.
+            -- Note: GHCi is a child process with its own FD table, so the app closing
+            -- its copy of the FD won't affect RunDevServer's copy.
+            socketFd <- Socket.unsafeFdSocket ?context.appSocket
+            sendGhciCommand inputHandle $ "System.Environment.setEnv \"IHP_SOCKET_FD\" \"" <> cs (show socketFd) <> "\""
             sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
             sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e)))"
     let stopApp = do
             sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
             sendGhciCommand inputHandle "ClassyPrelude.cancel app"
-            waitForPortAvailable appPort
+            -- Give GHCi a moment to process the stop commands before signaling completion
+            -- This prevents the status server from starting while the app is still running
+            threadDelay 100000 -- 100ms
+            -- No need to wait for port availability - we use a persistent socket
             putMVar serverStopped ()
 
+    let waitForServerStart = do
+            -- Wait up to 60 seconds for "Server started" message
+            -- If the app crashes during startup, "Server started" will never be printed
+            maybeStarted <- timeout (60 * 1000000) (takeMVar serverStarted)
+            case maybeStarted of
+                Just () -> callback
+                Nothing -> do
+                    logLine (ErrorOutput "App startup timed out after 60 seconds. Check for runtime errors above.")
+                    -- Throw exception to trigger bracket cleanup and return to status server
+                    Exception.throwString "App startup timeout"
+
     (result, _, _) <- runConcurrently $ (,,)
-        <$> Concurrently (Exception.bracket_ startApp stopApp (do takeMVar serverStarted; callback))
+        <$> Concurrently (Exception.bracket_ startApp stopApp waitForServerStart)
         <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
         <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
 
     pure result
-
-waitForPortAvailable :: Socket.PortNumber -> IO ()
-waitForPortAvailable port = do
-    isAvailable <- isPortAvailable port
-    unless isAvailable do
-        putStrLn "waitForPortAvailable: wait"
-        threadDelay 100000
-        waitForPortAvailable port
 
 refresh :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> IO (Either LByteString LByteString)
 refresh inputHandle outputHandle errorHandle logOutput = do
@@ -300,7 +340,8 @@ refresh inputHandle outputHandle errorHandle logOutput = do
                     logLine line
                     case line of
                         line | "Failed," `isInfixOf` line -> putMVar resultVar False
-                        line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
+                        -- Match both "modules loaded." (initial) and "modules reloaded." (after :r)
+                        line | "modules loaded." `isInfixOf` line || "modules reloaded." `isInfixOf` line -> putMVar resultVar True
                         line | "cannot find object file for module" `isInfixOf` line -> do
                             -- https://gitlab.haskell.org/ghc/ghc/-/issues/11596
                             sendGhciCommand inputHandle ":l"
@@ -351,7 +392,7 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
 tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
 tryCompileSchema reloadGhciVar startStatusServer = do
     result <- Exception.tryAny SchemaCompiler.compile
-    
+
     case result of
         Left exception -> do
             Log.error (tshow exception)
@@ -365,4 +406,6 @@ tryCompileSchema reloadGhciVar startStatusServer = do
             previouslyHadSchemaError <- isJust <$> readIORef ?context.lastSchemaCompilerError
             writeIORef ?context.lastSchemaCompilerError Nothing
 
-            when previouslyHadSchemaError (putMVar reloadGhciVar ())
+            -- Use tryPutMVar to avoid double trigger if file watcher already triggered reload
+            -- This triggers a reload only if recovering from a previous schema error
+            when previouslyHadSchemaError $ void $ tryPutMVar reloadGhciVar ()
