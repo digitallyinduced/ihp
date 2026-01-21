@@ -79,11 +79,16 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- Like: $ DEBUG=1 devenv up
     isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
+    -- Create a persistent listening socket for the app port
+    -- This socket is shared between the status server and the app,
+    -- ensuring seamless transitions during app restarts (no connection refused errors)
+    appSocket <- createListeningSocket portConfig.appPort
+
     bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing
-        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError }
+        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
         -- Print IHP Version when in debug mode
         when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -265,12 +270,16 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
                 )
 
     let startApp = do
+            -- Pass the socket file descriptor to the app so it can accept connections
+            -- on the same socket without rebinding the port
+            socketFd <- Socket.unsafeFdSocket ?context.appSocket
+            sendGhciCommand inputHandle $ "System.Environment.setEnv \"IHP_SOCKET_FD\" \"" <> cs (show socketFd) <> "\""
             sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
             sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e)))"
     let stopApp = do
             sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
             sendGhciCommand inputHandle "ClassyPrelude.cancel app"
-            waitForPortAvailable appPort
+            -- No need to wait for port availability - we use a persistent socket
             putMVar serverStopped ()
 
     (result, _, _) <- runConcurrently $ (,,)

@@ -37,6 +37,9 @@ import IHP.RequestVault
 
 import IHP.Controller.NotFound (handleNotFound)
 import Paths_ihp (getDataFileName)
+import qualified Network.Socket as Socket
+import qualified System.Environment as Env
+import qualified Text.Read as Read
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -156,13 +159,23 @@ application staticApp middleware request respond = do
 {-# INLINABLE application #-}
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
-runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = Warp.runSettings $
-                Warp.defaultSettings
-                    |> Warp.setBeforeMainLoop (do
-                            ByteString.putStrLn "Server started"
-                            IO.hFlush IO.stdout
-                        )
-                    |> Warp.setPort appPort
+runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = \app -> do
+    let warpSettings = Warp.defaultSettings
+            |> Warp.setBeforeMainLoop (do
+                    ByteString.putStrLn "Server started"
+                    IO.hFlush IO.stdout
+                )
+            |> Warp.setPort appPort
+
+    -- Check if we have a socket FD passed from the dev server
+    -- This enables seamless transitions during app restarts
+    socketFdEnv <- Env.lookupEnv "IHP_SOCKET_FD"
+    case socketFdEnv of
+        Just fdStr | Just fd <- Read.readMaybe fdStr -> do
+            socket <- Socket.mkSocket (fromIntegral (fd :: Int))
+            Warp.runSettingsSocket warpSettings socket app
+        _ ->
+            Warp.runSettings warpSettings app
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } useSystemd =
     let
         warpSettings =  Warp.defaultSettings

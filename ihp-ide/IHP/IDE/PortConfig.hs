@@ -3,6 +3,7 @@ module IHP.IDE.PortConfig
 , defaultAppPort
 , findAvailablePortConfig
 , isPortAvailable
+, createListeningSocket
 )
 where
 
@@ -76,3 +77,15 @@ findAvailablePortConfig = do
                 then pure portConfig
                 else go rest
         go [] = error "findAvailablePortConfig: No port configuration found"
+
+-- | Creates a listening socket bound to the given port on localhost.
+-- The socket is set up with SO_REUSEADDR and a listen backlog of 1024.
+-- This socket can be shared between the status server and the app server
+-- to ensure seamless transitions during app restarts.
+createListeningSocket :: Socket.PortNumber -> IO Socket.Socket
+createListeningSocket port = do
+    socket <- Socket.socket Socket.AF_INET Socket.Stream Socket.defaultProtocol
+    Socket.setSocketOption socket Socket.ReuseAddr 1
+    Socket.bind socket (Socket.SockAddrInet port (Socket.tupleToHostAddress (127, 0, 0, 1)))
+    Socket.listen socket 1024
+    pure socket

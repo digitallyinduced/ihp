@@ -35,14 +35,14 @@ withStatusServer ghciIsLoadingVar callback = do
     pure a
 
 runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar stopMVar = do
-
-    let port = ?context.portConfig.appPort |> fromIntegral
+    let appSocket = ?context.appSocket
+    let warpSettings = Warp.defaultSettings
 
     forever do
         _ <- takeMVar startMVar
 
         race_
-            (Warp.run port (waiApp ghciIsLoadingVar clients standardOutput errorOutput))
+            (Warp.runSettingsSocket warpSettings appSocket (waiApp ghciIsLoadingVar clients standardOutput errorOutput))
             (readMVar stopMVar)
 
         isStoppedVar <- takeMVar stopMVar
