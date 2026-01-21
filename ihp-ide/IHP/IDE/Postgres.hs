@@ -4,6 +4,7 @@ import IHP.IDE.Types
 import IHP.Prelude
 import qualified System.Process as Process
 import qualified System.Directory as Directory
+import System.Exit (ExitCode(..))
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)
@@ -131,13 +132,21 @@ waitUntilReady handle callback = do
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do
     let isDebugMode = ?context.isDebugMode
-    threadDelay 1000000
-    (_, stdout, _) <- Process.readProcessWithExitCode "pg_ctl" ["status"] ""
-    if "server is running" `isInfixOf` (cs stdout)
-    then pure ()
-    else do
-        when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
-        waitPostgres
+    useDevenv <- EnvVar.envOrDefault "IHP_DEVENV" False
+    socketDir <- if useDevenv
+        then EnvVar.env "PGHOST"
+        else do
+            currentDir <- Directory.getCurrentDirectory
+            pure (currentDir <> "/build/db")
+
+    -- pg_isready returns exit code 0 when ready, non-zero otherwise
+    exitCode <- Process.rawSystem "pg_isready" ["-h", socketDir, "-q"]
+    case exitCode of
+        ExitSuccess -> pure ()
+        ExitFailure _ -> do
+            when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
+            threadDelay 100000  -- 100ms between checks
+            waitPostgres
 
 
 withBuiltinOrDevenvPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
