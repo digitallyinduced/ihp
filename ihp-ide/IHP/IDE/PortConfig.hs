@@ -14,6 +14,8 @@ import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import Control.Exception.Safe (IOException(..))
 import GHC.IO.Exception (ioe_errno)
 import IHP.FrameworkConfig (defaultPort)
+import qualified System.Posix.IO as Posix
+import System.Posix.Types (Fd(..))
 
 -- | Port configuration used for starting the different app services
 data PortConfig = PortConfig
@@ -82,10 +84,14 @@ findAvailablePortConfig = do
 -- The socket is set up with SO_REUSEADDR and a listen backlog of 1024.
 -- This socket can be shared between the status server and the app server
 -- to ensure seamless transitions during app restarts.
+-- The CLOEXEC flag is cleared so child processes (like GHCi) can inherit the socket.
 createListeningSocket :: Socket.PortNumber -> IO Socket.Socket
 createListeningSocket port = do
     socket <- Socket.socket Socket.AF_INET Socket.Stream Socket.defaultProtocol
     Socket.setSocketOption socket Socket.ReuseAddr 1
     Socket.bind socket (Socket.SockAddrInet port (Socket.tupleToHostAddress (127, 0, 0, 1)))
     Socket.listen socket 1024
+    -- Clear the CLOEXEC flag so child processes (GHCi) can inherit this socket FD
+    fd <- Socket.unsafeFdSocket socket
+    Posix.setFdOption (Fd (fromIntegral fd)) Posix.CloseOnExec False
     pure socket

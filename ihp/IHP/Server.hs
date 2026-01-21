@@ -40,6 +40,8 @@ import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env
 import qualified Text.Read as Read
+import qualified System.Posix.IO as Posix
+import System.Posix.Types (Fd(..))
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -172,7 +174,11 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } useS
     socketFdEnv <- Env.lookupEnv "IHP_SOCKET_FD"
     case socketFdEnv of
         Just fdStr | Just fd <- Read.readMaybe fdStr -> do
-            socket <- Socket.mkSocket (fromIntegral (fd :: Int))
+            -- Duplicate the FD so that when the Socket is garbage collected,
+            -- it closes the duplicate rather than the original FD.
+            -- This preserves the original FD for future app restarts.
+            dupFd <- Posix.dup (Fd (fromIntegral (fd :: Int)))
+            socket <- Socket.mkSocket (fromIntegral dupFd)
             Warp.runSettingsSocket warpSettings socket app
         _ ->
             Warp.runSettings warpSettings app
