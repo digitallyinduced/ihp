@@ -34,10 +34,10 @@ final: prev: {
             ihp-welcome = localPackage "ihp-welcome";
 
             # ihp-pro
-            ihp-stripe = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-stripe.nix" {};
-            ihp-sentry = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-sentry.nix" {};
-            ihp-oauth-github = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-oauth-github.nix" {};
-            ihp-oauth-google = super.callPackage "${toString flakeRoot}/NixSupport/haskell-packages/ihp-oauth-google.nix" {};
+            ihp-stripe = localPackage "ihp-stripe";
+            ihp-sentry = localPackage "ihp-sentry";
+            ihp-oauth-github = localPackage "ihp-oauth-github";
+            ihp-oauth-google = localPackage "ihp-oauth-google";
 
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
