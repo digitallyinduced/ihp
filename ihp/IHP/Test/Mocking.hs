@@ -33,7 +33,7 @@ import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
-import IHP.RequestVault (modelContextMiddleware)
+import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware)
 
 type ContextParameters application = (?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -51,19 +51,18 @@ mockContextNoDatabase application configBuilder = do
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-   
-   -- Apply modelContextMiddleware to populate the vault
+
+   -- Apply middlewares to populate the vault with modelContext and frameworkConfig
    requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
    let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-   let transformedApp = modelContextMiddleware modelContext captureApp
+   let transformedApp = frameworkConfigMiddleware frameworkConfig $ modelContextMiddleware modelContext captureApp
    _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-   requestWithModelContext <- readIORef requestRef
+   requestWithVault <- readIORef requestRef
 
    let requestContext = RequestContext
-         { request = requestWithModelContext
+         { request = requestWithVault
          , requestBody = FormBody [] []
-         , respond = \resp -> pure ResponseReceived
-         , frameworkConfig = frameworkConfig }
+         , respond = \resp -> pure ResponseReceived }
 
    pure MockContext{..}
 

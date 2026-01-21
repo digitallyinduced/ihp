@@ -37,7 +37,7 @@ tests = do
                 context <- newControllerContext
                 let ?context = context
 
-                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap []")
+                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap [RequestContext]")
 
             it "return a stored value if frozen" do
                 context <- newControllerContext
