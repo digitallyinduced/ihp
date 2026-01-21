@@ -123,8 +123,12 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
 fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer =
     FileWatcherParams
-        { onHaskellFileChanged = putMVar reloadGhciVar ()
-        , onSchemaChanged = concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
+        { onHaskellFileChanged = do
+            -- Use tryPutMVar to avoid blocking if a reload is already pending.
+            -- This handles the case where multiple file changes happen in quick succession.
+            void $ tryPutMVar reloadGhciVar ()
+        , onSchemaChanged = do
+            concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
 
@@ -177,7 +181,6 @@ initGHCICommands =
 
 runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
 runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
-    let isDebugMode = ?context.isDebugMode
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
@@ -188,33 +191,53 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
             callback
 
     let processResult inputHandle outputHandle errorHandle processHandle result = do
-            hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
-            -- This branch blocks until .hs file change happens
+            -- Handle the result of GHCi compilation, then wait for the next file change
             case result of
-                Left failed -> takeMVar reloadGhciVar
-                Right _ | hasSchemaCompilerError -> takeMVar reloadGhciVar
+                Left failed -> do
+                    writeIORef ghciIsLoadingVar False
+                    -- Clear any stale reload signals to prevent rapid retry loops.
+                    -- This can happen when schema compilation fails and generates
+                    -- invalid files, triggering multiple file watcher events.
+                    void $ tryTakeMVar reloadGhciVar
+                    -- Wait for the next file change before retrying
+                    takeMVar reloadGhciVar
                 Right loaded -> do
-                    withoutStatusServer do
-                        withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
+                    -- Check for schema error fresh here to avoid race condition with tryCompileSchema.
+                    -- The schema compiler runs concurrently and may have set an error after GHCi loaded.
+                    hasSchemaCompilerError <- isJust <$> readIORef ?context.lastSchemaCompilerError
+                    writeIORef ghciIsLoadingVar False
+                    if hasSchemaCompilerError
+                        then do
+                            -- Don't start the app if there's a schema error - wait for fix
                             takeMVar reloadGhciVar
-
-
-                    pure ()
-            
+                        else do
+                            -- Clear any stale reload signal (e.g. from tryCompileSchema triggering
+                            -- a reload after recovering from a previous schema error)
+                            void $ tryTakeMVar reloadGhciVar
+                            -- Catch any exceptions from withRunningApp (e.g., startup timeout)
+                            -- so we can return to the status server gracefully
+                            result <- Exception.tryAny $ withoutStatusServer do
+                                withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
+                                    -- App is running, wait for next file change
+                                    takeMVar reloadGhciVar
+                            case result of
+                                Left ex -> do
+                                    -- App startup failed, wait for a reload signal before trying again
+                                    takeMVar reloadGhciVar
+                                Right () -> pure ()
 
             writeIORef ghciIsLoadingVar True
-            
+
             -- Clear logs in web ui
             clearStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients
 
             result <- refresh inputHandle outputHandle errorHandle receiveAppOutput
-            
+
             -- reload app
             notifyHaskellChange ?context.liveReloadClients
 
             processResult inputHandle outputHandle errorHandle processHandle result
 
-    
     withGHCI \inputHandle outputHandle errorHandle processHandle -> do
         writeIORef ghciIsLoadingVar True
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
@@ -360,7 +383,7 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
 tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
 tryCompileSchema reloadGhciVar startStatusServer = do
     result <- Exception.tryAny SchemaCompiler.compile
-    
+
     case result of
         Left exception -> do
             Log.error (tshow exception)
@@ -374,4 +397,6 @@ tryCompileSchema reloadGhciVar startStatusServer = do
             previouslyHadSchemaError <- isJust <$> readIORef ?context.lastSchemaCompilerError
             writeIORef ?context.lastSchemaCompilerError Nothing
 
-            when previouslyHadSchemaError (putMVar reloadGhciVar ())
+            -- Use tryPutMVar to avoid double trigger if file watcher already triggered reload
+            -- This triggers a reload only if recovering from a previous schema error
+            when previouslyHadSchemaError $ void $ tryPutMVar reloadGhciVar ()
