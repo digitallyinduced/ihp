@@ -16,9 +16,11 @@ module IHP.PageHead.ViewFunctions
 , module IHP.PageHead.ControllerFunctions -- | Re-export as we want to call setTitle from the beforeRender hook
 ) where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
+import Data.Maybe (fromMaybe)
 import IHP.PageHead.Types
-import IHP.Controller.Context
+import IHP.ControllerContext (ControllerContext, maybeFromFrozenContext)
 import IHP.PageHead.ControllerFunctions
 import IHP.HSX.QQ (hsx)
 import Text.Blaze.Html5 (Html)
@@ -48,15 +50,15 @@ import Text.Blaze.Html5 (Html)
 --
 --
 -- *View-specific title:*
--- 
+--
 -- You can set a custom title inside the view by calling 'setTitle' inside the 'beforeRender' hook.
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setTitle "Custom title"
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 pageTitle :: (?context :: ControllerContext) => Text
 pageTitle = pageTitleOrDefault ""
@@ -71,7 +73,7 @@ pageTitle = pageTitleOrDefault ""
 -- >     </head>
 -- > |]
 pageTitleOrDefault :: (?context :: ControllerContext) => Text -> Text
-pageTitleOrDefault defaultValue = pageTitleOrNothing |> fromMaybe defaultValue
+pageTitleOrDefault defaultValue = fromMaybe defaultValue pageTitleOrNothing
 
 -- | Returns the current page title or Nothing if not set yet
 pageTitleOrNothing :: (?context :: ControllerContext) => Maybe Text
@@ -93,15 +95,15 @@ pageTitleOrNothing = case maybeFromFrozenContext @PageTitle of
 --
 --
 -- *View-specific og:title:*
--- 
+--
 -- You can override the default og:title inside the view by calling 'setOGTitle' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setOGTitle "Custom title"
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogTitleOrDefault :: (?context :: ControllerContext) => Text -> Html
 ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}/>|]
@@ -123,15 +125,15 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
 --
 --
 -- *View-specific description:*
--- 
+--
 -- You can override the default description inside the view by calling 'setDescription' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 descriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
 descriptionOrDefault defaultValue = [hsx|<meta name="description" content={content}/>|]
@@ -153,15 +155,15 @@ descriptionOrDefault defaultValue = [hsx|<meta name="description" content={conte
 --
 --
 -- *View-specific og:type:*
--- 
+--
 -- You can override the default og:type inside the view by calling 'setOGType' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setOGType "mytype"
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogTypeOrDefault :: (?context :: ControllerContext) => Text -> Html
 ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>|]
@@ -183,15 +185,15 @@ ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>
 --
 --
 -- *View-specific og:description:*
--- 
+--
 -- You can override the default og:description inside the view by calling 'setOGDescription' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setOGDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogDescriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
 ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" content={content}/>|]
@@ -215,15 +217,15 @@ ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" conte
 -- When 'setOGUrl' is not called, no meta tag will be rendered.
 --
 -- *Setting og:url:*
--- 
+--
 -- You can set the og:url inside the view by calling 'setOGUrl' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setOGUrl (urlTo ShowAction { .. })
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogUrl :: (?context :: ControllerContext) => Html
 ogUrl = case maybeFromFrozenContext @OGUrl of
@@ -245,15 +247,15 @@ ogUrl = case maybeFromFrozenContext @OGUrl of
 -- When 'setOGImage' is not called, no meta tag will be rendered.
 --
 -- *Setting og:image:*
--- 
+--
 -- You can set the og:image inside the view by calling 'setOGImage' inside the 'beforeRender' hook:
 --
 -- > module JobSite.View.JobPositions.Show where
--- > 
+-- >
 -- > instance View ShowView where
 -- >     beforeRender ShowView { .. } = do
 -- >         setOGImage "https://example.com/image.png"
--- > 
+-- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogImage :: (?context :: ControllerContext) => Html
 ogImage = case maybeFromFrozenContext @OGImage of
