@@ -46,4 +46,4 @@ instance EnvVarReader SMTPEncryption where
     envStringToValue "Unencrypted" = Right Unencrypted
     envStringToValue "TLS"         = Right TLS
     envStringToValue "STARTTLS"    = Right STARTTLS
-    envStringToValue otherwise     = Left "Should be set to 'Unencrypted', 'TLS', or 'STARTTLS'"
+    envStringToValue _             = Left "Should be set to 'Unencrypted', 'TLS', or 'STARTTLS'"
