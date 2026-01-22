@@ -263,7 +263,7 @@ createRequestContext request respond = do
             (params, files) <- WaiParse.parseRequestBodyEx frameworkConfig.parseRequestBodyOptions WaiParse.lbsBackEnd request
             pure RequestContext.FormBody { .. }
 
-    pure RequestContext.RequestContext { request, respond, requestBody, frameworkConfig }
+    pure RequestContext.RequestContext { request, respond, requestBody }
 
 
 -- | Returns a custom config parameter
