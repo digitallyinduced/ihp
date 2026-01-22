@@ -7,7 +7,8 @@ module IHP.Modal.Types
 , ModalContainer (..)
 ) where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
 import Text.Blaze.Html5 (Html)
 
 data Modal = Modal
