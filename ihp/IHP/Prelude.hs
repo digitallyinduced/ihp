@@ -43,6 +43,7 @@ module IHP.Prelude
 , module NeatInterpolation
 , module GHC.Stack
 , module Data.Kind
+, type (~)
 )
 where
 
@@ -79,6 +80,7 @@ import Control.Concurrent.Async
 import NeatInterpolation (trimming)
 import GHC.Stack (HasCallStack, CallStack)
 import Data.Kind (Type)
+import Data.Type.Equality (type (~))
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
