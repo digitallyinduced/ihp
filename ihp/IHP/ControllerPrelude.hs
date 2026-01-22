@@ -27,6 +27,7 @@ module IHP.ControllerPrelude
     , module IHP.Controller.Context
     , module IHP.Modal.Types
     , module IHP.Modal.ControllerFunctions
+    , setModal
     , module IHP.Controller.Layout
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
@@ -68,7 +69,10 @@ import IHP.Controller.Context
 import IHP.Controller.Layout
 
 import IHP.Modal.Types
-import IHP.Modal.ControllerFunctions
+import IHP.Modal.ControllerFunctions hiding (setModal)
+import qualified IHP.Modal.ControllerFunctions as Modal
+import IHP.ViewSupport (View)
+import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
 import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
@@ -85,3 +89,10 @@ import IHP.FileStorage.Preprocessor.ImageMagick
 import IHP.Pagination.ControllerFunctions
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
+
+-- | Renders a view and stores it as modal HTML in the context for later rendering.
+--
+-- > setModal MyModalView { .. }
+--
+setModal :: (?context :: ControllerContext, View view) => view -> IO ()
+setModal view = Modal.setModal (let ?view = view in ViewSupport.html view)

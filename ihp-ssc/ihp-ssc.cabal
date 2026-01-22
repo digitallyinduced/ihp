@@ -33,7 +33,7 @@ library
         , OverloadedRecordDot
         , DeepSubsumption
     hs-source-dirs: .
-    build-depends: ihp, aeson, megaparsec, bytestring, wai, websockets, ihp-hsx, base, string-conversions, basic-prelude, text, blaze-html, attoparsec
+    build-depends: ihp, ihp-log, aeson, megaparsec, bytestring, wai, websockets, ihp-hsx, base, string-conversions, basic-prelude, text, blaze-html, attoparsec
     exposed-modules:
           IHP.ServerSideComponent.Types
         , IHP.ServerSideComponent.ViewFunctions

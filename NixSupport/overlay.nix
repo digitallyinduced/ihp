@@ -15,6 +15,10 @@ final: prev: {
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
+            ihp-context = localPackage "ihp-context";
+            ihp-pagehead = localPackage "ihp-pagehead";
+            ihp-log = localPackage "ihp-log";
+            ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";

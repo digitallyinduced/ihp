@@ -14,6 +14,7 @@ import IHP.Controller.Context
 import qualified Network.Wai as Wai
 import Web.Cookie
 import Network.HTTP.Types.Status
+import qualified Data.TMap as TypeMap
 
 tests = do
     describe "IHP.Controller.Cookie" do
@@ -37,6 +38,6 @@ createControllerContext = do
     let
         requestBody = FormBody { params = [], files = [] }
         request = Wai.defaultRequest
-        requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = error "frameworkConfig" }
+        requestContext = RequestContext { request, respond = error "respond", requestBody }
     let ?requestContext = requestContext
     newControllerContext

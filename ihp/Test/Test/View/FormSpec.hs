@@ -14,6 +14,9 @@ import IHP.ViewPrelude
 import Data.Default
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Data.Text.Lazy as LT
+import qualified Data.Vault.Lazy as Vault
+import qualified IHP.RequestVault
+import qualified Data.TMap as TypeMap
 
 
 tests = do
@@ -82,9 +85,10 @@ createControllerContext :: IO ControllerContext
 createControllerContext = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
     let requestBody = FormBody { params = [], files = [] }
-    let request = Wai.defaultRequest
-    let requestContext = RequestContext { request, respond = undefined, requestBody, frameworkConfig = frameworkConfig }
-    pure FrozenControllerContext { requestContext, customFields = mempty }
+    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig Vault.empty }
+    let requestContext = RequestContext { request, respond = undefined, requestBody }
+    let customFields = TypeMap.insert requestContext TypeMap.empty
+    pure FrozenControllerContext { customFields }
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)
 instance InputValue Project where inputValue = IHP.ModelSupport.recordToInputValue

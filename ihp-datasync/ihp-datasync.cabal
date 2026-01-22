@@ -47,6 +47,7 @@ common shared-properties
             , unliftio
             , async
             , ihp
+            , ihp-log
             , ihp-hsx
             , ihp-postgresql-simple-extra
             , deepseq
