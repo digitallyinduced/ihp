@@ -25,6 +25,8 @@ import qualified IHP.Prelude as Text (isInfixOf)
 import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import IHP.Pagination.ViewFunctions (renderPagination)
+import qualified Data.Vault.Lazy as Vault
+import qualified IHP.RequestVault
 
 tests = do
     describe "CSS Framework" do
@@ -720,6 +722,7 @@ createControllerContextWithCSSFramework cssFramework = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
                 option cssFramework
     let requestBody = FormBody { params = [], files = [] }
-    let request = Wai.defaultRequest
-    let requestContext = RequestContext { request, respond = error "respond", requestBody, frameworkConfig = frameworkConfig }
-    pure FrozenControllerContext { requestContext, customFields = TypeMap.empty }
+    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig Vault.empty }
+    let requestContext = RequestContext { request, respond = error "respond", requestBody }
+    let customFields = TypeMap.insert requestContext TypeMap.empty
+    pure FrozenControllerContext { customFields }

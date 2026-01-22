@@ -4,7 +4,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.PageHead.Types where
 
-import IHP.Prelude
+import Data.Text (Text)
 
 newtype PageTitle = PageTitle Text
 
@@ -18,4 +18,4 @@ newtype OGDescription = OGDescription Text
 
 newtype OGUrl = OGUrl Text
 
-newtype OGImage = OGImage Text 
+newtype OGImage = OGImage Text

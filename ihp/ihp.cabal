@@ -123,6 +123,10 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-postgresql-simple-extra
+            , ihp-context
+            , ihp-pagehead
+            , ihp-log
+            , ihp-modal
             , mime-types
             , safe-exceptions
             , resourcet
@@ -180,9 +184,6 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
-        , IHP.Modal.Types
-        , IHP.Modal.ControllerFunctions
-        , IHP.Modal.ViewFunctions
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.ControllerPrelude
@@ -193,8 +194,6 @@ library
         , IHP.FrameworkConfig.Types
         , IHP.HaskellSupport
         , IHP.Record
-        , IHP.Log
-        , IHP.Log.Types
         , IHP.InputValue
         , IHP.ModelSupport
         , IHP.ModelSupport.Types
@@ -235,9 +234,6 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
-        , IHP.PageHead.ControllerFunctions
-        , IHP.PageHead.Types
-        , IHP.PageHead.ViewFunctions
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types

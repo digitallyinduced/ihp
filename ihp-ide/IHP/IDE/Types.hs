@@ -13,6 +13,7 @@ import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import qualified Data.ByteString.Builder as ByteString
 import qualified Control.Concurrent.Chan.Unagi as Queue
+import qualified Network.Socket as Socket
 
 procDirenvAware :: (?context :: Context) => FilePath -> [String] -> Process.CreateProcess
 procDirenvAware command args =
@@ -41,4 +42,5 @@ data Context = Context
     , liveReloadClients :: !(IORef (Map UUID Websocket.Connection))
     , wrapWithDirenv :: !Bool
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
+    , appSocket :: !Socket.Socket -- ^ Shared socket for seamless app restarts
     }

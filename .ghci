@@ -1,8 +1,14 @@
 :set -i.
 :set -idev
+:set -iihp-context
+:set -iihp-pagehead
+:set -iihp-log
+:set -iihp-modal
 :set -iihp
+:set -iihp/Test
 :set -iihp-ide
 :set -iihp-mail
+:set -iihp-migrate
 :set -iihp-ssc
 :set -iihp-imagemagick
 :set -iihp-hspec

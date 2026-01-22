@@ -11,8 +11,8 @@ that is defined in flake-module.nix
                             let
                                 ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
                                 shareRoot = "${package.data}/share/${ghcName}";
-                                # Pick the first (typically only) platform-specific directory
-                                dirs = builtins.attrNames (builtins.readDir shareRoot);
+                                # Pick the first (typically only) platform-specific directory, filtering out "doc"
+                                dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
                                 sys = lib.head dirs;
                             in
                                 "${shareRoot}/${sys}/${package.name}";
@@ -47,6 +47,9 @@ that is defined in flake-module.nix
         devenv.shells.default = {
             packages = with pkgs; [];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
+            # Required for devenv v1.11+ to fix flake check
+            process.manager.implementation = "process-compose";
+            process.managers.process-compose.enable = true;
 
             languages.haskell.enable = true;
             languages.haskell.package =
@@ -219,9 +222,9 @@ that is defined in flake-module.nix
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp ];
+                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp-with-docs ];
                     buildPhase = ''
-                        cp -r ${pkgs.ghc.ihp.doc}/share/doc/ihp-*/html haddock-build
+                        cp -r ${pkgs.ghc.ihp-with-docs.doc}/share/doc/ihp-*/html haddock-build
                         chmod -R u+w haddock-build
 
                         cd haddock-build

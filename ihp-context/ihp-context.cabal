@@ -1,0 +1,43 @@
+cabal-version:       2.2
+name:                ihp-context
+version:             1.4.0
+synopsis:            Minimal typed context container for IHP
+description:
+    This package provides ControllerContext, a typed key-value container with minimal dependencies.
+    .
+    The main IHP framework has heavy transitive dependencies (database, mail, logging, etc.)
+    through FrameworkConfig. By extracting ControllerContext into this lightweight package,
+    other IHP packages like ihp-pagehead can depend only on ihp-context instead of the
+    full ihp package, significantly reducing their dependency footprint.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        NoImplicitPrelude
+        , ImplicitParams
+        , BlockArguments
+        , LambdaCase
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , typerep-map
+    exposed-modules:
+        IHP.ControllerContext

@@ -13,9 +13,10 @@ module IHP.PageHead.ControllerFunctions
 , setOGImage
 ) where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
 import IHP.PageHead.Types
-import IHP.Controller.Context
+import IHP.ControllerContext (ControllerContext, putContext)
 
 -- | Sets the page title. Can be accessed using '{pageTitle}' inside your @Layout.hs@.
 --

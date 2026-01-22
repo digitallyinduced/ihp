@@ -7,16 +7,25 @@ final: prev: {
         overrides = self: super:
             let
                 filter = inputs.nix-filter.lib;
-                localPackage = name: super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {};
+                # Disable profiling and haddock for faster local builds
+                fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
+                localPackage = name: fastBuild (super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {});
+                # ihp-with-docs has haddock for reference docs
+                localPackageWithHaddock = name: final.haskell.lib.disableLibraryProfiling (super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {});
         in {
             ihp = localPackage "ihp";
+            ihp-with-docs = localPackageWithHaddock "ihp";
+            ihp-context = localPackage "ihp-context";
+            ihp-pagehead = localPackage "ihp-pagehead";
+            ihp-log = localPackage "ihp-log";
+            ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-postgresql-simple-extra = localPackage "ihp-postgresql-simple-extra";
             ihp-ssc = localPackage "ihp-ssc";
-            ihp-zip = super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {};
+            ihp-zip = fastBuild (super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {});
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";

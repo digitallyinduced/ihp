@@ -1,0 +1,46 @@
+cabal-version:       2.2
+name:                ihp-pagehead
+version:             1.4.0
+synopsis:            Page title and meta tags for IHP
+description:
+    Manage page titles and Open Graph meta tags in IHP applications.
+    This is a lightweight package depending only on ihp-context, ihp-hsx, and blaze-html.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , BlockArguments
+        , LambdaCase
+        , QuasiQuotes
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , ihp-context
+        , ihp-hsx
+        , text
+        , blaze-html
+    exposed-modules:
+        IHP.PageHead.Types
+        , IHP.PageHead.ControllerFunctions
+        , IHP.PageHead.ViewFunctions

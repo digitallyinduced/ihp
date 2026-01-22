@@ -30,13 +30,13 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, with-utf8, text, directory
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, with-utf8, text, directory, ihp-migrate
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory, ihp-migrate
     hs-source-dirs: .
     main-is: Migrate.hs
 

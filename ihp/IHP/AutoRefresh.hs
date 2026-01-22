@@ -59,7 +59,8 @@ autoRefresh runAction = do
 
             let renderView = \requestContext -> do
                     controllerContext <- unfreeze frozenControllerContext
-                    let ?context = controllerContext { requestContext }
+                    let ?context = controllerContext
+                    putContext requestContext
                     action ?theAction
 
             putContext (AutoRefreshEnabled id)

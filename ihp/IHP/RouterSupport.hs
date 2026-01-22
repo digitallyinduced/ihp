@@ -78,6 +78,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import IHP.Environment
+import qualified Data.TMap as TypeMap
 
 runAction'
     :: forall application controller
@@ -806,8 +807,10 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction request respond = do
     let
-        environment = request.frameworkConfig.environment
-        requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] }, frameworkConfig = error "Cannot use frameworkConfig here" }
+        -- Use lazy pattern to defer vault lookup until environment is actually needed
+        -- This is needed for tests that don't have frameworkConfig in the vault
+        ~environment = request.frameworkConfig.environment
+        requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] } }
 
     let ?context = requestContext
 
@@ -923,8 +926,9 @@ parseIntegerId queryVal = let
 routeParam :: (?context::RequestContext, ParamReader paramType) => ByteString -> paramType
 routeParam paramName =
     let requestContext = ?context
+        customFields = TypeMap.insert requestContext TypeMap.empty
     in
-        let ?context = FrozenControllerContext { requestContext = requestContext, customFields = mempty }
+        let ?context = FrozenControllerContext { customFields }
         in param paramName
 
 -- | Display a better error when the user missed to pass an argument to an action.
