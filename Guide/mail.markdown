@@ -12,12 +12,17 @@ IHP provides email sending functionality via the `ihp-mail` package. It's built 
 
 To use mail functionality, you need to add `ihp-mail` to your project dependencies.
 
-Add `ihp-mail` to your `<projectname>.cabal` file:
+Add `ihp-mail` to your `flake.nix` file:
 
-```cabal
-build-depends:
-    ...
-    , ihp-mail
+```nix
+haskellPackages = p: with p; [
+    # Haskell dependencies go here
+    p.ihp
+    cabal-install
+    base
+    wai
+    # Add this:
+    ihp-mail
 ```
 
 After adding the dependency, rebuild your project with `devenv up` or restart the development server.
