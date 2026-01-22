@@ -244,6 +244,7 @@ And let's trigger this email on the `Post` show:
 
 ```haskell
 -- Web/Controller/Posts.hs
+import IHP.Mail (sendMail)
 
 action ShowPostAction { .. } = do
     post <- fetch postId

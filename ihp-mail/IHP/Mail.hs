@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Mail
 ( MailServer (..)
 , BuildMail (..)
-, SMTPEncryption ( ..)
+, SMTPEncryption (..)
 , sendMail
 , sendWithMailServer
 )
@@ -25,6 +25,7 @@ import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 import qualified Data.Text as Text
 import Data.Maybe
+import qualified Data.TMap as TMap
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
 buildMail mail =
@@ -43,11 +44,20 @@ buildMail mail =
                 |> attachments
                 |> map (\MailAttachment { name, content, contentType } -> (contentType, name, content))
 
+-- | Retrieves the mail server configuration from the framework config's appConfig TMap
+--
+-- Returns an error if no mail server has been configured. Users must add
+-- @option Sendmail@ or similar to their Config.hs.
+getMailServer :: (?context :: context, ConfigProvider context) => MailServer
+getMailServer = ?context.frameworkConfig.appConfig
+    |> TMap.lookup @MailServer
+    |> fromMaybe (error "No mail server configured. Add 'option Sendmail' or similar to Config.hs")
+
 -- | Sends an email
 --
--- Uses the mail server provided in the controller context, configured in Config/Config.hs
+-- Uses the mail server provided via @option@ in Config.hs, stored in appConfig
 sendMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> IO ()
-sendMail mail = sendWithMailServer ?context.frameworkConfig.mailServer (buildMail mail)
+sendMail mail = sendWithMailServer getMailServer (buildMail mail)
 
 sendWithMailServer :: MailServer -> Mail -> IO ()
 sendWithMailServer SES { .. } mail = do

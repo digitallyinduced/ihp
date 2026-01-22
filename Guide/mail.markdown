@@ -6,7 +6,21 @@
 
 ## Introduction
 
-IHP comes with simple email sending functionality out of the box. It's built on top of the [mime-mail](https://hackage.haskell.org/package/mime-mail) Haskell package.
+IHP provides email sending functionality via the `ihp-mail` package. It's built on top of the [mime-mail](https://hackage.haskell.org/package/mime-mail) Haskell package.
+
+## Setup
+
+To use mail functionality, you need to add `ihp-mail` to your project dependencies.
+
+Add `ihp-mail` to your `<projectname>.cabal` file:
+
+```cabal
+build-depends:
+    ...
+    , ihp-mail
+```
+
+After adding the dependency, rebuild your project with `devenv up` or restart the development server.
 
 ## Generating Mails
 
@@ -116,10 +130,14 @@ Then we can use it in the `Mail`.
 From inside a controller or script, an email can be sent by using [`sendMail`](https://ihp.digitallyinduced.com/api-docs/IHP-Mail.html#v:sendMail):
 
 ```haskell
+import IHP.Mail (sendMail)
+
 action MyAction = do
     user <- fetch "..."
     sendMail ConfirmationMail { user }
 ```
+
+Note that you need to explicitly import `sendMail` from `IHP.Mail` in your controller.
 
 ## Custom Headers
 
@@ -138,21 +156,29 @@ Implementation detail: IHP first adds headers set by itself (like `Subject` and 
 
 ## Mail Servers
 
-By default, IHP uses your local `sendmail` to send out the email. IHP also supports sending mail via AWS Simple Email Service (SES), SendGrid (via Azure or directly) or via any standard SMTP server.
+You need to configure a mail server in your `Config/Config.hs` to send emails. IHP supports using your local `sendmail`, AWS Simple Email Service (SES), SendGrid (via Azure or directly), or any standard SMTP server.
 
-Remember that the successfull delivery of email largely depends on the from-domain allowing your mailserver by means of SPF and/or DKIM. Consult your chosen email server documentation for details.
+Remember that the successful delivery of email largely depends on the from-domain allowing your mailserver by means of SPF and/or DKIM. Consult your chosen email server documentation for details.
 
-The delivery method is set in `Config/Config.hs` as shown below.
+### Using Local Sendmail
 
-### Set SMTP by Environment Variables
-
-It's a good idea to not hardcode your SMTP credentials in your code. Instead, you can use environment variables to set your SMTP credentials. This is especially useful when deploying your application to a cloud provider like AWS, where it will use different credentials in production than on your local machine.
-
+The simplest configuration uses your local `sendmail`:
 
 ```haskell
--- Add this import
-import IHP.Mail
+-- Config/Config.hs
+import IHP.Mail.Types
 
+config :: ConfigBuilder
+config = do
+    -- other options here, then add:
+    option Sendmail
+```
+
+### Using SMTP
+
+```haskell
+-- Config/Config.hs
+import IHP.Mail.Types
 
 config :: ConfigBuilder
 config = do
@@ -164,6 +190,10 @@ config = do
         , encryption = TLS -- <-- other options: `Unencrypted` or `STARTTLS`
         }
 ```
+
+### Set SMTP by Environment Variables
+
+It's a good idea to not hardcode your SMTP credentials in your code. Instead, you can use environment variables to set your SMTP credentials. This is especially useful when deploying your application to a cloud provider like AWS, where it will use different credentials in production than on your local machine.
 
 ### Local SMTP with Mailhog
 
@@ -180,9 +210,8 @@ A convenient way to see sent mails is to use a local mail testing such as [MailH
 -- Config/Config.hs
 
 -- Add these imports
-import IHP.Mail
+import IHP.Mail.Types
 import Network.Socket (PortNumber)
-import IHP.Mail.Types (SMTPEncryption)
 import IHP.EnvVar
 
 config :: ConfigBuilder
@@ -253,8 +282,8 @@ services.ihp = {
 ### AWS SES
 
 ```haskell
--- Add this import
-import IHP.Mail
+-- Config/Config.hs
+import IHP.Mail.Types
 
 config :: ConfigBuilder
 config = do
@@ -269,8 +298,8 @@ config = do
 ### SendGrid
 
 ```haskell
--- Add this import
-import IHP.Mail
+-- Config/Config.hs
+import IHP.Mail.Types
 
 config :: ConfigBuilder
 config = do
