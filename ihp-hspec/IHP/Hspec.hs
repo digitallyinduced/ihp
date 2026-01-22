@@ -28,7 +28,7 @@ import IHP.Controller.Session (sessionVaultKey)
 
 import qualified System.Process as Process
 import IHP.Test.Mocking
-import IHP.RequestVault (modelContextMiddleware)
+import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware)
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
 
@@ -46,18 +46,17 @@ withIHPApp application configBuilder hspecAction = do
 
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
             
-            -- Apply modelContextMiddleware to populate the vault
+            -- Apply middlewares to populate the vault with modelContext and frameworkConfig
             requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
             let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-            let transformedApp = modelContextMiddleware modelContext captureApp
+            let transformedApp = frameworkConfigMiddleware frameworkConfig (modelContextMiddleware modelContext captureApp)
             _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-            requestWithModelContext <- readIORef requestRef
+            requestWithContext <- readIORef requestRef
 
             let requestContext = RequestContext
-                 { request = requestWithModelContext
+                 { request = requestWithContext
                  , requestBody = FormBody [] []
-                 , respond = const (pure ResponseReceived)
-                 , frameworkConfig = frameworkConfig }
+                 , respond = const (pure ResponseReceived) }
 
             (hspecAction MockContext { .. })
 

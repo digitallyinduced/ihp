@@ -32,7 +32,6 @@ import IHP.Environment
 import qualified Data.Text as Text
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
-import IHP.Mail.Types
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
@@ -116,8 +115,6 @@ ihpDefaultConfig = do
 
     option $ defaultCorsResourcePolicy
 
-    option $ Sendmail
-
     databaseUrl <- configIO defaultDatabaseUrl
 
     option $ DatabaseUrl databaseUrl
@@ -195,7 +192,6 @@ buildFrameworkConfig appConfig = do
             (BaseUrl baseUrl) <- findOption @BaseUrl
             (RequestLoggerMiddleware requestLoggerMiddleware) <- findOption @RequestLoggerMiddleware
             (SessionCookie sessionCookie) <- findOption @SessionCookie
-            mailServer <- findOption @MailServer
             (DBPoolIdleTime dbPoolIdleTime) <- findOption @DBPoolIdleTime
             (DBPoolMaxConnections dbPoolMaxConnections) <- findOption @DBPoolMaxConnections
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl

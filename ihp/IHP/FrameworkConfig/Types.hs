@@ -47,7 +47,6 @@ import Network.Wai (Middleware, Request)
 import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
 import IHP.Log.Types (Logger)
-import IHP.Mail.Types (MailServer)
 import IHP.ModelSupport.Types (ModelContext)
 
 newtype AppHostname = AppHostname Text
@@ -135,8 +134,6 @@ data FrameworkConfig = FrameworkConfig
     -- __Example: Set max age to 90 days__
     -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
     , sessionCookie :: !Cookie.SetCookie
-
-    , mailServer :: !MailServer
 
     , databaseUrl :: !ByteString
     -- | How long db connection are kept alive inside the connecton pool when they're idle

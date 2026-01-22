@@ -97,9 +97,6 @@ common shared-properties
             , wai-websockets
             , regex-tdfa
             , binary
-            , mime-mail
-            , mime-mail-ses
-            , smtp-mail
             , http-client
             , http-client-tls
             , resource-pool
@@ -226,9 +223,6 @@ library
         , IHP.AutoRefresh.Types
         , IHP.AutoRefresh.View
         , IHP.WebSocket
-        , IHP.Mail
-        , IHP.Mail.Types
-        , IHP.MailPrelude
         , IHP.View.Classes
         , IHP.View.CSSFramework
         , IHP.View.CSSFramework.Unstyled

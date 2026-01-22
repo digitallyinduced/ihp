@@ -22,11 +22,11 @@ module IHP.ControllerPrelude
     , module IHP.RouterSupport
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
-    , module IHP.Mail
     , module IHP.FlashMessages
     , module IHP.Controller.Context
     , module IHP.Modal.Types
     , module IHP.Modal.ControllerFunctions
+    , setModal
     , module IHP.Controller.Layout
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
@@ -61,14 +61,16 @@ import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo(..))
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
-import IHP.Mail (sendMail)
 import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages
 import IHP.Controller.Context
 import IHP.Controller.Layout
 
 import IHP.Modal.Types
-import IHP.Modal.ControllerFunctions
+import IHP.Modal.ControllerFunctions hiding (setModal)
+import qualified IHP.Modal.ControllerFunctions as Modal
+import IHP.ViewSupport (View)
+import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
 import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
@@ -85,3 +87,10 @@ import IHP.FileStorage.Preprocessor.ImageMagick
 import IHP.Pagination.ControllerFunctions
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
+
+-- | Renders a view and stores it as modal HTML in the context for later rendering.
+--
+-- > setModal MyModalView { .. }
+--
+setModal :: (?context :: ControllerContext, View view) => view -> IO ()
+setModal view = Modal.setModal (let ?view = view in ViewSupport.html view)

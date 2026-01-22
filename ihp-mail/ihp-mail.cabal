@@ -1,0 +1,65 @@
+cabal-version:       2.2
+name:                ihp-mail
+version:             1.4.0
+synopsis:            Email support for IHP
+description:         Provides email sending functionality for IHP applications
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+build-type:          Simple
+extra-source-files:  changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.Mail
+        , IHP.Mail.Types
+        , IHP.MailPrelude
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , ihp
+        , mime-mail
+        , mime-mail-ses
+        , smtp-mail
+        , http-client
+        , http-client-tls
+        , blaze-html
+        , text
+        , bytestring
+        , network
+        , string-conversions
+        , typerep-map

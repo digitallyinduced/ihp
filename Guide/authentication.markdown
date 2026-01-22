@@ -518,9 +518,11 @@ instance Confirmations.ConfirmationsControllerConfig User where
 ```
 
 
-A common scenario is to send a welcome email after the user is confirmed. Let's asume you've already created a new `WelcomeEmail` using the Email Code Generator. You can then use this to send the welcome email after confirmation:
+A common scenario is to send a welcome email after the user is confirmed. Let's assume you've already created a new `WelcomeMail` using the Email Code Generator. You can then use this to send the welcome email after confirmation:
 
 ```haskell
+import IHP.Mail (sendMail)
+
 instance Confirmations.ConfirmationsControllerConfig User where
     afterConfirmation user = do
         sendMail WelcomeMail { user }
