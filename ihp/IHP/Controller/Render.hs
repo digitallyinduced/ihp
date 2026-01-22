@@ -14,14 +14,13 @@ import qualified Data.List as List
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-import IHP.Controller.Context (ControllerContext(..))
+import IHP.Controller.Context (ControllerContext, putContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 import IHP.Controller.RequestContext (RequestContext(RequestContext))
 import qualified IHP.Controller.RequestContext
-import qualified Data.TMap as TypeMap
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -128,15 +127,8 @@ render !view = do
             { html = Just do
                     let next request respond = do
                             let requestContext' = ?context.requestContext { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
-                            -- Update the context with the new requestContext
-                            -- Handle both frozen and unfrozen contexts
-                            context' <- case ?context of
-                                    FrozenControllerContext { customFields } ->
-                                        pure $ FrozenControllerContext { customFields = TypeMap.insert requestContext' customFields }
-                                    ControllerContext { customFieldsRef } -> do
-                                        customFields <- readIORef customFieldsRef
-                                        pure $ FrozenControllerContext { customFields = TypeMap.insert requestContext' customFields }
-                            let ?context = context' in (renderHtml view) >>= respondHtml
+                            putContext requestContext'
+                            (renderHtml view) >>= respondHtml
                             error "unreachable"
                     _ <- consumeFlashMessagesMiddleware next request ?context.requestContext.respond
                     pure ()
