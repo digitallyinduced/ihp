@@ -43,6 +43,7 @@ final: prev: {
             ihp-sentry = localPackage "ihp-sentry";
             ihp-oauth-github = localPackage "ihp-oauth-github";
             ihp-oauth-google = localPackage "ihp-oauth-google";
+            ihp-auth-confirmation = localPackage "ihp-auth-confirmation";
 
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {

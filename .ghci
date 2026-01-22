@@ -8,6 +8,7 @@
 :set -iihp/Test
 :set -iihp-ide
 :set -iihp-mail
+:set -iihp-auth-confirmation
 :set -iihp-migrate
 :set -iihp-ssc
 :set -iihp-imagemagick

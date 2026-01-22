@@ -7,7 +7,7 @@ module IHP.AuthSupport.Confirm where
 
 import IHP.ControllerPrelude
 import IHP.AuthSupport.Types
-import IHP.Mail (BuildMail)
+import IHP.Mail (BuildMail, sendMail)
 
 data ConfirmationMail user = ConfirmationMail
     { user :: user

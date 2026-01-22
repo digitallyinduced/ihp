@@ -12,6 +12,7 @@ build-type:          Simple
 library
     build-depends:
         ihp
+        , ihp-log
         , aeson
         , base
         , transformers

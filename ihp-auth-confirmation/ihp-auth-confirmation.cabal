@@ -1,0 +1,57 @@
+cabal-version:       2.2
+name:                ihp-auth-confirmation
+version:             1.4.0
+synopsis:            Email confirmation support for IHP authentication
+description:         Provides email confirmation functionality for user authentication in IHP applications
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+build-type:          Simple
+extra-source-files:  changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.AuthSupport.Confirm
+        , IHP.AuthSupport.Controller.Confirmations
+        , IHP.AuthSupport.Controller.PasswordResets
+        , IHP.AuthSupport.Mail.PasswordResets.PasswordResetLink
+    build-depends:
+        base >= 4.17.0 && < 4.22
+        , ihp
+        , ihp-mail
+        , text

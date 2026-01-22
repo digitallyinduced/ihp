@@ -11,7 +11,7 @@ import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import Data.Data
 import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
-import IHP.Mail (BuildMail)
+import IHP.Mail (BuildMail, sendMail)
 
 newPasswordResetAction :: forall record action.
     ( ?theAction :: action
