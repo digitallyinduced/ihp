@@ -20,9 +20,7 @@ module IHP.Log
 , defaultRequestLogger
 ) where
 
-import IHP.HaskellSupport hiding (debug)
-
-import CorePrelude hiding (putStr, putStrLn, print, error, show, log, debug)
+import Prelude hiding (error, log)
 import Control.Monad (when)
 import IHP.Log.Types
 import Network.Wai (Middleware)
@@ -102,17 +100,17 @@ writeLog :: (FastLogger.ToLogStr string) => LogLevel -> Logger -> string -> IO (
 writeLog level logger text = do
     let write = logger.write
     let formatter = logger.formatter
-    when (level >= logger.level) do
+    when (level >= logger.level) $
         write (\time -> formatter time level (toLogStr text))
 
 -- | Wraps 'RequestLogger' from wai-extra to log to an IHP logger.
 -- See 'Network.Wai.Middleware.RequestLogger'.
 makeRequestLogger :: RequestLoggerSettings -> Logger -> IO Middleware
-makeRequestLogger settings logger = 
+makeRequestLogger settings logger =
     mkRequestLogger settings {
         destination = RequestLogger.Callback (\logStr ->
             let ?context = logger in
-                logStr |> fromLogStr |> info
+                info (fromLogStr logStr)
             )
         }
 
