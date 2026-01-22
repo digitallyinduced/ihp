@@ -4,6 +4,19 @@ After updating your project, please consult the segments from your current relea
 
 # UNRELEASED
 
+## Internal packages extracted from `ihp`
+
+Several internal modules have been extracted into separate packages. This should not affect most applications as they are re-exported through the standard preludes. However, if you import these modules directly, you may need to add the corresponding package to your dependencies:
+
+| Module | New Package |
+|--------|-------------|
+| `IHP.ControllerContext` | `ihp-context` |
+| `IHP.PageHead.*` | `ihp-pagehead` |
+| `IHP.Log.*` | `ihp-log` |
+| `IHP.Modal.*` | `ihp-modal` |
+
+Most applications don't need to change anything as these are still re-exported from `ihp`.
+
 ## `IHP.Welcome.Controller` moved to separate `ihp-welcome` package
 
 The welcome page controller has been moved to its own package `ihp-welcome`. If your project uses `IHP.Welcome.Controller` and `WelcomeAction`, you need to add the package to `flake.nix`:
