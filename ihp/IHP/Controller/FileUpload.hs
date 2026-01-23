@@ -17,7 +17,7 @@ import IHP.Prelude
 import Network.Wai.Parse (FileInfo, fileContent)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..))
 import IHP.Controller.Context
 import qualified System.Process as Process
 
@@ -53,7 +53,7 @@ import qualified System.Process as Process
 --
 fileOrNothing :: (?context :: ControllerContext) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name =
-        case ?context.requestContext.requestBody of
+        case ?context.request.parsedBody of
             FormBody { files } ->
                 -- Search for the file, and confirm it's not an empty one.
                 case lookup name files of
@@ -98,7 +98,7 @@ fileOrNothing !name =
 --
 filesByName :: (?context :: ControllerContext) => ByteString -> [FileInfo LBS.ByteString]
 filesByName !name =
-        case ?context.requestContext.requestBody of
+        case ?context.request.parsedBody of
             FormBody { files } -> files
                     |> filter (\(filename, _) -> filename == name)
                     |> map snd

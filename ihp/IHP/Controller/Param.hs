@@ -9,7 +9,7 @@ module IHP.Controller.Param where
 
 import IHP.Prelude
 import qualified Data.Either as Either
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..))
 import qualified Network.Wai as Wai
 import qualified Data.UUID as UUID
 import qualified IHP.ModelSupport as ModelSupport
@@ -247,9 +247,7 @@ paramOrNothing !name =
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
 paramOrError :: forall paramType. (?context :: ControllerContext) => ParamReader paramType => ByteString -> Either ParamException paramType
 paramOrError !name =
-    let
-        RequestContext { requestBody } = ?context.requestContext
-    in case requestBody of
+    case ?context.request.parsedBody of
         FormBody {} -> case queryOrBodyParam name of
                 Just value -> case readParameter @paramType value of
                     Left parserError -> Left ParamCouldNotBeParsedException { name, parserError }
@@ -271,11 +269,9 @@ queryOrBodyParam !name = join (lookup name allParams)
 
 -- | Returns all params available in the current request
 allParams :: (?context :: ControllerContext) => [(ByteString, Maybe ByteString)]
-allParams = case requestBody of
-            FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString request)]
+allParams = case ?context.request.parsedBody of
+            FormBody { params, files } -> concat [(map (\(a, b) -> (a, Just b)) params), (Wai.queryString ?context.request)]
             JSONBody { jsonPayload } -> error "allParams: Not supported for JSON requests"
-    where
-        RequestContext { request, requestBody } = ?context.requestContext
 
 -- | Input parser for 'param'.
 --

@@ -7,18 +7,21 @@ module Test.Controller.ContextSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..), Respond)
 import Control.Exception
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Test (defaultRequest)
+import qualified Data.Vault.Lazy as Vault
+import IHP.RequestVault (requestBodyVaultKey)
+import Network.Wai (Request, vault)
 
 tests = do
-    let mockRequestContext = RequestContext
-            { request = defaultRequest
-            , respond = \_ -> pure ResponseReceived
-            , requestBody = FormBody [] []
-            }
-    let ?requestContext = mockRequestContext
+    let requestBody = FormBody [] []
+    let mockRequest = defaultRequest { vault = Vault.insert requestBodyVaultKey requestBody (vault defaultRequest) }
+    let mockRespond :: Respond
+        mockRespond = \_ -> pure ResponseReceived
+    let ?request = mockRequest
+    let ?respond = mockRespond
     describe "IHP.Controller.Context" do
         describe "putContext" do
             it "store a value" do
@@ -30,7 +33,7 @@ tests = do
                 context <- newControllerContext >>= freeze
                 let ?context = context
                 putContext ("hello" :: Text) `shouldThrow` anyException
-        
+
         describe "fromContext" do
             it "return a stored value" do
                 context <- newControllerContext
@@ -40,12 +43,12 @@ tests = do
 
                 result <- fromContext @Text
                 result `shouldBe` "hello"
-            
+
             it "should fail if type not in container" do
                 context <- newControllerContext
                 let ?context = context
 
-                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap [RequestContext]")
+                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap [Request]")
 
             it "return a stored value if frozen" do
                 context <- newControllerContext

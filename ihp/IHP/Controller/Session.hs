@@ -29,7 +29,6 @@ module IHP.Controller.Session
   ) where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
 import IHP.Controller.Context
 import IHP.ModelSupport
 import qualified Data.UUID as UUID
@@ -161,7 +160,7 @@ sessionLookup :: (?context :: ControllerContext) => ByteString -> IO (Maybe Byte
 sessionLookup = fst sessionVault
 
 sessionVault :: (?context :: ControllerContext) => (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
-sessionVault = case lookupSessionVault ?context.requestContext.request of
+sessionVault = case lookupSessionVault ?context.request of
         Just session -> session
         Nothing -> error "sessionInsert: The session vault is missing in the request"
 

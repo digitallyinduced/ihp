@@ -57,10 +57,12 @@ autoRefresh runAction = do
             -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
             frozenControllerContext <- freeze ?context
 
-            let renderView = \requestContext -> do
+            let renderView = \waiRequest waiRespond -> do
                     controllerContext <- unfreeze frozenControllerContext
                     let ?context = controllerContext
-                    putContext requestContext
+                    let ?request = waiRequest
+                    let ?respond = waiRespond
+                    putContext waiRequest
                     action ?theAction
 
             putContext (AutoRefreshEnabled id)
@@ -133,8 +135,11 @@ instance WSApp AutoRefreshWSApp where
 
             async $ forever do
                 MVar.takeMVar event
-                let requestContext = ?context.requestContext
-                (renderView requestContext) `catch` handleResponseException
+                let currentRequest = ?context.request
+                -- Create a dummy respond function that does nothing, since actual response
+                -- is handled by the handleResponseException handler
+                let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
+                (renderView currentRequest dummyRespond) `catch` handleResponseException
                 pure ()
 
             pure ()

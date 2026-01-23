@@ -19,6 +19,7 @@ import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestBodyMiddleware (Respond)
 
 -- | Displays the login form.
 --
@@ -26,6 +27,7 @@ import System.IO.Unsafe (unsafePerformIO)
 newSessionAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?respond :: Respond
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
     , Typeable record
@@ -51,6 +53,7 @@ newSessionAction = do
 createSessionAction :: forall record action.
     (?theAction :: action
     , ?context :: ControllerContext
+    , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
     , HasField "email" record Text
@@ -104,6 +107,7 @@ createSessionAction = do
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action

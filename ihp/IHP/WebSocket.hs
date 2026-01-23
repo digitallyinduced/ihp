@@ -19,7 +19,6 @@ where
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
 import Network.WebSockets.Connection.PingPong (withPingPong, defaultPingPongOptions)
-import IHP.Controller.RequestContext
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
 import qualified Control.Exception.Safe as Exception
@@ -59,7 +58,7 @@ class WSApp state where
     connectionOptions :: WebSocket.ConnectionOptions
     connectionOptions = WebSocket.defaultConnectionOptions
 
-startWSApp :: forall state. (WSApp state, ?requestContext :: RequestContext, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state

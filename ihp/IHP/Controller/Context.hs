@@ -3,7 +3,7 @@ Module: IHP.Controller.Context
 Copyright: (c) digitally induced GmbH, 2020
 
 Re-exports from ihp-context and adds IHP-specific HasField instances
-for backward compatibility.
+for accessing the WAI Request and FrameworkConfig.
 -}
 module IHP.Controller.Context
     ( ControllerContext(..)
@@ -21,49 +21,50 @@ module IHP.Controller.Context
 import IHP.Prelude
 import qualified Data.TMap as TypeMap
 import qualified Data.Typeable as Typeable
-import IHP.Controller.RequestContext (RequestContext)
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Network.Wai as Wai
+import IHP.RequestVault (requestFrameworkConfig)
 
 -- Re-export from ihp-context, but we shadow newControllerContext
 import IHP.ControllerContext (ControllerContext(..), freeze, unfreeze, putContext, fromContext, maybeFromContext, fromFrozenContext, maybeFromFrozenContext)
 import qualified IHP.ControllerContext as Context
 
--- | Creates a new controller context with RequestContext stored in the TMap
+-- | Creates a new controller context with the WAI Request stored in the TMap
 --
--- This version stores the RequestContext in the TMap so it can be retrieved
+-- This version stores the Request in the TMap so it can be retrieved
 -- via the HasField instance.
-newControllerContext :: (?requestContext :: RequestContext) => IO ControllerContext
+newControllerContext :: (?request :: Wai.Request) => IO ControllerContext
 newControllerContext = do
-    customFieldsRef <- newIORef (TypeMap.insert ?requestContext TypeMap.empty)
+    customFieldsRef <- newIORef (TypeMap.insert ?request TypeMap.empty)
     pure ControllerContext { customFieldsRef }
 {-# INLINABLE newControllerContext #-}
 
 -- | IHP-specific: used to track the current action type
 newtype ActionType = ActionType Typeable.TypeRep
 
--- | Access requestContext from the TMap
+-- | Access request from the TMap
 --
--- This allows @controllerContext.requestContext@ to work even though
--- requestContext is not a direct field of ControllerContext.
-instance HasField "requestContext" ControllerContext RequestContext where
+-- This allows @controllerContext.request@ to work by retrieving
+-- the WAI Request stored in the TMap.
+instance HasField "request" ControllerContext Wai.Request where
     getField (FrozenControllerContext { customFields }) =
-        case TypeMap.lookup @RequestContext customFields of
-            Just rc -> rc
-            Nothing -> error "requestContext: RequestContext not found in controller context. Did you forget to call newControllerContext?"
+        case TypeMap.lookup @Wai.Request customFields of
+            Just req -> req
+            Nothing -> error "request: Request not found in controller context. Did you forget to call newControllerContext?"
     getField (ControllerContext { customFieldsRef }) =
         -- Hacky but necessary - we need to read the IORef in a pure context
         unsafePerformIO $ do
             customFields <- readIORef customFieldsRef
-            case TypeMap.lookup @RequestContext customFields of
-                Just rc -> pure rc
-                Nothing -> error "requestContext: RequestContext not found in controller context. Did you forget to call newControllerContext?"
+            case TypeMap.lookup @Wai.Request customFields of
+                Just req -> pure req
+                Nothing -> error "request: Request not found in controller context. Did you forget to call newControllerContext?"
     {-# INLINABLE getField #-}
 
--- | Access frameworkConfig via requestContext
+-- | Access frameworkConfig via the request vault
 instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
-    getField controllerContext = controllerContext.requestContext.frameworkConfig
+    getField controllerContext = requestFrameworkConfig controllerContext.request
     {-# INLINABLE getField #-}
 
 -- The following hack is bad, but allows us to override the logger using 'putContext'

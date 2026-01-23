@@ -6,15 +6,16 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.AutoRefresh.Types where
 
 import IHP.Prelude
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (Respond)
 import Control.Concurrent.MVar (MVar)
 import qualified IHP.PGListener as PGListener
+import Network.Wai (Request)
 
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
-        -- | A callback to rerun an action within a given request context
-        , renderView :: !(RequestContext -> IO ())
+        -- | A callback to rerun an action within the given request and respond
+        , renderView :: !(Request -> Respond -> IO ())
         -- | MVar that is filled whenever some table changed
         , event :: !(MVar ())
         -- | All tables this auto refresh session watches
