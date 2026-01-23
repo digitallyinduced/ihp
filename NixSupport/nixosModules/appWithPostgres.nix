@@ -7,6 +7,7 @@ in
         ihp.nixosModules.options
         ihp.nixosModules.binaryCache
         ihp.nixosModules.services_app
+        ihp.nixosModules.services_appKeygen
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
     ];
