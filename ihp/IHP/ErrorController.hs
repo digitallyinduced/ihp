@@ -43,7 +43,7 @@ import qualified IHP.Log as Log
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
 
-handleNoResponseReturned :: (Show controller, ?context :: ControllerContext) => controller -> IO ResponseReceived
+handleNoResponseReturned :: (Show controller, ?context :: ControllerContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
     let codeSample :: Text = "render MyView { .. }"
     let errorMessage = [hsx|
@@ -55,7 +55,8 @@ handleNoResponseReturned controller = do
 
         |]
     let title = [hsx|No response returned in {tshow controller}|]
-    let RequestContext { respond } = ?context.requestContext
+    -- Use ?requestContext directly to avoid <<loop>> from TMap access
+    let respond = ?requestContext.respond
     respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
 displayException :: (Show action, ?context :: ControllerContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived

@@ -78,7 +78,9 @@ instance InitControllerContext () where
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let respond = ?context.requestContext.respond
+    -- Use ?requestContext.respond directly (not ?context.requestContext.respond) to avoid
+    -- issues with lazy evaluation after putContext modifies the context's TMap.
+    let !respond = ?requestContext.respond
 
     let doRunAction = do
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
@@ -88,7 +90,7 @@ runAction controller = do
             (action controller)
             ErrorController.handleNoResponseReturned controller
 
-    let handleResponseException  (ResponseException response) = respond response
+    let handleResponseException (ResponseException response) = respond response
 
     doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
 
@@ -115,7 +117,8 @@ newContextForAction controller = do
         Left (exception :: SomeException) -> do
             pure $ Left $ case fromException exception of
                 Just (ResponseException response) ->
-                    let respond = ?context.requestContext.respond
+                    -- Use ?requestContext directly to avoid <<loop>> from TMap access
+                    let respond = ?requestContext.respond
                     in respond response
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
