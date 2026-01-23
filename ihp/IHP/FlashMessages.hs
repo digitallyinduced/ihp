@@ -94,4 +94,10 @@ renderFlashMessages = render theFlashMessages
         render = fromCSSFramework #styledFlashMessages
 
 theFlashMessages :: (?context :: ControllerContext) => [FlashMessage]
-theFlashMessages = requestFlashMessages theRequest
+theFlashMessages =
+    -- Use the request from RequestContext in the TMap, not waiRequest.
+    -- The render function's consumeFlashMessagesMiddleware modifies the request
+    -- to add flash messages to its vault, then stores it via putContext.
+    -- Using fromFrozenContext ensures this only works in views (after context is frozen).
+    let RequestContext { request } = fromFrozenContext @RequestContext
+    in requestFlashMessages request

@@ -7,10 +7,18 @@ module Test.Controller.ContextSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Controller.Context
+import IHP.Controller.RequestContext
 import Control.Exception
+import Network.Wai.Internal (ResponseReceived(..))
+import Network.Wai.Test (defaultRequest)
 
 tests = do
-    let ?requestContext = undefined
+    let mockRequestContext = RequestContext
+            { request = defaultRequest
+            , respond = \_ -> pure ResponseReceived
+            , requestBody = FormBody [] []
+            }
+    let ?requestContext = mockRequestContext
     describe "IHP.Controller.Context" do
         describe "putContext" do
             it "store a value" do

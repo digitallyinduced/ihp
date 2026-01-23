@@ -123,14 +123,18 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 {-# INLINABLE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
 render !view = do
+    -- Force immediate evaluation of requestContext to avoid <<loop>> issues.
+    -- The loop can occur if requestContext is lazily evaluated after putContext
+    -- modifies the TMap with a different RequestContext.
+    let !rc = ?context.requestContext
     renderPolymorphic PolymorphicRender
             { html = Just do
                     let next request respond = do
-                            let requestContext' = ?context.requestContext { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
+                            let requestContext' = rc { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
                             putContext requestContext'
                             (renderHtml view) >>= respondHtml
                             error "unreachable"
-                    _ <- consumeFlashMessagesMiddleware next request ?context.requestContext.respond
+                    _ <- consumeFlashMessagesMiddleware next request rc.respond
                     pure ()
             , json = Just $ renderJson (ViewSupport.json view)
             }
