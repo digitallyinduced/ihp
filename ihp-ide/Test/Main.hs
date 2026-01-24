@@ -8,6 +8,7 @@ import qualified Test.IDE.SchemaDesigner.ParserSpec
 import qualified Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
 import qualified Test.IDE.SchemaDesigner.Controller.HelperSpec
 import qualified Test.IDE.SchemaDesigner.Controller.ValidationSpec
+import qualified Test.IDE.SchemaDesigner.Controller.MigrationsSpec
 import qualified Test.IDE.SchemaDesigner.SchemaOperationsSpec
 import qualified Test.IDE.CodeGeneration.ControllerGenerator
 import qualified Test.IDE.CodeGeneration.ViewGenerator
@@ -23,6 +24,7 @@ main = hspec do
     Test.IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
     Test.IDE.SchemaDesigner.Controller.HelperSpec.tests
     Test.IDE.SchemaDesigner.Controller.ValidationSpec.tests
+    Test.IDE.SchemaDesigner.Controller.MigrationsSpec.tests
     Test.IDE.CodeGeneration.ControllerGenerator.tests
     Test.IDE.CodeGeneration.ViewGenerator.tests
     Test.IDE.CodeGeneration.MailGenerator.tests
