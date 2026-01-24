@@ -9,6 +9,7 @@ import qualified IHP.OAuth.Github.Config as Config
 import qualified Data.TMap as TMap
 import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
+import qualified Network.Wai
 
 newSessionWithGithubAction :: forall user. (?context :: ControllerContext, HasPath Github.GithubOAuthController) => IO ()
 newSessionWithGithubAction = do
@@ -134,6 +135,7 @@ githubConnectCallbackAction = do
 handleGithubCallbackError :: forall user.
     ( HasNewSessionUrl user
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     ) => IO ()
 handleGithubCallbackError = do
     let errorType = paramOrNothing @Text "error"
@@ -169,7 +171,7 @@ githubOAuthScopeConfig = ?context.frameworkConfig.appConfig
             |> TMap.lookup @Github.GithubOAuthScopeConfig
             |> fromMaybe Github.GithubOAuthScopeConfig { scope = ["user:email"] }
 
-ensureIsNotLocked :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
+ensureIsNotLocked :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
 ensureIsNotLocked user = do
     isLocked <- Lockable.isLocked user
     when isLocked do

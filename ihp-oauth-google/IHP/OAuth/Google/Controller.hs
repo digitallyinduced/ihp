@@ -16,6 +16,7 @@ import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.OAuth.Google.View.NewSessionWithGoogle
+import qualified Network.Wai
 
 newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 newSessionWithGoogleAction = do
@@ -127,7 +128,7 @@ googleConnectCallbackAction = do
             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
             redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @user) redirectUrl)
 
-ensureIsNotLocked :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
+ensureIsNotLocked :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasNewSessionUrl user, HasField "lockedAt" user (Maybe UTCTime)) => user -> IO ()
 ensureIsNotLocked user = do
     isLocked <- Lockable.isLocked user
     when isLocked do

@@ -20,6 +20,7 @@ library
         , wreq
         , lens
         , jose-jwt
+        , wai
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
