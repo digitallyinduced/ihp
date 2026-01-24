@@ -12,6 +12,7 @@ import IHP.Stripe.Types
 import IHP.Stripe.Config
 import IHP.Stripe.Actions
 import IHP.ControllerPrelude
+import qualified Network.Wai
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
@@ -110,7 +111,7 @@ class StripeEventController where
     on :: (?context :: ControllerContext, ?modelContext :: ModelContext) => StripeEvent -> IO ()
 
 -- | Ensure that the request is from stripe. Aborts if the signature does not match.
-ensureIsStripe :: (?context :: ControllerContext) => LByteString -> IO ()
+ensureIsStripe :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => LByteString -> IO ()
 ensureIsStripe requestBody = do
     let signatureHeader = getHeader "Stripe-Signature" |> fromMaybe (error "Stripe-Signature header missing")
 

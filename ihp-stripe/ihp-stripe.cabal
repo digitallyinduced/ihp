@@ -25,6 +25,7 @@ library
         , stripe-concepts
         , time
         , containers
+        , wai
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
