@@ -291,7 +291,7 @@ CABAL_EOF
             paths = [ runServer allScripts ] ++ pkgs.lib.optional hasJobs runJobs;
         };
 in
-    pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+    pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
