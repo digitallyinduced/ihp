@@ -9,7 +9,7 @@ import IHP.HaskellSupport
 import Test.Hspec
 import IHP.Controller.Param
 import IHP.Controller.Context
-import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
+import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
 import qualified Data.Aeson as Aeson

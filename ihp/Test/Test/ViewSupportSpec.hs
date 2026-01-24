@@ -18,7 +18,7 @@ import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
 import IHP.Job.Types
-import IHP.RequestBodyMiddleware (RequestBody (..), Respond)
+import Wai.Request.Params.Middleware (RequestBody (..), Respond)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import qualified IHP.Server as Server

@@ -25,6 +25,7 @@ library
             , ihp-hsx
             , postgresql-simple
             , http-types
+            , wai-request-params
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

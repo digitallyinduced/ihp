@@ -28,7 +28,7 @@ import Data.Proxy
 import Data.Typeable
 import IHP.FrameworkConfig
 import IHP.PGListener
-import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
+import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 
 insertVaultMiddleware :: Vault.Key value -> value -> Middleware
 insertVaultMiddleware key value app req respond = do

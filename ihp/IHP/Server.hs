@@ -36,7 +36,7 @@ import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 
 import IHP.Controller.NotFound (handleNotFound)
-import IHP.RequestBodyMiddleware (requestBodyMiddleware)
+import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env

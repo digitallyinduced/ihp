@@ -1,0 +1,66 @@
+cabal-version:       2.2
+name:                wai-request-params
+version:             1.4.0
+synopsis:            Generic parameter parsing for WAI requests
+description:         A standalone parameter parsing library for WAI requests, supporting form-encoded and JSON request bodies.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web
+build-type:          Simple
+
+library
+    default-language: GHC2021
+    hs-source-dirs: .
+    exposed-modules:
+          Wai.Request.Params
+        , Wai.Request.Params.Middleware
+    build-depends:
+            base >= 4.17.0 && < 4.22
+          , wai
+          , wai-extra
+          , aeson
+          , attoparsec
+          , bytestring
+          , text
+          , uuid
+          , time
+          , scientific
+          , vault
+          , deepseq
+          , string-conversions
+          , vector
+          , http-types
+    default-extensions:
+          OverloadedStrings
+        , RecordWildCards
+        , LambdaCase
+
+test-suite spec
+    default-language: GHC2021
+    type: exitcode-stdio-1.0
+    hs-source-dirs: Test
+    main-is: Spec.hs
+    other-modules:
+          Wai.Request.ParamsSpec
+    build-depends:
+            base >= 4.17.0 && < 4.22
+          , wai-request-params
+          , hspec
+          , wai
+          , vault
+          , aeson
+          , uuid
+          , text
+          , bytestring
+          , scientific
+          , time
+          , string-conversions
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp

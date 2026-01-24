@@ -27,6 +27,6 @@ library
         OverloadedStrings
         ImplicitParams
         RecordWildCards
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, postgresql-simple
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, postgresql-simple, wai-request-params
     hs-source-dirs: .
     exposed-modules: IHP.Hspec

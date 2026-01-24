@@ -41,7 +41,7 @@ import qualified Network.Wai
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import IHP.RequestBodyMiddleware (Respond, RequestBody (..))
+import Wai.Request.Params.Middleware (Respond, RequestBody (..))
 import qualified Data.CaseInsensitive
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable

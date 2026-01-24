@@ -22,7 +22,7 @@ import qualified IHP.Router.Types as Router
 import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import Data.Text (Text)
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status500, status400)
 import Network.Wai
 import Network.HTTP.Types.Header

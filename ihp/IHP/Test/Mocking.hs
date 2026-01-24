@@ -15,7 +15,7 @@ import           Network.Wai.Internal                      (ResponseReceived (..
 import           Network.Wai.Parse                         (Param (..))
 
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond)
+import           Wai.Request.Params.Middleware                 (RequestBody (..), Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
@@ -34,7 +34,7 @@ import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
 import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
-import IHP.RequestBodyMiddleware (requestBodyMiddleware)
+import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 

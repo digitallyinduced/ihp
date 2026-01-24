@@ -1,12 +1,12 @@
 {-|
-Module: IHP.RequestBodyMiddleware
+Module: Wai.Request.Params.Middleware
 Description: Middleware that parses the request body and stores it in the request vault
 Copyright: (c) digitally induced GmbH, 2024
 
 This middleware parses the HTTP request body (either as JSON or form data)
 and stores it in the WAI request vault for later access via request.parsedBody.
 -}
-module IHP.RequestBodyMiddleware
+module Wai.Request.Params.Middleware
 ( requestBodyMiddleware
   -- * RequestBody type
 , RequestBody (..)
@@ -15,7 +15,7 @@ module IHP.RequestBodyMiddleware
 , Respond
 ) where
 
-import IHP.Prelude
+import Prelude
 import Network.Wai
 import Network.HTTP.Types.Header (hContentType)
 import qualified Network.Wai.Parse as WaiParse
@@ -61,5 +61,5 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
             (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
             pure FormBody { params, files }
 
-    let req' = req { vault = Vault.insert requestBodyVaultKey requestBody req.vault }
+    let req' = req { vault = Vault.insert requestBodyVaultKey requestBody (vault req) }
     app req' respond

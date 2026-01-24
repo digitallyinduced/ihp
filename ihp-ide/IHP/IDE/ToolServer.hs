@@ -49,7 +49,7 @@ import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 import Paths_ihp_ide (getDataFileName)
 import IHP.RequestVault
-import IHP.RequestBodyMiddleware (requestBodyMiddleware)
+import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do

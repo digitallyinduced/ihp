@@ -9,7 +9,7 @@ import IHP.Prelude
 import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
 import Control.Exception
-import IHP.RequestBodyMiddleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))

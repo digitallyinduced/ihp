@@ -16,7 +16,7 @@ import           Network.Wai.Internal                      (ResponseReceived (..
 
 
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond, requestBodyVaultKey)
+import           Wai.Request.Params.Middleware             (RequestBody (..), Respond, requestBodyVaultKey)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig

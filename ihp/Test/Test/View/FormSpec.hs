@@ -6,7 +6,7 @@ module Test.View.FormSpec where
 
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
-import IHP.RequestBodyMiddleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..))
 import qualified Text.Blaze.Renderer.Text as Blaze
 import IHP.ModelSupport
 import qualified Network.Wai as Wai

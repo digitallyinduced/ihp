@@ -136,6 +136,7 @@ common shared-properties
             , wai-flash-messages
             , slugger
             , ihp-imagemagick
+            , wai-request-params
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -207,7 +208,6 @@ library
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
-        , IHP.RequestBodyMiddleware
         , IHP.ValidationSupport
         , IHP.ViewPrelude
         , IHP.ViewSupport

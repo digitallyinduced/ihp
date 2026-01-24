@@ -140,7 +140,7 @@ common shared-properties
 library
     import: shared-properties
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal
+    build-depends: ihp, ihp-log, ihp-modal, wai-request-params
     exposed-modules:
           IHP.IDE.Prelude
         , IHP.IDE.SchemaDesigner.Controller.Columns
