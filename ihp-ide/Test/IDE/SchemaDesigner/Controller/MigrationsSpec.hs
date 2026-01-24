@@ -18,8 +18,8 @@ import Network.Socket (PortNumber)
 -- | Helper to create a mock ToolServerApplication for testing
 createMockToolServerApplication :: IO ToolServerApplication
 createMockToolServerApplication = do
-    postgresStandardOutput <- newIORef ByteString.byteString
-    postgresErrorOutput <- newIORef ByteString.byteString
+    postgresStandardOutput <- newIORef mempty
+    postgresErrorOutput <- newIORef mempty
     appStandardOutput <- newIORef []
     appErrorOutput <- newIORef []
     let appPort = 8000 :: PortNumber
@@ -65,6 +65,6 @@ tests = do
                         -- We're only checking that the middleware is present
                     Right _response -> do
                         -- Success - the middleware allowed us to read params
-                        True `shouldBe` True
+                        pure ()
 
 
