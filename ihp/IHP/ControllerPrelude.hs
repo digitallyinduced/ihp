@@ -46,7 +46,7 @@ import IHP.Controller.Render
 import IHP.Controller.AccessDenied
 import IHP.Controller.NotFound
 import IHP.Controller.Session
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (Respond, RequestBody (..))
 import IHP.Controller.BasicAuth
 import IHP.Controller.Cookie
 import IHP.ControllerSupport

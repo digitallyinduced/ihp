@@ -18,7 +18,7 @@ import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
 import IHP.Job.Types
-import IHP.Controller.RequestContext hiding (request)
+import IHP.RequestBodyMiddleware (RequestBody (..), Respond)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import qualified IHP.Server as Server
@@ -100,8 +100,8 @@ config = do
 
 -- Application needs middleware to populate request vault with frameworkConfig
 -- so that ?context.frameworkConfig works during request handling
-mkApplication :: (?context :: RequestContext, ?modelContext :: ModelContext) => Application
-mkApplication = frameworkConfigMiddleware ?context.frameworkConfig
+mkApplication :: (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext) => Application
+mkApplication = frameworkConfigMiddleware ?request.frameworkConfig
               $ modelContextMiddleware ?modelContext
               $ Server.application handleNotFound (\app -> app)
 

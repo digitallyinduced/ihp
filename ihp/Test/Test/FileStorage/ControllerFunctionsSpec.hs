@@ -8,7 +8,7 @@ import IHP.FrameworkConfig
 import Network.Wai as Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import Network.Wai.Parse (FileInfo(..))
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..))
 import IHP.FileStorage.Types
 import IHP.FileStorage.Config
 import qualified Data.Vault.Lazy as Vault
@@ -76,7 +76,7 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 createControllerContext frameworkConfig = do
     let
         requestBody = FormBody { params = [], files = [] }
-        request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig Vault.empty }
-        requestContext = RequestContext { request, respond = error "respond", requestBody }
-    let ?requestContext = requestContext
+        request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
+                                                 $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
+    let ?request = request
     newControllerContext

@@ -17,7 +17,6 @@ module IHP.Controller.Redirect
 import IHP.Prelude
 import qualified Network.Wai.Util
 import Network.URI (parseURI)
-import IHP.Controller.RequestContext
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -55,7 +54,7 @@ redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
 redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
 redirectToPath path = redirectToUrl (convertString baseUrl <> path)
     where
-        baseUrl = Approot.getApproot ?context.requestContext.request
+        baseUrl = Approot.getApproot ?context.request
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a path using HTTP 303 See Other
@@ -64,7 +63,7 @@ redirectToPath path = redirectToUrl (convertString baseUrl <> path)
 redirectToPathSeeOther :: (?context :: ControllerContext) => Text -> IO ()
 redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> path)
     where
-        baseUrl = Approot.getApproot ?context.requestContext.request
+        baseUrl = Approot.getApproot ?context.request
 {-# INLINABLE redirectToPathSeeOther #-}
 
 -- | Redirects to a url (given as a string)
@@ -76,7 +75,6 @@ redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> pa
 -- Use 'redirectToPath' if you want to redirect to a relative path like @/hello-world.html@
 redirectToUrl :: (?context :: ControllerContext) => Text -> IO ()
 redirectToUrl url = do
-    let RequestContext { respond } = ?context.requestContext
     let !parsedUrl = fromMaybe
             (error ("redirectToPath: Unable to parse url: " <> show url))
             (parseURI (cs url))
@@ -91,7 +89,6 @@ redirectToUrl url = do
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
 redirectToUrlSeeOther :: (?context :: ControllerContext) => Text -> IO ()
 redirectToUrlSeeOther url = do
-    let RequestContext { respond } = ?context.requestContext
     let !parsedUrl = fromMaybe
             (error ("redirectToUrlSeeOther: Unable to parse url: " <> show url))
             (parseURI (cs url))

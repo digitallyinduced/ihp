@@ -15,7 +15,7 @@ import           Network.Wai.Internal                      (ResponseReceived (..
 import           Network.Wai.Parse                         (Param (..))
 
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
+import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
@@ -33,13 +33,15 @@ import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Test as WaiTest
-import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware)
+import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
+import IHP.RequestBodyMiddleware (requestBodyMiddleware)
 
-type ContextParameters application = (?context :: RequestContext, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
+type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
 data MockContext application = InitControllerContext application => MockContext
     { modelContext :: ModelContext
-    , requestContext :: RequestContext
+    , mockRequest :: Request
+    , mockRespond :: Respond
     , application :: application
     }
 
@@ -52,17 +54,16 @@ mockContextNoDatabase application configBuilder = do
 
    let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
 
-   -- Apply middlewares to populate the vault with modelContext and frameworkConfig
+   -- Apply middlewares to populate the vault with modelContext, frameworkConfig, and requestBody
    requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
    let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-   let transformedApp = frameworkConfigMiddleware frameworkConfig $ modelContextMiddleware modelContext captureApp
+   let transformedApp = frameworkConfigMiddleware frameworkConfig
+                      $ modelContextMiddleware modelContext
+                      $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions captureApp
    _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-   requestWithVault <- readIORef requestRef
+   mockRequest <- readIORef requestRef
 
-   let requestContext = RequestContext
-         { request = requestWithVault
-         , requestBody = FormBody [] []
-         , respond = \resp -> pure ResponseReceived }
+   let mockRespond = \resp -> pure ResponseReceived
 
    pure MockContext{..}
 
@@ -70,7 +71,8 @@ mockContextNoDatabase application configBuilder = do
 withContext :: (ContextParameters application => IO a) -> MockContext application -> IO a
 withContext action mocking@MockContext{..} = let
     ?modelContext = modelContext
-    ?context = requestContext
+    ?request = mockRequest
+    ?respond = mockRespond
     ?application = application
     ?mocking = mocking
   in do
@@ -91,15 +93,17 @@ callAction controller = callActionWithParams controller []
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
     approotMiddleware <- Approot.envFallback
-    let ihpWaiApp request respond = do
-            let requestContextWithOverridenRespond = ?context { respond, request, requestBody = FormBody params [] }
-            let ?context = requestContextWithOverridenRespond
+    let ihpWaiApp waiRequest waiRespond = do
+            -- Override the request body with the provided params
+            let requestWithBody = waiRequest { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) waiRequest.vault }
+            let ?request = requestWithBody
+            let ?respond = waiRespond
             runActionWithNewContext controller
 
         allMiddlewares app = approotMiddleware app
 
     simpleResponse <- WaiTest.withSession (allMiddlewares ihpWaiApp) do
-        WaiTest.request ?context.request
+        WaiTest.request ?mocking.mockRequest
 
     pure $ Wai.responseLBS simpleResponse.simpleStatus simpleResponse.simpleHeaders simpleResponse.simpleBody
 
@@ -118,7 +122,7 @@ callActionWithParams controller params = do
 --
 callJob :: forall application job. (ContextParameters application, Typeable application, Job job) => job -> IO ()
 callJob job = do
-    let frameworkConfig = ?context.frameworkConfig
+    let frameworkConfig = ?request.frameworkConfig
     let ?context = frameworkConfig
     perform job
 
@@ -178,17 +182,17 @@ responseStatusShouldBe response status = responseStatus response `shouldBe` stat
 --
 withUser :: forall user application userId result.
     ( ?mocking :: MockContext application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Serialize.Serialize userId
     , HasField "id" user userId
     , KnownSymbol (GetModelName user)
-    ) => user -> ((?context :: RequestContext) => IO result) -> IO result
+    ) => user -> ((?request :: Request, ?respond :: Respond) => IO result) -> IO result
 withUser user callback =
-        let ?context = newContext
+        let ?request = newRequest
         in callback
     where
-        newContext = ?context { request = newRequest }
-        newRequest = request { Wai.vault = newVault }
+        newRequest = currentRequest { Wai.vault = newVault }
 
         newSession :: Network.Wai.Session.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
@@ -199,8 +203,8 @@ withUser user callback =
 
         insertSession key value = pure ()
 
-        newVault = Vault.insert sessionVaultKey newSession (Wai.vault request)
-        RequestContext { request } = ?mocking.requestContext
+        newVault = Vault.insert sessionVaultKey newSession (Wai.vault currentRequest)
+        currentRequest = ?mocking.mockRequest
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)

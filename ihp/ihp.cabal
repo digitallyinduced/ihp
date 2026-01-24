@@ -167,7 +167,6 @@ library
         , IHP.Controller.FileUpload
         , IHP.Controller.Redirect
         , IHP.Controller.Render
-        , IHP.Controller.RequestContext
         , IHP.Controller.Session
         , IHP.Controller.Context
         , IHP.Controller.Layout
@@ -208,6 +207,7 @@ library
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
+        , IHP.RequestBodyMiddleware
         , IHP.ValidationSupport
         , IHP.ViewPrelude
         , IHP.ViewSupport

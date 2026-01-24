@@ -22,7 +22,7 @@ import qualified IHP.Router.Types as Router
 import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import Data.Text (Text)
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (Respond)
 import Network.HTTP.Types (status500, status400)
 import Network.Wai
 import Network.HTTP.Types.Header
@@ -43,7 +43,7 @@ import qualified IHP.Log as Log
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
 
-handleNoResponseReturned :: (Show controller, ?context :: ControllerContext, ?requestContext :: RequestContext) => controller -> IO ResponseReceived
+handleNoResponseReturned :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => controller -> IO ResponseReceived
 handleNoResponseReturned controller = do
     let codeSample :: Text = "render MyView { .. }"
     let errorMessage = [hsx|
@@ -55,11 +55,9 @@ handleNoResponseReturned controller = do
 
         |]
     let title = [hsx|No response returned in {tshow controller}|]
-    -- Use ?requestContext directly to avoid <<loop>> from TMap access
-    let respond = ?requestContext.respond
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
+    ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
-displayException :: (Show action, ?context :: ControllerContext, ?requestContext :: RequestContext) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -89,7 +87,7 @@ displayException exception action additionalInfo = do
     --
     when (?context.frameworkConfig.environment == Environment.Production) do
         let exceptionTracker = ?context.frameworkConfig.exceptionTracker.onException
-        let request = ?requestContext.request
+        let request = ?context.request
 
 
         exceptionTracker (Just request) exception
@@ -102,7 +100,7 @@ displayException exception action additionalInfo = do
 --
 -- In dev mode the action and exception is added to the output.
 -- In production mode nothing is specific is communicated about the exception
-genericHandler :: (Show controller, ?context :: ControllerContext) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
+genericHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
     let errorMessageText = "An exception was raised while running the action " <> tshow controller <> additionalInfo
     let errorMessageTitle = Exception.displayException exception
@@ -118,11 +116,10 @@ genericHandler exception controller additionalInfo = do
     let (errorMessage, errorTitle) = if ?context.frameworkConfig.environment == Environment.Development
             then (devErrorMessage, devTitle)
             else (prodErrorMessage, prodTitle)
-    let RequestContext { respond } = ?context.requestContext
 
-    respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment errorTitle errorMessage))
+    ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment errorTitle errorMessage))
 
-postgresHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+postgresHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
     let
         handlePostgresOutdatedError :: Show exception => exception -> H.Html -> IO ResponseReceived
@@ -143,8 +140,7 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
 
         handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
         handleSqlError exception = do
@@ -166,8 +162,7 @@ postgresHandler exception controller additionalInfo = do
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
         Nothing -> case fromException exception of
@@ -186,7 +181,7 @@ postgresHandler exception controller additionalInfo = do
             Just exception -> Just (handleSqlError exception)
             Nothing -> Nothing
 
-patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception :: Exception.PatternMatchFail) -> Just do
@@ -204,14 +199,13 @@ patternMatchFailureHandler exception controller additionalInfo = do
                         codeSample = "    action (" <> tshow controller <> ") = do\n        renderPlain \"Hello World\""
 
             let title = [hsx|Pattern match failed while executing {tshow controller}|]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
 -- Only used in dev mode of the app.
 
-paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
@@ -250,8 +244,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
@@ -271,14 +264,13 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 
 
             let title = [hsx|Parameter <q>{name}</q> was invalid|]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in development mode of the app.
-recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
@@ -316,21 +308,17 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
-            let RequestContext { respond } = ?context.requestContext
-            respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
         Nothing -> Nothing
 
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->
-            let requestContext = ?context.requestContext
-            in
-                let ?context = requestContext
-                in Just (handleNotFound ?context.request ?context.respond)
+            Just (handleNotFound ?context.request ?respond)
         Nothing -> Nothing
 
 handleRouterException :: Environment.Environment -> SomeException -> Application

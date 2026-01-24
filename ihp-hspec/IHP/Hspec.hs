@@ -16,7 +16,7 @@ import           Network.Wai.Internal                      (ResponseReceived (..
 
 
 import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.Controller.RequestContext             (RequestBody (..), RequestContext (..))
+import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond, requestBodyVaultKey)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
@@ -45,18 +45,17 @@ withIHPApp application configBuilder hspecAction = do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
             let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-            
+            let requestBody = FormBody [] []
+            let vaultWithBody = Vault.insert requestBodyVaultKey requestBody sessionVault
+
             -- Apply middlewares to populate the vault with modelContext and frameworkConfig
             requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
             let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
             let transformedApp = frameworkConfigMiddleware frameworkConfig (modelContextMiddleware modelContext captureApp)
-            _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-            requestWithContext <- readIORef requestRef
+            _responseReceived <- transformedApp (defaultRequest {vault = vaultWithBody}) (\_ -> pure ResponseReceived)
+            mockRequest <- readIORef requestRef
 
-            let requestContext = RequestContext
-                 { request = requestWithContext
-                 , requestBody = FormBody [] []
-                 , respond = const (pure ResponseReceived) }
+            let mockRespond = const (pure ResponseReceived)
 
             (hspecAction MockContext { .. })
 
@@ -68,32 +67,37 @@ withTestDatabase masterDatabaseUrl callback = do
             (PG.execute masterConnection "CREATE DATABASE ?" [PG.Identifier testDatabaseName])
             (
                 -- The WITH FORCE is required to force close open connections
-                -- Otherwise the DROP DATABASE takes a few seconds to execute
                 PG.execute masterConnection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier testDatabaseName]
             )
-            (do
-                importSchema (testDatabaseUrl masterDatabaseUrl testDatabaseName)
-                callback (testDatabaseUrl masterDatabaseUrl testDatabaseName)
-            )
+            do
+                let testDatabaseUrl = injectDatabaseName testDatabaseName masterDatabaseUrl
+                importSql testDatabaseUrl
+                callback testDatabaseUrl
+    pure ()
 
-testDatabaseUrl :: ByteString -> Text -> ByteString
-testDatabaseUrl masterDatabaseUrl testDatabaseName =
-    masterDatabaseUrl
-        |> cs
-        |> Text.replace "postgresql:///app" ("postgresql:///" <> testDatabaseName)
-        |> cs
+-- | Imports the IHP Schema.sql and Application/Schema.sql
+importSql :: ByteString -> IO ()
+importSql databaseUrl = do
+    -- Import IHP Schema
+    ihpSchemaSql <- findIHPSchemaSql
+    Process.callCommand ("psql " <> cs databaseUrl <> " < " <> ihpSchemaSql)
+
+    -- Import Application Schema
+    Process.callCommand ("psql " <> cs databaseUrl <> " < Application/Schema.sql")
+
+    -- Import Application Fixtures (if any)
+    Process.callCommand ("psql " <> cs databaseUrl <> " < Application/Fixtures.sql")
 
 randomDatabaseName :: IO Text
 randomDatabaseName = do
-    databaseId <- UUID.nextRandom
-    pure ("test-" <> UUID.toText databaseId)
+    uuid <- UUID.nextRandom
+    let name = "test_db_" <> (uuid |> UUID.toText |> Text.replace "-" "_")
+    pure name
 
-importSchema :: ByteString -> IO ()
-importSchema databaseUrl = do
-    -- We use the system psql to handle the initial Schema Import as it can handle
-    -- complex Schema including variations in formatting, custom types, functions, and table definitions.
-    let importSql file = Process.callCommand ("psql " <> (cs databaseUrl) <> " < " <> file)
-
-    ihpSchemaSql <- findIHPSchemaSql
-    importSql ihpSchemaSql
-    importSql "Application/Schema.sql"
+injectDatabaseName :: Text -> ByteString -> ByteString
+injectDatabaseName databaseName databaseUrl =
+        databaseUrl
+        |> cs
+        -- Remove database name from url so we can connect to the default database
+        |> Text.replace "/app" ("/" <> databaseName)
+        |> cs

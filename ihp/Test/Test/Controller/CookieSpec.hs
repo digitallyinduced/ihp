@@ -7,7 +7,8 @@ module Test.Controller.CookieSpec where
 import IHP.Prelude
 import Test.Hspec
 
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
+import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (addResponseHeadersFromContext)
 import IHP.Controller.Cookie
 import IHP.Controller.Context
@@ -37,7 +38,6 @@ tests = do
 createControllerContext = do
     let
         requestBody = FormBody { params = [], files = [] }
-        request = Wai.defaultRequest
-        requestContext = RequestContext { request, respond = error "respond", requestBody }
-    let ?requestContext = requestContext
+        request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+    let ?request = request
     newControllerContext

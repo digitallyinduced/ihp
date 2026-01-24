@@ -19,8 +19,6 @@ import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
-import IHP.Controller.RequestContext (RequestContext(RequestContext))
-import qualified IHP.Controller.RequestContext
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExit $ responseLBS status200 [(hContentType, "text/plain")] text
@@ -121,20 +119,18 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 
 
 {-# INLINABLE render #-}
-render :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO ()
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?respond :: Respond) => view -> IO ()
 render !view = do
-    -- Force immediate evaluation of requestContext to avoid <<loop>> issues.
-    -- The loop can occur if requestContext is lazily evaluated after putContext
-    -- modifies the TMap with a different RequestContext.
-    let !rc = ?context.requestContext
+    -- Get the current request from the context
+    let !currentRequest = ?context.request
     renderPolymorphic PolymorphicRender
             { html = Just do
                     let next request respond = do
-                            let requestContext' = rc { IHP.Controller.RequestContext.request, IHP.Controller.RequestContext.respond }
-                            putContext requestContext'
+                            -- Store the modified request (with flash messages in vault) in the context
+                            putContext request
                             (renderHtml view) >>= respondHtml
                             error "unreachable"
-                    _ <- consumeFlashMessagesMiddleware next request rc.respond
+                    _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
                     pure ()
             , json = Just $ renderJson (ViewSupport.json view)
             }
