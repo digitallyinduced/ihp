@@ -13,10 +13,11 @@ import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified System.Process as Process
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
-import IHP.IDE.SchemaDesigner.Types
+import qualified IHP.Postgres.Parser as Parser
+import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesignerParser
+import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.IDE.SchemaDesigner.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
@@ -47,7 +48,7 @@ buildPlan' includeIHPSchema description sqlStatements = do
             ])
 
 diffAppDatabase includeIHPSchema databaseUrl = do
-    (Right schemaSql) <- Parser.parseSchemaSql
+    (Right schemaSql) <- SchemaDesignerParser.parseSchemaSql
     (Right ihpSchemaSql) <- if includeIHPSchema
             then parseIHPSchema
             else pure (Right [])

@@ -17,8 +17,8 @@ import qualified Data.Text as Text
 import qualified IHP.GraphQL.ToText as GraphQL
 import qualified IHP.GraphQL.SchemaCompiler as GraphQL
 import qualified Text.Megaparsec as Megaparsec
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
-import IHP.IDE.SchemaDesigner.Types
+import qualified IHP.Postgres.Parser as Parser
+import IHP.Postgres.Types
 
 tests = do
     describe "IHP.GraphQL.SchemaCompiler" do

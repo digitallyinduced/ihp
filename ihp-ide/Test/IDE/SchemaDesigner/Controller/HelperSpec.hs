@@ -3,7 +3,7 @@ module Test.IDE.SchemaDesigner.Controller.HelperSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Controller.Helper
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 
 tests :: SpecWith ()
 tests = do

@@ -2,9 +2,9 @@ module Test.IDE.SchemaDesigner.SchemaOperationsSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import qualified IHP.Postgres.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (table)
 

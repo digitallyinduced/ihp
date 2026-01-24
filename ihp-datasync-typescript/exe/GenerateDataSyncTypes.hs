@@ -1,10 +1,9 @@
 module Main where
 
 import IHP.Prelude
-import IHP.SchemaCompiler
 import Main.Utf8 (withUtf8)
 import qualified Data.Text.IO as Text
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.DataSync.TypeScript.Compiler as Compiler
 
 main :: IO ()

@@ -12,8 +12,9 @@ import qualified System.Directory as Directory
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
-import IHP.IDE.SchemaDesigner.Types
-import qualified IHP.IDE.SchemaDesigner.Compiler as SqlCompiler
+import qualified IHP.Postgres.Parser as PostgresParser
+import IHP.Postgres.Types
+import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
 import Text.Countable (pluralize)
@@ -757,7 +758,7 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                 isNullExpr _ = False
 
                 -- We remove type casts here, as we need the actual value literal for setting our default value
-                theNormalizedDefaultValue = theDefaultValue |> SchemaDesigner.removeTypeCasts
+                theNormalizedDefaultValue = theDefaultValue |> PostgresParser.removeTypeCasts
             in
                 if isNullExpr theDefaultValue
                     then "Nothing"

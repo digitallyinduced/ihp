@@ -7,7 +7,7 @@ import IHP.IDE.SchemaDesigner.View.Enums.New
 import IHP.IDE.SchemaDesigner.View.Enums.Show
 import IHP.IDE.SchemaDesigner.View.Enums.Edit
 
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.SchemaDesigner.View.Layout (replace, schemaDesignerLayout)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation

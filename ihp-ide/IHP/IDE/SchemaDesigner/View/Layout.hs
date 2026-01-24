@@ -16,11 +16,11 @@ module IHP.IDE.SchemaDesigner.View.Layout
 ) where
 
 import IHP.ViewPrelude hiding (primaryKeyColumnNames)
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
-import IHP.IDE.SchemaDesigner.Compiler (compilePostgresType, compileExpression)
+import IHP.Postgres.Compiler (compilePostgresType, compileExpression)
 import qualified Data.List as List
 
 schemaDesignerLayout :: Html -> Html

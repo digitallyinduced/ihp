@@ -76,11 +76,11 @@ common shared-properties
             , websockets
             , wai-websockets
             , wreq
-            , parser-combinators
             , neat-interpolation
             , unagi-chan
             , with-utf8
             , ihp-hsx
+            , ihp-postgres-parser
             -- Used for 'Control.Debounce' in 'IHP.IDE.FileWatcher'
             , auto-update
             , base16-bytestring
