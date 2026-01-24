@@ -18,7 +18,7 @@ import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.OAuth.Google.View.NewSessionWithGoogle
 import qualified Network.Wai
 
-newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
+newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 newSessionWithGoogleAction = do
     let clientId = googleOAuthConfig |> get #clientId
     render NewSessionWithGoogleView { .. }
