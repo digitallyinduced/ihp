@@ -7,6 +7,7 @@ module IHP.ServerSideComponent.Types where
 
 import IHP.ViewPrelude
 import qualified Network.WebSockets as WebSocket
+import GHC.Generics (Generic)
 
 class Component state action | state -> action where
     initialState :: state
@@ -35,3 +36,10 @@ data ComponentInstance state
 
 instance (SetField "state" (ComponentInstance state) state) where
     setField state componentInstance = componentInstance { state }
+
+-- | Error types for SSC operations sent to the client
+data SSCError
+    = SSCDiffError { errorMessage :: !Text }
+    | SSCActionError { errorMessage :: !Text }
+    | SSCParseError { errorMessage :: !Text }
+    deriving (Eq, Show, Generic)
