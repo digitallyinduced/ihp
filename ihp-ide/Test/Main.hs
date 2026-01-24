@@ -15,6 +15,7 @@ import qualified Test.IDE.CodeGeneration.MailGenerator
 import qualified Test.IDE.CodeGeneration.JobGenerator
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.SchemaCompilerSpec
+import qualified Test.IDE.ToolServer.MiddlewareSpec
 
 main :: IO ()
 main = hspec do
@@ -30,3 +31,4 @@ main = hspec do
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
     Test.SchemaCompilerSpec.tests
+    Test.IDE.ToolServer.MiddlewareSpec.tests
