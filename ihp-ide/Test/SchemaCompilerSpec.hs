@@ -7,7 +7,7 @@ module Test.SchemaCompilerSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.SchemaCompiler
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import qualified Data.Text as Text
 import Test.IDE.SchemaDesigner.ParserSpec (parseSqlStatements, col, table)
 

@@ -41,6 +41,7 @@ import IHP.Pagination.Types
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Network.Wai as Wai
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
 
@@ -112,32 +113,32 @@ class ( job ~ GetModelByTableName (GetTableName job)
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [Type]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeDashboardSection' on each type.
-    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Wai.Request) => IO SomeView
 
     includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
+    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => IO ()
 
-    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
-    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
+    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Text -> IO ()
+    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Bool -> IO ()
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
-    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Text -> UUID -> IO ()
+    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Bool -> IO ()
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
-    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Text -> IO ()
+    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Bool -> IO ()
 
     -- | Deletes a job from the database.
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
-    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Text -> UUID -> IO ()
+    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Bool -> IO ()
 
-    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
-    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
+    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => Text -> UUID -> IO ()
+    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Wai.Request) => IO ()
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
@@ -347,7 +348,7 @@ extractText = \(Only t) -> t
 getNotIncludedTableNames includedNames = map extractText <$> sqlQuery
     "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
     (Only $ In $ includedNames)
-buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO SomeView
+buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Wai.Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
     baseJobs <- sqlQuery (PG.Query $ cs $ queryString) (Only tableName)
     baseJobs

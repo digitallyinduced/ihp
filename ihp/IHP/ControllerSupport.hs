@@ -17,6 +17,7 @@ module IHP.ControllerSupport
 , runActionWithNewContext
 , newContextForAction
 , respondAndExit
+, respondAndExitWithHeaders
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
@@ -59,10 +60,10 @@ import IHP.RequestVault
 type Action' = IO ResponseReceived
 
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond) => IO ()
+    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond) => controller -> IO ()
+    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => controller -> IO ()
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => IO ()
@@ -76,6 +77,7 @@ instance InitControllerContext () where
 runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
+    let ?request = ?context.request
 
     let doRunAction = do
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
@@ -169,27 +171,27 @@ startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: 
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Network.Wai.Request) => action -> IO ()
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
     action theAction
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?context :: ControllerContext) => IO LBS.ByteString
+getRequestBody :: (?request :: Network.Wai.Request) => IO LBS.ByteString
 getRequestBody =
-    case request.parsedBody of
+    case ?request.parsedBody of
         JSONBody { rawPayload } -> pure rawPayload
-        _ -> Network.Wai.lazyRequestBody request
+        _ -> Network.Wai.lazyRequestBody ?request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
-getRequestPath :: (?context :: ControllerContext) => ByteString
-getRequestPath = request.rawPathInfo
+getRequestPath :: (?request :: Network.Wai.Request) => ByteString
+getRequestPath = ?request.rawPathInfo
 {-# INLINABLE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
-getRequestPathAndQuery :: (?context :: ControllerContext) => ByteString
-getRequestPathAndQuery = request.rawPathInfo <> request.rawQueryString
+getRequestPathAndQuery :: (?request :: Network.Wai.Request) => ByteString
+getRequestPathAndQuery = ?request.rawPathInfo <> ?request.rawQueryString
 {-# INLINABLE getRequestPathAndQuery #-}
 
 -- | Returns a header value for a given header name. Returns Nothing if not found
@@ -202,8 +204,8 @@ getRequestPathAndQuery = request.rawPathInfo <> request.rawQueryString
 -- >>> getHeader "X-My-Custom-Header"
 -- Nothing
 --
-getHeader :: (?context :: ControllerContext) => ByteString -> Maybe ByteString
-getHeader name = lookup (Data.CaseInsensitive.mk name) request.requestHeaders
+getHeader :: (?request :: Network.Wai.Request) => ByteString -> Maybe ByteString
+getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 {-# INLINABLE getHeader #-}
 
 -- | Set a header value for a given header name.
@@ -220,20 +222,20 @@ setHeader header = do
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
-request :: (?context :: ControllerContext) => Network.Wai.Request
-request = ?context.request
+request :: (?request :: Network.Wai.Request) => Network.Wai.Request
+request = ?request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
-getFiles :: (?context :: ControllerContext) => [File Data.ByteString.Lazy.ByteString]
+getFiles :: (?request :: Network.Wai.Request) => [File Data.ByteString.Lazy.ByteString]
 getFiles =
-    case request.parsedBody of
+    case ?request.parsedBody of
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?context :: ControllerContext) => Aeson.Value
+requestBodyJSON :: (?request :: Network.Wai.Request) => Aeson.Value
 requestBodyJSON =
-    case request.parsedBody of
+    case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> value
         _ -> error "Expected JSON body"
 

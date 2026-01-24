@@ -1,7 +1,7 @@
 module IHP.DataSync.TypeScript.Compiler where
 
 import IHP.Prelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import NeatInterpolation
 
 generateTypeScriptTypeDefinitions :: [Statement] -> Text

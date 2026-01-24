@@ -9,9 +9,9 @@ import IHP.Prelude
 import IHP.IDE.CodeGen.MigrationGenerator
 import Data.String.Interpolate.IsString (i)
 import qualified Text.Megaparsec as Megaparsec
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import qualified IHP.Postgres.Parser as Parser
 import IHP.IDE.CodeGen.Types
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.NameSupport
 
 tests = do

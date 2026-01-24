@@ -41,11 +41,11 @@ library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules: IHP.DataSync.TypeScript.Compiler
-    build-depends: ihp, ihp-ide, neat-interpolation
+    build-depends: ihp, ihp-postgres-parser, neat-interpolation
 
 executable generate-datasync-types
     import: shared-properties
-    build-depends: ihp-datasync-typescript, ihp, ihp-ide, neat-interpolation, with-utf8, text
+    build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, neat-interpolation, with-utf8, text
     hs-source-dirs: .
     main-is: exe/GenerateDataSyncTypes.hs
 
@@ -54,4 +54,4 @@ test-suite spec
     type: exitcode-stdio-1.0
     hs-source-dirs: .
     main-is: Test/Spec.hs
-    build-depends: ihp-datasync-typescript, ihp, ihp-ide, megaparsec, neat-interpolation, hspec
+    build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, megaparsec, neat-interpolation, hspec

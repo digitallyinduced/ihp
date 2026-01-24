@@ -1,7 +1,7 @@
 module IHP.IDE.CodeGen.Types where
 
 import IHP.Prelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 
 data GeneratorAction
     = CreateFile { filePath :: Text, fileContent :: Text }

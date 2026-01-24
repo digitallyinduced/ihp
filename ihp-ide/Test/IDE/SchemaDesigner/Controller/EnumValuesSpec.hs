@@ -3,7 +3,7 @@ module Test.IDE.SchemaDesigner.Controller.EnumValuesSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.IDE.SchemaDesigner.Controller.EnumValues
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 
 tests :: SpecWith ()
 tests = do

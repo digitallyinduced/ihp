@@ -28,6 +28,7 @@ import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
 import qualified IHP.Controller.Session as Session
+import qualified Network.Wai as Wai
 import IHP.FlashMessages
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
@@ -44,22 +45,22 @@ currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
     Nothing -> error ("initAuthentication @" <> show (typeRep (Proxy @user)) <> " has not been called in initContext inside FrontController of this application")
 {-# INLINE currentRoleOrNothing #-}
 
-currentRole :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => user
+currentRole :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user) => user
 currentRole = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) (currentRoleOrNothing @user)
 {-# INLINE currentRole #-}
 
-currentRoleId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
+currentRoleId :: forall user userId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
 currentRoleId = (currentRole @user).id
 {-# INLINE currentRoleId #-}
 
-ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => IO ()
+ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user) => IO ()
 ensureIsRole =
     case currentRoleOrNothing @user of
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 {-# INLINABLE ensureIsRole #-}
 
-currentUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
+currentUser :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
 currentUser = currentRole @user
 {-# INLINABLE currentUser #-}
 
@@ -67,15 +68,15 @@ currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessi
 currentUserOrNothing = currentRoleOrNothing @user
 {-# INLINABLE currentUserOrNothing #-}
 
-currentUserId :: forall user userId. (?context :: ControllerContext, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
+currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
 currentUserId = currentRoleId @user
 {-# INLINABLE currentUserId #-}
 
-ensureIsUser :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = ensureIsRole @user
 {-# INLINABLE ensureIsUser #-}
 
-currentAdmin :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
+currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
 currentAdmin = currentRole @admin
 {-# INLINABLE currentAdmin #-}
 
@@ -83,11 +84,11 @@ currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSes
 currentAdminOrNothing = currentRoleOrNothing @admin
 {-# INLINABLE currentAdminOrNothing #-}
 
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
+currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
 currentAdminId = currentRoleId @admin
 {-# INLINABLE currentAdminId #-}
 
-ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin = ensureIsRole @admin
 {-# INLINABLE ensureIsAdmin #-}
 
@@ -101,7 +102,7 @@ ensureIsAdmin = ensureIsRole @admin
 -- >     
 -- >     redirectToPath "/"
 --
-login :: forall user id. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
+login :: forall user id. (?request :: Wai.Request, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
 login user = Session.setSession (sessionKey @user) (tshow (user.id))
 {-# INLINABLE login #-}
 
@@ -112,10 +113,10 @@ login user = Session.setSession (sessionKey @user) (tshow (user.id))
 -- > action LogoutAction = do
 -- >     let user = currentUser
 -- >     logout user
--- >     
+-- >
 -- >     redirectToPath "/"
 --
-logout :: forall user. (?context :: ControllerContext, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
+logout :: forall user. (?request :: Wai.Request, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
 logout user = Session.setSession (sessionKey @user) ("" :: Text)
 {-# INLINABLE logout #-}
 
@@ -123,7 +124,7 @@ sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Byt
 sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 {-# INLINABLE sessionKey #-}
 
-redirectToLoginWithMessage :: (?context :: ControllerContext) => Text -> IO ()
+redirectToLoginWithMessage :: (?request :: Wai.Request) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do
     setSuccessMessage "Please log in to access this page"
     setSession "IHP.LoginSupport.redirectAfterLogin" getRequestPathAndQuery
@@ -131,7 +132,7 @@ redirectToLoginWithMessage newSessionPath = do
     error "Unreachable"
 
 
-redirectToLogin :: (?context :: ControllerContext) => Text -> a
+redirectToLogin :: (?request :: Wai.Request) => Text -> a
 redirectToLogin newSessionPath = unsafePerformIO $ do
     redirectToPath newSessionPath
     error "Unreachable"

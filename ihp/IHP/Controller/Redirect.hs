@@ -20,6 +20,7 @@ import Network.URI (parseURI)
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
+import Network.Wai (Request)
 
 import IHP.Controller.Context
 import IHP.ControllerSupport
@@ -31,14 +32,14 @@ import IHP.ControllerSupport
 -- > redirectTo ShowProjectAction { projectId = project.id }
 --
 -- Use 'redirectToPath' if you want to redirect to a non-action url.
-redirectTo :: (?context :: ControllerContext, HasPath action) => action -> IO ()
+redirectTo :: (?request :: Request, HasPath action) => action -> IO ()
 redirectTo action = redirectToPath (pathTo action)
 {-# INLINABLE redirectTo #-}
 
 -- | Redirects to an action using HTTP 303 See Other
 --
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
-redirectToSeeOther :: (?context :: ControllerContext, HasPath action) => action -> IO ()
+redirectToSeeOther :: (?request :: Request, HasPath action) => action -> IO ()
 redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
 {-# INLINABLE redirectToSeeOther #-}
 
@@ -51,19 +52,19 @@ redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
 -- > redirectToPath "/blog/wp-login.php"
 --
 -- Use 'redirectTo' if you want to redirect to a controller action.
-redirectToPath :: (?context :: ControllerContext) => Text -> IO ()
+redirectToPath :: (?request :: Request) => Text -> IO ()
 redirectToPath path = redirectToUrl (convertString baseUrl <> path)
     where
-        baseUrl = Approot.getApproot ?context.request
+        baseUrl = Approot.getApproot ?request
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a path using HTTP 303 See Other
 --
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
-redirectToPathSeeOther :: (?context :: ControllerContext) => Text -> IO ()
+redirectToPathSeeOther :: (?request :: Request) => Text -> IO ()
 redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> path)
     where
-        baseUrl = Approot.getApproot ?context.request
+        baseUrl = Approot.getApproot ?request
 {-# INLINABLE redirectToPathSeeOther #-}
 
 -- | Redirects to a url (given as a string)
@@ -73,7 +74,7 @@ redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> pa
 -- > redirectToUrl "https://example.com/hello-world.html"
 --
 -- Use 'redirectToPath' if you want to redirect to a relative path like @/hello-world.html@
-redirectToUrl :: (?context :: ControllerContext) => Text -> IO ()
+redirectToUrl :: Text -> IO ()
 redirectToUrl url = do
     let !parsedUrl = fromMaybe
             (error ("redirectToPath: Unable to parse url: " <> show url))
@@ -87,7 +88,7 @@ redirectToUrl url = do
 -- | Redirects to a url using HTTP 303 See Other
 --
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
-redirectToUrlSeeOther :: (?context :: ControllerContext) => Text -> IO ()
+redirectToUrlSeeOther :: Text -> IO ()
 redirectToUrlSeeOther url = do
     let !parsedUrl = fromMaybe
             (error ("redirectToUrlSeeOther: Unable to parse url: " <> show url))
@@ -115,7 +116,7 @@ redirectToUrlSeeOther url = do
 -- >
 -- >     redirectBack
 --
-redirectBack :: (?context :: ControllerContext) => IO ()
+redirectBack :: (?request :: Request) => IO ()
 redirectBack = redirectBackWithFallback "/"
 {-# INLINABLE redirectBack #-}
 
@@ -133,7 +134,7 @@ redirectBack = redirectBackWithFallback "/"
 -- >
 -- >     redirectBackWithFallback (pathTo ShowPostAction { postId = post.id })
 --
-redirectBackWithFallback :: (?context :: ControllerContext) => Text -> IO ()
+redirectBackWithFallback :: (?request :: Request) => Text -> IO ()
 redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
         Just referer -> case parseURI (cs referer) of

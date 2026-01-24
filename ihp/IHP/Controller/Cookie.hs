@@ -10,6 +10,7 @@ import IHP.ControllerSupport
 import Web.Cookie
 import qualified Data.Binary.Builder as Binary
 import qualified Data.ByteString.Lazy as LBS
+import qualified Network.Wai
 
 -- | Sets a @Set-Cookie@ header
 --
@@ -34,11 +35,11 @@ setCookie cookie = setHeader ("Set-Cookie", cookieString)
 -- > getCookie "fbc"
 -- Just "1234"
 --
-getCookie :: (?context :: ControllerContext) => Text -> Maybe Text
+getCookie :: (?request :: Network.Wai.Request) => Text -> Maybe Text
 getCookie name =
     lookup name allCookies
 
 -- | Returns all cookies sent with the current request
-allCookies :: (?context :: ControllerContext) => [(Text, Text)]
+allCookies :: (?request :: Network.Wai.Request) => [(Text, Text)]
 allCookies =
     maybe [] parseCookiesText $ lookup "Cookie" request.requestHeaders

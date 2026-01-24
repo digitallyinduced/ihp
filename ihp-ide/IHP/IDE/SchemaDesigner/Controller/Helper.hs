@@ -1,13 +1,15 @@
 module IHP.IDE.SchemaDesigner.Controller.Helper where
 
 import IHP.IDE.Prelude
-import IHP.IDE.SchemaDesigner.Types
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
+import IHP.Postgres.Types
+import qualified IHP.Postgres.Parser as Parser
+import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesignerParser
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.IDE.SchemaDesigner.Compiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.View.Schema.Error
 import IHP.IDE.ToolServer.Helper.Controller
 import IHP.RequestBodyMiddleware (Respond)
+import qualified Network.Wai
 
 instance ParamReader PostgresType where
     readParameter byteString = case Megaparsec.runParser Parser.sqlType "" (cs byteString) of
@@ -29,13 +31,14 @@ readSchema ::
     , ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
+    , ?request :: Network.Wai.Request
     ) => IO [Statement]
-readSchema = Parser.parseSchemaSql >>= \case
+readSchema = SchemaDesignerParser.parseSchemaSql >>= \case
         Left error -> do render ErrorView { error }; pure []
         Right statements -> pure statements
 
 getSqlError :: IO (Maybe ByteString)
-getSqlError = Parser.parseSchemaSql >>= \case
+getSqlError = SchemaDesignerParser.parseSchemaSql >>= \case
         Left error -> do pure (Just error)
         Right statements -> do pure Nothing
 
@@ -44,6 +47,7 @@ updateSchema ::
     , ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
+    , ?request :: Network.Wai.Request
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do
     statements <- readSchema
