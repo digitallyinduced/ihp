@@ -7,8 +7,10 @@ import IHP.ServerSideComponent.ControllerFunctions as SSC
 
 import qualified Data.Aeson as Aeson
 import qualified IHP.Log as Log
+import qualified Control.Exception as Exception
+import Data.Typeable (typeOf)
 
-instance (Component component controller, FromJSON controller) => WSApp (ComponentsController component) where
+instance (Component component controller, FromJSON controller, Typeable component) => WSApp (ComponentsController component) where
     initialState = ComponentsController
 
     run = do
@@ -16,8 +18,19 @@ instance (Component component controller, FromJSON controller) => WSApp (Compone
         instanceRef <- newIORef (ComponentInstance { state })
         let ?instanceRef = instanceRef
 
-        nextState <- componentDidMount state
-        SSC.setState nextState
+        let componentName = tshow (typeOf state)
+        Log.info ("SSC: Component " <> componentName <> " connected")
+
+        -- Handle componentDidMount with exception handling
+        mountResult <- Exception.try (componentDidMount state)
+        case mountResult of
+            Left (e :: SomeException) -> do
+                let errorText = tshow e
+                Log.error ("SSC: componentDidMount failed for " <> componentName <> ": " <> errorText)
+                SSC.sendError (SSCActionError { errorMessage = "Component initialization failed: " <> errorText })
+            Right nextState -> do
+                Log.debug ("SSC: Component " <> componentName <> " mounted")
+                SSC.setState nextState
 
         forever do
             actionPayload :: LByteString <- receiveData
@@ -28,9 +41,17 @@ instance (Component component controller, FromJSON controller) => WSApp (Compone
                 Right theAction -> do
                     currentState <- SSC.getState
 
-                    nextState <- SSC.action currentState theAction
-                    SSC.setState nextState
-                Left error -> do
-                    Log.error ("Failed Parsing Server Side Component Message As JSON" :: Text)
-                    Log.error actionPayload
-                    Log.error error
+                    -- Execute action with exception handling
+                    actionResult <- Exception.try (SSC.action currentState theAction)
+                    case actionResult of
+                        Left (e :: SomeException) -> do
+                            let errorText = tshow e
+                            Log.error ("SSC: Action failed for " <> componentName <> ": " <> errorText)
+                            SSC.sendError (SSCActionError { errorMessage = errorText })
+                        Right nextState -> do
+                            SSC.setState nextState
+                Left parseError -> do
+                    let errorText = cs parseError
+                    Log.error ("SSC: Failed parsing action for " <> componentName <> ": " <> errorText)
+                    Log.debug ("SSC: Invalid payload: " <> tshow actionPayload)
+                    SSC.sendError (SSCParseError { errorMessage = errorText })
