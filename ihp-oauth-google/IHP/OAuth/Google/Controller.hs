@@ -35,6 +35,7 @@ googleConnectCallbackAction :: forall user.
     , HasNewSessionUrl user
     , Typeable user
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , HasField "id" user (Id user)
     , CanUpdate user
     , SetField "failedLoginAttempts" user Int

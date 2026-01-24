@@ -11,7 +11,7 @@ import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified Network.Wai
 
-newSessionWithGithubAction :: forall user. (?context :: ControllerContext, HasPath Github.GithubOAuthController) => IO ()
+newSessionWithGithubAction :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasPath Github.GithubOAuthController) => IO ()
 newSessionWithGithubAction = do
     state <- Github.initState
     let options = Github.AuthorizeOptions
@@ -33,6 +33,7 @@ githubConnectCallbackAction :: forall user.
     , HasNewSessionUrl user
     , Typeable user
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , SetField "githubUserId" user (Maybe Int)
     , HasField "githubUserId" user (Maybe Int)
     , SetField "email" user Text
