@@ -1,4 +1,4 @@
-module IHP.IDE.ToolServer (runToolServer) where
+module IHP.IDE.ToolServer (runToolServer, buildToolServerApplication, ToolServerApplicationWithConfig(..)) where
 
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -60,7 +60,36 @@ runToolServer toolServerApplication liveReloadClients = do
 
 startToolServer' :: (?context :: Context) => ToolServerApplication -> Int -> Bool -> _ -> IO ()
 startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
+    weightedApp <- buildToolServerApplication toolServerApplication port liveReloadClients
 
+    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
+    let warpSettings = Warp.defaultSettings
+            |> Warp.setPort port
+            |> Warp.setBeforeMainLoop openAppUrl
+
+    let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
+
+    Warp.runSettings warpSettings $
+            logMiddleware weightedApp.application
+
+-- | Result of building the ToolServer application
+data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
+    { application :: Wai.Application
+    , frameworkConfig :: Config.FrameworkConfig
+    }
+
+-- | Builds the full ToolServer WAI application with all middlewares applied.
+--
+-- This is exported for testing so we can verify the middleware stack works correctly.
+-- The returned application includes:
+-- - methodOverridePost (for PUT/DELETE via POST)
+-- - sessionMiddleware (for session handling)
+-- - approotMiddleware (for app root path)
+-- - frameworkConfigMiddleware (for framework config in request vault)
+-- - requestBodyMiddleware (for parsing form params - required for controllers)
+-- - websocket support (for live reload)
+buildToolServerApplication :: ToolServerApplication -> Int -> _ -> IO ToolServerApplicationWithConfig
+buildToolServerApplication toolServerApplication port liveReloadClients = do
     frameworkConfig <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
@@ -75,26 +104,22 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
     approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
-    
+
     staticApp <- initStaticApp
 
-    let application :: Wai.Application = \request respond -> do
+    let innerApplication :: Wai.Application = \request respond -> do
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
-    let warpSettings = Warp.defaultSettings
-            |> Warp.setPort port
-            |> Warp.setBeforeMainLoop openAppUrl
-
-    let logMiddleware = if isDebugMode then frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
-
-    Warp.runSettings warpSettings $
-            logMiddleware $ methodOverridePost $ sessionMiddleware $ approotMiddleware $ frameworkConfigMiddleware frameworkConfig
+    let application =
+            methodOverridePost $ sessionMiddleware $ approotMiddleware
+                $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                 $ Websocket.websocketsOr
                     Websocket.defaultConnectionOptions
                     (LiveReloadNotificationServer.app liveReloadClients)
-                    application
+                    innerApplication
+
+    pure ToolServerApplicationWithConfig { application, frameworkConfig }
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
