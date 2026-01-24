@@ -321,7 +321,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, hspec
+    build-depends: ihp, ihp-log, ihp-modal, hspec, wai-request-params
     other-modules:
         Test.IDE.SchemaDesigner.CompilerSpec
         Test.IDE.SchemaDesigner.ParserSpec
