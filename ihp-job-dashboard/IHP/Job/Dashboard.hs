@@ -34,7 +34,7 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types

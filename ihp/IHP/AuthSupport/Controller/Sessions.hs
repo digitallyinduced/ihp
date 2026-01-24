@@ -19,7 +19,7 @@ import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import qualified Network.Wai
 
 -- | Displays the login form.
