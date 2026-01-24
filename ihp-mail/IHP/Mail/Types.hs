@@ -11,6 +11,7 @@ module IHP.Mail.Types
 where
 
 import IHP.Prelude
+import IHP.EnvVar
 import Network.Socket (PortNumber)
 
 -- | Configuration for a mailer used by IHP
@@ -39,3 +40,10 @@ data MailAttachment = MailAttachment
     , content :: LByteString
     , contentType :: Text
     } deriving (Eq, Show)
+
+-- | Allow reading SMTP encryption settings from environment variables
+instance EnvVarReader SMTPEncryption where
+    envStringToValue "Unencrypted" = Right Unencrypted
+    envStringToValue "TLS"         = Right TLS
+    envStringToValue "STARTTLS"    = Right STARTTLS
+    envStringToValue _             = Left "Should be set to 'Unencrypted', 'TLS', or 'STARTTLS'"
