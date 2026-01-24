@@ -24,6 +24,7 @@ import qualified Data.Maybe as Maybe
 import qualified Control.Exception.Safe as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
+import qualified Network.Wai as Wai
 
 import qualified IHP.Log as Log
 
@@ -32,13 +33,13 @@ import qualified Network.WebSockets.Connection as WebSocket
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
+    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Wai.Request) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Wai.Request) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection) => IO ()
+    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Wai.Request) => IO ()
     onClose = pure ()
 
     -- | Provide WebSocket Connection Options
@@ -62,6 +63,7 @@ startWSApp :: forall state. (WSApp state, ?context :: ControllerContext, ?modelC
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state
+    let ?request = ?context.request
 
     result <- Exception.try ((withPingPong (defaultPingPongOptions { Websocket.pingAction = onPing @state }) connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of

@@ -24,92 +24,113 @@ tests = do
         describe "param" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("page", "1")]
+                let ?request = ?context.request
                 (param @Int "page") `shouldBe` 1
 
             it "should fail on empty input" do
                 let ?context = createControllerContextWithParams [("page", "")]
+                let ?request = ?context.request
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
             it "should fail if param not provided" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamNotFoundException { name = "page" })
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
+                let ?request = ?context.request
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
         describe "paramOrNothing" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "776ab71d-327f-41b3-90a8-7b5a251c4b88")]
+                let ?request = ?context.request
                 (paramOrNothing @UUID "referredBy") `shouldBe` (Just "776ab71d-327f-41b3-90a8-7b5a251c4b88")
 
             it "should return Nothing on empty input" do
                 let ?context = createControllerContextWithParams [("referredBy", "")]
+                let ?request = ?context.request
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
             it "should return Nothing if param not provided" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
+                let ?request = ?context.request
                 (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
 
         describe "paramOrDefault" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("page", "1")]
+                let ?request = ?context.request
                 (paramOrDefault @Int 0 "page") `shouldBe` 1
 
             it "should return default value on empty input" do
                 let ?context = createControllerContextWithParams [("page", "")]
+                let ?request = ?context.request
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
             it "should return default value if param not provided" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
+                let ?request = ?context.request
                 (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
 
         describe "paramList" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", "egg")]
+                let ?request = ?context.request
                 (paramList @Text "ingredients") `shouldBe` ["milk", "egg"]
 
             it "should fail on invalid input" do
                 let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
+                let ?request = ?context.request
                 (IO.evaluate (paramList @Int "numbers")) `shouldThrow` (errorCall "param: Parameter 'numbers' is invalid")
 
             it "should deal with empty input" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 (paramList @Int "numbers") `shouldBe` []
 
         describe "paramListOrNothing" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", ""), ("ingredients", "egg")]
+                let ?request = ?context.request
                 (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Nothing, Just "egg"]
 
             it "should not fail on invalid input" do
                 let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
+                let ?request = ?context.request
                 (paramListOrNothing @Int "numbers") `shouldBe` [Just 1, Nothing]
 
             it "should deal with empty input" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 (paramListOrNothing @Int "numbers") `shouldBe` []
 
         describe "hasParam" do
             it "returns True if param given" do
                 let ?context = createControllerContextWithParams [("a", "test")]
+                let ?request = ?context.request
                 hasParam "a" `shouldBe` True
 
             it "returns True if param given but empty" do
                 let ?context = createControllerContextWithParams [("a", "")]
+                let ?request = ?context.request
                 hasParam "a" `shouldBe` True
 
             it "returns False if param missing" do
                 let ?context = createControllerContextWithParams []
+                let ?request = ?context.request
                 hasParam "a" `shouldBe` False
 
         describe "ParamReader" do
@@ -388,6 +409,7 @@ tests = do
         describe "fill" do
             it "should fill provided values if valid" do
                 let ?context = createControllerContextWithParams [("boolField", "on"), ("colorField", "Red")]
+                let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
@@ -397,6 +419,7 @@ tests = do
 
             it "should not touch fields if a field is missing" do
                 let ?context = createControllerContextWithParams [("colorField", "Red")]
+                let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = ["colorField"] } }
@@ -406,6 +429,7 @@ tests = do
 
             it "should add validation errors if the parsing fails" do
                 let ?context = createControllerContextWithParams [("colorField", "invalid color")]
+                let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", TextViolation "Invalid value")] } }
@@ -415,6 +439,7 @@ tests = do
 
             it "should deal with json values" do
                 let ?context = createControllerContextWithJson "{\"colorField\":\"Red\",\"boolField\":true}"
+                let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
@@ -424,6 +449,7 @@ tests = do
 
             it "should deal with empty json values" do
                 let ?context = createControllerContextWithJson "{}"
+                let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }

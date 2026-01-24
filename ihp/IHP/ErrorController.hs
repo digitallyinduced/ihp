@@ -209,6 +209,7 @@ paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
+            let ?request = ?context.request
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
             let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]

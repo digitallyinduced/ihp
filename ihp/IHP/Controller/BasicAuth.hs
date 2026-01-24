@@ -8,7 +8,7 @@ module IHP.Controller.BasicAuth (basicAuth) where
 import IHP.Prelude
 import IHP.ControllerSupport
 import Network.HTTP.Types (status401)
-import Network.Wai (responseLBS)
+import Network.Wai (responseLBS, Request)
 import Network.Wai.Middleware.HttpAuth (extractBasicAuth)
 import Network.HTTP.Types.Header (hWWWAuthenticate)
 
@@ -19,7 +19,7 @@ import Network.HTTP.Types.Header (hWWWAuthenticate)
 -- 
 -- > beforeAction = basicAuth ... 
 -- 
-basicAuth :: (?context :: ControllerContext) => Text -> Text -> Text -> IO ()
+basicAuth :: (?request :: Request) => Text -> Text -> Text -> IO ()
 basicAuth uid pw realm = do
     let mein = Just (cs uid, cs pw)
     let cred = join $ fmap extractBasicAuth (getHeader "Authorization")

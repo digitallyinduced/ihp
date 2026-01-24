@@ -63,7 +63,7 @@ class View theView where
     beforeRender view = pure ()
 
     -- Renders the view as html
-    html :: (?context :: ControllerContext, ?view :: theView) => theView -> Html5.Html
+    html :: (?context :: ControllerContext, ?view :: theView, ?request :: Wai.Request) => theView -> Html5.Html
 
     -- | Renders the view to a JSON
     json :: theView -> JSON.Value
@@ -115,7 +115,7 @@ currentViewId =
 -- False
 --
 -- This function returns @False@ when a sub-path is request. Use 'isActivePathOrSub' if you want this example to return @True@.
-isActivePath :: (?context :: ControllerContext, PathString controller) => controller -> Bool
+isActivePath :: (?request :: Wai.Request, PathString controller) => controller -> Bool
 isActivePath route =
     let
         currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
@@ -135,7 +135,7 @@ isActivePath route =
 -- True
 --
 -- Also see 'isActivePath'.
-isActivePathOrSub :: (?context :: ControllerContext, PathString controller) => controller -> Bool
+isActivePathOrSub :: (?request :: Wai.Request, PathString controller) => controller -> Bool
 isActivePathOrSub route =
     let
         currentPath = Wai.rawPathInfo theRequest
@@ -172,7 +172,7 @@ isActiveController =
 -- >>> isActiveAction (ShowPostAction postId)
 -- True
 --
-isActiveAction :: forall controllerAction. (?context::ControllerContext, HasPath controllerAction) => controllerAction -> Bool
+isActiveAction :: forall controllerAction. (?request :: Wai.Request, HasPath controllerAction) => controllerAction -> Bool
 isActiveAction controllerAction =
     isActivePath (pathTo controllerAction)
 
@@ -182,8 +182,8 @@ onClick = A.onclick
 onLoad = A.onload
 
 -- | Returns the current request
-theRequest :: (?context :: ControllerContext) => Wai.Request
-theRequest = ?context.request
+theRequest :: (?request :: Wai.Request) => Wai.Request
+theRequest = ?request
 {-# INLINE theRequest #-}
 
 class PathString a where
@@ -250,7 +250,7 @@ instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
 --
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
-assetPath :: (?context :: ControllerContext) => Text -> Text
+assetPath :: (?request :: Wai.Request) => Text -> Text
 assetPath assetPath = AssetPath.assetPath theRequest assetPath
 
 -- | Returns the assetVersion
@@ -260,5 +260,5 @@ assetPath assetPath = AssetPath.assetPath theRequest assetPath
 --
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
-assetVersion :: (?context :: ControllerContext) => Text
+assetVersion :: (?request :: Wai.Request) => Text
 assetVersion = fromMaybe (error "assetPath middleware missing") (AssetPath.assetVersion theRequest)

@@ -10,6 +10,7 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
+import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
 import qualified Data.Aeson as Aeson
@@ -23,7 +24,7 @@ $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { ta
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Node)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''NodeOperation)
 
-setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext) => state -> IO ()
+setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext, ?request :: Wai.Request) => state -> IO ()
 setState state = do
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState

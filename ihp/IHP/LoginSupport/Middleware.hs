@@ -10,10 +10,12 @@ import IHP.Fetch
 import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context
+import qualified Network.Wai
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user normalizedModel.
         ( ?context :: ControllerContext
+        , ?request :: Network.Wai.Request
         , ?modelContext :: ModelContext
         , normalizedModel ~ NormalizeModel user
         , Typeable normalizedModel

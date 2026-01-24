@@ -338,6 +338,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     let render = Blaze.renderMarkup $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -353,6 +354,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -634,6 +636,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     let render = Blaze.renderMarkup $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -649,6 +652,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     renderPagination pagination `shouldRenderTo` mempty
 

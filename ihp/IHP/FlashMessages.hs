@@ -30,8 +30,8 @@ import IHP.View.Types
 -- >     {renderFlashMessages}
 -- >     <main>{view}</main>
 -- > |]
-setSuccessMessage :: (?context :: ControllerContext) => Text -> IO ()
-setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?context.request
+setSuccessMessage :: (?request :: Request) => Text -> IO ()
+setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?request
 
 -- | Sets a flash messages. This is shown to the user when the next view is rendered.
 --
@@ -45,16 +45,16 @@ setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?context.req
 -- >     {renderFlashMessages}
 -- >     <main>{view}</main>
 -- > |]
-setErrorMessage :: (?context :: ControllerContext) => Text -> IO ()
-setErrorMessage = FlashMessages.setErrorMessage sessionVaultKey ?context.request
+setErrorMessage :: (?request :: Request) => Text -> IO ()
+setErrorMessage = FlashMessages.setErrorMessage sessionVaultKey ?request
 
 -- | Returns the flash message currently set
-getSuccessMessage :: (?context :: ControllerContext) => IO (Maybe Text)
-getSuccessMessage = FlashMessages.getSuccessMessage sessionVaultKey ?context.request
+getSuccessMessage :: (?request :: Request) => IO (Maybe Text)
+getSuccessMessage = FlashMessages.getSuccessMessage sessionVaultKey ?request
 
 -- | Removes the current flash message
-clearSuccessMessage :: (?context :: ControllerContext) => IO ()
-clearSuccessMessage = FlashMessages.clearSuccessMessage sessionVaultKey ?context.request
+clearSuccessMessage :: (?request :: Request) => IO ()
+clearSuccessMessage = FlashMessages.clearSuccessMessage sessionVaultKey ?request
 
 flashVaultKey :: Vault.Key [FlashMessage]
 flashVaultKey = unsafePerformIO Vault.newKey
