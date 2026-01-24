@@ -6,7 +6,7 @@ module Test.View.FormSpec where
 
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..))
 import qualified Text.Blaze.Renderer.Text as Blaze
 import IHP.ModelSupport
 import qualified Network.Wai as Wai
@@ -85,9 +85,9 @@ createControllerContext :: IO ControllerContext
 createControllerContext = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
     let requestBody = FormBody { params = [], files = [] }
-    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig Vault.empty }
-    let requestContext = RequestContext { request, respond = undefined, requestBody }
-    let customFields = TypeMap.insert requestContext TypeMap.empty
+    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
+                                                 $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
+    let customFields = TypeMap.insert request TypeMap.empty
     pure FrozenControllerContext { customFields }
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)

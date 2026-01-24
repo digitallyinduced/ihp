@@ -33,9 +33,10 @@ import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
-import IHP.RequestVault
+import IHP.RequestVault hiding (requestBodyMiddleware)
 
 import IHP.Controller.NotFound (handleNotFound)
+import IHP.RequestBodyMiddleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env
@@ -90,6 +91,7 @@ run configBuilder = do
                         . autoRefreshMiddleware
                         . modelContextMiddleware modelContext
                         . frameworkConfigMiddleware frameworkConfig
+                        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                         . pgListenerMiddleware pgListener
                         . assetPathMiddleware
                         $ application staticApp requestLoggerMiddleware

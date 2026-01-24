@@ -50,7 +50,6 @@ import Text.Blaze.Html5.Attributes as A
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml
 import qualified Data.Sequences as Sequences
-import qualified IHP.Controller.RequestContext
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -184,7 +183,7 @@ onLoad = A.onload
 
 -- | Returns the current request
 theRequest :: (?context :: ControllerContext) => Wai.Request
-theRequest = ?context.requestContext.request
+theRequest = ?context.request
 {-# INLINE theRequest #-}
 
 class PathString a where

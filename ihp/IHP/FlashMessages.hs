@@ -7,7 +7,6 @@ module IHP.FlashMessages where
 
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.Controller.RequestContext
 import IHP.Controller.Session
 import qualified Data.Maybe as Maybe
 import qualified Network.Wai.Middleware.FlashMessages as FlashMessages
@@ -18,7 +17,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ViewSupport
 import IHP.View.Types
-import IHP.Controller.Context
 
 -- | Sets a flash messages. This is shown to the user when the next view is rendered.
 --
@@ -33,7 +31,7 @@ import IHP.Controller.Context
 -- >     <main>{view}</main>
 -- > |]
 setSuccessMessage :: (?context :: ControllerContext) => Text -> IO ()
-setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?context.requestContext.request
+setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?context.request
 
 -- | Sets a flash messages. This is shown to the user when the next view is rendered.
 --
@@ -48,15 +46,15 @@ setSuccessMessage = FlashMessages.setSuccessMessage sessionVaultKey ?context.req
 -- >     <main>{view}</main>
 -- > |]
 setErrorMessage :: (?context :: ControllerContext) => Text -> IO ()
-setErrorMessage = FlashMessages.setErrorMessage sessionVaultKey ?context.requestContext.request
+setErrorMessage = FlashMessages.setErrorMessage sessionVaultKey ?context.request
 
 -- | Returns the flash message currently set
 getSuccessMessage :: (?context :: ControllerContext) => IO (Maybe Text)
-getSuccessMessage = FlashMessages.getSuccessMessage sessionVaultKey ?context.requestContext.request
+getSuccessMessage = FlashMessages.getSuccessMessage sessionVaultKey ?context.request
 
 -- | Removes the current flash message
 clearSuccessMessage :: (?context :: ControllerContext) => IO ()
-clearSuccessMessage = FlashMessages.clearSuccessMessage sessionVaultKey ?context.requestContext.request
+clearSuccessMessage = FlashMessages.clearSuccessMessage sessionVaultKey ?context.request
 
 flashVaultKey :: Vault.Key [FlashMessage]
 flashVaultKey = unsafePerformIO Vault.newKey
@@ -95,9 +93,9 @@ renderFlashMessages = render theFlashMessages
 
 theFlashMessages :: (?context :: ControllerContext) => [FlashMessage]
 theFlashMessages =
-    -- Use the request from RequestContext in the TMap, not waiRequest.
+    -- Use the request from the TMap.
     -- The render function's consumeFlashMessagesMiddleware modifies the request
     -- to add flash messages to its vault, then stores it via putContext.
     -- Using fromFrozenContext ensures this only works in views (after context is frozen).
-    let RequestContext { request } = fromFrozenContext @RequestContext
+    let request = fromFrozenContext @Request
     in requestFlashMessages request

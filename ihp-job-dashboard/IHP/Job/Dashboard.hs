@@ -34,6 +34,7 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
+import IHP.RequestBodyMiddleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
@@ -116,27 +117,27 @@ class JobsDashboard (jobs :: [Type]) where
     includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 
-    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
-    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
+    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
+    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
-    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
+    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
 
     -- | Deletes a job from the database.
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Bool -> IO ()
+    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
+    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ()
 
-    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> UUID -> IO ()
-    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ()
+    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where

@@ -9,7 +9,7 @@ import IHP.Prelude
 import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
 import Control.Exception
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
@@ -722,7 +722,7 @@ createControllerContextWithCSSFramework cssFramework = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
                 option cssFramework
     let requestBody = FormBody { params = [], files = [] }
-    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig Vault.empty }
-    let requestContext = RequestContext { request, respond = error "respond", requestBody }
-    let customFields = TypeMap.insert requestContext TypeMap.empty
+    let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
+                                                 $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
+    let customFields = TypeMap.insert request TypeMap.empty
     pure FrozenControllerContext { customFields }

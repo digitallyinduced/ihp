@@ -68,7 +68,6 @@ generateGenericApplication applicationName =
                 <> "import IHP.ViewPrelude\n"
                 <> "import IHP.Environment\n"
                 <> "import Generated.Types\n"
-                <> "import IHP.Controller.RequestContext\n"
                 <> "import " <> applicationName <> ".Types\n"
                 <> "import " <> applicationName <> ".Routes\n"
                 <> "import Application.Helper.View\n"

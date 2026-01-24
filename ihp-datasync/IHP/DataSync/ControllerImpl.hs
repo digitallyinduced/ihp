@@ -29,7 +29,6 @@ import qualified Data.HashSet as HashSet
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
 import Control.Monad (void)
-import IHP.Controller.RequestContext
 import IHP.RequestVault
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -119,7 +118,7 @@ buildMessageHandler ::
     => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
 buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
     where
-            pgListener = ?context.requestContext.request.pgListener
+            pgListener = ?context.request.pgListener
             handleMessage :: DataSyncMessage -> IO ()
             handleMessage DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)

@@ -7,6 +7,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.IDE.SchemaDesigner.Compiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.View.Schema.Error
 import IHP.IDE.ToolServer.Helper.Controller
+import IHP.RequestBodyMiddleware (Respond)
 
 instance ParamReader PostgresType where
     readParameter byteString = case Megaparsec.runParser Parser.sqlType "" (cs byteString) of
@@ -27,6 +28,7 @@ readSchema ::
     ( ?context::ControllerContext
     , ?modelContext::ModelContext
     , ?theAction::controller
+    , ?respond::Respond
     ) => IO [Statement]
 readSchema = Parser.parseSchemaSql >>= \case
         Left error -> do render ErrorView { error }; pure []
@@ -41,6 +43,7 @@ updateSchema ::
     ( ?context :: ControllerContext
     , ?modelContext::ModelContext
     , ?theAction::controller
+    , ?respond::Respond
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do
     statements <- readSchema

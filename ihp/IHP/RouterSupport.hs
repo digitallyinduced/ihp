@@ -44,7 +44,7 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (Respond)
 import Network.Wai
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
@@ -89,11 +89,10 @@ runAction'
        , Typeable controller
        )
      => controller -> Application
-runAction' controller request respond = do
-    let ?modelContext = request.modelContext
-    requestContext <- createRequestContext request respond
-    let ?context = requestContext
-    let ?requestContext = requestContext
+runAction' controller waiRequest waiRespond = do
+    let ?request = waiRequest
+    let ?respond = waiRespond
+    let ?modelContext = waiRequest.modelContext
     contextOrErrorResponse <- newContextForAction controller
     case contextOrErrorResponse of
         Left res -> res
@@ -102,17 +101,17 @@ runAction' controller request respond = do
 
 class FrontController application where
     controllers
-        :: (?application :: application, ?context :: RequestContext)
+        :: (?application :: application, ?request :: Request, ?respond :: Respond)
         => [Parser Application]
 
     router
-        :: (?application :: application, ?context :: RequestContext)
+        :: (?application :: application, ?request :: Request, ?respond :: Respond)
         => [Parser Application] -> Parser Application
     router = defaultRouter
     {-# INLINABLE router #-}
 
 defaultRouter
-    :: (?application :: application, ?context :: RequestContext, FrontController application)
+    :: (?application :: application, ?request :: Request, ?respond :: Respond, FrontController application)
     => [Parser Application] -> Parser Application
 defaultRouter additionalControllers = do
     let allControllers = controllers <> additionalControllers
@@ -136,7 +135,7 @@ urlTo action = ?context.frameworkConfig.baseUrl <> pathTo action
 {-# INLINE urlTo #-}
 
 class HasPath controller => CanRoute controller where
-    parseRoute' :: (?context :: RequestContext) => Parser controller
+    parseRoute' :: (?request :: Request, ?respond :: Respond) => Parser controller
 
 
 -- | Each of these is tried when trying to parse an argument to a controller constructor (i.e. in IHP, an action).
@@ -330,14 +329,14 @@ applyConstr parseIdType constructor query = let
 {-# INLINABLE applyConstr #-}
 
 class Data controller => AutoRoute controller where
-    autoRouteWithIdType :: (?context :: RequestContext, Data idType) => (ByteString -> Maybe idType) -> Parser controller
+    autoRouteWithIdType :: (?request :: Request, ?respond :: Respond, Data idType) => (ByteString -> Maybe idType) -> Parser controller
     autoRouteWithIdType parseIdFunc =
         let
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
             query :: Query
-            query = queryString ?context.request
+            query = queryString ?request
 
             paramValues :: [ByteString]
             paramValues = catMaybes $ map snd query
@@ -370,7 +369,7 @@ class Data controller => AutoRoute controller where
         in choice (map parseAction allConstructors)
     {-# INLINABLE autoRouteWithIdType #-}
 
-    autoRoute :: (?context :: RequestContext) => Parser controller
+    autoRoute :: (?request :: Request, ?respond :: Respond) => Parser controller
     autoRoute = autoRouteWithIdType (\_ -> Nothing :: Maybe Integer)
     {-# INLINABLE autoRoute #-}
 
@@ -616,9 +615,9 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                     |> (\q -> if List.null q then q else '?':q)
 
 -- | Parses the HTTP Method from the request and returns it.
-getMethod :: (?context :: RequestContext) => Parser StdMethod
+getMethod :: (?request :: Request, ?respond :: Respond) => Parser StdMethod
 getMethod =
-    case parseMethod ?context.request.requestMethod of
+    case parseMethod ?request.requestMethod of
         Left error -> fail (ByteString.unpack error)
         Right method -> pure method
 {-# INLINABLE getMethod #-}
@@ -638,7 +637,8 @@ getMethod =
 get :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser Application
@@ -666,7 +666,8 @@ get path action = do
 post :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser Application
@@ -704,7 +705,7 @@ post path action = do
 -- >
 -- > createRecordAction <|> updateRecordAction
 --
-onlyAllowMethods :: (?context :: RequestContext) => [StdMethod] -> Parser ()
+onlyAllowMethods :: (?request :: Request, ?respond :: Respond) => [StdMethod] -> Parser ()
 onlyAllowMethods methods = do
     method <- getMethod
     unless (method `elem` methods) (fail ("Invalid method, expected one of: " <> show methods))
@@ -725,7 +726,8 @@ webSocketApp :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     ) => Parser Application
@@ -741,7 +743,8 @@ webSocketAppWithHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
@@ -769,7 +772,8 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     ) => ByteString -> Parser Application
@@ -783,7 +787,8 @@ webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
@@ -797,7 +802,7 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?context::RequestContext, Typeable application, Typeable action) => action -> Parser Application
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?request :: Request, ?respond :: Respond, Typeable application, Typeable action) => action -> Parser Application
 startPage action = get (ByteString.pack (actionPrefix @action)) action
 {-# INLINABLE startPage #-}
 
@@ -805,17 +810,17 @@ withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) 
 {-# INLINABLE withPrefix #-}
 
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
-frontControllerToWAIApp middleware application notFoundAction request respond = do
+frontControllerToWAIApp middleware application notFoundAction waiRequest waiRespond = do
     let
         -- Use lazy pattern to defer vault lookup until environment is actually needed
         -- This is needed for tests that don't have frameworkConfig in the vault
-        ~environment = request.frameworkConfig.environment
-        requestContext = RequestContext { request, respond, requestBody = FormBody { params = [], files = [] } }
+        ~environment = waiRequest.frameworkConfig.environment
 
-    let ?context = requestContext
+    let ?request = waiRequest
+    let ?respond = waiRespond
 
     let
-        path = request.rawPathInfo
+        path = waiRequest.rawPathInfo
         handleException :: SomeException -> IO (Either String Application)
         handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
 
@@ -831,15 +836,15 @@ frontControllerToWAIApp middleware application notFoundAction request respond = 
             )
         `Exception.catch` handleException
     case routedAction of
-        Left message -> notFoundAction request respond
-        Right action -> (middleware action) request respond
+        Left message -> notFoundAction waiRequest waiRespond
+        Right action -> (middleware action) waiRequest waiRespond
 {-# INLINABLE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController. (?context :: RequestContext, FrontController frontController) => frontController -> Parser Application
+mountFrontController :: forall frontController. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> Parser Application
 mountFrontController application = let ?application = application in router []
 {-# INLINABLE mountFrontController #-}
 
-parseRoute :: forall controller application. (?context :: RequestContext, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => Parser Application
+parseRoute :: forall controller application. (?request :: Request, ?respond :: Respond, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => Parser Application
 parseRoute = do
     action <- parseRoute' @controller
     pure $ runAction' @application action
@@ -855,7 +860,8 @@ parseUUIDOrTextId queryVal = queryVal
 parseRouteWithId
     :: forall controller application.
         (
-            ?context :: RequestContext,
+            ?request :: Request,
+            ?respond :: Respond,
             Controller controller,
             CanRoute controller,
             InitControllerContext application,
@@ -867,7 +873,7 @@ parseRouteWithId = do
     action <- parseRoute' @controller
     pure (runAction' @application action)
 
-catchAll :: forall action application. (?context :: RequestContext, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
+catchAll :: forall action application. (?request :: Request, ?respond :: Respond, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
 catchAll action = do
     string (ByteString.pack (actionPrefix @action))
     _ <- takeByteString
@@ -923,10 +929,9 @@ parseIntegerId queryVal = let
 -- >     pure ShowPostAction { .. }
 -- Will parse the `postId` query in `/post?postId=09b545dd-9744-4ef8-87b8-8d227f4faa1e`
 --
-routeParam :: (?context::RequestContext, ParamReader paramType) => ByteString -> paramType
+routeParam :: (?request :: Request, ?respond :: Respond, ParamReader paramType) => ByteString -> paramType
 routeParam paramName =
-    let requestContext = ?context
-        customFields = TypeMap.insert requestContext TypeMap.empty
+    let customFields = TypeMap.insert ?request TypeMap.empty
     in
         let ?context = FrozenControllerContext { customFields }
         in param paramName

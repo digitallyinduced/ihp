@@ -1,4 +1,24 @@
-module IHP.RequestVault where
+module IHP.RequestVault
+( -- * Vault infrastructure
+  insertVaultMiddleware
+, lookupRequestVault
+, insertVaultMiddlewareAndGetter
+  -- * ModelContext
+, modelContextVaultKey
+, modelContextMiddleware
+, requestModelContext
+  -- * FrameworkConfig
+, frameworkConfigVaultKey
+, frameworkConfigMiddleware
+, requestFrameworkConfig
+  -- * PGListener
+, pgListenerVaultKey
+, pgListenerMiddleware
+, requestPGListener
+  -- * RequestBody (re-exported from RequestBodyMiddleware)
+, RequestBody (..)
+, requestBodyVaultKey
+) where
 
 import IHP.Prelude
 import Network.Wai
@@ -8,6 +28,7 @@ import Data.Proxy
 import Data.Typeable
 import IHP.FrameworkConfig
 import IHP.PGListener
+import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
 
 insertVaultMiddleware :: Vault.Key value -> value -> Middleware
 insertVaultMiddleware key value app req respond = do
@@ -44,7 +65,12 @@ pgListenerVaultKey = unsafePerformIO Vault.newKey
 
 (pgListenerMiddleware, requestPGListener) = insertVaultMiddlewareAndGetter pgListenerVaultKey
 
+-- request.parsedBody
+requestParsedBody :: Request -> RequestBody
+requestParsedBody = lookupRequestVault requestBodyVaultKey
+
 -- Field access helpers
 instance HasField "frameworkConfig" Request FrameworkConfig where getField request = requestFrameworkConfig request
 instance HasField "modelContext" Request ModelContext where getField request = requestModelContext request
 instance HasField "pgListener" Request PGListener where getField request = requestPGListener request
+instance HasField "parsedBody" Request RequestBody where getField request = requestParsedBody request

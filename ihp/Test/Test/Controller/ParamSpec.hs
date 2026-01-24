@@ -9,7 +9,8 @@ import IHP.HaskellSupport
 import Test.Hspec
 import IHP.Controller.Param
 import IHP.Controller.Context
-import IHP.Controller.RequestContext
+import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
+import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
@@ -433,17 +434,15 @@ tests = do
 createControllerContextWithParams params =
         let
             requestBody = FormBody { params, files = [] }
-            request = Wai.defaultRequest
-            requestContext = RequestContext { request, respond = error "respond", requestBody }
-            customFields = TypeMap.insert requestContext TypeMap.empty
+            request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+            customFields = TypeMap.insert request TypeMap.empty
         in FrozenControllerContext { customFields }
 
 createControllerContextWithJson params =
         let
             requestBody = JSONBody { jsonPayload = Just (json params), rawPayload = cs params }
-            request = Wai.defaultRequest
-            requestContext = RequestContext { request, respond = error "respond", requestBody }
-            customFields = TypeMap.insert requestContext TypeMap.empty
+            request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+            customFields = TypeMap.insert request TypeMap.empty
         in FrozenControllerContext { customFields }
 
 json :: Text -> Aeson.Value
