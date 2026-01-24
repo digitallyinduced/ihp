@@ -4,7 +4,7 @@ import IHP.Prelude
 import IHP.IDE.CodeGen.Types
 import qualified Data.Text as Text
 import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import Text.Countable (singularize, pluralize)
 
 data MailConfig = MailConfig

@@ -6,8 +6,8 @@ import IHP.DataSync.TypeScript.Compiler
 import NeatInterpolation
 import IHP.ControllerPrelude
 
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
-import IHP.IDE.SchemaDesigner.Types
+import qualified IHP.Postgres.Parser as Parser
+import IHP.Postgres.Types
 import qualified Text.Megaparsec as Megaparsec
 
 main :: IO ()

@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.IDE.SchemaDesigner.SchemaOperations where
 
 import IHP.Prelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import Data.Maybe (fromJust)
 import qualified Data.List as List
 import qualified Data.Text as Text

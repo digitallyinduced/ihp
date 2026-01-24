@@ -21,7 +21,7 @@ common shared-properties
     build-depends:
           base
           , ihp
-          , ihp-ide
+          , ihp-postgres-parser
           , unordered-containers
           , text
           , attoparsec

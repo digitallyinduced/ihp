@@ -1,7 +1,7 @@
 module IHP.IDE.SchemaDesigner.View.Tables.Show where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.SchemaDesigner.View.Layout
 
 data ShowView = ShowView

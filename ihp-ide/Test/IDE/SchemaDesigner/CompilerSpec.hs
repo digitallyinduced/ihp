@@ -6,8 +6,8 @@ module Test.IDE.SchemaDesigner.CompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import  IHP.IDE.SchemaDesigner.Compiler (compileSql)
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Types
 import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import Test.IDE.SchemaDesigner.ParserSpec (col, table, parseSql)

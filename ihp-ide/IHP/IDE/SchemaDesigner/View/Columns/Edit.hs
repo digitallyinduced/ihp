@@ -1,8 +1,8 @@
 module IHP.IDE.SchemaDesigner.View.Columns.Edit where
 
 import IHP.ViewPrelude hiding (primaryKeyColumnNames)
-import IHP.IDE.SchemaDesigner.Types
-import qualified IHP.IDE.SchemaDesigner.Compiler as Compiler
+import IHP.Postgres.Types
+import qualified IHP.Postgres.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.Layout
 import Text.Countable (singularize)
