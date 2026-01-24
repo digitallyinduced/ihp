@@ -6,6 +6,7 @@ import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), (.=), set)
 import IHP.OAuth.Github.Types
 import qualified Data.Text as Text
+import qualified Network.Wai
 
 githubConnectUrl :: AuthorizeOptions -> Text
 githubConnectUrl AuthorizeOptions { .. } =
@@ -66,13 +67,13 @@ requestGithubUserEmail accessToken =
 --
 -- Generates a new random state parameter and saves it inside the session cookie. Returns the new state parameter.
 -- When the callback is reached, use 'verifyState' to check that the state is valid.
-initState :: (?context :: ControllerContext) => IO Text
+initState :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => IO Text
 initState = do
     state <- generateAuthenticationToken
     setSession "oauth.github.state" state
     pure state
 
-verifyState :: (?context :: ControllerContext) => IO Text
+verifyState :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => IO Text
 verifyState = do
     let state = param @Text "state"
     expectedState <- fromMaybe (error "state not set") <$> (getSession @Text "oauth.github.state")
