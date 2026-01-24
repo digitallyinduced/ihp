@@ -20,6 +20,7 @@ import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.RequestBodyMiddleware (Respond)
+import qualified Network.Wai
 
 -- | Displays the login form.
 --
@@ -27,6 +28,7 @@ import IHP.RequestBodyMiddleware (Respond)
 newSessionAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?respond :: Respond
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
@@ -53,6 +55,7 @@ newSessionAction = do
 createSessionAction :: forall record action.
     (?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
@@ -107,6 +110,7 @@ createSessionAction = do
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action

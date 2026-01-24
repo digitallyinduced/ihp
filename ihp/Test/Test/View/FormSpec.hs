@@ -27,6 +27,7 @@ tests = do
             it "should render a form" do
                 context <- createControllerContext
                 let ?context = context
+                let ?request = ?context.request
 
                 let form = formFor project [hsx|
                     {textField #title}
@@ -37,6 +38,7 @@ tests = do
             it "should render a form with a GET method" do
                 context <- createControllerContext
                 let ?context = context
+                let ?request = ?context.request
 
                 let options formContext = formContext |> set #formMethod "GET"
 
@@ -49,6 +51,7 @@ tests = do
             it "should render a date field with empty value attribute when value is Nothing" do
                 context <- createControllerContext
                 let ?context = context
+                let ?request = ?context.request
                 let event = newRecord @Event
 
                 let form = formFor event [hsx|
@@ -66,6 +69,7 @@ tests = do
             it "should render a datetime field with empty value attribute when value is Nothing" do
                 context <- createControllerContext
                 let ?context = context
+                let ?request = ?context.request
                 let event = newRecord @Event
 
                 let form = formFor event [hsx|

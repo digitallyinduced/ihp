@@ -22,6 +22,7 @@ import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue, didTo
 import IHP.HSX.QQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes ()
+import qualified Network.Wai as Wai
 import Network.Wai (pathInfo)
 import IHP.Controller.Context
 
@@ -91,6 +92,7 @@ import IHP.Controller.Context
 -- > </div>
 formFor :: forall record. (
     ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -115,6 +117,7 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 --
 formForWithOptions :: forall record. (
     ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -148,6 +151,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 --
 formForWithoutJavascript :: forall record. (
     ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -887,7 +891,7 @@ instance ToHtml SubmitButton where
 
 -- | Returns the form's action attribute for a given record.
 class ModelFormAction record where
-    modelFormAction :: (?context :: ControllerContext) => record -> Text
+    modelFormAction :: (?context :: ControllerContext, ?request :: Wai.Request) => record -> Text
 
 instance
     ( HasField "id" record (Id' (GetTableName record))

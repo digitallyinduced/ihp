@@ -16,7 +16,6 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
-import IHP.Controller.Context
 import IHP.Controller.Response (respondAndExit)
 
 
@@ -31,7 +30,7 @@ import IHP.Controller.Response (respondAndExit)
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedWhen :: (?context :: ControllerContext) => Bool -> IO ()
+accessDeniedWhen :: Bool -> IO ()
 accessDeniedWhen condition = when condition renderAccessDenied
 
 -- | Stops the action execution with an access denied message (403) when the access condition is False.
@@ -45,7 +44,7 @@ accessDeniedWhen condition = when condition renderAccessDenied
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-accessDeniedUnless :: (?context :: ControllerContext) => Bool -> IO ()
+accessDeniedUnless :: Bool -> IO ()
 accessDeniedUnless condition = unless condition renderAccessDenied
 
 -- | Renders a 403 access denied response. If a static/403.html exists, that is rendered instead of the IHP access denied page.
@@ -153,7 +152,7 @@ customAccessDeniedResponse = do
 --
 -- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
 --
-renderAccessDenied :: (?context :: ControllerContext) => IO ()
+renderAccessDenied :: IO ()
 renderAccessDenied = do
     response <- buildAccessDeniedResponse
     respondAndExit response

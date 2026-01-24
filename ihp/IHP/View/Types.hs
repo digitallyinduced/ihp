@@ -24,9 +24,10 @@ import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import IHP.ModelSupport (Violation)
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
+import qualified Network.Wai as Wai
 
 
-type HtmlWithContext context = (?context :: context) => Blaze.Html
+type HtmlWithContext context = (?context :: context, ?request :: Wai.Request) => Blaze.Html
 
 -- | A layout is just a function taking a view and returning a new view.
 --

@@ -36,6 +36,7 @@ module IHP.ViewPrelude (
     module IHP.PageHead.ViewFunctions,
     module IHP.Breadcrumb.ViewFunctions,
     module IHP.Pagination.ViewFunctions,
+    module Network.Wai,
 ) where
 
 import IHP.Prelude
@@ -68,3 +69,4 @@ import IHP.PageHead.ViewFunctions
 
 import IHP.Breadcrumb.ViewFunctions
 import IHP.Pagination.ViewFunctions
+import Network.Wai

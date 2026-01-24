@@ -39,6 +39,7 @@ autoRefresh :: (
     , Controller action
     , ?modelContext :: ModelContext
     , ?context :: ControllerContext
+    , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
     autoRefreshState <- fromContext @AutoRefreshState
@@ -135,7 +136,7 @@ instance WSApp AutoRefreshWSApp where
 
             async $ forever do
                 MVar.takeMVar event
-                let currentRequest = ?context.request
+                let currentRequest = ?request
                 -- Create a dummy respond function that does nothing, since actual response
                 -- is handled by the handleResponseException handler
                 let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
@@ -188,7 +189,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
-getAvailableSessions :: (?context :: ControllerContext) => IORef AutoRefreshServer -> IO [UUID]
+getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]
 getAvailableSessions autoRefreshServer = do
     allSessions <- (.sessions) <$> readIORef autoRefreshServer
     text <- fromMaybe "" <$> getSession "autoRefreshSessions"

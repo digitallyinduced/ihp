@@ -31,6 +31,7 @@ import IHP.ValidationSupport
 import Network.Minio
 import qualified Data.Conduit.Binary as Conduit
 import qualified Network.Wai.Parse as Wai
+import qualified Network.Wai
 
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
@@ -332,6 +333,7 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 --
 uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
+        , ?request :: Network.Wai.Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -381,6 +383,7 @@ uploadToStorageWithOptions options field record = do
 --
 uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?context :: ControllerContext
+        , ?request :: Network.Wai.Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))

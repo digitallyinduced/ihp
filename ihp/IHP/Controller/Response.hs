@@ -1,5 +1,6 @@
 module IHP.Controller.Response
 ( respondAndExit
+, respondAndExitWithHeaders
 , addResponseHeaders
 , addResponseHeadersFromContext
 , ResponseException (..)
@@ -13,11 +14,17 @@ import qualified Network.Wai
 import Network.Wai (Response)
 import qualified Control.Exception as Exception
 
-respondAndExit :: (?context :: Context.ControllerContext) => Response -> IO ()
-respondAndExit response = do
+-- | Simple version - just throws the response, no context needed
+respondAndExit :: Response -> IO ()
+respondAndExit response = Exception.throwIO (ResponseException response)
+{-# INLINE respondAndExit #-}
+
+-- | Version that adds headers from context (for render, etc.)
+respondAndExitWithHeaders :: (?context :: Context.ControllerContext) => Response -> IO ()
+respondAndExitWithHeaders response = do
     responseWithHeaders <- addResponseHeadersFromContext response
     Exception.throwIO (ResponseException responseWithHeaders)
-{-# INLINE respondAndExit #-}
+{-# INLINE respondAndExitWithHeaders #-}
 
 -- | Add headers to current response
 -- | Returns a Response with headers

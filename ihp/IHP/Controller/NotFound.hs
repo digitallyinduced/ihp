@@ -16,7 +16,6 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory as Directory
-import IHP.Controller.Context
 import IHP.Controller.Response (respondAndExit)
 
 
@@ -31,7 +30,7 @@ import IHP.Controller.Response (respondAndExit)
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundWhen :: (?context :: ControllerContext) => Bool -> IO ()
+notFoundWhen :: Bool -> IO ()
 notFoundWhen condition = when condition renderNotFound
 
 -- | Stops the action execution with a not found message (404) when the access condition is False.
@@ -45,7 +44,7 @@ notFoundWhen condition = when condition renderNotFound
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundUnless :: (?context :: ControllerContext) => Bool -> IO ()
+notFoundUnless :: Bool -> IO ()
 notFoundUnless condition = unless condition renderNotFound
 
 
@@ -153,7 +152,7 @@ customNotFoundResponse = do
 --
 -- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
 --
-renderNotFound :: (?context :: ControllerContext) => IO ()
+renderNotFound :: IO ()
 renderNotFound = do
     response <- buildNotFoundResponse
     respondAndExit response
