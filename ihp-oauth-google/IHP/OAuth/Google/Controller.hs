@@ -17,7 +17,7 @@ import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.OAuth.Google.View.NewSessionWithGoogle
 
-newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext) => IO ()
+newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 newSessionWithGoogleAction = do
     let clientId = googleOAuthConfig |> get #clientId
     render NewSessionWithGoogleView { .. }

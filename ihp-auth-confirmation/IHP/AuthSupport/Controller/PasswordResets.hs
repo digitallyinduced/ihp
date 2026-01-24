@@ -17,6 +17,7 @@ newPasswordResetAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?respond :: Respond
     , View (NewView record)
     , Data action
     , Record record
@@ -31,6 +32,7 @@ showPasswordResetAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?respond :: Respond
     , View (ShowView record)
     , PasswordResetsControllerConfig record
     , record ~ GetModelByTableName (GetTableName record)
@@ -88,6 +90,7 @@ createPasswordResetAction :: forall record action passwordField.
     (?theAction :: action
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?respond :: Respond
     , HasField "email" record Text
     , PasswordResetsControllerConfig record
     , CanUpdate record
