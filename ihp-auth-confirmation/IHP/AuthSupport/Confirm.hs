@@ -8,6 +8,7 @@ module IHP.AuthSupport.Confirm where
 import IHP.ControllerPrelude
 import IHP.AuthSupport.Types
 import IHP.Mail (BuildMail, sendMail)
+import qualified Network.Wai
 
 data ConfirmationMail user = ConfirmationMail
     { user :: user
@@ -51,7 +52,7 @@ sendConfirmationMail user = do
 -- >     beforeLogin user = do
 -- >         Confirm.ensureIsConfirmed user
 --
-ensureIsConfirmed :: (?context :: ControllerContext, HasField "isConfirmed" user Bool) => user -> IO ()
+ensureIsConfirmed :: (?context :: ControllerContext, ?request :: Network.Wai.Request, HasField "isConfirmed" user Bool) => user -> IO ()
 ensureIsConfirmed user = do
     unless (get #isConfirmed user) do
         setErrorMessage "Please click the confirmation link we sent to your email before you can use this account"
