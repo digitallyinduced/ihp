@@ -12,10 +12,12 @@ import Data.Data
 import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail, sendMail)
+import qualified Network.Wai
 
 newPasswordResetAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?modelContext :: ModelContext
     , ?respond :: Respond
     , View (NewView record)
@@ -31,6 +33,7 @@ newPasswordResetAction = do
 showPasswordResetAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?modelContext :: ModelContext
     , ?respond :: Respond
     , View (ShowView record)
@@ -51,6 +54,7 @@ showPasswordResetAction userId token = do
 updatePasswordAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
     , View (NewView record)
@@ -89,6 +93,7 @@ updatePasswordAction userId token = do
 createPasswordResetAction :: forall record action passwordField.
     (?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?modelContext :: ModelContext
     , ?respond :: Respond
     , HasField "email" record Text

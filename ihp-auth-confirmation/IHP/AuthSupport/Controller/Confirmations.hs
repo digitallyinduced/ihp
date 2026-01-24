@@ -13,10 +13,12 @@ import Data.Data
 import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail)
+import qualified Network.Wai
 
 confirmAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
+    , ?request :: Network.Wai.Request
     , ?modelContext :: ModelContext
     , ConfirmationsControllerConfig record
     , record ~ GetModelByTableName (GetTableName record)

@@ -55,3 +55,4 @@ library
         , ihp
         , ihp-mail
         , text
+        , wai
