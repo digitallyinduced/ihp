@@ -201,11 +201,11 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
-fromCSSFramework :: (?context :: ControllerContext, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework :: (?request :: Wai.Request, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
 fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
-theCSSFramework :: (?context :: ControllerContext) => CSSFramework
-theCSSFramework = ?context.frameworkConfig.cssFramework
+theCSSFramework :: (?request :: Wai.Request) => CSSFramework
+theCSSFramework = ?request.frameworkConfig.cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --
@@ -220,8 +220,8 @@ nl2br content = content
 type Html = HtmlWithContext ControllerContext
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
-liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
-liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
+liveReloadWebsocketUrl :: (?request :: Wai.Request) => Text
+liveReloadWebsocketUrl = ?request.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
 

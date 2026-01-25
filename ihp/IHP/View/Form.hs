@@ -183,6 +183,7 @@ formForWithoutJavascript record formBody = formForWithOptions @record record (\f
 --
 formFor' :: forall record. (
     ?context :: ControllerContext
+    , ?request :: Wai.Request
     , HasField "meta" record MetaBag
     ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
@@ -190,7 +191,7 @@ formFor' record action = buildForm (createFormContext record) { formAction = act
 
 -- | Used by 'formFor' to make a new form context
 createFormContext :: forall record. (
-        ?context :: ControllerContext
+        ?request :: Wai.Request
         , HasField "meta" record MetaBag
         ) => record -> FormContext record
 createFormContext record =

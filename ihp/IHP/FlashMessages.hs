@@ -85,17 +85,11 @@ requestFlashMessages request =
 --
 -- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
 -- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: (?context :: ControllerContext) => Html5.Html
+renderFlashMessages :: (?request :: Request) => Html5.Html
 renderFlashMessages = render theFlashMessages
     where
         render :: [FlashMessage] -> Html5.Html
         render = fromCSSFramework #styledFlashMessages
 
-theFlashMessages :: (?context :: ControllerContext) => [FlashMessage]
-theFlashMessages =
-    -- Use the request from the TMap.
-    -- The render function's consumeFlashMessagesMiddleware modifies the request
-    -- to add flash messages to its vault, then stores it via putContext.
-    -- Using fromFrozenContext ensures this only works in views (after context is frozen).
-    let request = fromFrozenContext @Request
-    in requestFlashMessages request
+theFlashMessages :: (?request :: Request) => [FlashMessage]
+theFlashMessages = requestFlashMessages ?request
