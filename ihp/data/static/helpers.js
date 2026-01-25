@@ -169,8 +169,8 @@ window.submitForm = function (form, possibleClickedButton) {
     // We cannot use `form.action` here because there could be a <input name="action"/>
     // See https://github.com/digitallyinduced/ihp/issues/1203
     var formAction = (possibleClickedButton && possibleClickedButton.getAttribute('formAction'))
-		? possibleClickedButton.getAttribute('formAction')
-		: form.getAttribute('action');
+        ? possibleClickedButton.getAttribute('formAction')
+        : form.getAttribute('action');
     var formMethod = form.getAttribute('method') || 'GET';
 
     var request = new XMLHttpRequest();
@@ -389,15 +389,22 @@ function initDatePicker() {
     if (!('flatpickr' in window)) {
         return;
     }
-    flatpickr("input[type='date']", {
-        altFormat: 'd.m.y',
+
+    document.querySelectorAll("input[type='date']").forEach(el => {
+        flatpickr(el, {
+            ...(el.dataset.altFormat ? {} : { altFormat: 'd.m.y' }),
+            ...(el.dataset.altInput ? {} : { altInput: true }),
+        });
     });
-    flatpickr("input[type='datetime-local']", {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: 'Z',
-        altInput: true,
-        altFormat: 'd.m.y, H:i',
+
+    document.querySelectorAll("input[type='datetime-local']").forEach(el => {
+        flatpickr(el, {
+            ...(el.dataset.enableTime ? {} : { enableTime: true }),
+            ...(el.dataset.time_24hr ? {} : { time_24hr: true }),
+            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Z' }),
+            ...(el.dataset.altFormat ? {} : { altFormat: 'd.m.y, H:i' }),
+            ...(el.dataset.altInput ? {} : { altInput: true }),
+        });
     });
 }
 

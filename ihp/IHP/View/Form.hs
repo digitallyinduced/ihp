@@ -1,9 +1,12 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE IncoherentInstances   #-}
+{-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-|
 Module: IHP.View.Form
 Description: 'IHP.View.Form.formFor' and all form controls
@@ -11,20 +14,20 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.Form where
 
-import IHP.Prelude
-import           IHP.ValidationSupport
+import           GHC.Types
+import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
+import           IHP.HSX.QQ (hsx)
+import           IHP.HSX.ToHtml
+import           IHP.ModelSupport (Id', InputValue, didTouchField, getModelName, inputValue, isNew)
+import           IHP.Prelude
+import           IHP.ValidationSupport
+import           IHP.View.Classes ()
+import           IHP.View.Types
 import           IHP.ViewSupport
-import qualified Text.Blaze.Html5                   as Html5
-import IHP.HSX.ToHtml
-import GHC.Types
-import IHP.ModelSupport (getModelName, inputValue, isNew, Id', InputValue, didTouchField)
-import IHP.HSX.QQ (hsx)
-import IHP.View.Types
-import IHP.View.Classes ()
+import           Network.Wai (pathInfo)
 import qualified Network.Wai as Wai
-import Network.Wai (pathInfo)
-import IHP.Controller.Context
+import qualified Text.Blaze.Html5 as Html5
 
 -- | Forms usually begin with a 'formFor' expression.
 --
@@ -589,7 +592,7 @@ emailField :: forall fieldName model value.
 emailField field = (textField field) { fieldType = EmailInput }
 {-# INLINE emailField #-}
 
--- | Renders an date field
+-- | Renders a date field
 --
 -- >>> {dateField #createdAt}
 -- <div class="form-group" id="form-group-user_created_at">
@@ -598,6 +601,15 @@ emailField field = (textField field) { fieldType = EmailInput }
 -- </div>
 --
 -- See 'textField' for examples of possible form control options.
+--
+-- Use @additionalAttributes@ and set @data-*@ attributes to control the flatpickr options.
+--
+-- > {(dateField #createdAt) {
+-- >      additionalAttributes =
+-- >          [ ("data-alt-format", "Y-m-d")
+-- >          , ("data-min-date", "today")
+-- >          ]
+-- > }}
 dateField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
@@ -609,7 +621,7 @@ dateField :: forall fieldName model value.
 dateField field = (textField field) { fieldType = DateInput }
 {-# INLINE dateField #-}
 
--- | Renders an password field
+-- | Renders a password field
 --
 -- >>> {passwordField #password}
 -- <div class="form-group" id="form-group-user_password">
@@ -628,7 +640,7 @@ passwordField :: forall fieldName model.
 passwordField field = (textField field) { fieldType = PasswordInput }
 {-# INLINE passwordField #-}
 
--- | Renders an date-time field
+-- | Renders a date-time field
 --
 -- >>> {dateTimeField #createdAt}
 -- <div class="form-group" id="form-group-user_created_at">
@@ -637,6 +649,15 @@ passwordField field = (textField field) { fieldType = PasswordInput }
 -- </div>
 --
 -- See 'textField' for examples of possible form control options.
+--
+-- Use @additionalAttributes@ and set @data-*@ attributes to control the flatpickr options.
+--
+-- > {(dateTimeField #createdAt) {
+-- >      additionalAttributes =
+-- >          [ ("data-alt-format", "Y-m-d H:i")
+-- >          , ("data-min-date", "today")
+-- >          ]
+-- > }}
 dateTimeField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
@@ -648,7 +669,7 @@ dateTimeField :: forall fieldName model value.
 dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
 {-# INLINE dateTimeField #-}
 
--- | Renders an hidden field
+-- | Renders a hidden field
 --
 -- >>> {hiddenField #projectId}
 -- <input type="hidden" name="projectId" id="checkoutSession_projectId" class="form-control" />
@@ -665,7 +686,7 @@ hiddenField :: forall fieldName model value.
 hiddenField field = (textField field) { fieldType = HiddenInput, disableLabel = True, disableGroup = True, disableValidationResult = True }
 {-# INLINE hiddenField #-}
 
--- | Renders an file field
+-- | Renders a file field
 --
 -- >>> {fileField #profilePicture}
 -- <input type="file" name="profilePicture" id="user_profilePicture" class="form-control" />
