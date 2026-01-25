@@ -383,6 +383,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -681,6 +682,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
+                    let ?request = ?context.request
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
