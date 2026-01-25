@@ -431,6 +431,23 @@ actionPrefix =
 
 {-# INLINE actionPrefix #-}
 
+-- | Like 'actionPrefix' but returns Text instead of String
+actionPrefixText :: forall (controller :: Type). Typeable controller => Text
+actionPrefixText
+    | "Web." `Text.isPrefixOf` moduleName = "/"
+    | "IHP." `Text.isPrefixOf` moduleName = "/"
+    | Text.null moduleName = "/"
+    | otherwise = "/" <> Text.toLower (getPrefix moduleName) <> "/"
+    where
+        moduleName :: Text
+        moduleName = Text.pack $ Typeable.typeOf (error "unreachable" :: controller)
+                |> Typeable.typeRepTyCon
+                |> Typeable.tyConModule
+
+        getPrefix :: Text -> Text
+        getPrefix t = fst (Text.breakOn "." t)
+{-# INLINE actionPrefixText #-}
+
 -- | Strips the "Action" at the end of action names
 --
 -- >>> stripActionSuffixString "ShowUserAction"
@@ -453,6 +470,11 @@ stripActionSuffixString string =
 stripActionSuffixByteString :: ByteString -> ByteString
 stripActionSuffixByteString actionName = fromMaybe actionName (ByteString.stripSuffix "Action" actionName)
 {-# INLINE stripActionSuffixByteString #-}
+
+-- | Like 'stripActionSuffixString' but for Text
+stripActionSuffixText :: Text -> Text
+stripActionSuffixText actionName = fromMaybe actionName (Text.stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffixText #-}
 
 
 -- | Returns the create action for a given controller.
@@ -528,13 +550,13 @@ instance QueryParam a => QueryParam [a] where
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINABLE pathTo #-}
-    pathTo !action = Text.pack (appPrefix <> actionName <> arguments)
+    pathTo !action = appPrefix <> actionName <> Text.pack arguments
         where
-            appPrefix :: String
-            !appPrefix = actionPrefix @controller
+            appPrefix :: Text
+            !appPrefix = actionPrefixText @controller
 
-            actionName :: String
-            !actionName = stripActionSuffixString $! showConstr constructor
+            actionName :: Text
+            !actionName = stripActionSuffixText $! Text.pack (showConstr constructor)
 
             constructor = toConstr action
 
