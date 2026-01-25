@@ -31,39 +31,55 @@ import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
 import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
+import IHP.RequestVault (modelContextVaultKey, frameworkConfigVaultKey, modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
+import qualified Wai.Request.Params.Middleware as RequestBody
 import qualified Network.Wai.Middleware.Approot as Approot
-import qualified Network.Wai.Test as WaiTest
-import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
-import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
 data MockContext application = InitControllerContext application => MockContext
     { modelContext :: ModelContext
+    , frameworkConfig :: FrameworkConfig
     , mockRequest :: Request
     , mockRespond :: Respond
     , application :: application
     }
 
+-- | Run a request through the test middleware stack.
+-- This applies the same middlewares that IHP.Server uses.
+runTestMiddlewares :: FrameworkConfig -> ModelContext -> [Param] -> Request -> IO Request
+runTestMiddlewares frameworkConfig modelContext params baseRequest = do
+    -- Capture the modified request after running through middlewares
+    resultRef <- newIORef baseRequest
+    let captureApp req respond = do
+            writeIORef resultRef req
+            respond (responseLBS HTTP.status200 [] "")
+
+    -- Build middleware stack (same order as IHP.Server)
+    let middlewareStack =
+            Approot.hardcoded "http://localhost"
+            . modelContextMiddleware modelContext
+            . frameworkConfigMiddleware frameworkConfig
+            . RequestBody.requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+
+    -- Run request through middleware stack
+    _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
+
+    -- Get the modified request, then add our params
+    modifiedRequest <- readIORef resultRef
+    let requestWithParams = modifiedRequest { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) (Wai.vault modifiedRequest) }
+    pure requestWithParams
+
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   let databaseConnection = undefined
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
-   let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-
-   -- Apply middlewares to populate the vault with modelContext, frameworkConfig, and requestBody
-   requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
-   let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-   let transformedApp = frameworkConfigMiddleware frameworkConfig
-                      $ modelContextMiddleware modelContext
-                      $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions captureApp
-   _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-   mockRequest <- readIORef requestRef
-
-   let mockRespond = \resp -> pure ResponseReceived
+   let baseVault = Vault.insert sessionVaultKey mempty Vault.empty
+   let baseRequest = defaultRequest { vault = baseVault }
+   mockRequest <- runTestMiddlewares frameworkConfig modelContext [] baseRequest
+   let mockRespond = const (pure ResponseReceived)
 
    pure MockContext{..}
 
@@ -92,20 +108,23 @@ callAction controller = callActionWithParams controller []
 --
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
-    approotMiddleware <- Approot.envFallback
-    let ihpWaiApp waiRequest waiRespond = do
-            -- Override the request body with the provided params
-            let requestWithBody = waiRequest { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) waiRequest.vault }
-            let ?request = requestWithBody
-            let ?respond = waiRespond
-            runActionWithNewContext controller
+    -- Add params to the current request (which may have been modified by withUser)
+    -- The current ?request already has the vault with modelContext, frameworkConfig, session, and approot
+    let requestWithParams = ?request { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) (Wai.vault ?request) }
 
-        allMiddlewares app = approotMiddleware app
+    -- Capture the response
+    responseRef <- newIORef Nothing
+    let captureRespond response = do
+            writeIORef responseRef (Just response)
+            pure ResponseReceived
 
-    simpleResponse <- WaiTest.withSession (allMiddlewares ihpWaiApp) do
-        WaiTest.request ?mocking.mockRequest
+    let ?request = requestWithParams
+    let ?respond = captureRespond
+    runActionWithNewContext controller
 
-    pure $ Wai.responseLBS simpleResponse.simpleStatus simpleResponse.simpleHeaders simpleResponse.simpleBody
+    readIORef responseRef >>= \case
+        Just response -> pure response
+        Nothing -> error "callActionWithParams: No response was returned by the controller"
 
 -- | Run a Job in a mock environment
 --
@@ -204,7 +223,7 @@ withUser user callback =
         insertSession key value = pure ()
 
         newVault = Vault.insert sessionVaultKey newSession (Wai.vault currentRequest)
-        currentRequest = ?mocking.mockRequest
+        currentRequest = ?request  -- Use current ?request, not ?mocking.mockRequest
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)
