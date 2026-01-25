@@ -216,7 +216,7 @@ withUser user callback =
         insertSession key value = pure ()
 
         newVault = Vault.insert sessionVaultKey newSession (Wai.vault currentRequest)
-        currentRequest = ?request  -- Use current ?request, not ?mocking.mockRequest
+        currentRequest = ?request
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)
