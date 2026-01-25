@@ -79,6 +79,7 @@ import IHP.Controller.Param
 import Data.Kind
 import IHP.Environment
 import qualified Data.TMap as TypeMap
+import IHP.ActionType (setActionType)
 
 runAction'
     :: forall application controller
@@ -90,9 +91,9 @@ runAction'
        )
      => controller -> Application
 runAction' controller waiRequest waiRespond = do
-    let ?request = waiRequest
+    let ?request = setActionType controller waiRequest
     let ?respond = waiRespond
-    let ?modelContext = waiRequest.modelContext
+    let ?modelContext = ?request.modelContext
     contextOrErrorResponse <- newContextForAction controller
     case contextOrErrorResponse of
         Left res -> res

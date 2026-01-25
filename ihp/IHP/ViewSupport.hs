@@ -56,6 +56,7 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
+import IHP.ActionType (isActiveController)
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -141,21 +142,6 @@ isActivePathOrSub route =
         currentPath = Wai.rawPathInfo theRequest
     in
         cs (pathToString route) `ByteString.isPrefixOf` currentPath
-
--- | Returns @True@ when the given type matches the type of the currently executed controller action
---
--- __Example:__ The browser has requested @\/Posts@ and the @Posts@ action of the @PostsController@ is called.
---
--- >>> isActiveController @PostsController
--- True
---
--- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller. (?context :: ControllerContext, Typeable controller) => Bool
-isActiveController =
-    let
-        (ActionType actionType) = fromFrozenContext @ActionType
-    in
-        (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
 
 -- | Returns @True@ when the given action matches the path of the currently executed action
 --

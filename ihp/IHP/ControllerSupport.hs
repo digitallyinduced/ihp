@@ -108,7 +108,6 @@ newContextForAction controller = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    Context.putContext (Context.ActionType (Typeable.typeOf controller))
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
