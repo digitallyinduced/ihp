@@ -59,7 +59,6 @@ import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
 import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
@@ -344,7 +343,7 @@ class Data controller => AutoRoute controller where
             parseAction :: Constr -> Parser controller
             parseAction constr = let
                     prefix :: ByteString
-                    prefix = ByteString.pack (actionPrefix @controller)
+                    prefix = Text.encodeUtf8 (actionPrefixText @controller)
 
                     actionName = ByteString.pack (showConstr constr)
 
@@ -411,27 +410,6 @@ class Data controller => AutoRoute controller where
 -- All controllers defined in the `Web/` directory don't have a prefix at all.
 --
 -- E.g. controllers in the `Admin/` directory are prefixed with @/admin/@.
-actionPrefix :: forall (controller :: Type). Typeable controller => String
-actionPrefix =
-        case moduleName of
-            ('W':'e':'b':'.':_) -> "/"
-            ('I':'H':'P':'.':_) -> "/"
-            ("") -> "/"
-            moduleName -> "/" <> let prefix = getPrefix "" moduleName in map Char.toLower prefix <> "/"
-    where
-        moduleName :: String
-        moduleName = Typeable.typeOf (error "unreachable" :: controller)
-                |> Typeable.typeRepTyCon
-                |> Typeable.tyConModule
-
-        -- E.g. getPrefix "" "Admin.User" == "Admin"
-        getPrefix prefix ('.':_) = prefix
-        getPrefix prefix (x:xs) = getPrefix (prefix <> [x]) xs
-        getPrefix prefix [] = prefix
-
-{-# INLINE actionPrefix #-}
-
--- | Like 'actionPrefix' but returns Text instead of String
 actionPrefixText :: forall (controller :: Type). Typeable controller => Text
 actionPrefixText
     | "Web." `Text.isPrefixOf` moduleName = "/"
@@ -448,30 +426,30 @@ actionPrefixText
         getPrefix t = fst (Text.breakOn "." t)
 {-# INLINE actionPrefixText #-}
 
--- | Strips the "Action" at the end of action names
+-- | Strips the "Action" suffix from action names
 --
--- >>> stripActionSuffixString "ShowUserAction"
+-- >>> stripActionSuffixByteString "ShowUserAction"
 -- "ShowUser"
 --
--- >>> stripActionSuffixString "UsersAction"
+-- >>> stripActionSuffixByteString "UsersAction"
 -- "UsersAction"
 --
--- >>> stripActionSuffixString "User"
+-- >>> stripActionSuffixByteString "User"
 -- "User"
-stripActionSuffixString :: String -> String
-stripActionSuffixString string =
-    case string of
-        "Action" -> ""
-        (x:xs) -> x : stripActionSuffixString xs
-        "" -> ""
-{-# INLINE stripActionSuffixString #-}
-
--- | Like 'stripActionSuffixString' but for ByteStrings
 stripActionSuffixByteString :: ByteString -> ByteString
 stripActionSuffixByteString actionName = fromMaybe actionName (ByteString.stripSuffix "Action" actionName)
 {-# INLINE stripActionSuffixByteString #-}
 
--- | Like 'stripActionSuffixString' but for Text
+-- | Strips the "Action" suffix from action names
+--
+-- >>> stripActionSuffixText "ShowUserAction"
+-- "ShowUser"
+--
+-- >>> stripActionSuffixText "UsersAction"
+-- "UsersAction"
+--
+-- >>> stripActionSuffixText "User"
+-- "User"
 stripActionSuffixText :: Text -> Text
 stripActionSuffixText actionName = fromMaybe actionName (Text.stripSuffix "Action" actionName)
 {-# INLINE stripActionSuffixText #-}
@@ -825,7 +803,7 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
 
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?request :: Request, ?respond :: Respond, Typeable application, Typeable action) => action -> Parser Application
-startPage action = get (ByteString.pack (actionPrefix @action)) action
+startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 {-# INLINABLE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
@@ -897,7 +875,7 @@ parseRouteWithId = do
 
 catchAll :: forall action application. (?request :: Request, ?respond :: Respond, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
 catchAll action = do
-    string (ByteString.pack (actionPrefix @action))
+    string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
     pure (runAction' @application action)
 {-# INLINABLE catchAll #-}
