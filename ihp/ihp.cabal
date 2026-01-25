@@ -162,7 +162,8 @@ library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
-        IHP.AuthSupport.Authentication
+        IHP.ActionType
+        , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
         , IHP.Controller.FileUpload

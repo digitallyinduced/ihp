@@ -20,12 +20,12 @@ module IHP.Controller.Context
 
 import IHP.Prelude
 import qualified Data.TMap as TypeMap
-import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Network.Wai as Wai
 import IHP.RequestVault (requestFrameworkConfig)
+import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
 import IHP.ControllerContext (ControllerContext(..), freeze, unfreeze, putContext, fromContext, maybeFromContext, fromFrozenContext, maybeFromFrozenContext)
@@ -40,9 +40,6 @@ newControllerContext = do
     customFieldsRef <- newIORef (TypeMap.insert ?request TypeMap.empty)
     pure ControllerContext { customFieldsRef }
 {-# INLINABLE newControllerContext #-}
-
--- | IHP-specific: used to track the current action type
-newtype ActionType = ActionType Typeable.TypeRep
 
 -- | Access request from the TMap
 --

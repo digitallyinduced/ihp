@@ -15,6 +15,7 @@
 :set -iihp-hspec
 :set -iwai-asset-path
 :set -iwai-flash-messages
+:set -iwai-request-params
 :set -threaded
 
 :set -XGHC2021

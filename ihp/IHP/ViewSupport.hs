@@ -56,6 +56,7 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
+import IHP.ActionType (isActiveController)
 
 class View theView where
     -- | Hook which is called before the render is called
@@ -142,21 +143,6 @@ isActivePathOrSub route =
     in
         cs (pathToString route) `ByteString.isPrefixOf` currentPath
 
--- | Returns @True@ when the given type matches the type of the currently executed controller action
---
--- __Example:__ The browser has requested @\/Posts@ and the @Posts@ action of the @PostsController@ is called.
---
--- >>> isActiveController @PostsController
--- True
---
--- Returns @True@ because the current action is part of the @PostsController@
-isActiveController :: forall controller. (?context :: ControllerContext, Typeable controller) => Bool
-isActiveController =
-    let
-        (ActionType actionType) = fromFrozenContext @ActionType
-    in
-        (Typeable.typeRep @Proxy @controller (Proxy @controller)) == actionType
-
 -- | Returns @True@ when the given action matches the path of the currently executed action
 --
 -- __Example:__ The browser has requested @\/PostsAction@.
@@ -215,11 +201,11 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
-fromCSSFramework :: (?context :: ControllerContext, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework :: (?request :: Wai.Request, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
 fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
-theCSSFramework :: (?context :: ControllerContext) => CSSFramework
-theCSSFramework = ?context.frameworkConfig.cssFramework
+theCSSFramework :: (?request :: Wai.Request) => CSSFramework
+theCSSFramework = ?request.frameworkConfig.cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
 --
@@ -234,8 +220,8 @@ nl2br content = content
 type Html = HtmlWithContext ControllerContext
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
-liveReloadWebsocketUrl :: (?context :: ControllerContext) => Text
-liveReloadWebsocketUrl = ?context.frameworkConfig.ideBaseUrl
+liveReloadWebsocketUrl :: (?request :: Wai.Request) => Text
+liveReloadWebsocketUrl = ?request.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
 
