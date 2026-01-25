@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run, application) where
+module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
@@ -52,48 +52,20 @@ run configBuilder = do
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
         IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
-            approotMiddleware <- Approot.envFallback
-            assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware
-                    -- | The asset version is used for cache busting
-                    --
-                    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
-                    -- env variable with e.g. the git commit hash of the production build.
-                    --
-                    -- If IHP cannot figure out an asset version, it will fallback to the static
-                    -- string @"dev"@.
-                    --
-                    "IHP_ASSET_VERSION"
-                    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN                    
-                    "IHP_ASSET_BASEURL"
-
             withInitalizers frameworkConfig modelContext do
                 PGListener.withPGListener modelContext \pgListener -> do
-                    autoRefreshMiddleware <- AutoRefresh.initAutoRefreshMiddleware pgListener
-
                     let ?modelContext = modelContext
 
-                    sessionMiddleware <- initSessionMiddleware frameworkConfig
+                    middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
                     staticApp <- initStaticApp frameworkConfig
-                    let corsMiddleware = initCorsMiddleware frameworkConfig
                     let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
-                    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
                     useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
 
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                        . customMiddleware
-                        . corsMiddleware
-                        . methodOverridePost
-                        . sessionMiddleware
-                        . approotMiddleware
-                        . autoRefreshMiddleware
-                        . modelContextMiddleware modelContext
-                        . frameworkConfigMiddleware frameworkConfig
-                        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
-                        . pgListenerMiddleware pgListener
-                        . assetPathMiddleware
+                        . middleware
                         $ application staticApp requestLoggerMiddleware
 
 {-# INLINABLE run #-}
@@ -156,6 +128,37 @@ initCorsMiddleware :: FrameworkConfig -> Middleware
 initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePolicy of
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
+
+-- | Initialize the complete middleware stack
+--
+-- Pass Nothing for PGListener in tests (auto-refresh will be disabled)
+-- Pass Just pgListener in production for full functionality
+initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> IO Middleware
+initMiddlewareStack frameworkConfig modelContext maybePgListener = do
+    sessionMiddleware <- initSessionMiddleware frameworkConfig
+    approotMiddleware <- Approot.envFallback
+    assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware "IHP_ASSET_VERSION" "IHP_ASSET_BASEURL"
+
+    autoRefreshMiddleware <- case maybePgListener of
+        Just pgListener -> AutoRefresh.initAutoRefreshMiddleware pgListener
+        Nothing -> pure id
+
+    let corsMiddleware = initCorsMiddleware frameworkConfig
+    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+    let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
+
+    pure $
+        customMiddleware
+        . corsMiddleware
+        . methodOverridePost
+        . sessionMiddleware
+        . approotMiddleware
+        . autoRefreshMiddleware
+        . modelContextMiddleware modelContext
+        . frameworkConfigMiddleware frameworkConfig
+        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+        . pgListenerMw
+        . assetPathMiddleware
 
 application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
