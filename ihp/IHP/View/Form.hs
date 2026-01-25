@@ -17,18 +17,17 @@ module IHP.View.Form where
 import           GHC.Types
 import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
-import           IHP.HSX.QQ                 (hsx)
+import           IHP.HSX.QQ (hsx)
 import           IHP.HSX.ToHtml
-import           IHP.ModelSupport           (Id', InputValue, didTouchField,
-                                             getModelName, inputValue, isNew)
+import           IHP.ModelSupport (Id', InputValue, didTouchField, getModelName, inputValue, isNew)
 import           IHP.Prelude
 import           IHP.ValidationSupport
-import           IHP.View.Classes           ()
+import           IHP.View.Classes ()
 import           IHP.View.Types
 import           IHP.ViewSupport
-import           Network.Wai                (pathInfo)
-import qualified Network.Wai                as Wai
-import qualified Text.Blaze.Html5           as Html5
+import           Network.Wai (pathInfo)
+import qualified Network.Wai as Wai
+import qualified Text.Blaze.Html5 as Html5
 
 -- | Forms usually begin with a 'formFor' expression.
 --
@@ -622,6 +621,25 @@ dateField :: forall fieldName model value.
 dateField field = (textField field) { fieldType = DateInput }
 {-# INLINE dateField #-}
 
+-- | Renders a password field
+--
+-- >>> {passwordField #password}
+-- <div class="form-group" id="form-group-user_password">
+--     <label for="user_password">Password</label>
+--     <input type="password" name="password" id="user_password" class="form-control" />
+-- </div>
+--
+-- See 'textField' for examples of possible form control options.
+passwordField :: forall fieldName model.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model Text
+    , HasField "meta" model MetaBag
+    , KnownSymbol fieldName
+    , KnownSymbol (GetModelName model)
+    ) => Proxy fieldName -> FormField
+passwordField field = (textField field) { fieldType = PasswordInput }
+{-# INLINE passwordField #-}
+
 -- | Renders a date-time field
 --
 -- >>> {dateTimeField #createdAt}
@@ -650,25 +668,6 @@ dateTimeField :: forall fieldName model value.
     ) => Proxy fieldName -> FormField
 dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
 {-# INLINE dateTimeField #-}
-
--- | Renders a password field
---
--- >>> {passwordField #password}
--- <div class="form-group" id="form-group-user_password">
---     <label for="user_password">Password</label>
---     <input type="password" name="password" id="user_password" class="form-control" />
--- </div>
---
--- See 'textField' for examples of possible form control options.
-passwordField :: forall fieldName model.
-    ( ?formContext :: FormContext model
-    , HasField fieldName model Text
-    , HasField "meta" model MetaBag
-    , KnownSymbol fieldName
-    , KnownSymbol (GetModelName model)
-    ) => Proxy fieldName -> FormField
-passwordField field = (textField field) { fieldType = PasswordInput }
-{-# INLINE passwordField #-}
 
 -- | Renders a hidden field
 --
