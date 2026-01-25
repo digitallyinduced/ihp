@@ -14,8 +14,7 @@ import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
-import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           Wai.Request.Params.Middleware                 (RequestBody (..), Respond)
+import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
@@ -29,11 +28,9 @@ import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
-import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.RequestVault (modelContextVaultKey, frameworkConfigVaultKey, modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
-import qualified Wai.Request.Params.Middleware as RequestBody
-import qualified Network.Wai.Middleware.Approot as Approot
+import IHP.RequestVault (RequestBody (..), requestBodyVaultKey)
+import IHP.Server (initMiddlewareStack)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -46,7 +43,7 @@ data MockContext application = InitControllerContext application => MockContext
     }
 
 -- | Run a request through the test middleware stack.
--- This applies the same middlewares that IHP.Server uses.
+-- This applies the same middlewares that IHP.Server uses (with PGListener disabled).
 runTestMiddlewares :: FrameworkConfig -> ModelContext -> [Param] -> Request -> IO Request
 runTestMiddlewares frameworkConfig modelContext params baseRequest = do
     -- Capture the modified request after running through middlewares
@@ -55,12 +52,8 @@ runTestMiddlewares frameworkConfig modelContext params baseRequest = do
             writeIORef resultRef req
             respond (responseLBS HTTP.status200 [] "")
 
-    -- Build middleware stack (same order as IHP.Server)
-    let middlewareStack =
-            Approot.hardcoded "http://localhost"
-            . modelContextMiddleware modelContext
-            . frameworkConfigMiddleware frameworkConfig
-            . RequestBody.requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+    -- Use the same middleware stack as production, but without PGListener
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
 
     -- Run request through middleware stack
     _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
