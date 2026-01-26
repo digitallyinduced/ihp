@@ -44,19 +44,18 @@ respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
+renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Network.Wai.Request) => view -> IO Html
 renderHtml !view = do
     let ?view = view
     ViewSupport.beforeRender view
     frozenContext <- Context.freeze ?context
 
     let ?context = frozenContext
-    let ?request = frozenContext.request
     let layout = case Context.maybeFromFrozenContext @ViewLayout of
             Just (ViewLayout layout) -> layout
             Nothing -> id
 
-    let boundHtml = let ?context = frozenContext; ?request = frozenContext.request in layout (ViewSupport.html ?view)
+    let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
@@ -129,7 +128,7 @@ render !view = do
                     let next request respond = do
                             -- Store the modified request (with flash messages in vault) in the context
                             putContext request
-                            (renderHtml view) >>= respondHtml
+                            let ?request = request in ((renderHtml view) >>= respondHtml)
                             error "unreachable"
                     _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
                     pure ()
