@@ -9,7 +9,6 @@ import qualified Data.Text as Text
 import qualified Control.Exception as Exception
 import IHP.IDE.CodeGen.MigrationGenerator (findIHPSchemaSql)
 
-import qualified Data.Vault.Lazy as Vault
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 
@@ -18,7 +17,6 @@ import IHP.FrameworkConfig (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.ModelSupport (createModelContext)
 import IHP.Log.Types
-import IHP.Controller.Session (sessionVaultKey)
 
 import qualified System.Process as Process
 import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
@@ -37,9 +35,8 @@ withIHPApp application configBuilder hspecAction = do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
             -- Use the central test middleware stack
-            let baseVault = Vault.insert sessionVaultKey mempty Vault.empty
-            let baseRequest = defaultRequest { vault = baseVault }
-            mockRequest <- runTestMiddlewares frameworkConfig modelContext [] baseRequest
+            let baseRequest = defaultRequest
+            mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
             let mockRespond = const (pure ResponseReceived)
 
             hspecAction MockContext { .. }

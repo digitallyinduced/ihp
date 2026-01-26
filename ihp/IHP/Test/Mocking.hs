@@ -9,6 +9,7 @@ module IHP.Test.Mocking where
 import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
+import qualified Network.HTTP.Types                        as HTTP
 import qualified Network.HTTP.Types.Status                 as HTTP
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
@@ -29,7 +30,6 @@ import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.RequestVault (RequestBody (..), requestBodyVaultKey)
 import IHP.Server (initMiddlewareStack)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
@@ -44,8 +44,9 @@ data MockContext application = InitControllerContext application => MockContext
 
 -- | Run a request through the test middleware stack.
 -- This applies the same middlewares that IHP.Server uses (with PGListener disabled).
-runTestMiddlewares :: FrameworkConfig -> ModelContext -> [Param] -> Request -> IO Request
-runTestMiddlewares frameworkConfig modelContext params baseRequest = do
+-- Used for initial setup only - actual request params are handled in callActionWithParams.
+runTestMiddlewares :: FrameworkConfig -> ModelContext -> Request -> IO Request
+runTestMiddlewares frameworkConfig modelContext baseRequest = do
     -- Capture the modified request after running through middlewares
     resultRef <- newIORef baseRequest
     let captureApp req respond = do
@@ -58,10 +59,7 @@ runTestMiddlewares frameworkConfig modelContext params baseRequest = do
     -- Run request through middleware stack
     _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
 
-    -- Get the modified request, then add our params
-    modifiedRequest <- readIORef resultRef
-    let requestWithParams = modifiedRequest { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) (Wai.vault modifiedRequest) }
-    pure requestWithParams
+    readIORef resultRef
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
@@ -69,9 +67,9 @@ mockContextNoDatabase application configBuilder = do
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
-   let baseVault = Vault.insert sessionVaultKey mempty Vault.empty
-   let baseRequest = defaultRequest { vault = baseVault }
-   mockRequest <- runTestMiddlewares frameworkConfig modelContext [] baseRequest
+   -- Start with a minimal request - the middleware stack will set up session, etc.
+   let baseRequest = defaultRequest
+   mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
    let mockRespond = const (pure ResponseReceived)
 
    pure MockContext{..}
@@ -101,9 +99,15 @@ callAction controller = callActionWithParams controller []
 --
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
-    -- Add params to the current request (which may have been modified by withUser)
-    -- The current ?request already has the vault with modelContext, frameworkConfig, session, and approot
-    let requestWithParams = ?request { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) (Wai.vault ?request) }
+    let MockContext { frameworkConfig, modelContext } = ?mocking
+
+    -- Build request with real form body (let middleware parse it)
+    requestBody <- newIORef (HTTP.renderSimpleQuery False params)
+    let readBody = atomicModifyIORef requestBody (\body -> ("", body))
+    let baseRequest = ?request
+            { Wai.requestBody = readBody
+            , Wai.requestHeaders = (HTTP.hContentType, "application/x-www-form-urlencoded") : filter ((/= HTTP.hContentType) . fst) (Wai.requestHeaders ?request)
+            }
 
     -- Capture the response
     responseRef <- newIORef Nothing
@@ -111,9 +115,22 @@ callActionWithParams controller params = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
 
-    let ?request = requestWithParams
-    let ?respond = captureRespond
-    runActionWithNewContext controller
+    -- Check if withUser set a mock session that we need to preserve
+    let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
+
+    -- Create the controller app
+    let controllerApp req respond = do
+            -- Restore mock session from withUser if it was set
+            let req' = case mockSession of
+                    Just session -> req { Wai.vault = Vault.insert sessionVaultKey session (Wai.vault req) }
+                    Nothing -> req
+            let ?request = req'
+            let ?respond = respond
+            runActionWithNewContext controller
+
+    -- Run through middleware stack (like the real server does)
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    _ <- middlewareStack controllerApp baseRequest captureRespond
 
     readIORef responseRef >>= \case
         Just response -> pure response
