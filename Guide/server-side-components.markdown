@@ -19,7 +19,7 @@ The typical lifecycle is like this:
 6. Repeat at step 2
 7. The component is stopped when the page is closed
 
-The Server-Side Component toolkit is currently still in a early development stage. So expect bugs and API changes.
+The Server-Side Component toolkit has been tested in production environments. While the API is mostly stable, some changes may occur in future versions.
 
 ## Creating a Component
 
@@ -225,3 +225,112 @@ This is useful if you have many interactive elements that are controlled by Java
 ### Example Components
 
 If you want to see some more code, you can find components inside the [IHP SSC Playground](https://github.com/digitallyinduced/ihp-ssc-playground/tree/master/Web/Component) or inside the [`ihp-ssc-block-editor-demo` repository](https://github.com/digitallyinduced/ihp-ssc-block-editor-demo/blob/master/Web/Component/BlockEditor.hs).
+
+## Error Handling
+
+Server-Side Components include built-in error handling for common failure scenarios.
+
+### Action Errors
+
+When an action handler throws an exception, the error is:
+1. Logged on the server with full details
+2. Sent to the client with a generic error message
+3. Displayed to the user temporarily (auto-dismisses after 5 seconds)
+
+```haskell
+action state SomeAction = do
+    -- If this throws an exception, the client will be notified
+    result <- someOperationThatMightFail
+    pure state
+```
+
+### Custom Error Handling
+
+You can listen for SSC errors in JavaScript to implement custom error handling:
+
+```javascript
+document.addEventListener('ssc:error', function(event) {
+    console.log('SSC Error:', event.detail.error);
+    console.log('Component:', event.detail.component);
+
+    // Implement custom error handling, e.g.:
+    // - Send to error tracking service
+    // - Show custom notification
+});
+```
+
+### Parse Errors
+
+If the client sends an invalid action payload (e.g., malformed JSON or unknown action), the server logs the error and sends an `SSCParseError` to the client.
+
+## Connection Resilience
+
+The SSC JavaScript client automatically handles connection issues:
+
+### Automatic Reconnection
+
+When the WebSocket connection is lost, the client will:
+1. Automatically attempt to reconnect with exponential backoff
+2. Show a visual indicator of the connection state
+3. Queue any actions triggered while disconnected
+4. Replay queued actions once reconnected
+
+### Connection States
+
+The client tracks these connection states:
+- **Connecting**: Initial connection in progress
+- **Connected**: WebSocket is open and ready
+- **Reconnecting**: Attempting to restore a lost connection
+- **Failed**: Max reconnection attempts reached
+
+### Visibility Change Handling
+
+When a browser tab becomes visible again, the client will attempt to reconnect if the connection was lost while the tab was in the background.
+
+### Manual Retry
+
+If automatic reconnection fails after multiple attempts, a "Retry" button is shown to allow manual reconnection.
+
+## Production Considerations
+
+### WebSocket Scaling
+
+Each SSC component maintains an active WebSocket connection. Consider these factors when scaling:
+
+1. **Connection Limits**: Each server process has a limit on concurrent WebSocket connections. Monitor your connection count.
+
+2. **Sticky Sessions**: If using multiple server instances behind a load balancer, enable sticky sessions (session affinity) to ensure WebSocket connections route to the same server.
+
+3. **Timeouts**: Configure appropriate WebSocket timeout settings on your load balancer to prevent premature connection drops.
+
+### State Management
+
+Component state is held in memory on the server:
+
+1. **State Size**: Keep component state small. Large state objects increase memory usage per connection.
+
+2. **Ephemeral State**: Component state is lost when the connection closes or the server restarts. For persistent data, use the database.
+
+3. **State Recovery**: After a reconnection, the component reinitializes with `initialState` and `componentDidMount`. Design your components to handle this gracefully.
+
+### Monitoring
+
+IHP SSC logs lifecycle events that can be used for monitoring:
+
+- Component connections and disconnections
+- Action execution errors
+- Parse errors from invalid client messages
+
+Enable debug logging in development by adding `data-debug-mode="true"` to your script tag:
+
+```html
+<script src="/vendor/ihp-ssc.js" data-debug-mode="true"></script>
+```
+
+### Security Considerations
+
+1. **Action Validation**: Always validate action parameters on the server. Never trust client-provided data.
+
+2. **Authorization**: Check user permissions in action handlers if the component displays or modifies sensitive data.
+
+3. **Rate Limiting**: Consider implementing rate limiting for action handlers that perform expensive operations.

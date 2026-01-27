@@ -124,6 +124,7 @@ nodeOuterHtml TextNode { textContent } _ = textContent
 nodeOuterHtml PreEscapedTextNode { textContent } _ = textContent
 nodeOuterHtml Children { children } html = mconcat $ map (`nodeOuterHtml` html) children
 nodeOuterHtml CommentNode { comment } _ = "<!--" <> comment <> "-->"
+nodeOuterHtml NoRenderCommentNode _ = "" -- HSX comments {- ... -} are not rendered
 
 isNodeEqIgnoringPosition :: Node -> Node -> Bool
 isNodeEqIgnoringPosition a@(Node {}) b@(Node {}) = (a { startOffset = 0, endOffset = 0 }) == (b { startOffset = 0, endOffset = 0 })
