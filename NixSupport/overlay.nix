@@ -20,6 +20,7 @@ final: prev: {
             ihp-log = localPackage "ihp-log";
             ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
+            ihp-schema-compiler = localPackage "ihp-schema-compiler";
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });

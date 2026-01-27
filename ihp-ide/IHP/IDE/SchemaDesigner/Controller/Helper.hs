@@ -3,7 +3,7 @@ module IHP.IDE.SchemaDesigner.Controller.Helper where
 import IHP.IDE.Prelude
 import IHP.Postgres.Types
 import qualified IHP.Postgres.Parser as Parser
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesignerParser
+import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.IDE.SchemaDesigner.Compiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.View.Schema.Error

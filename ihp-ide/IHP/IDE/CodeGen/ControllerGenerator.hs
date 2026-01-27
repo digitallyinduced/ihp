@@ -5,7 +5,7 @@ import IHP.NameSupport
 import IHP.HaskellSupport
 import qualified Data.Text as Text
 import qualified Data.Char as Char
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator

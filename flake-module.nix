@@ -226,10 +226,9 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
-                    nativeBuildInputs = [ghcCompiler.ihp-ide.data];
                     installPhase = ''
                         mkdir $out
-                        cp ${hsDataDir ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
+                        cp ${ihp}/ihp-schema-compiler/data/IHPSchema.sql $out/
                     '';
                     allowedReferences = [];
                 };
@@ -284,7 +283,7 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
                             buildPhase = ''
                                 # shellcheck disable=SC2046
                                 make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
@@ -351,7 +350,7 @@ ihpFlake:
 
                         echo "-- IHPSchema.sql" >> $out
                         echo "" >> $out
-                        cat ${hsDataDir ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} >> $out
+                        cat ${ihp}/ihp-schema-compiler/data/IHPSchema.sql >> $out
                         echo "" >> $out
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out

@@ -34,7 +34,7 @@ let
             name = "${appName}-models-source";
         };
         nativeBuildInputs = [
-            (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
+            (ghc.ghcWithPackages (p: [ p.ihp-schema-compiler ])) # Needed for build-generated-code
             pkgs.gnumake # Needed for make print-ghc-options
         ];
         buildPhase = ''

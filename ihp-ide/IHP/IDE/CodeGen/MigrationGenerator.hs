@@ -14,7 +14,7 @@ import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified System.Process as Process
 import qualified IHP.Postgres.Parser as Parser
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesignerParser
+import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
 import Text.Megaparsec
 import IHP.Postgres.Compiler (compileSql)
