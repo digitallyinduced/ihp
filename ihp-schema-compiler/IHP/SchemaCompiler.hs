@@ -11,7 +11,7 @@ import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import Data.List.Split
 import IHP.HaskellSupport
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import qualified IHP.Postgres.Parser as PostgresParser
 import IHP.Postgres.Types
 import qualified IHP.Postgres.Compiler as SqlCompiler

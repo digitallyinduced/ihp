@@ -3,7 +3,7 @@ module IHP.IDE.CodeGen.ActionGenerator (buildPlan) where
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 import Text.Countable (pluralize)

@@ -140,7 +140,7 @@ common shared-properties
 library
     import: shared-properties
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, wai-request-params
+    build-depends: ihp, ihp-log, ihp-modal, wai-request-params, ihp-schema-compiler
     exposed-modules:
           IHP.IDE.Prelude
         , IHP.IDE.SchemaDesigner.Controller.Columns
@@ -220,9 +220,7 @@ library
         , IHP.IDE.PortConfig
         , IHP.IDE.Postgres
         , IHP.IDE.StatusServer
-        , IHP.SchemaCompiler
         , IHP.IDE.SchemaDesigner.Compiler
-        , IHP.IDE.SchemaDesigner.Parser
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
         , IHP.Version
@@ -231,7 +229,7 @@ library
 
 executable RunDevServer
     import: shared-properties
-    build-depends: ihp, ihp-log, ihp-ide
+    build-depends: ihp, ihp-log, ihp-ide, ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     if flag(FastBuild)
@@ -267,12 +265,6 @@ executable new-application
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
-
-executable build-generated-code
-    import: shared-properties
-    build-depends: ihp, ihp-ide
-    hs-source-dirs: exe
-    main-is: IHP/CLI/BuildGeneratedCode.hs
 
 executable new-controller
     import: shared-properties
@@ -321,7 +313,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, hspec, wai-request-params
+    build-depends: ihp, ihp-log, ihp-modal, ihp-schema-compiler, hspec, wai-request-params
     other-modules:
         Test.IDE.SchemaDesigner.CompilerSpec
         Test.IDE.SchemaDesigner.ParserSpec

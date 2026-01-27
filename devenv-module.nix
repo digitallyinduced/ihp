@@ -145,6 +145,7 @@ that is defined in flake-module.nix
         packages = {
             default = pkgs.ghc.ihp;
             ide = pkgs.ghc.ihp-ide;
+            schema-compiler = pkgs.ghc.ihp-schema-compiler;
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;
             datasync-typescript = pkgs.ghc.ihp-datasync-typescript;

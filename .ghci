@@ -7,6 +7,7 @@
 :set -iihp
 :set -iihp/Test
 :set -iihp-ide
+:set -iihp-schema-compiler
 :set -iihp-postgres-parser
 :set -iihp-mail
 :set -iihp-migrate
