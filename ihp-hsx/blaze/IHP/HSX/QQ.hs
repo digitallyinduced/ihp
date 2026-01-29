@@ -77,48 +77,97 @@ quoteHsxExpression settings code = do
             pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 
 compileToHaskell :: Node -> TH.ExpQ
-compileToHaskell (Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True) = [| Html5.docType |]
-compileToHaskell (Node name attributes children isLeaf) =
-    let
-        element = if isLeaf then nodeToBlazeLeaf name else nodeToBlazeElement name
-    in case (attributes, children, isLeaf) of
-        -- Leaf with no attributes: just the element
-        ([], _, True) -> element
-        -- Leaf with attributes
-        (_, _, True) ->
-            let stringAttributes = TH.listE $ map toStringAttribute attributes
-            in [| applyAttributes $element $stringAttributes |]
-        -- Parent with no children and no attributes
-        ([], [], False) -> [| $element mempty |]
-        -- Parent with single child and no attributes: avoid mconcat
-        ([], [single], False) ->
-            let child = compileToHaskell single
-            in [| $element $child |]
-        -- Parent with no attributes but has multiple children
-        ([], _, False) ->
-            let renderedChildren = TH.listE $ map compileToHaskell children
-            in [| $element (mconcat $renderedChildren) |]
-        -- Parent with single child and attributes
-        (_, [single], False) ->
-            let child = compileToHaskell single
-                stringAttributes = TH.listE $ map toStringAttribute attributes
-            in [| applyAttributes ($element $child) $stringAttributes |]
-        -- Parent with multiple children and attributes
-        (_, _, False) ->
-            let renderedChildren = TH.listE $ map compileToHaskell children
-                stringAttributes = TH.listE $ map toStringAttribute attributes
-            in [| applyAttributes ($element (mconcat $renderedChildren)) $stringAttributes |]
-compileToHaskell (Children children) = case children of
-    [] -> [| mempty |]
-    [single] -> compileToHaskell single
-    _ -> let renderedChildren = TH.listE $ map compileToHaskell children
-         in [| mconcat $(renderedChildren) |]
-
+-- Pre-render fully static subtrees to a single preEscapedText at compile time
+compileToHaskell node
+    | isStaticTree node, isNonTrivialStaticNode node =
+        let html = renderStaticHtml node
+        in [| Html5.preEscapedText $(TH.lift html) |]
+compileToHaskell (Node name attributes children isLeaf)
+    | isLeaf = applyAttrs element attributes
+    | otherwise = applyAttrs [| $element $(compileChildList children) |] attributes
+    where element = if isLeaf then nodeToBlazeLeaf name else nodeToBlazeElement name
+compileToHaskell (Children children) = compileChildList children
 compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
 compileToHaskell (CommentNode value) = [| Html5.textComment value |]
 compileToHaskell (NoRenderCommentNode) = [| mempty |]
+
+-- | Apply attributes to an element expression. No-op when the list is empty.
+applyAttrs :: TH.ExpQ -> [Attribute] -> TH.ExpQ
+applyAttrs element [] = element
+applyAttrs element attributes =
+    let stringAttributes = TH.listE $ map toStringAttribute attributes
+    in [| applyAttributes $element $stringAttributes |]
+
+-- | Compile a child list to a single expression, coalescing static siblings.
+compileChildList :: [Node] -> TH.ExpQ
+compileChildList children = case compileChildren children of
+    []      -> [| mempty |]
+    [single] -> single
+    compiled -> let xs = TH.listE compiled in [| mconcat $xs |]
+
+-- | Returns True if the entire subtree is static (no dynamic content).
+isStaticTree :: Node -> Bool
+isStaticTree (Node _ attributes children _) =
+    all isStaticAttribute attributes && all isStaticTree children
+isStaticTree (TextNode _)          = True
+isStaticTree (PreEscapedTextNode _) = True
+isStaticTree (SplicedNode _)       = False
+isStaticTree (Children children)   = all isStaticTree children
+isStaticTree (CommentNode _)       = True
+isStaticTree (NoRenderCommentNode) = True
+
+isStaticAttribute :: Attribute -> Bool
+isStaticAttribute (StaticAttribute _ (TextValue _))      = True
+isStaticAttribute (StaticAttribute _ (ExpressionValue _)) = False
+isStaticAttribute (SpreadAttributes _)                    = False
+
+-- | Returns True if a node is worth pre-rendering.
+-- Bare TextNode/PreEscapedTextNode already compile to preEscapedText.
+isNonTrivialStaticNode :: Node -> Bool
+isNonTrivialStaticNode (TextNode _)          = False
+isNonTrivialStaticNode (PreEscapedTextNode _) = False
+isNonTrivialStaticNode (NoRenderCommentNode) = False
+isNonTrivialStaticNode _                     = True
+
+-- | Render a static Node tree to HTML Text at compile time,
+-- matching Blaze's runtime output format.
+renderStaticHtml :: Node -> Text
+renderStaticHtml (Node "!DOCTYPE" _ _ _) = "<!DOCTYPE HTML>\n"
+renderStaticHtml (Node name attributes children isLeaf) =
+    let openTag = "<" <> name <> foldMap renderStaticAttribute attributes <> ">"
+    in if isLeaf
+        then openTag
+        else openTag <> foldMap renderStaticHtml children <> "</" <> name <> ">"
+renderStaticHtml (TextNode value)          = value
+renderStaticHtml (PreEscapedTextNode value) = value
+renderStaticHtml (SplicedNode _)           = error "renderStaticHtml: unexpected SplicedNode"
+renderStaticHtml (Children children)       = foldMap renderStaticHtml children
+renderStaticHtml (CommentNode value)       = "<!-- " <> value <> " -->"
+renderStaticHtml (NoRenderCommentNode)     = ""
+
+renderStaticAttribute :: Attribute -> Text
+renderStaticAttribute (StaticAttribute name (TextValue value)) =
+    " " <> name <> "=\"" <> value <> "\""
+renderStaticAttribute _ = error "renderStaticAttribute: unexpected dynamic attribute"
+
+-- | Compile a list of children, coalescing adjacent static siblings
+-- into single preEscapedText chunks.
+compileChildren :: [Node] -> [TH.ExpQ]
+compileChildren [] = []
+compileChildren nodes =
+    case span isStaticTree nodes of
+        -- Leading dynamic node: compile it, continue
+        ([], x:xs) -> compileToHaskell x : compileChildren xs
+        -- Leading static batch worth coalescing
+        (statics, rest)
+            | any isNonTrivialStaticNode statics ->
+                let html = foldMap renderStaticHtml statics
+                in [| Html5.preEscapedText $(TH.lift html) |] : compileChildren rest
+            -- Trivial statics (bare text nodes): compile individually
+            | otherwise ->
+                map compileToHaskell statics ++ compileChildren rest
 
 nodeToBlazeElement :: Text -> TH.Q TH.Exp
 nodeToBlazeElement name =
