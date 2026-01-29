@@ -16,11 +16,10 @@ module IHP.Controller.Redirect
 
 import Prelude
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions (cs, convertString)
 import qualified Network.Wai.Util
-import Network.URI (parseURI)
+import Network.URI (parseURI, uriToString)
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -142,9 +141,9 @@ redirectBackWithFallback :: (?request :: Request) => Text -> IO ()
 redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
         Just referer -> case parseURI (cs referer) of
-                Just uri -> redirectToUrl (Text.pack (show uri))           -- Referer Is URL "https://google.com/..."
+                Just uri -> redirectToUrl (cs (uriToString id uri ""))           -- Referer Is URL "https://google.com/..."
                 Nothing -> redirectToPath (cs referer)          -- Referer Is Path "/../"
         Nothing -> case parseURI (cs fallbackPathOrUrl) of
-                Just uri -> redirectToUrl (Text.pack (show uri))           -- Fallback Is URL "https://google.com/..."
+                Just uri -> redirectToUrl (cs (uriToString id uri ""))           -- Fallback Is URL "https://google.com/..."
                 Nothing -> redirectToPath fallbackPathOrUrl     -- Fallback Is Path "/../"
 {-# INLINABLE redirectBackWithFallback #-}
