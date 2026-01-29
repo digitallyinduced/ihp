@@ -36,7 +36,7 @@ import Data.Text (Text)
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), empty)
 import Text.Read (readMaybe)
 import Control.Exception.Safe (SomeException)
 import Control.Exception (evaluate)
@@ -405,6 +405,46 @@ class Data controller => AutoRoute controller where
                 _ -> [GET, POST, HEAD]
     {-# INLINE allowedMethodsForAction #-}
 
+    -- | Custom route parser for overriding individual action routes.
+    --
+    -- Use this to provide custom URL patterns for specific actions while keeping
+    -- the auto-generated routes for all other actions.
+    --
+    -- The custom routes are tried first, before the auto-generated routes.
+    -- The auto-generated route for the overridden action still works as a fallback.
+    --
+    -- __Example:__
+    --
+    -- > instance AutoRoute PostsController where
+    -- >     customRoutes = do
+    -- >         string "/posts/"
+    -- >         postId <- parseId
+    -- >         endOfInput
+    -- >         onlyAllowMethods [GET, HEAD]
+    -- >         pure ShowPostAction { postId }
+    --
+    customRoutes :: (?request :: Request, ?respond :: Respond) => Parser controller
+    customRoutes = empty
+    {-# INLINE customRoutes #-}
+
+    -- | Custom path generation for overriding individual action URLs.
+    --
+    -- Use this together with 'customRoutes' to generate custom URLs for specific
+    -- actions while keeping the auto-generated URLs for all other actions.
+    --
+    -- Return @Just path@ for actions with custom URLs, or @Nothing@ to fall back
+    -- to the auto-generated URL.
+    --
+    -- __Example:__
+    --
+    -- > instance AutoRoute PostsController where
+    -- >     customPathTo ShowPostAction { postId } = Just ("/posts/" <> tshow postId)
+    -- >     customPathTo _ = Nothing
+    --
+    customPathTo :: controller -> Maybe Text
+    customPathTo _ = Nothing
+    {-# INLINE customPathTo #-}
+
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.
 --
@@ -498,7 +538,7 @@ updateAction =
 {-# INLINE updateAction #-}
 
 instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
-    parseRoute' = autoRoute
+    parseRoute' = customRoutes <|> autoRoute
     {-# INLINABLE parseRoute' #-}
 
 -- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
@@ -529,7 +569,9 @@ instance QueryParam a => QueryParam [a] where
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINABLE pathTo #-}
-    pathTo !action = appPrefix <> actionName <> Text.pack arguments
+    pathTo !action = case customPathTo action of
+        Just path -> path
+        Nothing -> appPrefix <> actionName <> Text.pack arguments
         where
             appPrefix :: Text
             !appPrefix = actionPrefixText @controller
