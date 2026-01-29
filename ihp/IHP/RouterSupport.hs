@@ -337,6 +337,9 @@ class Data controller => AutoRoute controller where
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
+            prefix :: ByteString
+            prefix = Text.encodeUtf8 (actionPrefixText @controller)
+
             query :: Query
             query = queryString ?request
 
@@ -345,9 +348,6 @@ class Data controller => AutoRoute controller where
 
             parseAction :: Constr -> Parser controller
             parseAction constr = let
-                    prefix :: ByteString
-                    prefix = Text.encodeUtf8 (actionPrefixText @controller)
-
                     actionName = ByteString.pack (showConstr constr)
 
                     actionPath :: ByteString
