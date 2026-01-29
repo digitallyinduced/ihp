@@ -11,10 +11,11 @@ module IHP.SchemaCompiler.Parser
 import IHP.Prelude
 import IHP.Postgres.Parser (parseSqlFile)
 import IHP.Postgres.Types (Statement)
+import System.OsPath (OsPath, osp)
 
 -- | Path to the IHP schema file
-schemaFilePath :: FilePath
-schemaFilePath = "Application/Schema.sql"
+schemaFilePath :: OsPath
+schemaFilePath = [osp|Application/Schema.sql|]
 
 -- | Parse the IHP schema file at 'Application/Schema.sql'
 parseSchemaSql :: IO (Either ByteString [Statement])

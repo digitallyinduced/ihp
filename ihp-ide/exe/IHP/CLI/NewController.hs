@@ -1,12 +1,13 @@
 module Main where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ControllerGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
 import qualified Data.Text as Text
 import Main.Utf8 (withUtf8)
+import System.OsPath (osp)
 
 main :: IO ()
 main = withUtf8 do
@@ -24,7 +25,7 @@ usage = putStrLn "Usage: new-controller RESOURCE_NAME"
 
 ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
-    mainHsExists <- Directory.doesFileExist "Main.hs"
+    mainHsExists <- Directory.doesFileExist [osp|Main.hs|]
     unless mainHsExists (fail "You have to be in a project directory to run the generator")
     
 generateController :: Text -> IO ()

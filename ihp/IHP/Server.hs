@@ -24,9 +24,10 @@ import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
+import System.OsPath (osp)
 
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
@@ -118,7 +119,7 @@ initSessionMiddleware FrameworkConfig { sessionCookie } = do
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
     hasSessionSecretFileEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET_FILE"
-    doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist [osp|Config|]
     store <- clientsessionStore <$>
             if hasSessionSecretFileEnvVar
                 then do

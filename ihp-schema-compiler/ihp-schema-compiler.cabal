@@ -27,7 +27,8 @@ common shared-properties
           , classy-prelude
           , text
           , bytestring
-          , directory
+          , directory >= 1.3.9.0
+          , filepath >= 1.5
           , string-conversions
           , interpolate
           , split

@@ -30,29 +30,33 @@ import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
 import qualified System.Environment as Env
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
+import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
     cwd <- Directory.getCurrentDirectory
-    mainInProjectDirectory (cwd <> "/../")
+    cwdStr <- decodeUtf cwd
+    projectDir <- encodeUtf (cwdStr <> "/../")
+    mainInProjectDirectory projectDir
 
-mainInProjectDirectory :: FilePath -> IO ()
+mainInProjectDirectory :: OsPath -> IO ()
 mainInProjectDirectory projectDir = do
     cwd <- Directory.getCurrentDirectory
+    cwdStr <- decodeUtf cwd
 
     withCurrentWorkingDirectory projectDir do
-        Env.setEnv "IHP_LIB" (cwd <> "/ihp-ide/lib/IHP")
-        Env.setEnv "TOOLSERVER_STATIC" (cwd <> "/ihp-ide/lib/IHP/static")
-        Env.setEnv "IHP_STATIC" (cwd <> "/lib/IHP/static")
+        Env.setEnv "IHP_LIB" (cwdStr <> "/ihp-ide/lib/IHP")
+        Env.setEnv "TOOLSERVER_STATIC" (cwdStr <> "/ihp-ide/lib/IHP/static")
+        Env.setEnv "IHP_STATIC" (cwdStr <> "/lib/IHP/static")
 
         mainWithOptions True
 
-withCurrentWorkingDirectory :: FilePath -> IO result -> IO result
+withCurrentWorkingDirectory :: OsPath -> IO result -> IO result
 withCurrentWorkingDirectory workingDirectory callback = do
     cwd <- Directory.getCurrentDirectory
     Exception.bracket_
@@ -149,7 +153,8 @@ ghciArguments =
 
 withGHCI :: (?context :: Context) => (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
 withGHCI callback = do
-    let params = (procDirenvAware "ghci" ghciArguments)
+    baseParams <- procDirenvAware [osp|ghci|] ghciArguments
+    let params = baseParams
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe

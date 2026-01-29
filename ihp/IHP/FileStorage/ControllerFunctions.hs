@@ -38,8 +38,9 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.TMap as TMap
 import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
+import System.OsPath (encodeUtf)
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
 import qualified Network.Mime as Mime
@@ -106,7 +107,8 @@ storeFileWithOptions fileInfo options = do
     url <- case storage of
         StaticDirStorage { directory } -> do
             let destPath :: Text = directory <> objectPath
-            Directory.createDirectoryIfMissing True (cs $ directory <> options.directory)
+            dirOsPath <- encodeUtf (cs $ directory <> options.directory)
+            Directory.createDirectoryIfMissing True dirOsPath
 
             fileInfo
                 |> (.fileContent)
@@ -412,8 +414,8 @@ removeFileFromStorage :: (?context :: context, ConfigProvider context) => Stored
 removeFileFromStorage StoredFile { path, url } = do
     case storage of
         StaticDirStorage { directory } -> do
-            let fullPath :: String = cs $ directory <> path
-            Directory.removeFile fullPath
+            fullOsPath <- encodeUtf (cs $ directory <> path)
+            Directory.removeFile fullOsPath
             pure $ Right ()
         S3Storage { connectInfo, bucket} -> do
             runMinio connectInfo do

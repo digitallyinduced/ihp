@@ -27,8 +27,9 @@ import IHP.Controller.Context
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.Text as Text
-import System.Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Text.IO as IO
+import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
 
 -- | Returns the port used by the running app. Usually returns @8000@.
 theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber
@@ -65,13 +66,16 @@ findEditor = do
 
 findWebControllers :: IO [Text]
 findWebControllers = do
-    directoryFiles <-  listDirectory "Web/Controller"
+    osEntries <- Directory.listDirectory [osp|Web/Controller|]
+    directoryFiles <- mapM decodeUtf osEntries
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
 
 findControllers :: Text -> IO [Text]
 findControllers application = do
-    directoryFiles <-  listDirectory $ cs $ application <> "/Controller"
+    osPath <- encodeUtf (cs $ application <> "/Controller")
+    osEntries <- Directory.listDirectory osPath
+    directoryFiles <- mapM decodeUtf osEntries
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
 

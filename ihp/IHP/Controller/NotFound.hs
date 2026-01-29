@@ -15,8 +15,9 @@ import Network.HTTP.Types.Header
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import IHP.Controller.Response (respondAndExit)
+import System.OsPath (osp)
 
 
 -- | Stops the action execution with a not found message (404) when the access condition is True.
@@ -56,7 +57,7 @@ handleNotFound request respond = do
 
 buildNotFoundResponse :: IO Response
 buildNotFoundResponse = do
-    hasCustomNotFound <- Directory.doesFileExist "static/404.html"
+    hasCustomNotFound <- Directory.doesFileExist [osp|static/404.html|]
     if hasCustomNotFound
         then customNotFoundResponse
         else pure defaultNotFoundResponse

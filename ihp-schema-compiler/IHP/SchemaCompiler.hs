@@ -8,7 +8,7 @@ import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
@@ -18,6 +18,8 @@ import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
 import Text.Countable (pluralize)
+import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import qualified System.OsPath as OsPath
 
 data CompileException = CompileException ByteString deriving (Show)
 instance Exception CompileException where
@@ -31,20 +33,20 @@ compile = do
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
-            Directory.createDirectoryIfMissing True "build/Generated"
+            Directory.createDirectoryIfMissing True [osp|build/Generated|]
 
             forEach (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
 
-compileModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
-    [ ("build/Generated/Enums.hs", compileEnums options schema)
-    , ("build/Generated/ActualTypes.hs", compileTypes options schema)
+    [ ([osp|build/Generated/Enums.hs|], compileEnums options schema)
+    , ([osp|build/Generated/ActualTypes.hs|], compileTypes options schema)
     ] <> tableModules options schema <>
-    [ ("build/Generated/Types.hs", compileIndex schema)
+    [ ([osp|build/Generated/Types.hs|], compileIndex schema)
     ]
 
-applyTables :: (CreateTable -> (FilePath, Text)) -> Schema -> [(FilePath, Text)]
+applyTables :: (CreateTable -> (OsPath, Text)) -> Schema -> [(OsPath, Text)]
 applyTables applyFunction schema =
     let ?schema = schema
     in
@@ -54,16 +56,16 @@ applyTables applyFunction schema =
                 otherwise -> Nothing
             )
 
-tableModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+tableModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 tableModules options schema =
     let ?schema = schema
     in
         applyTables (tableModule options) schema
         <> applyTables tableIncludeModule schema
 
-tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (FilePath, Text)
+tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (OsPath, Text)
 tableModule options table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> ".hs", body)
+        ((OsPath.</>) [osp|build/Generated|] (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
     where
         body = Text.unlines
             [ prelude
@@ -79,9 +81,9 @@ tableModule options table =
             import Generated.ActualTypes
         |]
 
-tableIncludeModule :: (?schema :: Schema) => CreateTable -> (FilePath, Text)
+tableIncludeModule :: (?schema :: Schema) => CreateTable -> (OsPath, Text)
 tableIncludeModule table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> "Include.hs", prelude <> compileInclude table)
+        ((OsPath.</>) [osp|build/Generated|] (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
     where
         moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
         prelude = [trimming|
@@ -170,13 +172,14 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
 -- haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
 
 
-writeIfDifferent :: FilePath -> Text -> IO ()
+writeIfDifferent :: OsPath -> Text -> IO ()
 writeIfDifferent path content = do
+    fp <- decodeUtf path
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else pure ""
+    existingContent <- if alreadyExists then readFile fp else pure ""
     when (existingContent /= cs content) do
-        putStrLn $ "Updating " <> cs path
-        writeFile (cs path) (cs content)
+        putStrLn $ "Updating " <> cs fp
+        writeFile fp (cs content)
 
 compileTypes :: CompilerOptions -> Schema -> Text
 compileTypes options schema@(Schema statements) = Text.unlines

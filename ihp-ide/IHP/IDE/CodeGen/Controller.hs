@@ -20,11 +20,12 @@ import IHP.IDE.CodeGen.ApplicationGenerator as ApplicationGenerator
 import IHP.IDE.CodeGen.JobGenerator as JobGenerator
 import IHP.IDE.ToolServer.Helper.Controller
 import qualified System.Process as Process
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
-import System.Directory
+import System.Directory (doesFileExist)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 instance Controller CodeGenController where
     action GeneratorsAction = do
@@ -170,6 +171,10 @@ instance Controller CodeGenController where
                 redirectToUrl ("http://localhost:" <> tshow appPort <> "/" <> indexActionName)
 
 
+-- | Helper to convert Text path to OsPath
+textToOsPath :: Text -> IO OsPath
+textToOsPath = encodeUtf . cs
+
 executePlan :: [GeneratorAction] -> IO ()
 executePlan actions = forEach actions evalAction
     where
@@ -201,7 +206,8 @@ executePlan actions = forEach actions evalAction
                     putStrLn ("* " <> filePath <> " (AddToDataConstructor)")
                 Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
         evalAction EnsureDirectory { directory } = do
-            Directory.createDirectoryIfMissing True (cs directory)
+            osPath <- textToOsPath directory
+            Directory.createDirectoryIfMissing True osPath
         evalAction RunShellCommand { shellCommand } = do
             _ <- Process.system (cs shellCommand)
             putStrLn ("* " <> shellCommand)
@@ -210,7 +216,8 @@ undoPlan :: [GeneratorAction] -> IO()
 undoPlan actions = forEach actions evalAction
     where
         evalAction CreateFile { filePath, fileContent } = do
-            (Directory.removeFile (cs filePath)) `catch` handleError
+            osPath <- textToOsPath filePath
+            Directory.removeFile osPath `catch` handleError
             putStrLn ("- " <> filePath)
         evalAction AppendToFile { filePath, fileContent } = do
             deleteTextFromFile (cs filePath) fileContent `catch` handleError
@@ -228,7 +235,8 @@ undoPlan actions = forEach actions evalAction
             (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
             putStrLn ("* " <> filePath <> " (RemoveFromDataConstructor)")
         evalAction EnsureDirectory { directory } = do
-            (Directory.removeDirectory (cs directory)) `catch` handleError
+            osPath <- textToOsPath directory
+            Directory.removeDirectory osPath `catch` handleError
         evalAction RunShellCommand { shellCommand } = pure ()
         handleError :: SomeException -> IO ()
         handleError ex = putStrLn (tshow ex)

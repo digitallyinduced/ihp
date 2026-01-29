@@ -12,8 +12,9 @@ import qualified System.Info as System
 import qualified Network.Wreq as Wreq
 import qualified Control.Exception.Safe as Exception
 import qualified Crypto.Hash.SHA512 as SHA512
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.ByteString.Base16 as Base16
+import System.OsPath (decodeUtf)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
@@ -63,7 +64,8 @@ isWindows = do
 -- is able to get back the original path from the hash.
 getProjectId :: IO Text
 getProjectId = do
-    cwd <- Directory.getCurrentDirectory
+    cwdOsPath <- Directory.getCurrentDirectory
+    cwd <- decodeUtf cwdOsPath
     cwd
         |> cs
         |> SHA512.hash

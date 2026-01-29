@@ -3,7 +3,8 @@ module IHP.IDE.CodeGen.JobGenerator (buildPlan, buildPlan', JobConfig (..)) wher
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
+import System.OsPath (encodeUtf)
 
 data JobConfig = JobConfig
     { applicationName :: Text
@@ -14,7 +15,8 @@ data JobConfig = JobConfig
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
-    isFirstJobInApplication <- not <$> Directory.doesFileExist (cs $ applicationName <> "/Worker.hs")
+    workerPath <- encodeUtf (cs $ applicationName <> "/Worker.hs")
+    isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
     if null jobName
         then pure $ Left "Job name cannot be empty"
         else do

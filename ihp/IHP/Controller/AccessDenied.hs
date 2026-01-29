@@ -15,8 +15,9 @@ import Network.HTTP.Types.Header
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import IHP.Controller.Response (respondAndExit)
+import System.OsPath (osp)
 
 
 -- | Stops the action execution with an access denied message (403) when the access condition is True.
@@ -55,7 +56,7 @@ handleAccessDeniedFound request respond = do
 
 buildAccessDeniedResponse :: IO Response
 buildAccessDeniedResponse = do
-    hasCustomAccessDenied <- Directory.doesFileExist "static/403.html"
+    hasCustomAccessDenied <- Directory.doesFileExist [osp|static/403.html|]
     if hasCustomAccessDenied
         then customAccessDeniedResponse
         else pure defaultAccessDeniedResponse

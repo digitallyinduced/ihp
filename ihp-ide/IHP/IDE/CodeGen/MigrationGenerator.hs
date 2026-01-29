@@ -21,6 +21,7 @@ import IHP.Postgres.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
+import System.OsPath (OsPath, encodeUtf)
 
 buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
 buildPlan description sqlStatements = buildPlan' True description sqlStatements
@@ -63,8 +64,10 @@ parseIHPSchema = do
     ihpSchemaSql <- findIHPSchemaSql
     Parser.parseSqlFile ihpSchemaSql
 
-findIHPSchemaSql :: IO FilePath
-findIHPSchemaSql = getDataFileName "IHPSchema.sql"
+findIHPSchemaSql :: IO OsPath
+findIHPSchemaSql = do
+    fp <- getDataFileName "IHPSchema.sql"
+    encodeUtf fp
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
