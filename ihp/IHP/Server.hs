@@ -36,6 +36,7 @@ import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 
 import IHP.Controller.NotFound (handleNotFound)
+import IHP.Static (staticRouteShortcut)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
@@ -62,11 +63,13 @@ run configBuilder = do
 
                     useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
 
+                    let fullApp = middleware $ application staticApp requestLoggerMiddleware
+                    let staticShortcut = staticRouteShortcut staticApp fullApp
+
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                        . middleware
-                        $ application staticApp requestLoggerMiddleware
+                        $ staticShortcut
 
 {-# INLINABLE run #-}
 

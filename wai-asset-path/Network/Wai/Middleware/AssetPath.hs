@@ -40,8 +40,10 @@ assetPathVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE assetPathVaultKey #-}
 
 renderAssetPath :: Text -> Maybe Text -> Text -> Text
-renderAssetPath version baseUrl path =
-    Text.concat [ fromMaybe "" baseUrl, path, "?v=", version ]
+renderAssetPath version Nothing path =
+    Text.concat [ "/static", path, "?v=", version ]
+renderAssetPath version (Just baseUrl) path =
+    Text.concat [ baseUrl, path, "?v=", version ]
 
 -- | Adds a cache buster to a asset path
 --

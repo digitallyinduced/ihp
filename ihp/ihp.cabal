@@ -209,6 +209,7 @@ library
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
+        , IHP.Static
         , IHP.ValidationSupport
         , IHP.ViewPrelude
         , IHP.ViewSupport
