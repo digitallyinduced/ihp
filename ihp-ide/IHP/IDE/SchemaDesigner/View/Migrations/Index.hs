@@ -22,8 +22,8 @@ instance View IndexView where
                 <a
                     href={NewMigrationAction}
                     class="ml-auto btn btn-link btn-add"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Migration"
                     >
                     {addIcon}
@@ -60,16 +60,16 @@ instance View IndexView where
                             <a
                                 href={EditMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add"
-                                data-toggle="tooltip"
-                                data-placement="bottom"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
                                 title="Edit Migration"
                             >{editIcon}</a>
 
                             <a
                                 href={DeleteMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add js-delete"
-                                data-toggle="tooltip"
-                                data-placement="bottom"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
                                 title="Delete Migration"
                             >{deleteIcon}</a>
                         </div>

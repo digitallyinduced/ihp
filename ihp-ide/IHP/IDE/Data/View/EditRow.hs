@@ -98,7 +98,7 @@ instance View EditRowView where
                                 value={inputValue False}
                                 />
                             <div class="input-group-append">
-                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
@@ -144,7 +144,7 @@ instance View EditRowView where
                                 value={inputValue False}
                                 />
                             <div class="input-group-append">
-                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
@@ -178,7 +178,7 @@ instance View EditRowView where
                                 oninput={"stopSqlModeOnInput('" <> def.columnName <> "')"}
                                 />
                             <div class="input-group-append">
-                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "false"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "false"}>NULL</a>

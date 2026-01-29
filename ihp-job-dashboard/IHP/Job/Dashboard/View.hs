@@ -53,9 +53,9 @@ instance View HtmlView where
 renderStatus job = case job.status of
     JobStatusNotStarted -> [hsx|<span class="badge badge-secondary">Not Started</span>|]
     JobStatusRunning -> [hsx|<span class="badge badge-primary">Running</span>|]
-    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Failed</span>|]
+    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="left" data-bs-content={fromMaybe "" (job.lastError)}>Failed</span>|]
     JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
-    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Retry</span>|]
+    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="left" data-bs-content={fromMaybe "" (job.lastError)}>Retry</span>|]
     JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------

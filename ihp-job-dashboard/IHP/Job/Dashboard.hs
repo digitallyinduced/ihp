@@ -147,7 +147,7 @@ instance JobsDashboard '[] where
     makeDashboard = pure $ SomeView $ HtmlView [hsx|
         <script>
             function initPopover() {
-                $('[data-toggle="popover"]').popover({ trigger: 'hover click' })
+                $('[data-bs-toggle="popover"]').popover({ trigger: 'hover click' })
             }
             $(document).on('ready turbolinks:load', initPopover);
             $(initPopover);

@@ -125,7 +125,7 @@ databaseControls = [hsx|
             onclick="checkBeforeUnload()"
             >Migrate DB →</a>
 
-        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             <span class="sr-only">Toggle Dropdown</span>
         </button>
 
@@ -134,9 +134,9 @@ databaseControls = [hsx|
                 type="submit"
                 form="update-db-form"
                 class="dropdown-item"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
                 onclick="checkBeforeUnload()"
                 >Update DB</button>
@@ -145,9 +145,9 @@ databaseControls = [hsx|
                 type="submit"
                 class="dropdown-item"
                 form="db-to-fixtures-form"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Saves the content of all tables to Application/Fixtures.sql"
                 onclick="checkBeforeUnload()"
                 >Save DB to Fixtures</button>
@@ -155,9 +155,9 @@ databaseControls = [hsx|
                 type="submit"
                 class="dropdown-item"
                 form="push-to-db-form"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Delete the DB and recreate using Application/Schema.sql and Application/Fixture.sql<br><br><strong class=text-danger>Save DB to Fixtures before using this to avoid data loss</strong>"
                 onclick="checkBeforeUnload()"
                 >Push to DB</button>
@@ -211,8 +211,8 @@ renderColumnSelector tableName columns statements = [hsx|
                 <a
                     href={NewColumnAction tableName}
                     class="btn btn-link btn-add"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Column"
                 >{addIcon}</a>
             </div>
@@ -531,8 +531,8 @@ renderEnumSelector enumName values = [hsx|
             <a
                 href={NewEnumValueAction enumName}
                 class="btn btn-link btn-add mr-1"
-                data-toggle="tooltip"
-                data-placement="bottom"
+                data-bs-toggle="tooltip"
+                data-bs-placement="bottom"
                 title="Add Table"
                 >{addIcon}</a>
         </div>
@@ -572,8 +572,8 @@ renderObjectSelector statements activeObjectName = [hsx|
                 <a
                     href={NewTableAction}
                     class="btn btn-link btn-add mr-1"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Table"
                     >{addIcon}</a>
             </div>
@@ -649,9 +649,9 @@ renderObjectSelector statements activeObjectName = [hsx|
                 rlsIcon = [hsx|
                         <span
                             class="rls-enabled"
-                            data-toggle="tooltip"
-                            data-placement="right"
-                            data-html="true"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="right"
+                            data-bs-html="true"
                             title="Row Level Security enabled"
                             >{shieldIcon}</span>
                         |]

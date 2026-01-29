@@ -93,11 +93,11 @@ toolServerLayout inner = [hsx|
             <a
                 href="#"
                 class="nav-item"
-                data-container="body"
-                data-toggle="popover"
-                data-placement="right"
-                data-title="Questions, or need help with Haskell type errors?"
-                data-trigger="focus"
+                data-bs-container="body"
+                data-bs-toggle="popover"
+                data-bs-placement="right"
+                data-bs-title="Questions, or need help with Haskell type errors?"
+                data-bs-trigger="focus"
                 id="nav-help"
             >
                 {helpIcon}

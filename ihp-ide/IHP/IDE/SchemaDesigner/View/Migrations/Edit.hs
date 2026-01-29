@@ -29,8 +29,8 @@ renderForm migration sqlStatements = [hsx|
 
     <button
         class="btn btn-primary"
-        data-toggle="tooltip"
-        data-placement="right"
+        data-bs-toggle="tooltip"
+        data-bs-placement="right"
         title="⌘ Enter"
         >Save Migration</button>
 </form>
