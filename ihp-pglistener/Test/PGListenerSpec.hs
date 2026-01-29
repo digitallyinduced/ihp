@@ -27,11 +27,8 @@ import qualified Hasql.Session as Session
 
 logger :: Logger
 logger = Logger
-    { write = \_ -> pure ()
+    { log = \_ _ -> pure ()
     , level = Debug
-    , formatter = \_ _ msg -> msg
-    , timeCache = pure ""
-    , cleanup = pure ()
     }
 
 getDatabaseUrl :: IO ByteString

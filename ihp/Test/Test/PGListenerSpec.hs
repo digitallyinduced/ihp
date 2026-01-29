@@ -13,11 +13,8 @@ import Data.HashMap.Strict as HashMap
 tests = do
     describe "IHP.PGListener" do
         let logger = Logger
-                { write = \_ -> pure ()
+                { log = \_ _ -> pure ()
                 , level = Debug
-                , formatter = \_ _ msg -> msg
-                , timeCache = pure ""
-                , cleanup = pure ()
                 }
 
         describe "subscribe" do

@@ -84,14 +84,9 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 -- >
 -- > userIdLogger :: (?context :: ControllerContext) => Logger
 -- > userIdLogger =
--- >     defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+-- >     baseLogger { Log.log = \lvl msg -> baseLogger.log lvl (prependUserId msg) }
 -- >     where
--- >         defaultLogger = ?context.frameworkConfig.logger
--- >
--- >
--- > userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
--- > userIdFormatter existingFormatter time level string =
--- >     existingFormatter time level (prependUserId string)
+-- >         baseLogger = ?context.frameworkConfig.logger
 -- >
 -- > prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
 -- > prependUserId string =

@@ -143,10 +143,10 @@ withDataSyncController connStr testUserId action = do
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
                 then cs connStr
                 else cs ("dbname=" <> connStr)
-        logger <- Log.newLogger def { Log.level = Log.Error }
+        (logger, _) <- Log.newLogger Log.Error Log.defaultFormatter (Log.LogStdout Log.defaultBufSize) Log.simpleTimeFormat'
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig (pure ())
+                (frameworkConfig, _) <- buildFrameworkConfig (pure ())
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let v = Vault.empty

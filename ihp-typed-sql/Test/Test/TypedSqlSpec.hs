@@ -306,7 +306,7 @@ requirePostgresTestHook = do
 
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
-    logger <- newLogger def { level = Warn }
+    (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
     databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
     modelContext <- createModelContext databaseUrl logger
     let ?modelContext = modelContext
@@ -772,7 +772,7 @@ runtimeModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -999,7 +999,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1087,7 +1087,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1172,7 +1172,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
