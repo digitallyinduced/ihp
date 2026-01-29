@@ -175,11 +175,6 @@ instance ParamReader OrderByClause where
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
-instance ToJSON EnhancedSqlError where
-    toJSON EnhancedSqlError { sqlError } = object
-                [ "errorMsg" .= sqlError
-                ]
-
 renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}

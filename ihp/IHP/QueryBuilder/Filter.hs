@@ -39,6 +39,8 @@ module IHP.QueryBuilder.Filter
 , filterWhereILikeJoinedTable
 , filterWhereMatchesJoinedTable
 , filterWhereIMatchesJoinedTable
+  -- * Helpers
+, snippetParamList
 ) where
 
 import IHP.Prelude
@@ -51,6 +53,7 @@ import Data.Text (toLower)
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import qualified Data.List
 
 -- | Adds a simple @WHERE x = y@ condition to the query.
 filterWhere :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
@@ -104,13 +107,7 @@ filterWhereIn (name, values) queryBuilderProvider =
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
 
         -- Build IN clause with individual params: col IN ($1, $2, $3, ...)
-        inSnippet = case nonNullValues of
-            [] -> Snippet.sql "(NULL)" -- Empty IN - should never match
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
-                , Snippet.sql ")"
-                ]
+        inSnippet = snippetParamList (map Snippet.param nonNullValues)
 
         whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
 
@@ -138,13 +135,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
         lowerValues = map toLower nonNullValues
 
-        inSnippet = case lowerValues of
-            [] -> Snippet.sql "(NULL)"
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
-                , Snippet.sql ")"
-                ]
+        inSnippet = snippetParamList (map Snippet.param lowerValues)
 
         whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
 
@@ -159,13 +150,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
 
 filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereInJoinedTable (name, values) queryBuilderProvider =
-    let inSnippet = case values of
-            [] -> Snippet.sql "(NULL)"
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
-                , Snippet.sql ")"
-                ]
+    let inSnippet = snippetParamList (map Snippet.param values)
     in injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -184,13 +169,7 @@ filterWhereNotIn (name, values) queryBuilderProvider =
     where
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        inSnippet = case nonNullValues of
-            [] -> Snippet.sql "(NULL)"
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
-                , Snippet.sql ")"
-                ]
+        inSnippet = snippetParamList (map Snippet.param nonNullValues)
 
         whereNotInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
 
@@ -201,13 +180,7 @@ filterWhereNotIn (name, values) queryBuilderProvider =
 filterWhereNotInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider
 filterWhereNotInJoinedTable (name, values) queryBuilderProvider =
-    let inSnippet = case values of
-            [] -> Snippet.sql "(NULL)"
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
-                , Snippet.sql ")"
-                ]
+    let inSnippet = snippetParamList (map Snippet.param values)
     in injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
@@ -358,21 +331,19 @@ filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type
 filterWhereIdIn values queryBuilderProvider =
     let
         pkSnippets = map (primaryKeyConditionForId @model) values
-        inSnippet = case pkSnippets of
-            [] -> Snippet.sql "(NULL)"
-            vs -> mconcat
-                [ Snippet.sql "("
-                , mconcat $ intersperse' (Snippet.sql ", ") vs
-                , Snippet.sql ")"
-                ]
+        inSnippet = snippetParamList pkSnippets
         queryBuilder = getQueryBuilder queryBuilderProvider
         whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing}
      in
         injectQueryBuilder whereInQuery
 {-# INLINE filterWhereIdIn #-}
 
--- | Helper: intersperse for lists (avoids depending on Data.List.intersperse which conflicts)
-intersperse' :: a -> [a] -> [a]
-intersperse' _ [] = []
-intersperse' _ [x] = [x]
-intersperse' sep (x:xs) = x : sep : intersperse' sep xs
+-- | Build a parenthesized, comma-separated SQL list from Snippet values.
+-- Returns @(NULL)@ for an empty list (which never matches in @IN@ expressions).
+snippetParamList :: [Snippet] -> Snippet
+snippetParamList [] = Snippet.sql "(NULL)"
+snippetParamList vs = mconcat
+    [ Snippet.sql "("
+    , mconcat $ Data.List.intersperse (Snippet.sql ", ") vs
+    , Snippet.sql ")"
+    ]

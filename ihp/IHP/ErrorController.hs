@@ -141,41 +141,31 @@ postgresHandler exception controller additionalInfo = do
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
 
-        handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
+        handleSqlError :: ModelSupport.HasqlException -> IO ResponseReceived
         handleSqlError exception = do
-            let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
-            let sqlError = exception.sqlError
-            let title = [hsx|{sqlError}|]
+            let errorText = cs (Exception.displayException exception) :: Text
+            let title = [hsx|{errorText}|]
             let errorMessage = [hsx|
-                        <h2>While running the following Query:</h2>
-                        <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQuery}</code>
-                        </div>
-
-                        <h2>With Query Parameters:</h2>
-                        <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQueryParams}</code>
-                        </div>
-
                         <h2>Details:</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                        <p style="font-family: monospace; font-size: 16px">{errorText}</p>
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+    let errorText = cs (Exception.displayException exception) :: ByteString
     case fromException exception of
             -- Catching  `relation "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (cs sqlError)
-                && "does not exist" `ByteString.isSuffixOf` (cs sqlError)
-                -> Just (handlePostgresOutdatedError exception "A table is missing.")
+            Just (hasqlException :: ModelSupport.HasqlException)
+                |  "relation" `ByteString.isInfixOf` errorText
+                && "does not exist" `ByteString.isInfixOf` errorText
+                -> Just (handlePostgresOutdatedError hasqlException "A table is missing.")
 
-            -- Catching  `columns "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (cs sqlError)
-                && "does not exist" `ByteString.isSuffixOf` (cs sqlError)
-                -> Just (handlePostgresOutdatedError exception "A column is missing.")
+            -- Catching  `column "..." does not exist`
+            Just (hasqlException :: ModelSupport.HasqlException)
+                |  "column" `ByteString.isInfixOf` errorText
+                && "does not exist" `ByteString.isInfixOf` errorText
+                -> Just (handlePostgresOutdatedError hasqlException "A column is missing.")
             -- Catching other SQL Errors
-            Just exception -> Just (handleSqlError exception)
+            Just hasqlException -> Just (handleSqlError hasqlException)
             Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)

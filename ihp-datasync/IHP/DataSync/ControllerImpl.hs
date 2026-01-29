@@ -78,9 +78,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                             case result of
                                 Left (e :: Exception.SomeException) -> do
                                     let requestId    = decodedMessage.requestId
-                                    let errorMessage = case fromException e of
-                                            Just (enhancedSqlError :: EnhancedSqlError) -> enhancedSqlError.sqlError
-                                            Nothing -> cs (displayException e)
+                                    let errorMessage = cs (displayException e)
                                     Log.error (tshow e)
                                     sendJSON DataSyncError { requestId, errorMessage }
                                 Right _ -> pure ()
