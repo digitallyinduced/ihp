@@ -87,7 +87,6 @@ instance View NewRowView where
                                 name={col.columnName}
                                 value={inputValue False}
                                 />
-                            <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "true"}>DEFAULT</a>
@@ -109,7 +108,6 @@ instance View NewRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
                                 |]
             renderInputMethod col = [hsx|
                                 {isBooleanParam False col}

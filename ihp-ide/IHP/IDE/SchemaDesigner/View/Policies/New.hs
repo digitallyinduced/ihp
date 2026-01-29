@@ -51,7 +51,7 @@ instance View NewPolicyView where
                             class="form-control sql-expression"
                             data-autocomplete-suggestions={autocompleteSuggestions}
                         >{using}</textarea>
-                        <small class="form-text text-muted">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
+                        <small class="form-text">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
                     </div>
 
                     <div class="mb-3">
@@ -63,7 +63,7 @@ instance View NewPolicyView where
                             class="form-control sql-expression"
                             data-autocomplete-suggestions={autocompleteSuggestions}
                         >{check}</textarea>
-                        <small class="form-text text-muted">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
+                        <small class="form-text">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
                     </div>
 
                     <div class="text-end">

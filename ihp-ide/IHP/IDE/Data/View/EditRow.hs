@@ -97,7 +97,6 @@ instance View EditRowView where
                                 name={def.columnName}
                                 value={inputValue False}
                                 />
-                            <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
@@ -119,7 +118,6 @@ instance View EditRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
                                 |]
             renderInputMethod (def, val) | (def.columnType) == "boolean" = [hsx|
                             {isBooleanParam True def}
@@ -143,7 +141,6 @@ instance View EditRowView where
                                 name={def.columnName}
                                 value={inputValue False}
                                 />
-                            <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
@@ -165,7 +162,6 @@ instance View EditRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
                                 |]
             renderInputMethod (def, val) = [hsx|
                             {isBooleanParam False def}
@@ -177,7 +173,6 @@ instance View EditRowView where
                                 value={value val}
                                 oninput={"stopSqlModeOnInput('" <> def.columnName <> "')"}
                                 />
-                            <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                                 <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "false"}>DEFAULT</a>
@@ -199,6 +194,6 @@ instance View EditRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>|]
+                            |]
 
 value val = fromMaybe BS.empty (val.fieldValue)

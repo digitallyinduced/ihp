@@ -296,7 +296,7 @@ body, .modal-content {
     border-bottom: 1px solid #0A4151
 }
 
-.modal-header .close {
+.modal-header .btn-close {
     color: hsl(192deg 100% 30% / 50%);
     transition: all 0.2s;
 }
