@@ -33,7 +33,7 @@ CanRoute (..)
 import Prelude hiding (take)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe, catMaybes, mapMaybe)
 import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
@@ -207,18 +207,16 @@ parseFuncs parseIdType = [
             -- Try and parse @[Int]@. If value is not present then default to empty list.
             \queryValue -> case eqT :: Maybe (d :~: [Int]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInt b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
             \queryValue -> case eqT :: Maybe (d :~: [Integer]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInteger b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
@@ -226,11 +224,8 @@ parseFuncs parseIdType = [
             -- Try and parse a raw [UUID]
             \queryValue -> case eqT :: Maybe (d :~: [UUID]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> queryValue
-                        |> cs
-                        |> Text.splitOn ","
-                        |> map (fromASCIIBytes . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe fromASCIIBytes
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
