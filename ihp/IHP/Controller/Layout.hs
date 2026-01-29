@@ -8,7 +8,7 @@ module IHP.Controller.Layout
 , ViewLayout (..)
 ) where
 
-import IHP.Prelude
+import Prelude
 import IHP.ViewSupport
 import IHP.Controller.Context
 import Network.Wai (Request)

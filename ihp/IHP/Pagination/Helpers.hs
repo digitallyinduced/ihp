@@ -1,6 +1,6 @@
 module IHP.Pagination.Helpers where
 
-import IHP.Prelude
+import Prelude
 import IHP.Pagination.Types
 
 -- | Gets the number of the last page from a 'Pagination' state. Uses the total

@@ -28,8 +28,13 @@ module IHP.Controller.Session
   , lookupSessionVault
   ) where
 
-import IHP.Prelude
-import IHP.ModelSupport
+import Prelude
+import Data.ByteString (ByteString)
+import Data.Maybe (isJust)
+import GHC.Records (HasField(..))
+import Control.Monad (when)
+import IHP.ModelSupport.Types (PrimaryKey, Id'(..), Id)
+import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai

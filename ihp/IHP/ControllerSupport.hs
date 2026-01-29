@@ -55,7 +55,7 @@ import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
-import IHP.RequestVault
+import IHP.RequestVault.ModelContext
 import IHP.ActionType (setActionType)
 
 type Action' = IO ResponseReceived
