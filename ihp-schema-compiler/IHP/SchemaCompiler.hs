@@ -300,6 +300,7 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Data.Text.Encoding
             import qualified Control.DeepSeq as DeepSeq
             import qualified Hasql.Decoders as Decoders
+            import qualified Hasql.Encoders as Encoders
             import qualified Hasql.DynamicStatements.Snippet as Snippet
             import Hasql.DynamicStatements.Snippet (Snippet, sql, param, DefaultParamEncoder)
         |]
@@ -483,7 +484,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "        _ -> Nothing\n"
         <> "instance Default " <> modelName <> " where def = " <> enumValueToConstructorName (unsafeHead values) <> "\n"
         <> "instance DefaultParamEncoder " <> modelName <> " where\n"
-        <> indent (unlines (map compileDefaultParamEncoderCase values))
+        <> indent ("defaultParam = Encoders.nonNullable (Encoders.enum \\case\n" <> indent (indent (unlines (map compileEncoderEnumCase values))) <> ")"  <> "\n")
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values))
         <> "instance DeepSeq.NFData " <> modelName <> " where" <> " rnf a = seq a ()" <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
@@ -497,7 +498,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
                 else modelName <> (enumValueToControllerName enumValue)
 
         compileFromFieldCase value = tshow value <> " -> Just " <> enumValueToConstructorName value
-        compileDefaultParamEncoderCase value = "-- TODO: DefaultParamEncoder for " <> enumValueToConstructorName value
+        compileEncoderEnumCase value = enumValueToConstructorName value <> " -> " <> tshow value
         compileInputValue value = "inputValue " <> enumValueToConstructorName value <> " = " <> tshow value <> " :: Text"
 
         -- Let's say we have a schema like this:

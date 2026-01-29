@@ -59,37 +59,38 @@ instance (
                     Right result -> renderJson result
 
             Array objects -> do
-                let columns = objects
-                        |> Vector.toList
-                        |> head
-                        |> \case
-                            Just value -> value
-                            Nothing -> error "Atleast one record is required"
-                        |> \case
-                            Object hashMap -> hashMap
-                            otherwise -> error "Expected object"
-                        |> Aeson.keys
-                        |> map (fieldNameToColumnName . Aeson.toText)
+                let objectList = Vector.toList objects
+                case objectList of
+                    [] -> renderErrorJson ("At least one record is required" :: Text)
+                    (firstElement:_) -> case firstElement of
+                        Object firstHashMap -> do
+                            let columns = firstHashMap
+                                    |> Aeson.keys
+                                    |> map (fieldNameToColumnName . Aeson.toText)
 
-                let values = objects
-                        |> Vector.toList
-                        |> map (\object ->
-                                object
-                                |> \case
-                                    Object hashMap -> hashMap
-                                    otherwise -> error "Expected object"
-                                |> Aeson.elems
-                                |> map aesonValueToSnippet
-                            )
+                            let parseObject value = case value of
+                                    Object hashMap -> Right hashMap
+                                    _otherwise -> Left ("Expected object, got: " <> show value)
 
-                let columnSnippets = mconcat $ intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
-                let valuesSnippet = mconcat $ intersperse (Snippet.sql ", ") valueRowSnippets
+                            case mapM parseObject objectList of
+                                Left err -> renderErrorJson (cs err :: Text)
+                                Right hashMaps -> do
+                                    let values = hashMaps
+                                            |> map (\hashMap ->
+                                                    hashMap
+                                                    |> Aeson.elems
+                                                    |> map aesonValueToSnippet
+                                                )
 
-                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
+                                    let columnSnippets = mconcat $ intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+                                    let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
+                                    let valuesSnippet = mconcat $ intersperse (Snippet.sql ", ") valueRowSnippets
 
-                result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
-                renderJson result
+                                    let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
+
+                                    result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    renderJson result
+                        _otherwise -> renderErrorJson ("Expected object" :: Text)
 
 
 

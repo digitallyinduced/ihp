@@ -38,8 +38,6 @@ import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
 
--- TODO: How to deal with timeout of the connection?
-
 -- | The channel is like the event name
 --
 -- It's used in the postgres NOTIFY call:
@@ -158,7 +156,17 @@ listenToChannelIfNeeded channel pgListener = do
         MVar.putMVar (pgListener.listenTo) channel
 
 
--- | The main loop that is receiving events from the database and triggering callbacks
+-- | The main loop that is receiving events from the database and triggering callbacks.
+--
+-- __Reconnection strategy:__ The outer 'retryLoop' wraps 'innerLoop' with 'Exception.tryAny'.
+-- When the PostgreSQL connection drops (timeout, server restart, network error, etc.),
+-- @waitForNotifications@ throws an exception which is caught by the retry loop.
+-- On the first failure the loop retries immediately; subsequent consecutive failures use
+-- exponential backoff starting at 500 ms up to a maximum of 60 s.  Each retry acquires a
+-- fresh connection and re-issues @LISTEN@ for every channel tracked in 'listeningToVar',
+-- so existing subscriptions continue to work transparently after reconnection.
+-- The connection is always released via 'Exception.finally' to avoid leaking connections
+-- on both exceptions and async cancellation (e.g. when 'stop' is called).
 notifyLoop :: (?modelContext :: ModelContext) => MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
 notifyLoop listeningToVar listenToVar subscriptions = do
     -- Wait until the first LISTEN is requested before taking a database connection from the pool
@@ -168,39 +176,41 @@ notifyLoop listeningToVar listenToVar subscriptions = do
             -- Acquire a dedicated connection for listening
             conn <- acquireConnection ?modelContext
 
-            -- Restore any existing LISTEN channels
-            listeningTo <- MVar.readMVar listeningToVar
-            forEach listeningTo \channel -> do
-                Notifications.listen conn (Notifications.toPgIdentifier (cs channel))
+            -- Use finally to guarantee the connection is released, even when
+            -- an exception is thrown (e.g. connection dropped) or the async
+            -- is cancelled via 'stop'.
+            flip Exception.finally (Hasql.release conn) do
+                -- Restore any existing LISTEN channels
+                listeningTo <- MVar.readMVar listeningToVar
+                forEach listeningTo \channel -> do
+                    Notifications.listen conn (Notifications.toPgIdentifier (cs channel))
 
-            -- Start the listen loop in a separate thread to handle new LISTEN requests
-            let listenLoop = forever do
-                    channel <- MVar.takeMVar listenToVar
+                -- Start the listen loop in a separate thread to handle new LISTEN requests
+                let listenLoop = forever do
+                        channel <- MVar.takeMVar listenToVar
 
-                    MVar.modifyMVar_ listeningToVar \currentListeningTo -> do
-                        let alreadyListening = channel `Set.member` currentListeningTo
+                        MVar.modifyMVar_ listeningToVar \currentListeningTo -> do
+                            let alreadyListening = channel `Set.member` currentListeningTo
 
-                        if alreadyListening
-                            then pure currentListeningTo
-                            else do
-                                Notifications.listen conn (Notifications.toPgIdentifier (cs channel))
-                                pure (Set.insert channel currentListeningTo)
+                            if alreadyListening
+                                then pure currentListeningTo
+                                else do
+                                    Notifications.listen conn (Notifications.toPgIdentifier (cs channel))
+                                    pure (Set.insert channel currentListeningTo)
 
-            Async.withAsync listenLoop \_ -> do
-                Notifications.waitForNotifications (\channel payload -> do
-                    let notification = Notification { notificationChannel = channel, notificationData = payload }
+                Async.withAsync listenLoop \_ -> do
+                    Notifications.waitForNotifications (\channel payload -> do
+                        let notification = Notification { notificationChannel = channel, notificationData = payload }
 
-                    allSubscriptions <- readIORef subscriptions
-                    let channelSubscriptions = allSubscriptions
-                            |> HashMap.lookup channel
-                            |> fromMaybe []
+                        allSubscriptions <- readIORef subscriptions
+                        let channelSubscriptions = allSubscriptions
+                                |> HashMap.lookup channel
+                                |> fromMaybe []
 
-                    forEach channelSubscriptions \subscription -> do
-                        let inChan = subscription.inChan
-                        Queue.writeChan inChan notification
-                    ) conn
-
-            Hasql.release conn
+                        forEach channelSubscriptions \subscription -> do
+                            let inChan = subscription.inChan
+                            Queue.writeChan inChan notification
+                        ) conn
 
     -- Initial delay (in microseconds)
     let initialDelay = 500 * 1000
@@ -227,8 +237,8 @@ notifyLoop listeningToVar listenToVar subscriptions = do
 
 printTimeToNextRetry :: Int -> Text
 printTimeToNextRetry microseconds
-    | microseconds >= 1000000000 =  show (microseconds `div` 1000000000) <> " min"
-    | microseconds >= 1000000 =  show (microseconds `div` 1000000) <> " s"
+    | microseconds >= 60000000 = show (microseconds `div` 60000000) <> " min"
+    | microseconds >= 1000000 = show (microseconds `div` 1000000) <> " s"
     | microseconds >= 1000 = show (microseconds `div` 1000) <> " ms"
     | otherwise = show microseconds <> " µs"
 

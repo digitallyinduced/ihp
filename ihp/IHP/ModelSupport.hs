@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, CPP #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -119,12 +119,6 @@ createRecord = create
 instance Default Text where
     {-# INLINE def #-}
     def = ""
-
-#if !MIN_VERSION_data_default(0,8,0)
-instance Default Bool where
-    {-# INLINE def #-}
-    def = False
-#endif
 
 instance Default Point where
     def = Point def def
@@ -326,12 +320,12 @@ runSession session =
         Just conn -> do
             result <- Hasql.run session conn
             case result of
-                Left err -> throwIO (userError (show err))
+                Left err -> throwIO (HasqlSessionError err)
                 Right val -> pure val
         Nothing -> do
             result <- HasqlPool.use ?modelContext.connectionPool session
             case result of
-                Left err -> throwIO (userError (show err))
+                Left err -> throwIO (HasqlPoolError err)
                 Right val -> pure val
 {-# INLINABLE runSession #-}
 
@@ -402,7 +396,7 @@ withTransaction block = do
         case runResult of
             Left err -> do
                 Hasql.release conn
-                throwIO (userError ("withTransaction: BEGIN failed: " <> show err))
+                throwIO (HasqlSessionError err)
             Right () -> do
                 val <- block `catch` (\(e :: SomeException) -> do
                     _ <- Hasql.run rollbackSession conn
@@ -412,7 +406,7 @@ withTransaction block = do
                 commitResult <- Hasql.run commitSession conn
                 Hasql.release conn
                 case commitResult of
-                    Left err -> throwIO (userError ("withTransaction: COMMIT failed: " <> show err))
+                    Left err -> throwIO (HasqlSessionError err)
                     Right () -> pure val
     pure result
 {-# INLINABLE withTransaction #-}
@@ -446,7 +440,7 @@ commitTransaction = do
     let conn = transactionConnectionOrError
     result <- Hasql.run (Hasql.sql "COMMIT") conn
     case result of
-        Left err -> throwIO (userError ("commitTransaction failed: " <> show err))
+        Left err -> throwIO (HasqlSessionError err)
         Right () -> pure ()
 {-# INLINABLE commitTransaction #-}
 
@@ -455,7 +449,7 @@ rollbackTransaction = do
     let conn = transactionConnectionOrError
     result <- Hasql.run (Hasql.sql "ROLLBACK") conn
     case result of
-        Left err -> throwIO (userError ("rollbackTransaction failed: " <> show err))
+        Left err -> throwIO (HasqlSessionError err)
         Right () -> pure ()
 {-# INLINABLE rollbackTransaction #-}
 

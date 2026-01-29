@@ -39,6 +39,7 @@ module IHP.ModelSupport.Types
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, HasqlException (..)
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
@@ -55,6 +56,7 @@ import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import qualified Hasql.Connection as Hasql
 import qualified Hasql.Pool as Hasql
+import qualified Hasql.Session as HasqlSession
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import GHC.TypeLits
@@ -191,6 +193,16 @@ data EnhancedSqlError
     } deriving (Show)
 
 instance Exception EnhancedSqlError
+
+-- | Thrown when a hasql session or pool query fails.
+-- This preserves the structured error information from hasql instead of
+-- converting it to a generic string via 'userError'.
+data HasqlException
+    = HasqlSessionError { sessionError :: HasqlSession.SessionError }
+    | HasqlPoolError { poolError :: Hasql.UsageError }
+    deriving (Show)
+
+instance Exception HasqlException
 
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a

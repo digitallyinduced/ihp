@@ -15,7 +15,6 @@ import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Session as Hasql
-import qualified Hasql.Pool as HasqlPool
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -265,7 +264,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                         atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                         sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
-                    Nothing -> error ("Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId)
+                    Nothing -> sendJSON DataSyncError { requestId, errorMessage = "Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId }
 
             handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
@@ -291,40 +290,39 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                             record = map (renameField (renamer table)) rawRecord
                         in
                             sendJSON DidCreateRecord { requestId, record }
-                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
+                    otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Unexpected result in CreateRecordMessage handler" }
 
                 pure ()
 
             handleMessage CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
-                let columns = records
-                        |> head
-                        |> \case
-                            Just value -> value
-                            Nothing -> error "Atleast one record is required"
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
+                case head records of
+                    Nothing -> sendJSON DataSyncError { requestId, errorMessage = "At least one record is required" }
+                    Just firstRecord -> do
+                        let columns = firstRecord
+                                |> HashMap.keys
+                                |> map (renamer table).fieldToColumn
 
-                let values = records
-                        |> map (\object ->
-                                object
-                                |> HashMap.elems
-                                |> map aesonValueToSnippet
-                            )
+                        let values = records
+                                |> map (\object ->
+                                        object
+                                        |> HashMap.elems
+                                        |> map aesonValueToSnippet
+                                    )
 
-                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
-                let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
+                        let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+                        let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
+                        let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
 
-                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
+                        let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
 
-                rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
-                let records = map (map (renameField (renamer table))) rawRecords
+                        rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                        let records = map (map (renameField (renamer table))) rawRecords
 
-                sendJSON DidCreateRecords { requestId, records }
+                        sendJSON DidCreateRecords { requestId, records }
 
-                pure ()
+                        pure ()
 
             handleMessage UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
@@ -352,7 +350,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                             record = map (renameField (renamer table)) rawRecord
                         in
                             sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> error "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation."
+                    otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation." }
 
                 pure ()
 
@@ -404,25 +402,16 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 transactionId <- UUID.nextRandom
 
-                -- Acquire a dedicated connection for this transaction from the hasql pool
-                let acquireConnection = do
-                        result <- HasqlPool.use ?modelContext.connectionPool (Hasql.onLibpqConnection \_ -> pure ())
-                        -- We need a dedicated connection. Use Hasql.acquire for this.
-                        -- For now, we create a new connection.
-                        -- NOTE: In a production setting, you'd want to extract the connection string
-                        -- from the pool configuration.
-                        error "StartTransaction: Acquiring dedicated connections from hasql pool requires pool-level support. Use withTransaction from ModelSupport instead."
-
-                -- For now, use a simplified approach: acquire a new hasql connection
-                -- and run the transaction on it
                 let globalModelContext = ?modelContext
 
-                -- We'll use the pool to run BEGIN/COMMIT/ROLLBACK as sessions
                 -- Each transaction gets a dedicated connection
                 conn <- do
-                    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs (getConnectionString globalModelContext)))]
+                    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs globalModelContext.databaseUrl))]
                     case result of
-                        Left err -> error ("StartTransaction: Failed to acquire connection: " <> tshow err)
+                        Left err -> do
+                            let message = "StartTransaction: Failed to acquire connection: " <> tshow err
+                            Log.error message
+                            Exception.throwIO (userError (cs message))
                         Right conn -> pure conn
 
                 let releaseConnection conn = do
@@ -488,7 +477,7 @@ findTransactionById transactionId = do
     transactions <- (.transactions) <$> readIORef ?state
     case HashMap.lookup transactionId transactions of
         Just transaction -> pure transaction
-        Nothing -> error "No transaction with that id"
+        Nothing -> Exception.throwIO (userError ("No transaction with id " <> cs (tshow transactionId)))
 
 -- | Allow max 10 concurrent transactions per connection to avoid running out of database connections
 --
@@ -502,14 +491,14 @@ ensureBelowTransactionLimit = do
     transactions <- (.transactions) <$> readIORef ?state
     let transactionCount = HashMap.size transactions
     when (transactionCount >= maxTransactionsPerConnection) do
-        error ("You've reached the transaction limit of " <> tshow maxTransactionsPerConnection <> " transactions")
+        Exception.throwIO (userError ("You've reached the transaction limit of " <> cs (tshow maxTransactionsPerConnection) <> " transactions"))
 
 ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowSubscriptionsLimit = do
     subscriptions <- (.subscriptions) <$> readIORef ?state
     let subscriptionsCount = HashMap.size subscriptions
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
-        error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")
+        Exception.throwIO (userError ("You've reached the subscriptions limit of " <> cs (tshow maxSubscriptionsPerConnection) <> " subscriptions"))
 
 maxTransactionsPerConnection :: (?context :: ControllerContext) => Int
 maxTransactionsPerConnection =
