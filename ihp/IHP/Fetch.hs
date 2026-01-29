@@ -176,15 +176,29 @@ fetchExists !queryBuilder = do
 
 {-# INLINE genericFetchId #-}
 genericFetchId :: forall table model. (Table model, KnownSymbol table, FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
-genericFetchId !id = query @model |> filterWhereId id |> fetch
+genericFetchId !id = do
+    trackTableRead (tableNameByteString @model)
+    measureTimeIfLogging "🔍" (runStatementWithRLS id (fetchByIdStatement @model))
+        (cs $ tableNameByteString @model <> ".fetchById")
 
 {-# INLINE genericfetchIdOneOrNothing #-}
 genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
-genericfetchIdOneOrNothing !id = query @model |> filterWhereId id |> fetchOneOrNothing
+genericfetchIdOneOrNothing !id = do
+    trackTableRead (tableNameByteString @model)
+    result <- measureTimeIfLogging "🔍" (runStatementWithRLS id (fetchByIdStatement @model))
+        (cs $ tableNameByteString @model <> ".fetchById")
+    pure $ listToMaybe result
 
 {-# INLINE genericFetchIdOne #-}
 genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, FromRow model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
-genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
+genericFetchIdOne !id = do
+    trackTableRead (tableNameByteString @model)
+    result <- measureTimeIfLogging "🔍" (runStatementWithRLS id (fetchByIdStatement @model))
+        (cs $ tableNameByteString @model <> ".fetchById")
+    case result of
+        (x:_) -> pure x
+        [] -> throwIO RecordNotFoundException
+            { queryAndParams = tableNameByteString @model <> " fetchById" }
 
 {-# INLINE genericFetchIds #-}
 genericFetchIds :: forall table model. (Table model, KnownSymbol table, FromRow model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table) => [Id model] -> IO [model]

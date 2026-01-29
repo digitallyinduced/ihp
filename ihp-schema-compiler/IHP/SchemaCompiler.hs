@@ -269,7 +269,11 @@ defaultImports = [trimming|
     import qualified Data.Aeson
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import Hasql.DynamicStatements.Snippet (Snippet, sql, param, DefaultParamEncoder)
+    import Hasql.Implicits.Encoders (DefaultParamEncoder(defaultParam))
     import qualified Hasql.Decoders as Decoders
+    import qualified Hasql.Encoders as Encoders
+    import Data.Functor.Contravariant (contramap)
+    import Data.Functor.Contravariant.Divisible (divide, conquer)
     import IHP.Job.Types
     import IHP.Job.Queue ()
     import qualified Control.DeepSeq as DeepSeq
@@ -846,6 +850,8 @@ instance #{instanceHead} where
     primaryKeyColumnNames = #{primaryKeyColumnNames}
     primaryKeyConditionForId (#{pattern}) = #{condition}
     {-# INLINABLE primaryKeyConditionForId #-}
+    primaryKeyEncoder = #{encoder}
+    {-# INLINE primaryKeyEncoder #-}
 |]
     where
         instanceHead :: Text
@@ -882,6 +888,28 @@ instance #{instanceHead} where
         columnNames = columns
                 |> map (.name)
                 |> tshow
+
+        encoder :: Text
+        encoder = case primaryKeyColumns table of
+            [] -> "conquer"
+            [_col] -> "contramap (\\(Id pk) -> pk) (Encoders.param defaultParam)"
+            [_colA, _colB] ->
+                "divide (\\(Id (a, b)) -> (a, b)) (Encoders.param defaultParam) (Encoders.param defaultParam)"
+            cols ->
+                let n = length cols
+                    vars = map (\i -> "pk" <> tshow i) [(1::Int) .. fromIntegral n]
+                    varPattern = intercalate ", " vars
+                in "contramap (\\(Id (" <> varPattern <> ")) -> (" <> varPattern <> ")) (" <> compileDivisibleEncoder n <> ")"
+
+        -- | Build a Divisible encoder for N params using nested divide calls
+        compileDivisibleEncoder :: Int -> Text
+        compileDivisibleEncoder 1 = "Encoders.param defaultParam"
+        compileDivisibleEncoder 2 = "divide id (Encoders.param defaultParam) (Encoders.param defaultParam)"
+        compileDivisibleEncoder n =
+            "divide (\\(x, " <> restPattern <> ") -> (x, (" <> restPattern <> "))) (Encoders.param defaultParam) (" <> compileDivisibleEncoder (n - 1) <> ")"
+            where
+                restVars = map (\i -> "r" <> tshow i) [(1::Int) .. fromIntegral (n - 1)]
+                restPattern = intercalate ", " restVars
 
 compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"

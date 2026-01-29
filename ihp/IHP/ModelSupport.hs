@@ -18,6 +18,7 @@ import IHP.NameSupport
 import IHP.InputValue
 import Prelude
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as ByteString
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int16, Int32, Int64)
@@ -54,6 +55,7 @@ import IHP.Postgres.TimeParser
 import qualified Net.IP as IP
 import Net.IP (IP)
 import Data.Functor.Contravariant (contramap)
+import Data.Functor.Contravariant.Divisible (Divisible(..))
 import Data.Attoparsec.ByteString.Char8 (parseOnly)
 import IHP.Log.Types
 import qualified IHP.Log as Log
@@ -336,6 +338,42 @@ withRLSSnippet snippet = do
             "SET LOCAL ROLE " <> Snippet.param rlsAuthenticatedRole <> "; SET LOCAL rls.ihp_user_id = " <> rlsUserId <> "; " <> snippet
         Nothing -> snippet
 
+-- | Pre-built prepared statement for fetching records by primary key.
+-- Skips QueryBuilder/Snippet construction entirely by using a static SQL string
+-- with a typed encoder and decoder.
+fetchByIdStatement :: forall record.
+    (Table record, FromRow record) => Hasql.Statement (Id record) [record]
+fetchByIdStatement = Hasql.Statement sql (primaryKeyEncoder @record) decoder True
+    where
+        table = tableNameByteString @record
+        cols = columnNames @record
+        pkCols = primaryKeyColumnNames @record
+        sql = "SELECT "
+            <> ByteString.intercalate ", " (map (\c -> table <> "." <> c) cols)
+            <> " FROM " <> table
+            <> " WHERE " <> ByteString.intercalate " AND "
+                (zipWith (\col n -> table <> "." <> col <> " = $"
+                    <> fromString (show n)) pkCols [(1::Int)..])
+        decoder = Decoders.rowList (fromRow @record)
+{-# INLINE fetchByIdStatement #-}
+
+-- | Run a static 'Hasql.Statement' through the existing session infrastructure,
+-- with Row Level Security support.
+runStatementWithRLS :: (?modelContext :: ModelContext)
+    => params -> Hasql.Statement params result -> IO result
+runStatementWithRLS params stmt = do
+    let session = do
+            case ?modelContext.rowLevelSecurity of
+                Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                    DynSession.dynamicallyParameterizedStatement
+                        ("SET LOCAL ROLE " <> Snippet.param rlsAuthenticatedRole
+                         <> "; SET LOCAL rls.ihp_user_id = " <> rlsUserId)
+                        Decoders.noResult False
+                Nothing -> pure ()
+            Hasql.statement params stmt
+    runSession session
+{-# INLINABLE runStatementWithRLS #-}
+
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Hasql.Connection -> IO a) -> IO a
 withDatabaseConnection block =
     case ?modelContext.transactionConnection of
@@ -516,6 +554,10 @@ class
     --
     -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
     primaryKeyConditionForId :: Id record -> Snippet
+
+    -- | Encoder for the primary key, used in static prepared statements.
+    -- Encodes the Id value into query parameters for use with 'fetchByIdStatement'.
+    primaryKeyEncoder :: Encoders.Params (Id record)
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
 -- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
