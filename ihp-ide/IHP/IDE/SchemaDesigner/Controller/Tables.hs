@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.Controller.Tables where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Tables.New
@@ -8,7 +8,7 @@ import IHP.IDE.SchemaDesigner.View.Tables.Show
 import IHP.IDE.SchemaDesigner.View.Tables.Index
 import IHP.IDE.SchemaDesigner.View.Tables.Edit
 
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.SchemaDesigner.View.Layout (findStatementByName, schemaDesignerLayout)
 import qualified IHP.SchemaCompiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.Controller.Helper

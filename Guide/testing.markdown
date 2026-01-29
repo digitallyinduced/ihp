@@ -10,13 +10,15 @@ This section provides some guidelines for testing your IHP applications. It is h
 
 The following setup and tests can be viewed in the [Blog example](https://github.com/digitallyinduced/ihp-blog-example-app).
 
-1. Add `hspec` in `flake.nix`
+1. Add `hspec` and `ihp-hspec` in `flake.nix`
 ```nix
         haskellPackages = p: with p; [
             cabal-install
             # ...
             p.ihp
+            
             hspec
+            ihp-hspec
         ];
 ```
 2. Rebuild environment with `devenv up`
@@ -60,6 +62,7 @@ import Web.Controller.Posts ()
 import Web.FrontController ()
 import Network.Wai
 import IHP.ControllerPrelude
+import IHP.Hspec (withIHPApp)
 
 tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
@@ -134,6 +137,14 @@ Another way of executing the tests, that we'll use on [CI](https://github.com/di
 ```
 runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
 ```
+
+To run a particular set of tests, use `--match`.
+
+```
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs --match "Posts"
+```
+
+This command will execute all tests which are described under describe "Posts controller functionality".
 
 ## Setting the Current User During Testing
 
@@ -233,6 +244,7 @@ And let's trigger this email on the `Post` show:
 
 ```haskell
 -- Web/Controller/Posts.hs
+import IHP.Mail (sendMail)
 
 action ShowPostAction { .. } = do
     post <- fetch postId
@@ -270,6 +282,7 @@ import Network.HTTP.Types.Status
 import Network.HTTP.Client
 import qualified Network.Wreq as Wreq
 import Control.Lens ((^.))
+import IHP.Hspec (withIHPApp)
 
 
 tests :: Spec

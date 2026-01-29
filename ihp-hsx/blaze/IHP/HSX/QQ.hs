@@ -80,23 +80,39 @@ compileToHaskell :: Node -> TH.ExpQ
 compileToHaskell (Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True) = [| Html5.docType |]
 compileToHaskell (Node name attributes children isLeaf) =
     let
-        renderedChildren = TH.listE $ map compileToHaskell children
-        stringAttributes = TH.listE $ map toStringAttribute attributes
-    in
-        if isLeaf
-            then
-                let
-                    element = nodeToBlazeLeaf name
-                in
-                    [| applyAttributes $element $stringAttributes |]
-            else
-                let
-                    element = nodeToBlazeElement name
-                in [| applyAttributes ($element (mconcat $renderedChildren)) $stringAttributes |]
-compileToHaskell (Children children) =
-    let
-        renderedChildren = TH.listE $ map compileToHaskell children
-    in [| mconcat $(renderedChildren) |]
+        element = if isLeaf then nodeToBlazeLeaf name else nodeToBlazeElement name
+    in case (attributes, children, isLeaf) of
+        -- Leaf with no attributes: just the element
+        ([], _, True) -> element
+        -- Leaf with attributes
+        (_, _, True) ->
+            let stringAttributes = TH.listE $ map toStringAttribute attributes
+            in [| applyAttributes $element $stringAttributes |]
+        -- Parent with no children and no attributes
+        ([], [], False) -> [| $element mempty |]
+        -- Parent with single child and no attributes: avoid mconcat
+        ([], [single], False) ->
+            let child = compileToHaskell single
+            in [| $element $child |]
+        -- Parent with no attributes but has multiple children
+        ([], _, False) ->
+            let renderedChildren = TH.listE $ map compileToHaskell children
+            in [| $element (mconcat $renderedChildren) |]
+        -- Parent with single child and attributes
+        (_, [single], False) ->
+            let child = compileToHaskell single
+                stringAttributes = TH.listE $ map toStringAttribute attributes
+            in [| applyAttributes ($element $child) $stringAttributes |]
+        -- Parent with multiple children and attributes
+        (_, _, False) ->
+            let renderedChildren = TH.listE $ map compileToHaskell children
+                stringAttributes = TH.listE $ map toStringAttribute attributes
+            in [| applyAttributes ($element (mconcat $renderedChildren)) $stringAttributes |]
+compileToHaskell (Children children) = case children of
+    [] -> [| mempty |]
+    [single] -> compileToHaskell single
+    _ -> let renderedChildren = TH.listE $ map compileToHaskell children
+         in [| mconcat $(renderedChildren) |]
 
 compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
 compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]

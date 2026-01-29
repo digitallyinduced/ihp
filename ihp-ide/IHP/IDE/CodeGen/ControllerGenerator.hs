@@ -5,11 +5,11 @@ import IHP.NameSupport
 import IHP.HaskellSupport
 import qualified Data.Text as Text
 import qualified Data.Char as Char
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
-import IHP.IDE.SchemaDesigner.Types
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
+import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
-
+import Text.Countable (singularize, pluralize)
 
 buildPlan :: Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
 buildPlan rawControllerName applicationName paginationEnabled = do

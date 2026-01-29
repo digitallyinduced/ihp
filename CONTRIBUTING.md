@@ -25,30 +25,37 @@ Clone the IHP repository into the project directory. The `IHP` directory is adde
 git clone git@github.com:digitallyinduced/ihp.git IHP
 cd IHP
 
-# Patch flake.nix in the parent directory to use local IHP path
+# Patch flake.nix in the parent directory to switch
+# from "ihp.url=..." to use the local IHP path as an input to your flake
 sed -i "s|ihp.url = .*|ihp.url = \"path://$(pwd)\";|" ../flake.nix
+
+# Note if you are on mac and direnv has not loaded you may have to alter the above patch :
+# sed -i '.bak' -E "s|^([[:space:]]*)ihp\.url = \".*\";|\1ihp.url = \"path://$PWD\";|" ../flake.nix
+
 
 # Enable direnv
 direnv allow
 
 # Switch back to the host project directory
 cd -
-```
 
-You can now run `devenv up` in the host project directory to start the development server. However, if you'd like to change the DevServer you should stay on the
+# update your flake lock to make sure your flake references the local version of ihp.
+nix flake update
+```
 
 ### Running the development server
 
-
-When making changes to the development tooling, we have to start the server differently, without `devenv up`. We have run the following commands in the `IHP` directory:
+You can now run `devenv up` in the host project directory to start the development server. However, if you'd like to change the DevServer or JS files, we have to start the server differently, without `devenv up`. 
+We need to run the following commands (assuming you are on the host project):
 
 ```
+cd IHP
+
 # Optional - you can set the `DEBUG` environment variable to enable debug logging
 export DEBUG=1
 
-
 ghci
-:l ihp/ihp-ide/exe/IHP/IDE/DevServer.hs
+:l ihp-ide/exe/IHP/IDE/DevServer.hs
 
 # Start the server
 mainInParentDirectory
@@ -56,7 +63,7 @@ mainInParentDirectory
 
 We don't need to start postgres as the IDE starts it automatically.
 
-If you ever switch back to using the upstream version, just restore the original line in flake.nix (e.g., ihp.url = "github:digitallyinduced/ihp";), and then run from the host directory:
+If you ever switch back to using the upstream version, restore the original line in flake.nix (e.g., ihp.url = "github:digitallyinduced/ihp";), and then run from the host directory:
 
 ```
 nix flake lock --update-input ihp

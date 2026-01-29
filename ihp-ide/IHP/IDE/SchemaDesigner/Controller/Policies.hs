@@ -1,12 +1,12 @@
 module IHP.IDE.SchemaDesigner.Controller.Policies where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Policies.New
 import IHP.IDE.SchemaDesigner.View.Policies.Edit
 
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 

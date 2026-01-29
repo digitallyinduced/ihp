@@ -115,14 +115,18 @@ nix_output = run_command(["nix", "--version"])
 if nix_output.returncode != 0:
     show_failure("Nix is not installed")
 else:
-    (major, minor, version_string) = \
-        re.match(r"nix \(Nix\) ((\d+)\.(\d+).*)", nix_output.stdout).group(2, 3, 1)
+    match = re.match(r"nix \(.*\) ((\d+)\.(\d+).*)", nix_output.stdout)
+    if match:
+        (major, minor, version_string) = match.group(2, 3, 1)
+    else:
+        show_failure("Could not parse Nix version output")
+        exit(1)
 
     if int(major) > 2 or (int(major) == 2 and int(minor) >= 4):
         show_success(f"Installed Nix version {version_string} is 2.4 or later")
     else:
         show_failure(f"Installed Nix version {version_string} is before 2.4. Versions of Nix before 2.4 are not supported.")
-        
+
 show_step("Checking direnv")
 
 path_exists(
@@ -176,25 +180,6 @@ else:
 
 show_step("Checking IHP")
 
-ihp_lib_is_link = path.islink("build/ihp-lib")
-
-if ihp_lib_is_link:
-    show_success("Symlink build/ihp-lib exists")
-else:
-    show_failure(
-        ("Symlink build/ihp-lib is missing. "
-         "Try 'make build/ihp-lib' to fix this")
-    )
-
-ihp_lib_link = readlink("build/ihp-lib") if ihp_lib_is_link else None
-
-path_exists(
-    ihp_lib_link,
-    "Symlink build/ihp-lib target exists",
-    ("Symlink build/ihp-lib target directory does not exist. "
-     "Try `nix-shell --run \"make -B build/ihp-lib\"` to fix this")
-)
-
 if path.exists("IHP"):
     show_success("Local IHP directory exists")
 else:
@@ -231,8 +216,7 @@ with open(path.join(Path.home(), ".config/nix/nix.conf")) as file:
 show_step("Checking IHP files")
 
 SENSITIVE_FILES = [
-    ".ghci", "start", "hie.yaml", "default.nix",
-    "Makefile", "Config/nix/nixpkgs-config.nix"
+    ".ghci", "flake.nix", "Makefile", "Config/nix/nixpkgs-config.nix"
 ]
 for file_details in boilerplate_contents():
     file_path = file_details["path"]
@@ -251,17 +235,14 @@ show_step("Debugging Details")
 show_step("GHCI Output")
 print(ghci_output)
 
-show_step("build/ihp-lib Target")
-print(ihp_lib_link)
-
 show_step("Direnv Output")
 print(direnv_output)
 
 show_step("which direnv Output")
 print(ghci_path)
 
-show_step("default.nix")
-with open("default.nix") as file:
+show_step("flake.nix")
+with open("flake.nix") as file:
     head = [next(file) for _ in range(5)]
     print("".join(head))
 

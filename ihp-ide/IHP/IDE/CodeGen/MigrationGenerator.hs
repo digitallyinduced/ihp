@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-|
 Module: IHP.IDE.CodeGen.MigrationGenerator
 Description: Generates database migration sql files
@@ -12,13 +13,14 @@ import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified System.Process as Process
-import qualified IHP.IDE.SchemaDesigner.Parser as Parser
-import IHP.IDE.SchemaDesigner.Types
+import qualified IHP.Postgres.Parser as Parser
+import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
+import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.IDE.SchemaDesigner.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
-import qualified IHP.LibDir as LibDir
 import qualified IHP.FrameworkConfig as FrameworkConfig
+import Paths_ihp_ide (getDataFileName)
 
 buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
 buildPlan description sqlStatements = buildPlan' True description sqlStatements
@@ -46,7 +48,7 @@ buildPlan' includeIHPSchema description sqlStatements = do
             ])
 
 diffAppDatabase includeIHPSchema databaseUrl = do
-    (Right schemaSql) <- Parser.parseSchemaSql
+    (Right schemaSql) <- SchemaDesignerParser.parseSchemaSql
     (Right ihpSchemaSql) <- if includeIHPSchema
             then parseIHPSchema
             else pure (Right [])
@@ -58,8 +60,11 @@ diffAppDatabase includeIHPSchema databaseUrl = do
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
-    libDir <- LibDir.findLibDirectory
-    Parser.parseSqlFile (cs $ libDir <> "/IHPSchema.sql")
+    ihpSchemaSql <- findIHPSchemaSql
+    Parser.parseSqlFile ihpSchemaSql
+
+findIHPSchemaSql :: IO FilePath
+findIHPSchemaSql = getDataFileName "IHPSchema.sql"
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
@@ -131,6 +136,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                             to = createTable'.name
                         in
                             (RenameTable { from, to }):(applyRenameTable (fixIdentifiers from to (delete createTable statements)))
+                    Just _ -> s:(applyRenameTable statements)  -- Not a StatementCreateTable, skip rename
                     Nothing -> s:(applyRenameTable statements)
             where
                 createTable :: Maybe Statement
@@ -147,6 +153,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 actualTable' :: CreateTable
                 actualTable' = case actualTable of
                     StatementCreateTable { unsafeGetCreateTable = table } -> table
+                    _ -> error "diffSchemas: expected StatementCreateTable"
 
                 fixIdentifiers :: Text -> Text -> [Statement] -> [Statement]
                 fixIdentifiers tableFrom tableTo statements = map fixIdentifier statements
@@ -336,6 +343,7 @@ migrateTable StatementCreateTable { unsafeGetCreateTable = targetTable } Stateme
                                 normalizeCol col = col { notNull = False, defaultValue = Just (VarExpression "null") }
                 applyToggleNull (statement:rest) = statement:(applyToggleNull rest)
                 applyToggleNull [] = []
+migrateTable _ _ = error "migrateTable: expected StatementCreateTable"
 
 migrateEnum :: Statement -> Statement -> [Statement]
 migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { values = actualValues } = map addValue newValues
@@ -345,6 +353,7 @@ migrateEnum CreateEnumType { name, values = targetValues } CreateEnumType { valu
 
         addValue :: Text -> Statement
         addValue value = AddValueToEnumType { enumName = name, newValue = value, ifNotExists = True }
+migrateEnum _ _ = error "migrateEnum: expected CreateEnumType"
 
 getAppDBSchema :: Text -> IO [Statement]
 getAppDBSchema databaseUrl = do
@@ -516,6 +525,7 @@ normalizeExpression (SelectExpression Select { columns, from, whereClause, alias
         unqualifiedName name = name
 normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
+normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
 
 -- | Replaces @table.field@ with just @field@
 --
@@ -551,6 +561,7 @@ unqualifyExpression scope expression = doUnqualify expression
             in
                 SelectExpression Select { columns = (recurse <$> columns), from = from, whereClause = recurse whereClause, alias }
         doUnqualify (ExistsExpression a) = ExistsExpression (doUnqualify a)
+        doUnqualify (InArrayExpression exprs) = InArrayExpression (map doUnqualify exprs)
         doUnqualify (DotExpression (VarExpression scope') b) | scope == scope' = VarExpression b
         doUnqualify (DotExpression a b) = DotExpression (doUnqualify a) b
 
@@ -582,6 +593,8 @@ resolveAlias (Just alias) fromExpression expression =
         e@(SelectExpression Select { columns, from, whereClause, alias }) -> SelectExpression Select { columns = rec <$> columns, from = rec from, whereClause = rec whereClause, alias = alias }
         e@(DotExpression a b) -> DotExpression (rec a) b
         e@(ExistsExpression a) -> ExistsExpression (rec a)
+        e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
+        e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
@@ -660,6 +673,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                                     |> isNothing
                             Nothing -> True
                     )
+                Just _ -> True  -- Not a CreateIndex, keep it
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
@@ -679,6 +693,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
         (dropTableName, dropColumnName) = case dropStatement of
             DropTable { tableName } -> (tableName, Nothing)
             DropColumn { tableName, columnName } -> (tableName, Just columnName)
+            _ -> error "removeImplicitDeletions: unexpected statement type"  -- Guard ensures only DropTable/DropColumn reach here
 removeImplicitDeletions actualSchema (statement:rest) = statement:(removeImplicitDeletions actualSchema rest)
 removeImplicitDeletions actualSchema [] = []
 

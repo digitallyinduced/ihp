@@ -1,0 +1,82 @@
+cabal-version:       2.2
+name:                ihp-postgres-parser
+version:             1.4.0
+synopsis:            PostgreSQL DDL parser and compiler
+description:         A standalone PostgreSQL DDL parser and SQL compiler extracted from IHP.
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Database, Parsing
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+Flag FastBuild
+    Default: False
+    Description: Disables all optimisations, leads to faster build time
+
+common shared-properties
+    default-language: GHC2021
+    build-depends:
+            base >= 4.17.0 && < 4.22
+          , text
+          , megaparsec
+          , parser-combinators
+          , string-conversions
+          , bytestring
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , DataKinds
+        , RecordWildCards
+        , BlockArguments
+        , LambdaCase
+        , OverloadedRecordDot
+    if flag(FastBuild)
+        ghc-options:
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -Wno-ambiguous-fields
+    else
+        ghc-options:
+            -fstatic-argument-transformation
+            -funbox-strict-fields
+            -haddock
+
+            -Wunused-imports
+            -Wunused-foralls
+            -Wmissing-fields
+            -Winaccessible-code
+            -fspecialise-aggressively
+            -Wno-ambiguous-fields
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+          IHP.Postgres.Types
+        , IHP.Postgres.Parser
+        , IHP.Postgres.Compiler
+
+test-suite spec
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    hs-source-dirs: Test
+    main-is: Spec.hs
+    other-modules:
+          Postgres.ParserSpec
+        , Postgres.CompilerSpec
+    build-depends:
+          ihp-postgres-parser
+        , hspec
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp

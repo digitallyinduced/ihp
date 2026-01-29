@@ -8,7 +8,7 @@
 
 In IHP Forms are an essential way to interact with your application. Dealing with a lot of form markup can quickly become complex because of the need to deal with consistent styling and especially when dealing with lots of validation. IHP provides helpers to generate form markup to help you deal with the complexity.
 
-By default forms in IHP follow the class names used by Bootstrap 4. Therefore the forms work with Bootstrap 4 out of the box. Of course, the default form generation can be customized to support other CSS frameworks.
+By default forms in IHP follow the class names used by Bootstrap 5. Therefore the forms work with Bootstrap 5 out of the box. Of course, the default form generation can be customized to support other CSS frameworks.
 
 Unless JavaScript helpers have been deactivated, your form will be submitted using AJAX and Turbo instead of browser-based form submission.
 
@@ -29,13 +29,13 @@ Calling this form from inside your HSX code will lead to the following HTML bein
 
 ```html
 <form method="POST" action="/CreatePost" id="" class="new-form">
-    <div class="form-group" id="form-group-post_title">
-        <label for="post_title">Title</label>
+    <div class="mb-3" id="form-group-post_title">
+        <label for="post_title" class="form-label">Title</label>
         <input type="text" name="title" id="post_title" class="form-control" />
     </div>
 
-    <div class="form-group" id="form-group-post_body">
-        <label for="post_body">Body</label>
+    <div class="mb-3" id="form-group-post_body">
+        <label for="post_body" class="form-label">Body</label>
         <textarea name="body" id="post_body" class="form-control"></textarea>
     </div>
 
@@ -93,8 +93,8 @@ let post = Post { ..., title = "" }
 Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:textField), the input will have the css class `is-invalid` and an element with the error message will be rendered below the input field:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
     <input
         type="text"
         name="title"
@@ -149,11 +149,11 @@ You can add a help text below a form control like this:
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input type="text" name="title" id="post_title" class="form-control" />
-    <small class="form-text text-muted">Max. 140 characters</small>
+    <small class="form-text">Max. 140 characters</small>
 </div>
 ```
 
@@ -168,8 +168,8 @@ By default, the field name will be used as a label text. The camel case field na
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Post Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Post Title</label>
     <input type="text" name="title" id="post_title" class="form-control" />
 </div>
 ```
@@ -185,8 +185,8 @@ You can add custom CSS classes to the input and label for better styling. Set [`
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label class="title-label" for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label class="title-label form-label" for="post_title">Title</label>
     <input
         type="text"
         name="title"
@@ -209,8 +209,8 @@ You can specify an input placeholder like this:
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input
         type="text"
@@ -233,8 +233,8 @@ You can mark an input as required like this:
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input
         type="text"
@@ -257,8 +257,8 @@ You can mark an input as disabled like this:
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input
         type="text"
@@ -281,8 +281,8 @@ You can mark an input with autofocus, to ensure it will be given the input focus
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input
         type="text"
@@ -344,8 +344,8 @@ Customize it like this:
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label class="" for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label class="form-label" for="post_title">Title</label>
     <input
         type="text"
         name="title"
@@ -356,8 +356,8 @@ This will render like:
     />
 </div>
 
-<div class="form-group" id="form-group-someval">
-    <label class="" for="someval">Someval</label>
+<div class="mb-3" id="form-group-someval">
+    <label class="form-label" for="someval">Someval</label>
     <input
         type="number"
         name="someval"
@@ -379,8 +379,8 @@ By default the field name is used for the `name` attribute of the input element.
 This will render like:
 
 ```html
-<div class="form-group" id="form-group-post_title">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="form-group-post_title">
+    <label for="post_title" class="form-label">Title</label>
 
     <input type="text" name="new-title" id="post_title" class="form-control" />
 </div>
@@ -397,8 +397,8 @@ You can override the auto-generated id value like this:
 This will render like:
 
 ```html
-<div class="form-group" id="the-title-form-group">
-    <label for="post_title">Title</label>
+<div class="mb-3" id="the-title-form-group">
+    <label for="post_title" class="form-label">Title</label>
 
     <input type="text" name="new-title" id="post_title" class="form-control" />
 </div>
@@ -415,7 +415,7 @@ You can specify [`disableLabel`](https://ihp.digitallyinduced.com/api-docs/IHP-V
 Will render as:
 
 ```html
-<div class="form-group" id="form-group-post_title">
+<div class="mb-3" id="form-group-post_title">
     <input
         type="text"
         name="title"
@@ -426,9 +426,9 @@ Will render as:
 </div>
 ```
 
-#### Don't render `<div class="form-group">`
+#### Don't render `<div class="mb-3">`
 
-You can specify [`disableGroup`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the outer `<div class="form-group">` element from being generated:
+You can specify [`disableGroup`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Types.html#t:FormField) to stop the outer `<div class="mb-3">` element from being generated:
 
 ```haskell
 {(textField #title) { disableGroup = True }
@@ -463,8 +463,8 @@ If you're using a custom widget for a form field, you might still want to show I
 
 ```haskell
 formFor user [hsx|
-    <div class="form-group">
-        <label class="" for="passwordReset_email">Email</label>
+    <div class="mb-3">
+        <label class="form-label" for="passwordReset_email">Email</label>
 
         <!-- Custom widget here instead of using textField -->
         <input type="text" name="email" placeholder="" id="passwordReset_email" class="form-control is-invalid">
@@ -490,8 +490,8 @@ You can use this to write custom error messages in your form:
 
 ```haskell
 formFor user [hsx|
-    <div class="form-group">
-        <label class="" for="passwordReset_email">Email</label>
+    <div class="mb-3">
+        <label class="form-label" for="passwordReset_email">Email</label>
 
         <!-- Custom widget here instead of using textField -->
         <input type="text" name="email" placeholder="" id="passwordReset_email" class="form-control is-invalid">
@@ -937,16 +937,16 @@ instance View NewView where
 
 renderForm :: Post -> Html
 renderForm post = [hsx|
-    <div class="form-group">
-        <label>
+    <div class="mb-3">
+        <label class="form-label">
             Title
         </label>
         <input type="text" name="title" value={post.title} class={classes ["form-control", ("is-invalid", isInvalidTitle)]}/>
         {titleFeedback}
     </div>
 
-    <div class="form-group">
-        <label>
+    <div class="mb-3">
+        <label class="form-label">
             Body
         </label>
         <input type="text" name="body" value={post.body} class={classes ["form-control", ("is-invalid", isInvalidBody)]}/>
@@ -1001,8 +1001,8 @@ To dig deeper into the JavaScript, [take a look at the source in helpers.js](htt
 
 ## Working within the Bootstrap CSS framework
 
-While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/4.4/components/forms/) shows how.
+While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/5.3/forms/overview/) shows how.
 
 ## Working with other CSS Frameworks
 
-TODO: This section still has to be implemented. The gist of how rendering can be completely overridden to support a different layout or CSS framework can be found in the implementation of [horizontalFormFor](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:horizontalFormFor) (renders a bootstrap 4 form in a horizontal way).
+TODO: This section still has to be implemented. The gist of how rendering can be completely overridden to support a different layout or CSS framework can be found in the implementation of [horizontalFormFor](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:horizontalFormFor) (renders a Bootstrap 5 form in a horizontal way).

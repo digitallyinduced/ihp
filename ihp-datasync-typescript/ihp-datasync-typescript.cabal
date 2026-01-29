@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-datasync-typescript
-version:             1.3.0
+version:             1.4.0
 synopsis:            TypeScript code generation for IHP DataSync
 description:         Generates TypeScript type interfaces from the IHP Schema.sql
 license:             MIT
@@ -16,39 +16,24 @@ source-repository head
     location: https://github.com/digitallyinduced/ihp.git
 
 common shared-properties
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
 
@@ -56,11 +41,11 @@ library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules: IHP.DataSync.TypeScript.Compiler
-    build-depends: ihp, ihp-ide, neat-interpolation
+    build-depends: ihp, ihp-postgres-parser, neat-interpolation
 
 executable generate-datasync-types
     import: shared-properties
-    build-depends: ihp-datasync-typescript, ihp, ihp-ide, neat-interpolation, with-utf8, text
+    build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, neat-interpolation, with-utf8, text
     hs-source-dirs: .
     main-is: exe/GenerateDataSyncTypes.hs
 
@@ -69,4 +54,4 @@ test-suite spec
     type: exitcode-stdio-1.0
     hs-source-dirs: .
     main-is: Test/Spec.hs
-    build-depends: ihp-datasync-typescript, ihp, ihp-ide, megaparsec, neat-interpolation, hspec
+    build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, megaparsec, neat-interpolation, hspec

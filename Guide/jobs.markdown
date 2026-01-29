@@ -33,6 +33,7 @@ A pseudocode implementation of a job that sends a marketing email to all of the 
 ```haskell
 module Web.Job.EmailCustomers where
 import Web.Controller.Prelude
+import IHP.Mail (sendMail)
 
 instance Job EmailCustomersJob where
     perform EmailCustomersJob { .. } = do
@@ -77,7 +78,7 @@ instance Worker RootApplication where
 
 #### Development vs. Production
 
-In development mode, these watchers are started with the dev server. In production however, use `make build/bin/RunJobs` to build a binary that you can deploy along side your IHP app to watch for added jobs and run them.
+In development mode, these watchers are started with the dev server. In production however, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. You can deploy this binary (found at `result/bin/RunJobs`) alongside your IHP app to watch for added jobs and run them.
 
 ### Viewing job status
 
@@ -173,15 +174,15 @@ run = do
   pure ()
 ```
 
-Build this script into a binary with `make build/bin/Script/RunEmailCustomersJob` as described in the [scripts documentation](/Guide/scripts.html).
+Build this script into a binary by running `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. The script binary will be available at `result/bin/RunEmailCustomersJob`. See the [scripts documentation](/Guide/scripts.html) for more details.
 
 We can then create a cron entry such as:
 
 ```
-0 5 * * *  root bin/Script/RunEmailCustomersJob
+0 5 * * *  root /path/to/your/app/result/bin/RunEmailCustomersJob
 ```
 
-to schedule a job to be run every day at 5am. See [this article by DigitalOcean](https://www.digitalocean.com/community/tutorials/how-to-use-cron-to-automate-tasks-ubuntu-1804) for more information on `cron`.
+to schedule a job to be run every day at 5am. Make sure to use the full path to the binary in your cron entry. See [this article by DigitalOcean](https://www.digitalocean.com/community/tutorials/how-to-use-cron-to-automate-tasks-ubuntu-1804) for more information on `cron`.
 
 
 ## Jobs Dashboard

@@ -1,0 +1,282 @@
+{-|
+Module: IHP.NameSupport
+Description:  Transforms names, e.g. table names to model names
+Copyright: (c) digitally induced GmbH, 2020
+-}
+module IHP.NameSupport
+( tableNameToModelName
+, columnNameToFieldName
+, modelNameToTableName
+, humanize
+, ucfirst
+, lcfirst
+, fieldNameToColumnName
+, escapeHaskellKeyword
+, tableNameToControllerName
+, tableNameToViewName
+, enumValueToControllerName
+, toSlug
+, fieldNameToFieldLabel
+, columnNameToFieldLabel
+, removeIdSuffix
+) where
+
+import Prelude hiding (splitAt, words, map)
+import IHP.HaskellSupport
+import Data.Text (Text)
+import Data.String.Conversions (cs)
+import qualified Data.Char as Char
+import qualified Text.Inflections as Inflector
+import qualified Data.Maybe as Maybe
+import qualified Data.List as List
+import Control.Monad (join)
+import qualified Text.Inflections
+import qualified Data.Text as Text
+import Text.Countable (singularize, pluralize)
+import qualified Data.Text.Slugger
+
+-- | Transforms a underscore table name to a camel case model name.
+--
+-- >>> tableNameToModelName "users"
+-- "User"
+--
+-- >>> tableNameToModelName "projects"
+-- "Project"
+tableNameToModelName :: Text -> Text
+tableNameToModelName "brain_waves" = "BrainWave"
+tableNameToModelName tableName = do
+    let singularizedTableName = cs (singularize tableName)
+    if "_" `Text.isInfixOf` singularizedTableName
+        then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
+        else ucfirst singularizedTableName
+{-# INLINABLE tableNameToModelName #-}
+
+-- | Transforms a underscore table name to a name for a controller
+--
+-- >>> tableNameToControllerName "users"
+-- "Users"
+--
+-- >>> tableNameToControllerName "projects"
+-- "Projects"
+--
+-- >>> tableNameToControllerName "user_projects"
+-- "UserProjects"
+tableNameToControllerName :: Text -> Text
+tableNameToControllerName tableName = do
+    if "_" `Text.isInfixOf` tableName
+        then unwrapEither tableName $ Inflector.toCamelCased True tableName
+        else ucfirst tableName
+{-# INLINABLE tableNameToControllerName #-}
+
+-- | Transforms an underscore table name to a name for a view
+--
+-- >>> tableNameToViewName "users"
+--
+-- >>> tableNameToViewName "projects"
+--
+-- >>> tableNameToViewName "user_projects"
+tableNameToViewName :: Text -> Text
+tableNameToViewName = tableNameToControllerName
+{-# INLINABLE tableNameToViewName #-}
+
+-- | Transforms a enum value to a name for a model
+--
+-- >>> enumValueToControllerName "happy"
+-- "Happy"
+--
+-- >>> enumValueToControllerName "very happy"
+-- "VeryHappy"
+--
+-- >>> enumValueToControllerName "very_happy"
+-- "VeryHappy"
+enumValueToControllerName :: Text -> Text
+enumValueToControllerName enumValue =
+    let
+        words :: [Inflector.SomeWord]
+        words =
+                enumValue
+                |> Text.splitOn " "
+                |> List.map (Inflector.parseSnakeCase [])
+                |> List.map (\case
+                        Left failed -> error (cs $ "enumValueToControllerName failed for " <> show failed)
+                        Right result -> result)
+                |> join
+    in
+        Inflector.camelizeCustom True words
+
+-- | Transforms a camel case model name to a underscored table name.
+--
+-- >>> modelNameToTableName "User"
+-- "users"
+--
+-- >>> modelNameToTableName "UserProject"
+-- "user_projects"
+modelNameToTableName :: Text -> Text
+modelNameToTableName modelName =
+        Inflector.toUnderscore modelName
+        |> unwrapEither modelName
+        |> pluralize
+{-# INLINABLE modelNameToTableName #-}
+
+-- | Transforms a underscore table column name to a camel case attribute name for use in haskell.
+--
+-- >>> columnNameToFieldName "email"
+-- "email"
+--
+-- >>> columnNameToFieldName "project_id"
+-- "projectId"
+columnNameToFieldName :: Text -> Text
+columnNameToFieldName columnName = escapeHaskellKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
+{-# INLINABLE columnNameToFieldName #-}
+
+{-# INLINABLE unwrapEither #-}
+unwrapEither _ (Right value) = value
+unwrapEither input (Left value) = error ("IHP.NameSupport: " <> show value <> " (value to be transformed: " <>  show input <> ")")
+
+-- | Transforms a camel case attribute name from haskell to a underscore table column name for the database.
+--
+-- >>> fieldNameToColumnName "email"
+-- "email"
+--
+-- >>> fieldNameToColumnName "projectId"
+-- "project_id"
+fieldNameToColumnName :: Text -> Text
+fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
+{-# INLINABLE fieldNameToColumnName #-}
+
+-- | Returns a more friendly version for an identifier
+humanize :: Text -> Text
+humanize text = unwrapEither text $ Inflector.toHumanized True text
+{-# INLINABLE humanize #-}
+
+{-# INLINABLE applyFirst #-}
+applyFirst :: (Text -> Text) -> Text -> Text
+applyFirst f text =
+    let (first, rest) = Text.splitAt 1 text
+    in (f first) <> rest
+
+-- | Make a text's first character lowercase
+--
+-- >>> lcfirst "Hello World"
+-- "hello World"
+--
+-- >>> lcfirst "alread lowercase"
+-- "already lowercase"
+lcfirst :: Text -> Text
+lcfirst = applyFirst Text.toLower
+{-# INLINABLE lcfirst #-}
+
+-- | Make a text's first character uppercase
+--
+-- >>> ucfirst "hello world"
+-- "Hello World"
+--
+-- >>> ucfirst "Already uppercase"
+-- "Already uppercase"
+ucfirst :: Text -> Text
+ucfirst = applyFirst Text.toUpper
+{-# INLINABLE ucfirst #-}
+
+-- | Add '_' to the end of a name if it is a reserved haskell keyword
+--
+-- >>> escapeHaskellKeyword "test"
+-- "test"
+--
+-- >>> escapeHaskellKeyword "type"
+-- "type_"
+escapeHaskellKeyword :: Text -> Text
+escapeHaskellKeyword name = if Text.toLower name `Prelude.elem` haskellKeywords then name <> "_" else name
+
+haskellKeywords :: [Text]
+haskellKeywords = [ "_"
+    , "as"
+    , "case"
+    , "class"
+    , "data"
+    , "default"
+    , "deriving"
+    , "do"
+    , "else"
+    , "hiding"
+    , "if"
+    , "import"
+    , "in"
+    , "infix"
+    , "infixl"
+    , "infixr"
+    , "instance"
+    , "let"
+    , "module"
+    , "newtype"
+    , "of"
+    , "qualified"
+    , "then"
+    , "type"
+    , "where"
+    , "forall"
+    , "mdo"
+    , "family"
+    , "role"
+    , "pattern"
+    , "static"
+    , "group"
+    , "by"
+    , "using"
+    , "foreign"
+    , "export"
+    , "label"
+    , "dynamic"
+    , "safe"
+    , "interruptible"
+    , "unsafe"
+    , "stdcall"
+    , "ccall"
+    , "capi"
+    , "prim"
+    , "javascript"
+    , "rec"
+    , "proc"
+    ]
+
+-- | Transforms a string to a value to be safely used in urls
+--
+-- >>> toSlug "IHP Release: 21.08.2020 (v21082020)"
+-- "ihp-release-21-08-2020-v21082020"
+--
+-- >>> toSlug "Hallo! @ Welt"
+-- "hallo-welt"
+toSlug :: Text -> Text
+toSlug text = Data.Text.Slugger.toSlug text
+
+
+-- | Transform a data-field name like @userName@  to a friendly human-readable name like @User name@
+--
+-- >>> fieldNameToFieldLabel "userName"
+-- "User name"
+--
+fieldNameToFieldLabel :: Text -> Text
+fieldNameToFieldLabel fieldName = cs (let (Right parts) = Text.Inflections.parseCamelCase [] fieldName in Text.Inflections.titleize parts)
+{-# INLINABLE fieldNameToFieldLabel #-}
+
+-- | Transform a column name like @user_name@  to a friendly human-readable name like @User name@
+--
+-- >>> columnNameToFieldLabel "user_name"
+-- "User name"
+--
+columnNameToFieldLabel :: Text -> Text
+columnNameToFieldLabel columnName = cs (let (Right parts) = Text.Inflections.parseSnakeCase [] columnName in Text.Inflections.titleize parts)
+{-# INLINABLE columnNameToFieldLabel #-}
+
+
+-- | Removes @ Id@  from a string
+--
+-- >>> removeIdSuffix "User Id"
+-- "User"
+--
+-- When the string does not end with @ Id@, it will just return the input string:
+--
+-- >>> removeIdSuffix "Project"
+-- "Project"
+removeIdSuffix :: Text -> Text
+removeIdSuffix text = Maybe.fromMaybe text (Text.stripSuffix " Id" text)
+{-# INLINABLE removeIdSuffix #-}

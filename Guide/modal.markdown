@@ -6,7 +6,7 @@
 
 ## Introduction
 
-IHP provides support to render [Bootstrap 4 Modals](https://getbootstrap.com/docs/4.5/components/modal/) out of the box. Here's how the result can look like:
+IHP provides support to render [Bootstrap 5 Modals](https://getbootstrap.com/docs/5.3/components/modal/) out of the box. Here's how the result can look like:
 
 ![](images/modal/modal.png)
 

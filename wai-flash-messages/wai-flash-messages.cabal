@@ -1,0 +1,27 @@
+cabal-version:       2.2
+name:                wai-flash-messages
+version:             1.0.0
+synopsis:            Flash messages for wai apps
+description:         Asset versioning for static files in WAI
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+category:            Web
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp.git
+
+library
+    default-language: GHC2021
+    default-extensions:
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        BlockArguments
+        OverloadedStrings
+    build-depends: base >= 4.17.0 && < 4.22, text, wai, vault, cereal, cereal-text, bytestring, wai-session
+    hs-source-dirs: .
+    exposed-modules: Network.Wai.Middleware.FlashMessages

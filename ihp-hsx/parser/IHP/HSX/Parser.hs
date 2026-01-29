@@ -156,15 +156,19 @@ hsxNoRenderComment = do
 
 
 hsxNodeAttributes :: Parser a -> Parser [Attribute]
-hsxNodeAttributes end = staticAttributes
+hsxNodeAttributes end = do
+    attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
+    -- Single-pass duplicate detection using a Set
+    case findDuplicateKey Set.empty attributes of
+        Just dupKey -> fail $ "Duplicate attribute found in tag: " <> show dupKey
+        Nothing -> pure attributes
     where
-        staticAttributes = do
-            attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
-            let staticAttributes = List.filter isStaticAttribute attributes
-            let keys = List.map (\(StaticAttribute name _) -> name) staticAttributes
-            let uniqueKeys = List.nubOrd keys
-            unless (keys == uniqueKeys) (fail $ "Duplicate attribute found in tag: " <> show (keys List.\\ uniqueKeys))
-            pure attributes
+        findDuplicateKey :: Set Text -> [Attribute] -> Maybe Text
+        findDuplicateKey !seen [] = Nothing
+        findDuplicateKey !seen (StaticAttribute name _ : rest)
+            | name `Set.member` seen = Just name
+            | otherwise = findDuplicateKey (Set.insert name seen) rest
+        findDuplicateKey !seen (_ : rest) = findDuplicateKey seen rest
 
 isStaticAttribute (StaticAttribute _ _) = True
 isStaticAttribute _ = False
@@ -288,10 +292,15 @@ hsxSplicedNode = do
                 tree <- many parseTree
                 pure (pos, TokenNode tree)
         leaf = TokenLeaf <$> takeWhile1P Nothing (\c -> c /= '{' && c /= '}')
+
+        -- Build result using difference lists (O(1) append) then convert once
         treeToString :: Text -> TokenTree -> Text
-        treeToString acc (TokenLeaf value)  = acc <> value
-        treeToString acc (TokenNode [])     = acc
-        treeToString acc (TokenNode (x:xs)) = ((treeToString (acc <> "{") x) <> (Text.concat $ fmap (treeToString "") xs)) <> "}"
+        treeToString acc tree = acc <> Text.concat (treeToList tree [])
+
+        treeToList :: TokenTree -> [Text] -> [Text]
+        treeToList (TokenLeaf value) rest = value : rest
+        treeToList (TokenNode []) rest = rest
+        treeToList (TokenNode children) rest = "{" : List.foldr treeToList ("}" : rest) children
 
 
 
@@ -319,7 +328,7 @@ hsxIdentifier = do
 attributes :: Set Text
 attributes = Set.fromList
         [ "accept", "accept-charset", "accesskey", "action", "alt", "async"
-        , "autocomplete", "autofocus", "autoplay", "challenge", "charset"
+        , "autocapitalize", "autocomplete", "autofocus", "autoplay", "challenge", "charset"
         , "checked", "cite", "class", "cols", "colspan", "content"
         , "contenteditable", "contextmenu", "controls", "coords", "data"
         , "datetime", "defer", "dir", "disabled", "draggable", "enctype"
@@ -607,37 +616,27 @@ leafs = Set.fromList
         , "!DOCTYPE"
         ]
 
+stripTextNodeWhitespaces :: [Node] -> [Node]
 stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNodeWhitespaces nodes)
 
+stripLastTextNodeWhitespaces :: [Node] -> [Node]
+stripLastTextNodeWhitespaces [] = []
 stripLastTextNodeWhitespaces nodes =
-    let strippedLastElement = if List.length nodes > 0
-            then case List.last nodes of
-                TextNode text -> Just $ TextNode (Text.stripEnd text)
-                otherwise -> Nothing
-            else Nothing
-    in case strippedLastElement of
-        Just last -> (fst $ List.splitAt ((List.length nodes) - 1) nodes) <> [last]
-        Nothing -> nodes
+    case List.last nodes of
+        TextNode text -> List.init nodes <> [TextNode (Text.stripEnd text)]
+        _ -> nodes
 
-stripFirstTextNodeWhitespaces nodes =
-    let strippedFirstElement = if List.length nodes > 0
-            then case List.head nodes of
-                TextNode text -> Just $ TextNode (Text.stripStart text)
-                otherwise -> Nothing
-            else Nothing
-    in case strippedFirstElement of
-        Just first -> first:(List.tail nodes)
-        Nothing -> nodes
+stripFirstTextNodeWhitespaces :: [Node] -> [Node]
+stripFirstTextNodeWhitespaces [] = []
+stripFirstTextNodeWhitespaces (TextNode text : rest) = TextNode (Text.stripStart text) : rest
+stripFirstTextNodeWhitespaces nodes = nodes
 
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text
-collapseSpace text = cs $ filterDuplicateSpaces (cs text)
+collapseSpace text = Text.concat $ go $ Text.groupBy bothSpace text
     where
-        filterDuplicateSpaces :: String -> String
-        filterDuplicateSpaces string = filterDuplicateSpaces' string False
-
-        filterDuplicateSpaces' :: String -> Bool -> String
-        filterDuplicateSpaces' (char:rest) True | Char.isSpace char = filterDuplicateSpaces' rest True
-        filterDuplicateSpaces' (char:rest) False | Char.isSpace char = ' ':(filterDuplicateSpaces' rest True)
-        filterDuplicateSpaces' (char:rest) isRemovingSpaces = char:(filterDuplicateSpaces' rest False)
-        filterDuplicateSpaces' [] isRemovingSpaces = []
+        bothSpace a b = Char.isSpace a && Char.isSpace b
+        go [] = []
+        go (t:ts)
+            | Text.any Char.isSpace t = Text.singleton ' ' : go ts
+            | otherwise = t : go ts

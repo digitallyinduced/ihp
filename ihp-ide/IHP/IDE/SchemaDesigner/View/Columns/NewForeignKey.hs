@@ -1,7 +1,7 @@
 module IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey where
 
 import IHP.ViewPrelude
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.Layout
 

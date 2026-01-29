@@ -12,7 +12,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, ARM64]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: wimpysworld/nothing-but-nix@main
       with:
         hatchet-protocol: 'rampage'
@@ -28,39 +28,4 @@ jobs:
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       if: matrix.os != 'ARM64'
-    - run: git clone https://github.com/digitallyinduced/ihp-boilerplate.git
-    - name: Cache build directory
-      uses: actions/cache@v4
-      with:
-        path: |
-          ihp-boilerplate/build
-        key: ${{ runner.os }}-ghc
-      if: matrix.os != 'ARM64'
-    - run: |
-          cd ihp-boilerplate
-          nix-shell -p php --run "php ../.github/patch-flakes.php ${{ github.ref }} ${{ github.event.repository.full_name }} ${{ github.sha }}"
-          cat flake.nix
-          mv Makefile Makefile.old
-          echo 'GHC_OPTIONS+= -rtsopts=all\n.SHELLFLAGS := -eu -o pipefail -c\n\n'|cat - Makefile.old > Makefile
-          nix develop --impure --command bash -c "new-application Web && make build/bin/RunUnoptimizedProdServer"
-    - name: Build IHP app
-      run: |
-        cd ihp-boilerplate && nix develop --impure --profile ihp-boilerplate-profile --command "true"
-    - name: Install jq
-      run: nix profile install nixpkgs#jq
-      if: matrix.os != 'ARM64'
-    - name: Push IHP app to cachix
-      run: |
-        cd ihp-boilerplate
-        # Cachix doesn't natively support nix flakes in it's cachix-action
-        # See https://github.com/cachix/cachix-action/issues/47
-        cachix push digitallyinduced ihp-boilerplate-profile
-        # Pushing runtime closure
-        nix develop --impure --command bash -c 'make -s all; new-application Web'
-        git add . # So the generated files are available to nix flakes
-        nix build --json --impure | jq -r '.[].outputs | to_entries[].value' | cachix push digitallyinduced
-    # Also build the framework's dev env
-    - name: Build framework devShell
-      run: nix develop --impure --profile ihp-profile --command "true"
-    - name: Push framework devShell to cachix
-      run: cachix push digitallyinduced ihp-profile
+    - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L

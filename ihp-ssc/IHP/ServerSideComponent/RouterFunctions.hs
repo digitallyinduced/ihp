@@ -14,7 +14,7 @@ import qualified Prelude
 import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
-import IHP.ApplicationContext
+import Wai.Request.Params.Middleware (Respond)
 import Network.Wai
 import Data.Attoparsec.ByteString.Char8 (Parser)
 
@@ -25,8 +25,8 @@ routeComponent :: forall component controller application.
     , InitControllerContext application
     , Typeable application
     , ?application :: application
-    , ?applicationContext :: IHP.ApplicationContext.ApplicationContext
-    , ?context :: RequestContext
+    , ?request :: Request
+    , ?respond :: Respond
     ) => Parser Application
 routeComponent = webSocketAppWithCustomPath @(ComponentsController component) @application ("SSC/" <> typeName)
     where

@@ -3,7 +3,7 @@ name:                ihp-ssc
 version:             1.3.0
 synopsis:            Server Side Components for IHP
 description:         IHP Server-Side Components provide a toolkit for building interactive client-side functionality without needing to write too much JavaScript.
-license:             NONE
+license:             MIT
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 -- copyright:
@@ -11,43 +11,29 @@ maintainer:          hello@digitallyinduced.com
 build-type:          Simple
 
 library
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
         , ImplicitParams
-        , Rank2Types
-        , NamedFieldPuns
-        , TypeSynonymInstances
-        , FlexibleInstances
         , DisambiguateRecordFields
         , DuplicateRecordFields
         , OverloadedLabels
-        , FlexibleContexts
         , DataKinds
         , QuasiQuotes
         , TypeFamilies
         , PackageImports
-        , ScopedTypeVariables
         , RecordWildCards
-        , TypeApplications
-        , DataKinds
-        , InstanceSigs
-        , DeriveGeneric
-        , MultiParamTypeClasses
-        , TypeOperators
-        , DeriveDataTypeable
         , DefaultSignatures
-        , BangPatterns
         , FunctionalDependencies
         , PartialTypeSignatures
         , BlockArguments
         , LambdaCase
-        , StandaloneDeriving
         , TemplateHaskell
         , OverloadedRecordDot
+        , DeepSubsumption
     hs-source-dirs: .
-    build-depends: ihp, aeson, megaparsec, bytestring, wai, websockets, ihp-hsx, base, string-conversions, basic-prelude, text, blaze-html, attoparsec
+    build-depends: ihp, ihp-log, aeson, megaparsec, bytestring, wai, websockets, ihp-hsx, base, string-conversions, basic-prelude, text, blaze-html, attoparsec, wai-request-params
     exposed-modules:
           IHP.ServerSideComponent.Types
         , IHP.ServerSideComponent.ViewFunctions

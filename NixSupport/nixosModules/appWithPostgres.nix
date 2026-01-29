@@ -7,6 +7,7 @@ in
         ihp.nixosModules.options
         ihp.nixosModules.binaryCache
         ihp.nixosModules.services_app
+        ihp.nixosModules.services_appKeygen
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
     ];
@@ -69,7 +70,7 @@ in
             \connect ${cfg.databaseName}
             SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
-            \i ${ihp}/lib/IHP/IHPSchema.sql
+            \i ${ihp}/IHPSchema.sql
             \i ${cfg.schema}
             \i ${cfg.fixtures}
         '';

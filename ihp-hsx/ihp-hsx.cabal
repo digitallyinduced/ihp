@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.4.1
+version:             1.5.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -83,7 +83,7 @@ common common-depends
 
 library ihp-hsx-parser
     import: common-extensions, common-flags, common-depends
-    default-language: Haskell2010
+    default-language: GHC2021
     build-depends:
         ghc >= 9.4.4 && < 9.13
     hs-source-dirs: parser
@@ -98,7 +98,7 @@ library
         ihp-hsx-parser
         , blaze-html
         , blaze-markup
-    default-language: Haskell2010
+    default-language: GHC2021
     hs-source-dirs: blaze
     exposed-modules:
         IHP.HSX.QQ
@@ -116,7 +116,7 @@ library ihp-hsx-lucid2
         ihp-hsx-parser
         , lucid2
         , transformers
-    default-language: Haskell2010
+    default-language: GHC2021
     hs-source-dirs: lucid2
     exposed-modules:
         IHP.HSX.Lucid2.QQ
@@ -136,7 +136,7 @@ test-suite ihp-hsx-tests
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
         IHP.HSX.CustomHsxCases
-    default-language:    Haskell2010
+    default-language:    GHC2021
     build-depends:
         , ihp-hsx
         , ihp-hsx-lucid2

@@ -1,0 +1,278 @@
+cabal-version:       2.2
+name:                ihp
+version:             1.4.0
+synopsis:            Haskell Web Framework
+description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
+                     Full guide available at: <https://ihp.digitallyinduced.com/Guide/index.html>
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+data-dir: data
+data-files:
+      static/*.css
+    , static/*.js
+    , static/*.svg
+    
+    , static/vendor/*.min.css
+    , static/vendor/*.min.css.map
+    , static/vendor/*.min.js
+    , static/vendor/*.min.js.map
+    , static/vendor/*.js
+
+    , static/vendor/jquery-3.2.1.slim.min.js
+    , static/vendor/jquery-3.5.0.min.js
+    , static/vendor/jquery-3.6.0.min.js
+    , static/vendor/jquery-3.6.0.slim.min.js
+    , static/vendor/popper-2.11.6.min.js
+
+    , static/vendor/bootstrap-5.2.1/*.min.css
+    , static/vendor/bootstrap-5.2.1/*.min.js
+
+    , static/vendor/src-min/*.js
+    , static/vendor/src-min/snippets/*.js
+extra-source-files: CHANGELOG.md
+
+common shared-properties
+    default-language: GHC2021
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , classy-prelude
+            , mono-traversable
+            , transformers
+            , directory
+            , string-conversions
+            , warp
+            , warp-systemd
+            , wai
+            , mtl
+            , blaze-html
+            , blaze-markup
+            , wai-extra
+            , http-types
+            , inflections
+            , text
+            , postgresql-simple
+            , wai-app-static
+            , wai-util
+            , bytestring
+            , network-uri
+            , uri-encode
+            , aeson
+            , wai-session
+            , wai-session-clientsession
+            , clientsession
+            , pwstore-fast
+            , vault
+            , data-default
+            , random-strings
+            , uuid
+            , time
+            , attoparsec
+            , ghc-prim
+            , case-insensitive
+            , haskell-src-meta
+            , template-haskell
+            , haskell-src-exts
+            , interpolate
+            , split
+            , containers
+            , http-media
+            , cookie
+            , process
+            , typerep-map
+            , basic-prelude
+            , async
+            , network
+            , unliftio
+            , unix
+            , websockets
+            , wai-websockets
+            , regex-tdfa
+            , binary
+            , http-client
+            , http-client-tls
+            , resource-pool
+            , unordered-containers
+            , hashable
+            , scientific
+            , vector
+            , wreq
+            , deepseq
+            , parser-combinators
+            , ip
+            , fast-logger
+            , minio-hs
+            , temporary
+            , conduit-extra
+            , wai-cors
+            , lens
+            , random
+            , hspec
+            , cereal
+            , cereal-text
+            , neat-interpolation
+            , unagi-chan
+            , with-utf8
+            , ihp-hsx
+            , ihp-postgresql-simple-extra
+            , ihp-context
+            , ihp-pagehead
+            , ihp-log
+            , ihp-modal
+            , mime-types
+            , safe-exceptions
+            , resourcet
+            , countable-inflections
+            , stm
+            , wai-asset-path
+            , wai-flash-messages
+            , slugger
+            , ihp-imagemagick
+            , wai-request-params
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.ActionType
+        , IHP.AuthSupport.Authentication
+        , IHP.AuthSupport.Lockable
+        , IHP.Controller.Param
+        , IHP.Controller.FileUpload
+        , IHP.Controller.Redirect
+        , IHP.Controller.Render
+        , IHP.Controller.Session
+        , IHP.Controller.Context
+        , IHP.Controller.Layout
+        , IHP.Controller.BasicAuth
+        , IHP.Controller.Cookie
+        , IHP.Controller.AccessDenied
+        , IHP.Controller.NotFound
+        , IHP.Controller.Response
+        , IHP.LoginSupport.Helper.Controller
+        , IHP.LoginSupport.Helper.View
+        , IHP.LoginSupport.Middleware
+        , IHP.LoginSupport.Types
+        , IHP.ValidationSupport.Types
+        , IHP.ValidationSupport.ValidateField
+        , IHP.ValidationSupport.ValidateIsUnique
+        , IHP.View.Form
+        , IHP.View.TimeAgo
+        , IHP.RequestVault
+        , IHP.ControllerPrelude
+        , IHP.ControllerSupport
+        , IHP.Environment
+        , IHP.FetchRelated
+        , IHP.FrameworkConfig
+        , IHP.FrameworkConfig.Types
+        , IHP.HaskellSupport
+        , IHP.Record
+        , IHP.InputValue
+        , IHP.ModelSupport
+        , IHP.ModelSupport.Types
+        , IHP.NameSupport
+        , IHP.QueryBuilder
+        , IHP.QueryBuilder.Types
+        , IHP.QueryBuilder.Compiler
+        , IHP.QueryBuilder.Filter
+        , IHP.QueryBuilder.Join
+        , IHP.QueryBuilder.Order
+        , IHP.QueryBuilder.Union
+        , IHP.Fetch
+        , IHP.RouterPrelude
+        , IHP.Server
+        , IHP.ValidationSupport
+        , IHP.ViewPrelude
+        , IHP.ViewSupport
+        , IHP.RouterSupport
+        , IHP.Router.Types
+        , IHP.Router.UrlGenerator
+        , IHP.Prelude
+        , IHP.ErrorController
+        , IHP.ScriptSupport
+        , IHP.AuthSupport.View.Sessions.New
+        , IHP.AuthSupport.Controller.Sessions
+        , IHP.AutoRefresh
+        , IHP.AutoRefresh.Types
+        , IHP.AutoRefresh.View
+        , IHP.WebSocket
+        , IHP.View.Classes
+        , IHP.View.CSSFramework
+        , IHP.View.CSSFramework.Unstyled
+        , IHP.View.CSSFramework.Bootstrap
+        , IHP.View.CSSFramework.Tailwind
+        , IHP.View.Types
+        , IHP.FlashMessages
+        , IHP.Test.Mocking
+        , IHP.Job.Queue
+        , IHP.Job.Runner
+        , IHP.Job.Types
+        , IHP.Breadcrumb.Types
+        , IHP.Breadcrumb.ViewFunctions
+        , IHP.FileStorage.Types
+        , IHP.FileStorage.ControllerFunctions
+        , IHP.FileStorage.Config
+        , IHP.Pagination.ControllerFunctions
+        , IHP.Pagination.ViewFunctions
+        , IHP.Pagination.Types
+        , IHP.Pagination.Helpers
+        , IHP.PGListener
+        , IHP.EnvVar
+    autogen-modules: Paths_ihp
+    other-modules: Paths_ihp
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: Test
+    build-depends: ihp 
+    other-modules:
+        Test.ValidationSupport.ValidateFieldSpec
+        Test.NameSupportSpec
+        Test.HaskellSupportSpec
+        Test.View.CSSFrameworkSpec
+        Test.View.FormSpec
+        Test.Controller.ContextSpec
+        Test.Controller.ParamSpec
+        Test.Controller.AccessDeniedSpec
+        Test.Controller.NotFoundSpec
+        Test.ModelSupportSpec
+        Test.QueryBuilderSpec
+        Test.RouterSupportSpec
+        Test.ViewSupportSpec
+        Test.FileStorage.ControllerFunctionsSpec
+        Test.Controller.CookieSpec
+        Test.PGListenerSpec

@@ -4,6 +4,7 @@ import IHP.IDE.Types
 import IHP.Prelude
 import qualified System.Process as Process
 import qualified System.Directory as Directory
+import System.Exit (ExitCode(..))
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
 import Control.Concurrent (threadDelay)
@@ -12,8 +13,8 @@ import GHC.IO.Handle
 import qualified Control.Exception.Safe as Exception
 
 import qualified IHP.Log as Log
-import qualified IHP.LibDir as LibDir
 import qualified IHP.EnvVar as EnvVar
+import Paths_ihp_ide (getDataFileName)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -112,9 +113,9 @@ initDatabase = do
         waitUntilReady errorHandle do
             Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
 
-            ihpLib <- LibDir.findLibDirectory
             let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
-            importSql (cs ihpLib <> "/IHPSchema.sql")
+            ihpSchemaSql <- getDataFileName "IHPSchema.sql"
+            importSql ihpSchemaSql
             importSql "Application/Schema.sql"
             importSql "Application/Fixtures.sql"
 
@@ -131,13 +132,21 @@ waitUntilReady handle callback = do
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do
     let isDebugMode = ?context.isDebugMode
-    threadDelay 1000000
-    (_, stdout, _) <- Process.readProcessWithExitCode "pg_ctl" ["status"] ""
-    if "server is running" `isInfixOf` (cs stdout)
-    then pure ()
-    else do
-        when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
-        waitPostgres
+    useDevenv <- EnvVar.envOrDefault "IHP_DEVENV" False
+    socketDir <- if useDevenv
+        then EnvVar.env "PGHOST"
+        else do
+            currentDir <- Directory.getCurrentDirectory
+            pure (currentDir <> "/build/db")
+
+    -- pg_isready returns exit code 0 when ready, non-zero otherwise
+    exitCode <- Process.rawSystem "pg_isready" ["-h", socketDir, "-q"]
+    case exitCode of
+        ExitSuccess -> pure ()
+        ExitFailure _ -> do
+            when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
+            threadDelay 100000  -- 100ms between checks
+            waitPostgres
 
 
 withBuiltinOrDevenvPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a

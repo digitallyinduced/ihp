@@ -1,6 +1,6 @@
 module IHP.IDE.SchemaDesigner.Controller.Columns where
 
-import IHP.ControllerPrelude
+import IHP.IDE.Prelude
 import IHP.IDE.ToolServer.Types
 
 import IHP.IDE.SchemaDesigner.View.Columns.New
@@ -8,7 +8,7 @@ import IHP.IDE.SchemaDesigner.View.Columns.Edit
 import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey
 import IHP.IDE.SchemaDesigner.View.Columns.EditForeignKey
 
-import IHP.IDE.SchemaDesigner.Types
+import IHP.Postgres.Types
 import IHP.IDE.SchemaDesigner.View.Layout (schemaDesignerLayout, findStatementByName, replace)
 import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
