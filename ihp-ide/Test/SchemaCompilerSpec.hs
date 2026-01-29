@@ -29,10 +29,12 @@ tests = do
                             _ -> Nothing
                     instance Default Mood where def = Happy
                     instance DefaultParamEncoder Mood where
-                        -- TODO: DefaultParamEncoder for Happy
-                        -- TODO: DefaultParamEncoder for VeryHappy
-                        -- TODO: DefaultParamEncoder for Sad
-                        -- TODO: DefaultParamEncoder for VerySad
+                        defaultParam = Encoders.nonNullable (Encoders.enum \case
+                                Happy -> "happy"
+                                VeryHappy -> "very happy"
+                                Sad -> "sad"
+                                VerySad -> "very sad"
+                        )
                     instance InputValue Mood where
                         inputValue Happy = "happy" :: Text
                         inputValue VeryHappy = "very happy" :: Text
@@ -72,16 +74,18 @@ tests = do
                             _ -> Nothing
                     instance Default Province where def = Alberta
                     instance DefaultParamEncoder Province where
-                        -- TODO: DefaultParamEncoder for Alberta
-                        -- TODO: DefaultParamEncoder for Britishcolumbia
-                        -- TODO: DefaultParamEncoder for Saskatchewan
-                        -- TODO: DefaultParamEncoder for Manitoba
-                        -- TODO: DefaultParamEncoder for Ontario
-                        -- TODO: DefaultParamEncoder for Quebec
-                        -- TODO: DefaultParamEncoder for Novascotia
-                        -- TODO: DefaultParamEncoder for Newbrunswick
-                        -- TODO: DefaultParamEncoder for Princeedwardisland
-                        -- TODO: DefaultParamEncoder for Newfoundlandandlabrador
+                        defaultParam = Encoders.nonNullable (Encoders.enum \case
+                                Alberta -> "Alberta"
+                                Britishcolumbia -> "BritishColumbia"
+                                Saskatchewan -> "Saskatchewan"
+                                Manitoba -> "Manitoba"
+                                Ontario -> "Ontario"
+                                Quebec -> "Quebec"
+                                Novascotia -> "NovaScotia"
+                                Newbrunswick -> "NewBrunswick"
+                                Princeedwardisland -> "PrinceEdwardIsland"
+                                Newfoundlandandlabrador -> "NewfoundlandAndLabrador"
+                        )
                     instance InputValue Province where
                         inputValue Alberta = "Alberta" :: Text
                         inputValue Britishcolumbia = "BritishColumbia" :: Text
@@ -110,8 +114,10 @@ tests = do
                             _ -> Nothing
                     instance Default PropertyType where def = PropertyTypeApartment
                     instance DefaultParamEncoder PropertyType where
-                        -- TODO: DefaultParamEncoder for PropertyTypeApartment
-                        -- TODO: DefaultParamEncoder for House
+                        defaultParam = Encoders.nonNullable (Encoders.enum \case
+                                PropertyTypeApartment -> "APARTMENT"
+                                House -> "HOUSE"
+                        )
                     instance InputValue PropertyType where
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
