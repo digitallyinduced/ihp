@@ -90,7 +90,11 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 -- - In production mode: We cache files forever. IHP's 'assetPath' helper will add a hash to files to cache bust when something has changed.
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
-    frameworkStaticDir <- getDataFileName "static"
+    frameworkStaticDir <- do
+        ihpStaticOverride <- EnvVar.envOrNothing "IHP_STATIC"
+        case ihpStaticOverride of
+            Just dir -> pure dir
+            Nothing -> getDataFileName "static"
     appStaticDir <- EnvVar.envOrDefault "APP_STATIC" "static/"
     let
         maxAge = case frameworkConfig.environment of

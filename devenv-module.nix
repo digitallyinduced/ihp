@@ -145,6 +145,30 @@ that is defined in flake-module.nix
         packages = {
             default = pkgs.ghc.ihp;
             ide = pkgs.ghc.ihp-ide;
+
+            ihp-static =
+                let
+                    jquery = version: hash: pkgs.fetchurl {
+                        url = "https://code.jquery.com/jquery-${version}";
+                        sha256 = hash;
+                    };
+                in
+                    pkgs.symlinkJoin {
+                        name = "ihp-static";
+                        paths = [
+                            (hsDataDir pkgs.ghc.ihp.data + "/static")
+                            (pkgs.linkFarm "ihp-vendor-js" [
+                                # Current version
+                                { name = "vendor/jquery-3.7.1.min.js"; path = jquery "3.7.1.min.js" "06hb7y19azzim1k53d1gw78fq6whw7s1qj7hpxf08sqz4kfr76pw"; }
+                                { name = "vendor/jquery-3.7.1.slim.min.js"; path = jquery "3.7.1.slim.min.js" "1ks0qcs51imwgxf88j1g89isdcznxzc50iv5wjb90fky82ryyqcj"; }
+                                # Backwards compatibility with existing apps
+                                { name = "vendor/jquery-3.6.0.min.js"; path = jquery "3.6.0.min.js" "0vpylcvvq148xv92k4z2yns3nya80qk1kfjsqs29qlw9fgxj65gz"; }
+                                { name = "vendor/jquery-3.6.0.slim.min.js"; path = jquery "3.6.0.slim.min.js" "04p56k5isbhhiv8j25jxqhynchw4qxixnvisfm41kdm23j9bkdxv"; }
+                                { name = "vendor/jquery-3.5.0.min.js"; path = jquery "3.5.0.min.js" "1965r7pswaffbrj42iwyr7ar922gx4yjfgy7w1w41di5mvcwvp64"; }
+                                { name = "vendor/jquery-3.2.1.slim.min.js"; path = jquery "3.2.1.slim.min.js" "16739f77k16kxyf3ngi6841j07wmjc7qm8jbvjik66xihw494rck"; }
+                            ])
+                        ];
+                    };
             schema-compiler = pkgs.ghc.ihp-schema-compiler;
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;

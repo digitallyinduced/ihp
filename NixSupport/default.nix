@@ -13,6 +13,7 @@
 , optimizationLevel ? "2"
 , filter
 , ihp-env-var-backwards-compat
+, ihp-static
 , static
 }:
 
@@ -297,6 +298,7 @@ in
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
                 --set-default IHP_ASSET_VERSION $INPUT_HASH \
                 --set-default APP_STATIC ${static} \
+                --set-default IHP_STATIC ${ihp-static} \
                 --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
@@ -304,6 +306,7 @@ in
                 makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
                     --set-default IHP_ASSET_VERSION $INPUT_HASH \
                     --set-default APP_STATIC ${static} \
+                    --set-default IHP_STATIC ${ihp-static} \
                     --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 
