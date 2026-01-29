@@ -62,11 +62,13 @@ run configBuilder = do
 
                     useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
 
+                    let fullApp = middleware $ application staticApp requestLoggerMiddleware
+                    let staticShortcut = staticRouteShortcut staticApp fullApp
+
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                        . middleware
-                        $ application staticApp requestLoggerMiddleware
+                        $ staticShortcut
 
 {-# INLINABLE run #-}
 
@@ -164,6 +166,23 @@ application :: (FrontController RootApplication) => Application -> Middleware ->
 application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
+
+-- | Routes requests with a @/static/@ prefix directly to the static file server,
+-- bypassing the full middleware stack (session, CORS, auto-refresh, etc.).
+-- All other requests go through the normal middleware pipeline.
+--
+-- This improves performance for static assets since they only need to be
+-- read from disk.
+staticRouteShortcut :: Application -> Application -> Application
+staticRouteShortcut staticApp fallbackApp request respond =
+    case request.pathInfo of
+        ("static":rest) ->
+            let strippedRequest = request
+                    { pathInfo = rest
+                    , rawPathInfo = ByteString.drop (ByteString.length "/static") request.rawPathInfo
+                    }
+            in staticApp strippedRequest respond
+        _ -> fallbackApp request respond
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = \app -> do

@@ -27,8 +27,8 @@ IHP provides an [`assetPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Asse
 This HSX code will produce a HTML like this:
 
 ```html
-<script src="/app.js?v=19319eb"/>
-<link rel="stylesheet" href="/app.css?v=19319eb"/>
+<script src="/static/app.js?v=19319eb"/>
+<link rel="stylesheet" href="/static/app.css?v=19319eb"/>
 ```
 
 ### Asset Version

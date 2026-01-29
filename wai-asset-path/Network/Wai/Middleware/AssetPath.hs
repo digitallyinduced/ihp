@@ -41,7 +41,7 @@ assetPathVaultKey = unsafePerformIO Vault.newKey
 
 renderAssetPath :: Text -> Maybe Text -> Text -> Text
 renderAssetPath version baseUrl path =
-    Text.concat [ fromMaybe "" baseUrl, path, "?v=", version ]
+    Text.concat [ fromMaybe "" baseUrl, "/static", path, "?v=", version ]
 
 -- | Adds a cache buster to a asset path
 --
