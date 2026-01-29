@@ -173,6 +173,16 @@ that is defined in flake-module.nix
                         url = "https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.min.js.map";
                         sha256 = "1fagbzf8qmf338r7qzap55xbj84nsrn91ad4pbq39hwrmi21fb5j";
                     };
+                    # Select2 — pinned to develop branch (includes jQuery 4 support, PR #6332)
+                    select2commit = "595494a72fee67b0a61c64701cbb72e3121f97b9";
+                    select2js = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/js/select2.min.js";
+                        sha256 = "1y0j8qwdzkhcp1kn04fbr4hl89x87wi1lkhnirpd5gkc2sb06764";
+                    };
+                    select2css = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/css/select2.min.css";
+                        sha256 = "1fi1qdiybi30adg8vcqqa6n0jz7c658kv0z39bkvm2ama0i4g2s2";
+                    };
                 in
                     pkgs.symlinkJoin {
                         name = "ihp-static";
@@ -180,9 +190,11 @@ that is defined in flake-module.nix
                             (hsDataDir pkgs.ghc.ihp.data + "/static")
                             (pkgs.linkFarm "ihp-vendor-js" [
                                 # jQuery — current version
+                                { name = "vendor/jquery-4.0.0.min.js"; path = jquery "4.0.0.min.js" "1amdfbjdqncpv9x00n8f8xg43nvaapwfiq6kypx8nzyrkbm4d99r"; }
+                                { name = "vendor/jquery-4.0.0.slim.min.js"; path = jquery "4.0.0.slim.min.js" "01x39qb1rbdz6n2y5j7yd3i420f6x9aw6miki2wny8n7bnzsjcgh"; }
+                                # jQuery — backwards compatibility
                                 { name = "vendor/jquery-3.7.1.min.js"; path = jquery "3.7.1.min.js" "06hb7y19azzim1k53d1gw78fq6whw7s1qj7hpxf08sqz4kfr76pw"; }
                                 { name = "vendor/jquery-3.7.1.slim.min.js"; path = jquery "3.7.1.slim.min.js" "1ks0qcs51imwgxf88j1g89isdcznxzc50iv5wjb90fky82ryyqcj"; }
-                                # jQuery — backwards compatibility
                                 { name = "vendor/jquery-3.6.0.min.js"; path = jquery "3.6.0.min.js" "0vpylcvvq148xv92k4z2yns3nya80qk1kfjsqs29qlw9fgxj65gz"; }
                                 { name = "vendor/jquery-3.6.0.slim.min.js"; path = jquery "3.6.0.slim.min.js" "04p56k5isbhhiv8j25jxqhynchw4qxixnvisfm41kdm23j9bkdxv"; }
                                 { name = "vendor/jquery-3.5.0.min.js"; path = jquery "3.5.0.min.js" "1965r7pswaffbrj42iwyr7ar922gx4yjfgy7w1w41di5mvcwvp64"; }
@@ -200,6 +212,10 @@ that is defined in flake-module.nix
                                 # Bootstrap 4.5 — backwards compatibility (source maps)
                                 { name = "vendor/bootstrap.min.css.map"; path = bootstrap45cssmap; }
                                 { name = "vendor/bootstrap.min.js.map";  path = bootstrap45jsmap; }
+
+                                # Select2 (develop branch with jQuery 4 support)
+                                { name = "vendor/select2.min.js";  path = select2js; }
+                                { name = "vendor/select2.min.css"; path = select2css; }
                             ])
                         ];
                     };
