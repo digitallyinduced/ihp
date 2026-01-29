@@ -29,9 +29,6 @@ data-files:
 
     , static/vendor/popper-2.11.6.min.js
 
-    , static/vendor/bootstrap-5.2.1/*.min.css
-    , static/vendor/bootstrap-5.2.1/*.min.js
-
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
 extra-source-files: CHANGELOG.md
