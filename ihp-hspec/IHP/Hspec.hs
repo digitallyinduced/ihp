@@ -19,6 +19,7 @@ import IHP.ModelSupport (createModelContext)
 import IHP.Log.Types
 
 import qualified System.Process as Process
+import System.OsPath (decodeUtf)
 import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
@@ -61,7 +62,7 @@ withTestDatabase masterDatabaseUrl callback = do
 importSql :: ByteString -> IO ()
 importSql databaseUrl = do
     -- Import IHP Schema
-    ihpSchemaSql <- findIHPSchemaSql
+    ihpSchemaSql <- findIHPSchemaSql >>= decodeUtf
     Process.callCommand ("psql " <> cs databaseUrl <> " < " <> ihpSchemaSql)
 
     -- Import Application Schema
