@@ -208,6 +208,8 @@ tests = do
                         primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -289,6 +291,8 @@ tests = do
                         primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -369,6 +373,8 @@ tests = do
                         primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -502,6 +508,8 @@ tests = do
                         primaryKeyColumnNames = ["id"]
                         primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
 
 
                     instance InputValue Generated.ActualTypes.LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
@@ -642,6 +650,8 @@ tests = do
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
                         primaryKeyConditionForId (Id (thingArbitraryIdent)) = param thingArbitraryIdent
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
@@ -720,6 +730,8 @@ tests = do
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
                         primaryKeyConditionForId (Id (bitRef, partRef)) = sql "(" <> param bitRef <> sql "," <> param partRef <> sql ")"
                         {-# INLINABLE primaryKeyConditionForId #-}
+                        primaryKeyEncoder = divide (\(Id (a, b)) -> (a, b)) (Encoders.param defaultParam) (Encoders.param defaultParam)
+                        {-# INLINE primaryKeyEncoder #-}
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
                 let (Just statement) = find (isNamedTable "parts") statements
