@@ -24,8 +24,8 @@ instance View ShowQueryView where
 
                     <button
                         class="btn btn-primary"
-                        data-toggle="tooltip"
-                        data-placement="right"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="right"
                         title="⌘ Enter"
                     >Run SQL Query</button>
                 </form>

@@ -129,7 +129,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 --        <div class="container">
 --          <div class="row justify-content-between">
 --              <div class="col-7">
---                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ml-4">+ New</a></h1>
+--                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ms-4">+ New</a></h1>
 --              </div>
 --              <div class="col-5">
 --                  {renderFilter "Username"}
@@ -141,15 +141,15 @@ renderFilter :: (?context::ControllerContext, ?request :: Wai.Request) =>
     -> Html
 renderFilter placeholder =
     [hsx|
-        <form method="GET" action="" class="mt-2 float-right">
-            <div class="form-row">
+        <form method="GET" action="" class="mt-2 float-end">
+            <div class="row">
                 <div class="col-auto">
-                <label class="sr-only" for="inlineFormInput">Name</label>
+                <label class="visually-hidden" for="inlineFormInput">Name</label>
                 <input type="hidden" name="page" value="1"/>
                 <input name="filter" type="text" class="form-control mb-2" id="inlineFormInput" placeholder={placeholder} value={boxValue}>
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-2 mr-2">Filter</button>
+                    <button type="submit" class="btn btn-primary mb-2 me-2">Filter</button>
                     <a class="btn btn-primary mb-2" href={clearFilterUrl}>Clear</a>
                 </div>
             </div>

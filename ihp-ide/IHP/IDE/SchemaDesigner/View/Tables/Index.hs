@@ -12,7 +12,7 @@ instance View IndexView where
     html IndexView { .. } = [hsx|
         {renderFlashMessages}
         {modal}
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
             {emptyColumnSelectorContainer}
         </div>

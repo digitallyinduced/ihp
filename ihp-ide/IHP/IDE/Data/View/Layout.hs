@@ -35,8 +35,8 @@ tableHead rows tableName =
                         <a
                             href={NewRowAction tableName}
                             class="btn btn-link btn-add"
-                            data-toggle="tooltip"
-                            data-placement="bottom"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="bottom"
                             title={"Add " <> tableNameToModelName tableName}
                         >{addIcon}</a>
                     </div>

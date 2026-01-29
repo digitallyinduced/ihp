@@ -18,7 +18,7 @@ instance View NewRowView where
     html NewRowView { .. } = [hsx|
         <div class="h-100">
             {headerNav}
-            <div class="h-100 row no-gutters">
+            <div class="h-100 row g-0">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
@@ -41,7 +41,7 @@ instance View NewRowView where
                     <input type="hidden" name="tableName" value={tableName}/>
                     {forEach tableCols renderFormField}
                     {renderFlashMessages}
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Add Row</button>
                     </div>
                 </form>
@@ -52,7 +52,7 @@ instance View NewRowView where
             modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
 
             renderFormField col = [hsx|
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label class="row-form">{col.columnName}</label>
                         <span style="float:right;">
                             <a class="text-muted row-form">{col.columnType}</a>
@@ -87,9 +87,8 @@ instance View NewRowView where
                                 name={col.columnName}
                                 value={inputValue False}
                                 />
-                            <div class="input-group-append">
-                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "true"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "true"}>NULL</a>
                                     <a class="dropdown-item">
@@ -98,7 +97,7 @@ instance View NewRowView where
                                             type="checkbox"
                                             name={col.columnName <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
-                                            class="mr-1"
+                                            class="me-1"
                                             onclick={"sqlModeCheckbox('" <> col.columnName <> "', this, true)"}
                                             />
                                         <label class="form-check-label" for={col.columnName <> "-sqlbox"}> Parse as SQL</label>
@@ -109,7 +108,6 @@ instance View NewRowView where
                                         value={inputValue False}
                                         />
                                 </div>
-                            </div>
                                 |]
             renderInputMethod col = [hsx|
                                 {isBooleanParam False col}
@@ -117,8 +115,8 @@ instance View NewRowView where
                                         then select
                                         else theInput
                                 }
-                                <button class="btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField col "DEFAULT" "false"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField col "NULL" "false"}>NULL</a>
                                     <a class="dropdown-item">
@@ -127,7 +125,7 @@ instance View NewRowView where
                                             type="checkbox"
                                             name={col.columnName <> "_"}
                                             checked={isSqlFunction (getColDefaultValue col)}
-                                            class="mr-1"
+                                            class="me-1"
                                             onclick={"sqlModeCheckbox('" <> col.columnName <> "', this, false)"}
                                             />
                                         <label class="form-check-label" for={col.columnName <> "-sqlbox"}> Parse as SQL</label>

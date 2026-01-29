@@ -62,7 +62,7 @@ instance View NewControllerView where
                             checked={pagination}
                             onchange="this.form.submit()"
                             />
-                        <label class="pl-1" for="pagination">Pagination</label>
+                        <label class="ps-1" for="pagination">Pagination</label>
                     </form>
                 </div>
             |]
