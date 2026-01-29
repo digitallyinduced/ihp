@@ -33,7 +33,7 @@ CanRoute (..)
 import Prelude hiding (take)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe, catMaybes, mapMaybe)
 import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
@@ -153,12 +153,13 @@ parseFuncs parseIdType = [
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
+                    Just Refl -> case ByteString.readInt queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInt queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                     Just Refl -> Right Nothing
@@ -166,12 +167,13 @@ parseFuncs parseIdType = [
 
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Integer) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
+                    Just Refl -> case ByteString.readInteger queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInteger queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                     Just Refl -> Right Nothing
@@ -205,18 +207,16 @@ parseFuncs parseIdType = [
             -- Try and parse @[Int]@. If value is not present then default to empty list.
             \queryValue -> case eqT :: Maybe (d :~: [Int]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInt b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
             \queryValue -> case eqT :: Maybe (d :~: [Integer]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInteger b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
@@ -224,11 +224,8 @@ parseFuncs parseIdType = [
             -- Try and parse a raw [UUID]
             \queryValue -> case eqT :: Maybe (d :~: [UUID]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> queryValue
-                        |> cs
-                        |> Text.splitOn ","
-                        |> map (fromASCIIBytes . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe fromASCIIBytes
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
@@ -335,6 +332,9 @@ class Data controller => AutoRoute controller where
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
+            prefix :: ByteString
+            prefix = Text.encodeUtf8 (actionPrefixText @controller)
+
             query :: Query
             query = queryString ?request
 
@@ -343,9 +343,6 @@ class Data controller => AutoRoute controller where
 
             parseAction :: Constr -> Parser controller
             parseAction constr = let
-                    prefix :: ByteString
-                    prefix = Text.encodeUtf8 (actionPrefixText @controller)
-
                     actionName = ByteString.pack (showConstr constr)
 
                     actionPath :: ByteString
