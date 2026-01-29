@@ -7,22 +7,23 @@ window.addEventListener('beforeunload', function () {
 
 document.addEventListener('DOMContentLoaded', function () {
     initDelete();
-    initDisableButtonsOnSubmit();
     initBack();
     initToggle();
     initTime();
     initDatePicker();
     initFileUploadPreview();
+    initTurboCompat();
 
     document.dispatchEvent(ihpLoadEvent);
 });
 
-document.addEventListener('turbolinks:load', function () {
+document.addEventListener('turbo:load', function () {
     initDelete();
     initBack();
     initToggle();
     initTime();
     initFileUploadPreview();
+    initTurboCompat();
 
     unsafeSetTimeout(function () {
         var elements = document.querySelectorAll('.js-scroll-into-view');
@@ -37,6 +38,52 @@ document.addEventListener('turbolinks:load', function () {
 
     document.dispatchEvent(ihpLoadEvent);
 });
+
+// Disable buttons on form submit (Turbo-native replacement for initDisableButtonsOnSubmit)
+document.addEventListener('turbo:submit-start', function (event) {
+    var form = event.target;
+
+    // Disable all submit buttons in the form
+    var buttons = form.getElementsByTagName('button');
+    for (var j = 0; j < buttons.length; j++) {
+        var button = buttons[j];
+        if (button instanceof HTMLButtonElement) {
+            button.setAttribute('disabled', 'disabled');
+        }
+    }
+
+    // Dismiss alerts within the form
+    var alerts = form.getElementsByClassName('alert');
+    for (var j = 0; j < alerts.length; j++) {
+        var alert = alerts[j];
+        if (alert instanceof HTMLDivElement) {
+            alert.classList.add('dismiss');
+        }
+    }
+
+    // Pause auto-refresh during form submission
+    if (window['pauseAutoRefresh']) {
+        window.pauseAutoRefresh();
+    }
+});
+
+document.addEventListener('turbo:submit-end', function (event) {
+    // Re-enable buttons after submission completes
+    var form = event.target;
+    var buttons = form.getElementsByTagName('button');
+    for (var j = 0; j < buttons.length; j++) {
+        var button = buttons[j];
+        if (button instanceof HTMLButtonElement) {
+            button.removeAttribute('disabled');
+        }
+    }
+});
+
+function initTurboCompat() {
+    document.querySelectorAll('form[data-disable-javascript-submission="true"]').forEach(function (form) {
+        form.setAttribute('data-turbo', 'false');
+    });
+}
 
 function initTime() {
     if (window.timeago) {
@@ -70,6 +117,8 @@ function initDelete() {
         if (Boolean(elem.jsDeleteInitialized) === false) {
             elem.addEventListener('click', handleClick);
             elem.jsDeleteInitialized = true;
+            // Prevent Turbo from prefetching DELETE links
+            elem.setAttribute('data-turbo-prefetch', 'false');
         }
     });
 
@@ -80,7 +129,7 @@ function initDelete() {
         }
 
         if (elem.classList.contains('js-delete') === false) {
-            // In case the `.js-delete` class was removed, and event listener is not detached. (after morphdom DOM patch)
+            // In case the `.js-delete` class was removed, and event listener is not detached. (after Turbo DOM update)
             return false;
         }
 
@@ -113,7 +162,7 @@ function initDelete() {
         form.appendChild(methodInput);
 
         document.body.appendChild(form);
-        window.submitForm(form);
+        form.requestSubmit();
     }
 }
 
@@ -140,193 +189,6 @@ function initBack() {
         }
     }
 }
-
-function initDisableButtonsOnSubmit() {
-    if (window.initDisableButtonsOnSubmitRun) {
-        return;
-    }
-    window.initDisableButtonsOnSubmitRun = true;
-
-    var lastClicked = null;
-    document.addEventListener('submit', function (event) {
-        event.preventDefault();
-
-        var form = event.target;
-        window.submitForm(form, lastClicked);
-    });
-
-    document.addEventListener('mouseup', function (event) {
-        lastClicked = event.target;
-    });
-}
-
-window.submitForm = function (form, possibleClickedButton) {
-    if (form.dataset && (form.dataset.disableJavascriptSubmission === 'true')) {
-        form.submit();
-        return;
-    }
-
-    // We cannot use `form.action` here because there could be a <input name="action"/>
-    // See https://github.com/digitallyinduced/ihp/issues/1203
-    var formAction = (possibleClickedButton && possibleClickedButton.getAttribute('formAction'))
-        ? possibleClickedButton.getAttribute('formAction')
-        : form.getAttribute('action');
-    var formMethod = form.getAttribute('method') || 'GET';
-
-    var request = new XMLHttpRequest();
-    request.responseType = 'document';
-    request.overrideMimeType('text/html');
-    request.onload = function () {
-        console.info('AJAX', this.status, this.responseURL);
-        if (request.readyState !== request.DONE) {
-            return;
-        }
-        if (request.status !== 200 && request.status !== 280) {
-            console.error(
-                'Something went wrong, status code: ' + request.status
-            );
-        }
-
-        var url = new URL(formAction, document.baseURI);
-        var urlPathnameWithQuery = url.pathname;
-
-        // If the form is a GET request, we need to make sure that we
-        // keep the query parameters in mind when comparing urls below.
-        // Otherwise the displayed URL in the browser address bar is not updated correctly.
-        if (formMethod.toUpperCase() === 'GET') {
-            var formData = new FormData(form);
-            for (var pair of formData.entries()) {
-                url.searchParams.set(pair[0], pair[1]);
-            }
-        }
-        urlPathnameWithQuery += url.search; // Append the query parameters submitted via the form
-
-        var responseUrl = new URL(request.responseURL);
-        var responseUrlPath = responseUrl.pathname + responseUrl.search;
-
-        if (window.Turbolinks) {
-            var snapshot = new Turbolinks.Snapshot(
-                new Turbolinks.HeadDetails(request.response.head),
-                request.response.body
-            );
-            transitionToNewPage(request.response);
-            Turbolinks.clearCache();
-            if (urlPathnameWithQuery !== formAction) {
-                history.pushState({ turbolinks: true }, '', request.responseURL);
-            } else if (urlPathnameWithQuery !== responseUrlPath) {
-                history.replaceState({}, "", request.responseURL)
-            };
-            var turbolinkLoadEvent = new CustomEvent('turbolinks:load');
-            document.dispatchEvent(turbolinkLoadEvent);
-        } else {
-            window.liveReloadPaused = true;
-
-            if (urlPathnameWithQuery !== formAction) {
-                history.pushState({}, '', request.responseURL);
-                window.onpopstate = function (event) {
-                    window.location.reload();
-                };
-            } else if (urlPathnameWithQuery !== responseUrlPath) {
-                history.replaceState({}, "", request.responseURL)
-            };
-
-            transitionToNewPage(request.response);
-            var turbolinkLoadEvent = new CustomEvent('turbolinks:load');
-            document.dispatchEvent(turbolinkLoadEvent);
-
-            var reenableLiveReload = function () {
-                window.liveReloadPaused = false;
-
-                document.removeEventListener(
-                    'turbolinks:load',
-                    reenableLiveReload
-                );
-            };
-
-            document.addEventListener('turbolinks:load', reenableLiveReload);
-        }
-    };
-
-    var submit = document.activeElement;
-    if (!submit || submit instanceof HTMLBodyElement) {
-        submit = possibleClickedButton;
-    }
-
-    var formData = new FormData(form);
-    console.log(form, formData, submit);
-
-    if (
-        (submit instanceof HTMLInputElement ||
-            (submit instanceof HTMLButtonElement &&
-                submit.getAttribute('type') == 'submit')) &&
-        submit.form == form
-    ) {
-        var submitName = submit.getAttribute('name');
-        if (submitName !== null)
-            formData.set(submitName, submit.value);
-    }
-
-    var hasFileInputs = form.querySelector('input[type="file"]');
-    if (hasFileInputs) {
-        request.open(formMethod, formAction, true);
-        request.send(formData);
-    } else {
-        var parameters = [];
-
-        if (formMethod.toUpperCase() === 'GET') {
-            // Using document.baseURI here allows this to work with relative paths like `/Projects` instead
-            // of full urls like `http://example.com/Projects`
-            var url = new URL(formAction, document.baseURI);
-            for (var pair of formData.entries()) {
-                url.searchParams.append(pair[0], pair[1]);
-            }
-
-            request.open(formMethod, url.toString(), true);
-        } else {
-            for (var pair of formData.entries()) {
-                parameters.push(
-                    encodeURIComponent(pair[0]) + '=' + encodeURIComponent(pair[1])
-                );
-            }
-
-            request.open(formMethod, formAction, true);
-        }
-
-        request.setRequestHeader(
-            'Content-Type',
-            'application/x-www-form-urlencoded'
-        );
-        request.send(parameters.join('&'));
-    }
-
-    var buttons = form.getElementsByTagName('button');
-    for (var j in buttons) {
-        var button = buttons[j];
-        if (button instanceof HTMLButtonElement) {
-            // We cannot disable the button right now, as then it's value
-            // is not sent to the server
-            // See https://sarbbottam.github.io/blog/2015/08/21/multiple-submit-buttons-and-javascript
-            unsafeSetTimeout(
-                function () {
-                    this.setAttribute('disabled', 'disabled');
-                }.bind(button),
-                0
-            );
-        }
-    }
-
-    var alerts = form.getElementsByClassName('alert');
-    for (var j in alerts) {
-        var alert = alerts[j];
-        if (alert instanceof HTMLDivElement) {
-            alert.classList.add('dismiss');
-        }
-    }
-
-    if (window['pauseAutoRefresh']) {
-        window.pauseAutoRefresh();
-    }
-};
 
 function initToggle() {
     var elements = document.querySelectorAll('[data-toggle]');
@@ -408,88 +270,46 @@ function initDatePicker() {
     });
 }
 
-var locked = false;
-window.transitionToNewPage = function (newHtml) {
-    if (locked) {
-        console.warn(
-            'transitionToNewPage: Did not execute transition due to lock'
-        );
-        return;
-    }
-
+window.morphPage = function (newHtml) {
     document.dispatchEvent(ihpUnloadEvent);
 
+    // Build a turbo-stream to morph the body
+    var newBody = newHtml.tagName === 'BODY' ? newHtml : newHtml.body;
+    if (!newBody) return;
+
+    // Ensure body has an id for targeting
+    if (!document.body.id) document.body.id = 'ihp-body';
+
+    // Handle modal preservation
     var isModalOpen = document.body.classList.contains('modal-open');
-    morphdom(
-        document.body,
-        newHtml.tagName === 'BODY' ? newHtml : newHtml.body,
-        {
-            childrenOnly: false,
-            onBeforeElUpdated: function (from, to) {
-                if (
-                    newHtml.body &&
-                    newHtml.body.classList.contains('modal-open') &&
-                    from.id === 'main-row'
-                ) {
-                    return false;
-                } else if (isModalOpen && from.id === 'main-row') {
-                    return false;
-                } else if (
-                    from.classList.contains('flatpickr-input') &&
-                    from._flatpickr
-                ) {
-                    unsafeSetTimeout(
-                        function (from, to) {
-                            console.log(
-                                'FROM',
-                                from,
-                                to.getAttribute('value'),
-                                to.value
-                            );
-                            from.value = to.value;
-                            // from.setAttribute('value', to.getAttribute('value'));
-                        },
-                        0,
-                        from,
-                        to
-                    );
-                }
-            },
-            getNodeKey: function (el) {
-                var key = el.id;
-                if (el.id) {
-                    key = el.id;
-                } else if (el instanceof HTMLScriptElement) {
-                    key = el.src;
-                }
-                return key;
-            },
-        }
-    );
+    var newBodyHasModal = newBody.classList.contains('modal-open');
 
-    var ihpAutoRefreshId =
-        newHtml.head &&
-        newHtml.head.querySelector('meta[property="ihp-auto-refresh-id"]');
-
-    if (ihpAutoRefreshId) {
-        var prevIhpAutoRefreshId = document.head.querySelector(
-            'meta[property="ihp-auto-refresh-id"]'
-        );
-        if (prevIhpAutoRefreshId) {
-            prevIhpAutoRefreshId.remove();
-        }
-
-        document.head.appendChild(ihpAutoRefreshId);
+    var targetId, content;
+    if (isModalOpen && !newBodyHasModal) {
+        targetId = 'main-row';
+        var newMainRow = newBody.querySelector('#main-row');
+        content = newMainRow ? newMainRow.innerHTML : '';
+    } else {
+        targetId = document.body.id;
+        content = newBody.innerHTML;
     }
+
+    var streamHTML = '<turbo-stream action="update" target="' + targetId + '" method="morph"><template>' + content + '</template></turbo-stream>';
+    Turbo.renderStreamMessage(streamHTML);
 
     window.clearAllIntervals();
     window.clearAllTimeouts();
 
-    locked = true;
+    // Update auto-refresh meta tag
+    var ihpAutoRefreshId = newHtml.head && newHtml.head.querySelector('meta[property="ihp-auto-refresh-id"]');
+    if (ihpAutoRefreshId) {
+        var prev = document.head.querySelector('meta[property="ihp-auto-refresh-id"]');
+        if (prev) prev.remove();
+        document.head.appendChild(ihpAutoRefreshId);
+    }
 
-    setTimeout(function () {
-        locked = false;
-    }, 1);
+    var event = new CustomEvent('turbo:load', {});
+    document.dispatchEvent(event);
 };
 
 if (!('allIntervals' in window)) {

@@ -28,39 +28,7 @@ function refresh() {
             var parser = new DOMParser();
             var dom = parser.parseFromString(html, 'text/html');
 
-            // https://github.com/digitallyinduced/ihp/issues/998
-            morphdom(document.head, dom.head)
-
-            morphdom(document.body, dom.body, {
-                getNodeKey: function (el) {
-
-                    var key = el.id;
-                    if (el.id) {
-                        key = el.id;
-                    } else if (el.form && el.name) {
-                        key = el.name + "_" + el.form.action;
-                    } else if (el instanceof HTMLFormElement) {
-                        key = "form#" + el.action;
-                    } else if (el instanceof HTMLScriptElement) {
-                        key = el.src;
-                    }
-                    return key;
-                },
-                onBeforeElChildrenUpdated: function(fromEl, toEl) {
-                    if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
-                        toEl.checked = fromEl.checked;
-                        toEl.value = fromEl.value;
-                    } else if (fromEl.tagName === 'OPTION') {
-                        toEl.selected = fromEl.selected;
-                    }
-                }
-            });
-
-            window.clearAllIntervals();
-            window.clearAllTimeouts();
-
-            var event = new CustomEvent('turbolinks:load', {});
-            document.dispatchEvent(event);
+            window.morphPage(dom);
         });
 }
 

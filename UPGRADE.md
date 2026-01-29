@@ -33,8 +33,6 @@ Most production applications don't use the welcome controller and can safely ign
 
 # Upgrade to 1.4.0 from 1.3.0
 
-## Switch IHP version
-
 1. **Switch IHP version**
 
     - **IHP Basic**
@@ -50,7 +48,21 @@ Most production applications don't use the welcome controller and can safely ign
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.4 URL into your `flake.nix`.
 
-2. **Remake Env**
+2. **Replace Turbolinks with Turbo**
+
+    In your `Web/View/Layout.hs` (or wherever you include JavaScript assets), replace the old Turbolinks scripts with the new Turbo script:
+
+    ```diff
+    - <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    + <script src={assetPath "/vendor/turbo.js"}></script>
+    - <script src={assetPath "/vendor/turbolinks.js"}></script>
+    - <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
+    - <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
+    ```
+
+    **Note**: The behavior of page transitions remains the same. IHP now uses Turbo (successor to Turbolinks) for faster page navigation while maintaining backward compatibility.
+
+3. **Remake Env**
 
     Run the following commands:
 
@@ -200,9 +212,9 @@ This update process is a bit more complex than normal IHP updates, but it's wort
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
         source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
     fi
-    
+
     use flake . --impure --accept-flake-config
-    
+
     # Include .env file if it exists locally. Use the .env file to load env vars that you don't want to commit to git
     if [ -f .env ]
     then
@@ -489,7 +501,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     This will finally solve all the issues that typically happen around IHP's stateful `build/ihp-lib` symlink. This symlink is now replaced with an env variable called `IHP_LIB` that is automatically provided by devenv.
 
 10. **Update `Makefile`**
-    
+
     Open your `Makefile` and remove the following boilerplate code at the top of the file:
 
     ```Makefile

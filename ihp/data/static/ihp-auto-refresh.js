@@ -6,12 +6,22 @@ function autoRefreshView() {
     var metaTag = document.querySelector('meta[property="ihp-auto-refresh-id"]');
 
     if (!metaTag) {
-        if (socket) {
-            console.log('Closing socket');
-            socket.close();
-        }
+        // Wait briefly for Turbo DOM morphing to complete
+        setTimeout(function() {
+            var retryMetaTag = document.querySelector('meta[property="ihp-auto-refresh-id"]');
+            if (retryMetaTag) {
+                processAutoRefresh(retryMetaTag);
+            } else if (socket && !autoRefreshPaused) {
+                socket.close();
+            }
+        }, 50);
         return;
     }
+
+    processAutoRefresh(metaTag);
+}
+
+function processAutoRefresh(metaTag) {
 
     var socketProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
     var socketHost = socketProtocol + "://" + window.location.hostname + ":" + document.location.port + '/AutoRefreshWSApp';
@@ -36,44 +46,21 @@ function autoRefreshView() {
     };
 
     socket.onmessage = function (event) {
-        var html = event.data;
-        var parser = new DOMParser();
-        var dom = parser.parseFromString(html, 'text/html');
-
         if (autoRefreshPaused) {
             return;
         }
 
-        morphdom(document.body, dom.body, {
-            getNodeKey: function (el) {
+        var html = event.data;
 
-                var key = el.id;
-                if (el.id) {
-                    key = el.id;
-                } else if (el.form && el.name) {
-                    key = el.name + "_" + el.form.action;
-                } else if (el instanceof HTMLFormElement) {
-                    key = "form#" + el.action;
-                } else if (el instanceof HTMLScriptElement) {
-                    key = el.src;
-                }
-                return key;
-            },
-            onBeforeElChildrenUpdated: function(fromEl, toEl) {
-                if (fromEl.tagName === 'TEXTAREA' || fromEl.tagName === 'INPUT') {
-                    toEl.checked = fromEl.checked;
-                    toEl.value = fromEl.value;
-                } else if (fromEl.tagName === 'OPTION') {
-                    toEl.selected = fromEl.selected;
-                }
-            }
-        });
-
-        window.clearAllIntervals();
-        window.clearAllTimeouts();
-        
-        var event = new CustomEvent('turbolinks:load', {});
-        document.dispatchEvent(event);
+        if (html.includes('<turbo-stream')) {
+            // It's a Turbo Stream - let Turbo handle it
+            document.body.insertAdjacentHTML('beforeend', html);
+        } else {
+            // It's full HTML - use morphPage for DOM morphing
+            var parser = new DOMParser();
+            var dom = parser.parseFromString(html, 'text/html');
+            window.morphPage(dom);
+        }
     };
 }
 
@@ -82,8 +69,13 @@ window.pauseAutoRefresh = function () {
     autoRefreshPaused = true;
 };
 
-if (window.Turbolinks) {
-    document.addEventListener('turbolinks:load', autoRefreshView);
+/* Called to resume auto-refresh after form submission completes */
+window.resumeAutoRefresh = function () {
+    autoRefreshPaused = false;
+};
+
+if (window.Turbo) {
+    document.addEventListener('turbo:load', autoRefreshView);
 } else {
     autoRefreshView();
 }

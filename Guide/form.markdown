@@ -10,7 +10,7 @@ In IHP Forms are an essential way to interact with your application. Dealing wit
 
 By default forms in IHP follow the class names used by Bootstrap 5. Therefore the forms work with Bootstrap 5 out of the box. Of course, the default form generation can be customized to support other CSS frameworks.
 
-Unless JavaScript helpers have been deactivated, your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
+Unless JavaScript helpers have been deactivated, your form will be submitted using AJAX and Turbo instead of browser-based form submission.
 
 ## Simple Forms
 
@@ -852,7 +852,7 @@ The generated HTML will look like this:
 
 ### Disable Form Submission via JavaScript
 
-Your form will be submitted using AJAX and TurboLinks instead of browser-based form submission.
+Your form will be submitted using AJAX and Turbo instead of browser-based form submission.
 
 Sometimes this behavior is problematic. For example when the successful form submission redirects to a page that starts a Single Page App. Usually you want to have a clean page refresh here to avoid troubles with the JavaScript.
 
@@ -981,9 +981,9 @@ IHP by default sets its session cookies using the Lax [SameSite](https://develop
 
 ## JavaScript Helpers
 
-By default, your form will be submitted using AJAX and [TurboLinks](https://github.com/turbolinks/turbolinks) instead of browser-based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using TurboLinks and [morphdom](https://github.com/patrick-steele-idem/morphdom).
+By default, your form will be submitted using AJAX and [Hotwire Turbo](https://turbo.hotwired.dev/) instead of browser-based form submission. It's implemented this way to support [SPA](https://en.wikipedia.org/wiki/Single-page_application)-like page transitions using Turbo's built-in morphing capabilities.
 
-Additionally, to integrate the form submission into TurboLinks, the JavaScript helpers will also disable the form submit button after the form has been submitted. Also, any flash messages inside the form are removed.
+Additionally, to integrate the form submission into Turbo, the JavaScript helpers will also disable the form submit button after the form has been submitted. Also, any flash messages inside the form are removed.
 
 When the IHP JavaScript helpers are included in a page, it will automatically hook into your form submissions. You can also call `window.submitForm(formElement)` to trigger a form submission from JavaScript.
 
