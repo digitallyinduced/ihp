@@ -389,7 +389,7 @@ ihpFlake:
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
                     
                     # Only start migrate service if it exists
-                    if ssh $1 systemctl list-unit-files migrate.service >/dev/null 2>&1; then
+                    if ssh $1 systemctl cat migrate.service >/dev/null 2>&1; then
                         ssh $1 systemctl start migrate
                     fi
                 '';
