@@ -17,7 +17,6 @@ import Text.Blaze.Html (Html)
 import IHP.Controller.Context (ControllerContext, putContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
-import qualified Data.ByteString.Builder as ByteString
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
@@ -25,38 +24,33 @@ renderPlain text = respondAndExitWithHeaders $ responseLBS status200 [(hContentT
 {-# INLINABLE renderPlain #-}
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
-respondHtml html =
-        -- The seq is required to force evaluation of `evaluatedBuilder` before returning the IO action. See below for details
-        evaluatedBuilder `seq` (respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] evaluatedBuilder)
-    where
-        builder = Blaze.renderHtmlBuilder html
-        builderAsByteString = ByteString.toLazyByteString builder
-
-        -- We force the full evaluation of the blaze html expressions to catch
-        -- any runtime errors with the IHP error middleware. Without this full evaluation
-        -- certain thunks might only cause an error when warp is building the response string.
-        -- But then it's already too late to catch the exception and the user will only get
-        -- the default warp error message instead of our nice IHP error message design.
-        evaluatedBuilder = Data.ByteString.Lazy.length builderAsByteString `seq` ByteString.lazyByteString builderAsByteString
+respondHtml html = do
+        let !bs = Blaze.renderHtml html
+        -- We force the full evaluation of the blaze html to catch any runtime errors
+        -- with the IHP error middleware. Without this, certain thunks might only cause
+        -- an error when warp is building the response string. But then it's already too
+        -- late to catch the exception and the user will only get the default warp error
+        -- message instead of our nice IHP error message design.
+        _ <- evaluate (Data.ByteString.Lazy.length bs)
+        respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
 {-# INLINABLE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext) => view -> IO Html
+renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Network.Wai.Request) => view -> IO Html
 renderHtml !view = do
     let ?view = view
     ViewSupport.beforeRender view
     frozenContext <- Context.freeze ?context
 
     let ?context = frozenContext
-    let ?request = frozenContext.request
     let layout = case Context.maybeFromFrozenContext @ViewLayout of
             Just (ViewLayout layout) -> layout
             Nothing -> id
 
-    let boundHtml = let ?context = frozenContext; ?request = frozenContext.request in layout (ViewSupport.html ?view)
+    let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
     pure boundHtml
 {-# INLINABLE renderHtml #-}
 
@@ -129,7 +123,7 @@ render !view = do
                     let next request respond = do
                             -- Store the modified request (with flash messages in vault) in the context
                             putContext request
-                            (renderHtml view) >>= respondHtml
+                            let ?request = request in ((renderHtml view) >>= respondHtml)
                             error "unreachable"
                     _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
                     pure ()

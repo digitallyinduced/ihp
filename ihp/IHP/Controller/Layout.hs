@@ -11,15 +11,16 @@ module IHP.Controller.Layout
 import IHP.Prelude
 import IHP.ViewSupport
 import IHP.Controller.Context
+import Network.Wai (Request)
 
-newtype ViewLayout = ViewLayout ((?context :: ControllerContext) => Layout)
+newtype ViewLayout = ViewLayout ((?context :: ControllerContext, ?request :: Request) => Layout)
 
-setLayout :: (?context :: ControllerContext) => ((?context :: ControllerContext) => Layout) -> IO ()
+setLayout :: (?context :: ControllerContext) => ((?context :: ControllerContext, ?request :: Request) => Layout) -> IO ()
 setLayout layout = do
     putContext (ViewLayout layout)
 {-# INLINE setLayout #-}
 
-getLayout :: (?context :: ControllerContext) => IO Layout
+getLayout :: (?context :: ControllerContext, ?request :: Request) => IO Layout
 getLayout = do
     (ViewLayout layout) <- fromContext
     pure layout

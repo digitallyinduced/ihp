@@ -9,26 +9,17 @@ import qualified Data.Text as Text
 import qualified Control.Exception as Exception
 import IHP.IDE.CodeGen.MigrationGenerator (findIHPSchemaSql)
 
+import Network.Wai
+import Network.Wai.Internal (ResponseReceived (..))
 
-import qualified Data.Vault.Lazy                           as Vault
-import           Network.Wai
-import           Network.Wai.Internal                      (ResponseReceived (..))
-
-
-import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond, requestBodyVaultKey)
-import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
-import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
-import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, Id')
-import           IHP.Prelude
-import           IHP.Log.Types
-import qualified IHP.PGListener as PGListener
-import IHP.Controller.Session (sessionVaultKey)
+import IHP.ControllerSupport (InitControllerContext)
+import IHP.FrameworkConfig (ConfigBuilder (..), FrameworkConfig (..))
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import IHP.ModelSupport (createModelContext)
+import IHP.Log.Types
 
 import qualified System.Process as Process
-import IHP.Test.Mocking
-import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware)
+import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
 
 withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
 
@@ -40,24 +31,15 @@ withIHPApp application configBuilder hspecAction = do
 
         logger <- newLogger def { level = Warn } -- don't log queries
 
-
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
 
-            let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-            let requestBody = FormBody [] []
-            let vaultWithBody = Vault.insert requestBodyVaultKey requestBody sessionVault
-
-            -- Apply middlewares to populate the vault with modelContext and frameworkConfig
-            requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
-            let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-            let transformedApp = frameworkConfigMiddleware frameworkConfig (modelContextMiddleware modelContext captureApp)
-            _responseReceived <- transformedApp (defaultRequest {vault = vaultWithBody}) (\_ -> pure ResponseReceived)
-            mockRequest <- readIORef requestRef
-
+            -- Use the central test middleware stack
+            let baseRequest = defaultRequest
+            mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
             let mockRespond = const (pure ResponseReceived)
 
-            (hspecAction MockContext { .. })
+            hspecAction MockContext { .. }
 
 withTestDatabase masterDatabaseUrl callback = do
     testDatabaseName <- randomDatabaseName

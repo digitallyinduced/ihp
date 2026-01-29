@@ -41,7 +41,7 @@ import qualified Network.Wai
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import IHP.RequestBodyMiddleware (Respond, RequestBody (..))
+import Wai.Request.Params.Middleware (Respond, RequestBody (..))
 import qualified Data.CaseInsensitive
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
@@ -56,6 +56,7 @@ import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault
+import IHP.ActionType (setActionType)
 
 type Action' = IO ResponseReceived
 
@@ -108,7 +109,6 @@ newContextForAction controller = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    Context.putContext (Context.ActionType (Typeable.typeOf controller))
 
     try (initContext @application) >>= \case
         Left (exception :: SomeException) -> do
@@ -120,6 +120,8 @@ newContextForAction controller = do
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
+    let request' = setActionType controller ?request
+    let ?request = request'
     contextOrResponse <- newContextForAction controller
     case contextOrResponse of
         Left response -> response

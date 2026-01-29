@@ -14,7 +14,7 @@ data EditIndexView = EditIndexView
 
 instance View EditIndexView where
     html EditIndexView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
@@ -40,21 +40,21 @@ instance View EditIndexView where
                 <form method="POST" action={UpdateIndexAction tableName indexName}>
                     <input type="hidden" name="indexName" value={indexName}/>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="newIndexName" type="text" class="form-control" value={indexName}/>
                         </div>
                     </div>
                     
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Column:</label>
                         <div class="col-sm-10">
                             <input name="indexColumns" type="text" class="form-control" value={indexColumns}/>
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Update Index</button>
                     </div>
                 </form>

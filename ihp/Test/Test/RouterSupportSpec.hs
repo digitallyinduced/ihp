@@ -18,7 +18,7 @@ import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
 import IHP.Job.Types
-import IHP.RequestBodyMiddleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import qualified IHP.Server as Server
@@ -112,8 +112,34 @@ instance Controller TestController where
 instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
 
+-- | Controller for testing customRoutes/customPathTo
+data CustomRouteController
+  = ListPerformancesAction
+  | ShowPerformanceAction { performanceId :: !(Id Performance) }
+  | CreatePerformanceAction
+  deriving (Eq, Show, Data)
+
+instance Controller CustomRouteController where
+    action ListPerformancesAction = renderPlain "ListPerformancesAction"
+    action ShowPerformanceAction { .. } = renderPlain (cs $ ClassyPrelude.show performanceId)
+    action CreatePerformanceAction = renderPlain "CreatePerformanceAction"
+
+instance AutoRoute CustomRouteController where
+    customRoutes = do
+        string "/performances/"
+        performanceId <- parseId
+        endOfInput
+        onlyAllowMethods [GET, HEAD]
+        pure ShowPerformanceAction { performanceId }
+
+    customPathTo ShowPerformanceAction { performanceId } = Just ("/performances/" <> IHP.Prelude.tshow performanceId)
+    customPathTo _ = Nothing
+
 instance FrontController WebApplication where
-  controllers = [ parseRoute @TestController ]
+  controllers =
+    [ parseRoute @TestController
+    , parseRoute @CustomRouteController
+    ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]
@@ -227,3 +253,18 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
         it "generates correct path when used with Breadcrumbs" $ withContext do
             let breadcrumb = breadcrumbLink "Test" TestAction
             breadcrumb.url `shouldBe` Just "/test/Test"
+    describe "customRoutes" $ do
+        it "parses custom route for overridden action" $ withContext do
+            runSession (testGet "performances/8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "auto-generated route still works for overridden action" $ withContext do
+            runSession (testGet "test/ShowPerformance?performanceId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "auto-generated route works for non-overridden actions" $ withContext do
+            runSession (testGet "test/ListPerformances") application >>= assertSuccess "ListPerformancesAction"
+        it "auto-generated POST route works for non-overridden actions" $ withContext do
+            let postReq url = request $ setPath defaultRequest { requestMethod = methodPost } url
+            runSession (postReq "test/CreatePerformance") application >>= assertSuccess "CreatePerformanceAction"
+    describe "customPathTo" $ do
+        it "generates custom path for overridden action" $ withContext do
+            pathTo (ShowPerformanceAction "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/performances/8dd57d19-490a-4323-8b94-6081ab93bf34"
+        it "generates auto path for non-overridden action" $ withContext do
+            pathTo ListPerformancesAction `shouldBe` "/test/ListPerformances"

@@ -8,7 +8,7 @@ module IHP.Controller.AccessDenied
 where
 
 import IHP.Prelude hiding (displayException)
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status403)
 import Network.Wai
 import Network.HTTP.Types.Header

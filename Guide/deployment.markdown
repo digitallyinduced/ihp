@@ -214,7 +214,7 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
 
             services.ihp = {
                 domain = "myihpapp.com";
-                migrations = ./Application/Migration;
+                migrations = ./Application/Migration; # Optional: Remove this line or set to null if you don't use migrations
                 schema = ./Application/Schema.sql;
                 fixtures = ./Application/Fixtures.sql;
                 sessionSecret = "xxx";
@@ -282,7 +282,7 @@ Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flak
 +
 +                        services.ihp = {
 +                            domain = "myihpapp.com";
-+                            migrations = ./Application/Migration;
++                            migrations = ./Application/Migration; # Optional: Remove this line or set to null if you don't use migrations
 +                            schema = ./Application/Schema.sql;
 +                            fixtures = ./Application/Fixtures.sql;
 +                            sessionSecret = "xxx";
@@ -648,7 +648,7 @@ The files that are bundled together to get our `prod.css` and `prod.js` are conf
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
 CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 
-JS_FILES += ${IHP}/static/vendor/jquery-3.6.0.slim.min.js
+JS_FILES += ${IHP}/static/vendor/jquery-4.0.0.slim.min.js
 JS_FILES += ${IHP}/static/vendor/timeago.js
 JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
@@ -715,7 +715,7 @@ scripts :: Html
 scripts = do
     when isDevelopment [hsx|
         <script id="livereload-script" src="/livereload.js"></script>
-        <script src="/vendor/jquery-3.6.0.slim.min.js"></script>
+        <script src="/vendor/jquery-4.0.0.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
         <script src="/vendor/popper-2.11.6.min.js"></script>
         <script src="/vendor/bootstrap.min.js"></script>

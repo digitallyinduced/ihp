@@ -20,6 +20,7 @@ final: prev: {
             ihp-log = localPackage "ihp-log";
             ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
+            ihp-schema-compiler = localPackage "ihp-schema-compiler";
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
@@ -35,6 +36,7 @@ final: prev: {
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
             wai-asset-path = localPackage "wai-asset-path";
             wai-flash-messages = localPackage "wai-flash-messages";
+            wai-request-params = localPackage "wai-request-params";
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";

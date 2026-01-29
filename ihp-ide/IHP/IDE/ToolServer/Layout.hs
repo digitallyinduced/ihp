@@ -20,7 +20,7 @@ toolServerLayout inner = [hsx|
         <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-        <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
+        <script src={assetPath "/vendor/jquery-4.0.0.min.js"}></script>
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
@@ -93,11 +93,11 @@ toolServerLayout inner = [hsx|
             <a
                 href="#"
                 class="nav-item"
-                data-container="body"
-                data-toggle="popover"
-                data-placement="right"
-                data-title="Questions, or need help with Haskell type errors?"
-                data-trigger="focus"
+                data-bs-container="body"
+                data-bs-toggle="popover"
+                data-bs-placement="right"
+                data-bs-title="Questions, or need help with Haskell type errors?"
+                data-bs-trigger="focus"
                 id="nav-help"
             >
                 {helpIcon}

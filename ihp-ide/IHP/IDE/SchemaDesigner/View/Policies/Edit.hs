@@ -15,7 +15,7 @@ data EditPolicyView = EditPolicyView
 
 instance View EditPolicyView where
     html EditPolicyView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>
@@ -36,7 +36,7 @@ instance View EditPolicyView where
                     <input type="hidden" name="using" value={using}/>
                     <input type="hidden" name="check" value={check}/>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <input
                             id="nameInput"
                             name="policyName"
@@ -47,7 +47,7 @@ instance View EditPolicyView where
                             />
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label for="using">Visible if:</label>
                         <textarea
                             id="using"
@@ -56,10 +56,10 @@ instance View EditPolicyView where
                             class="form-control sql-expression"
                             data-autocomplete-suggestions={autocompleteSuggestions}
                         >{using}</textarea>
-                        <small class="form-text text-muted">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
+                        <small class="form-text">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label for="using">Additionally, allow INSERT and UPDATE only if:</label>
                         <textarea
                             id="check"
@@ -68,10 +68,10 @@ instance View EditPolicyView where
                             class="form-control sql-expression"
                             data-autocomplete-suggestions={autocompleteSuggestions}
                         >{check}</textarea>
-                        <small class="form-text text-muted">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
+                        <small class="form-text">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Update Policy</button>
                     </div>
                 </form>

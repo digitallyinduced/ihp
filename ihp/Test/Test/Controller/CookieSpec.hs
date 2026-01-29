@@ -7,7 +7,7 @@ module Test.Controller.CookieSpec where
 import IHP.Prelude
 import Test.Hspec
 
-import IHP.RequestBodyMiddleware (RequestBody (..), requestBodyVaultKey)
+import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (addResponseHeadersFromContext)
 import IHP.Controller.Cookie

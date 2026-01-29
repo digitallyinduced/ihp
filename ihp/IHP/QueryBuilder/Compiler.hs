@@ -21,10 +21,11 @@ import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
+import qualified Data.List as List
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
-import qualified Control.DeepSeq as DeepSeq
+
 
 -- | Compiles a 'FilterOperator' to its SQL representation
 compileOperator :: FilterOperator -> ByteString
@@ -176,41 +177,42 @@ toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 
 toSQL' :: SQLQuery -> (ByteString, [Action])
 toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
-        (DeepSeq.force theQuery, theParams)
+        (theQuery, theParams)
     where
-        !theQuery =
-            ByteString.intercalate " " $
-                catMaybes
-                    [ Just "SELECT"
-                    , distinctClause
-                    , distinctOnClause
-                    , Just selectors
-                    , Just "FROM"
-                    , Just fromClause
-                    , joinClause
-                    , whereConditions'
-                    , orderByClause'
-                    , limitClause
-                    , offsetClause
-                    ]
+        !theQuery = LByteString.toStrict (Builder.toLazyByteString queryBuilder)
 
-        selectors :: ByteString
-        selectors = ByteString.intercalate ", " $ (catMaybes [queryIndex]) <> selectFromWithColumns
-            where
+        queryBuilder =
+            Builder.byteString "SELECT"
+            <> optionalB distinctClause
+            <> optionalB distinctOnClause
+            <> Builder.char8 ' ' <> selectorsBuilder
+            <> Builder.byteString " FROM"
+            <> Builder.char8 ' ' <> Builder.byteString selectFrom
+            <> optionalB joinClause
+            <> optionalB whereConditions'
+            <> optionalB orderByClause'
+            <> optionalB limitClause
+            <> optionalB offsetClause
+
+        optionalB :: Maybe ByteString -> Builder.Builder
+        optionalB Nothing = mempty
+        optionalB (Just bs) = Builder.char8 ' ' <> Builder.byteString bs
+        {-# INLINE optionalB #-}
+
+        selectorsBuilder :: Builder.Builder
+        selectorsBuilder =
+            let indexParts = case queryIndex of
+                    Just idx -> [Builder.byteString idx]
+                    Nothing -> []
                 -- Generates a string like: `posts.id, posts.title, posts.body`
-                selectFromWithColumns :: [ByteString]
-                selectFromWithColumns =
-                    columns
-                    |> map (\column -> selectFrom <> "." <> column)
-        fromClause :: ByteString
-        fromClause = selectFrom
+                selectFromB = Builder.byteString selectFrom
+                columnParts = map (\column -> selectFromB <> Builder.char8 '.' <> Builder.byteString column) columns
+            in mconcat $ List.intersperse (Builder.byteString ", ") (indexParts <> columnParts)
 
         !theParams =
             case whereCondition sqlQuery of
                 Just condition -> compileConditionArgs condition
                 Nothing -> mempty
-
-        toQualifiedName unqualifiedName = selectFrom <> "." <> unqualifiedName
 
         whereConditions' = case whereCondition sqlQuery of
                 Just condition -> Just $ "WHERE " <> compileConditionQuery condition
@@ -225,7 +227,6 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
         buildJoinClause :: [Join] -> Maybe ByteString
         buildJoinClause [] = Nothing
         buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <> " = " <>table joinClause <> "." <> otherJoinColumn joinClause <> maybe "" (" " <>) (buildJoinClause joinClauses)
-
 
 {-# INLINE toSQL' #-}
 

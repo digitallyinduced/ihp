@@ -9,13 +9,13 @@ module IHP.Test.Mocking where
 import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
+import qualified Network.HTTP.Types                        as HTTP
 import qualified Network.HTTP.Types.Status                 as HTTP
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
-import qualified IHP.AutoRefresh.Types                     as AutoRefresh
-import           IHP.RequestBodyMiddleware                 (RequestBody (..), Respond)
+import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
@@ -29,41 +29,48 @@ import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session
 import qualified Data.Serialize as Serialize
-import qualified IHP.PGListener as PGListener
 import IHP.Controller.Session (sessionVaultKey)
-import qualified Network.Wai.Middleware.Approot as Approot
-import qualified Network.Wai.Test as WaiTest
-import IHP.RequestVault (modelContextMiddleware, frameworkConfigMiddleware, RequestBody (..), requestBodyVaultKey)
-import IHP.RequestBodyMiddleware (requestBodyMiddleware)
+import IHP.Server (initMiddlewareStack)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
 data MockContext application = InitControllerContext application => MockContext
     { modelContext :: ModelContext
+    , frameworkConfig :: FrameworkConfig
     , mockRequest :: Request
     , mockRespond :: Respond
     , application :: application
     }
 
+-- | Run a request through the test middleware stack.
+-- This applies the same middlewares that IHP.Server uses (with PGListener disabled).
+-- Used for initial setup only - actual request params are handled in callActionWithParams.
+runTestMiddlewares :: FrameworkConfig -> ModelContext -> Request -> IO Request
+runTestMiddlewares frameworkConfig modelContext baseRequest = do
+    -- Capture the modified request after running through middlewares
+    resultRef <- newIORef baseRequest
+    let captureApp req respond = do
+            writeIORef resultRef req
+            respond (responseLBS HTTP.status200 [] "")
+
+    -- Use the same middleware stack as production, but without PGListener
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+
+    -- Run request through middleware stack
+    _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
+
+    readIORef resultRef
+
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
    frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   let databaseConnection = undefined
    logger <- newLogger def { level = Warn } -- don't log queries
    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
 
-   let sessionVault = Vault.insert sessionVaultKey mempty Vault.empty
-
-   -- Apply middlewares to populate the vault with modelContext, frameworkConfig, and requestBody
-   requestRef <- newIORef (error "Internal test error: Request should have been captured by middleware")
-   let captureApp req _ = writeIORef requestRef req >> pure ResponseReceived
-   let transformedApp = frameworkConfigMiddleware frameworkConfig
-                      $ modelContextMiddleware modelContext
-                      $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions captureApp
-   _responseReceived <- transformedApp (defaultRequest {vault = sessionVault}) (\_ -> pure ResponseReceived)
-   mockRequest <- readIORef requestRef
-
-   let mockRespond = \resp -> pure ResponseReceived
+   -- Start with a minimal request - the middleware stack will set up session, etc.
+   let baseRequest = defaultRequest
+   mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
+   let mockRespond = const (pure ResponseReceived)
 
    pure MockContext{..}
 
@@ -92,20 +99,42 @@ callAction controller = callActionWithParams controller []
 --
 callActionWithParams :: forall application controller. (Controller controller, ContextParameters application, Typeable application, Typeable controller) => controller -> [Param] -> IO Response
 callActionWithParams controller params = do
-    approotMiddleware <- Approot.envFallback
-    let ihpWaiApp waiRequest waiRespond = do
-            -- Override the request body with the provided params
-            let requestWithBody = waiRequest { Wai.vault = Vault.insert requestBodyVaultKey (FormBody params []) waiRequest.vault }
-            let ?request = requestWithBody
-            let ?respond = waiRespond
+    let MockContext { frameworkConfig, modelContext } = ?mocking
+
+    -- Build request with real form body (let middleware parse it)
+    requestBody <- newIORef (HTTP.renderSimpleQuery False params)
+    let readBody = atomicModifyIORef requestBody (\body -> ("", body))
+    let baseRequest = ?request
+            { Wai.requestBody = readBody
+            , Wai.requestHeaders = (HTTP.hContentType, "application/x-www-form-urlencoded") : filter ((/= HTTP.hContentType) . fst) (Wai.requestHeaders ?request)
+            }
+
+    -- Capture the response
+    responseRef <- newIORef Nothing
+    let captureRespond response = do
+            writeIORef responseRef (Just response)
+            pure ResponseReceived
+
+    -- Check if withUser set a mock session that we need to preserve
+    let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
+
+    -- Create the controller app
+    let controllerApp req respond = do
+            -- Restore mock session from withUser if it was set
+            let req' = case mockSession of
+                    Just session -> req { Wai.vault = Vault.insert sessionVaultKey session (Wai.vault req) }
+                    Nothing -> req
+            let ?request = req'
+            let ?respond = respond
             runActionWithNewContext controller
 
-        allMiddlewares app = approotMiddleware app
+    -- Run through middleware stack (like the real server does)
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    _ <- middlewareStack controllerApp baseRequest captureRespond
 
-    simpleResponse <- WaiTest.withSession (allMiddlewares ihpWaiApp) do
-        WaiTest.request ?mocking.mockRequest
-
-    pure $ Wai.responseLBS simpleResponse.simpleStatus simpleResponse.simpleHeaders simpleResponse.simpleBody
+    readIORef responseRef >>= \case
+        Just response -> pure response
+        Nothing -> error "callActionWithParams: No response was returned by the controller"
 
 -- | Run a Job in a mock environment
 --
@@ -204,7 +233,7 @@ withUser user callback =
         insertSession key value = pure ()
 
         newVault = Vault.insert sessionVaultKey newSession (Wai.vault currentRequest)
-        currentRequest = ?mocking.mockRequest
+        currentRequest = ?request
 
         sessionValue = Serialize.encode (user.id)
         sessionKey = cs (Session.sessionKey @user)

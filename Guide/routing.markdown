@@ -172,6 +172,42 @@ When using multiple applications in your IHP project, e.g. having an admin back-
 
 This prefixing has special handling for the `Web` module so that all controllers in the default `Web` module don't have a prefix.
 
+## Overriding Individual AutoRoute Actions
+
+Sometimes you want a custom URL for just one or two actions, but the default AutoRoute URLs are fine for the rest. Instead of manually implementing `CanRoute` and `HasPath` for every action, you can override individual actions using `customRoutes` and `customPathTo`:
+
+```haskell
+data PostsController
+    = PostsAction
+    | NewPostAction
+    | ShowPostAction { postId :: !(Id Post) }
+    | CreatePostAction
+    | EditPostAction { postId :: !(Id Post) }
+    | UpdatePostAction { postId :: !(Id Post) }
+    | DeletePostAction { postId :: !(Id Post) }
+
+instance AutoRoute PostsController where
+    customRoutes = do
+        string "/posts/"
+        postId <- parseId
+        endOfInput
+        onlyAllowMethods [GET, HEAD]
+        pure ShowPostAction { postId }
+
+    customPathTo ShowPostAction { postId } = Just ("/posts/" <> tshow postId)
+    customPathTo _ = Nothing
+```
+
+With this setup:
+
+- `ShowPostAction` is accessible at `/posts/{postId}` (the custom URL)
+- `ShowPostAction` is also still accessible at `/ShowPost?postId={postId}` (the auto-generated URL, as a fallback)
+- All other actions (`PostsAction`, `NewPostAction`, `CreatePostAction`, etc.) keep their auto-generated routes unchanged
+- `pathTo ShowPostAction { postId }` generates `/posts/{postId}` (the custom URL)
+- `pathTo PostsAction` generates `/Posts` (the auto-generated URL as usual)
+
+The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
+
 ## Custom Routing
 
 Sometimes you have special needs for your routing. For this case, IHP provides a lower-level routing API on which [`AutoRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute) is built.

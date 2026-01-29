@@ -18,7 +18,7 @@ import Network.Wai.Parse (FileInfo, fileContent)
 import qualified Network.Wai as Wai
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import IHP.RequestBodyMiddleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.Controller.Context
 import qualified System.Process as Process
 

@@ -1,9 +1,9 @@
 {-|
-Module: IHP.IDE.SchemaDesigner.Parser
+Module: IHP.SchemaCompiler.Parser
 Description: IHP-specific schema file utilities
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.IDE.SchemaDesigner.Parser
+module IHP.SchemaCompiler.Parser
 ( parseSchemaSql
 , schemaFilePath
 ) where

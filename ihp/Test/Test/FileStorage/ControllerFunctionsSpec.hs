@@ -8,7 +8,7 @@ import IHP.FrameworkConfig
 import Network.Wai as Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import Network.Wai.Parse (FileInfo(..))
-import IHP.RequestBodyMiddleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.FileStorage.Types
 import IHP.FileStorage.Config
 import qualified Data.Vault.Lazy as Vault

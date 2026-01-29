@@ -5,7 +5,7 @@ import IHP.NameSupport
 import IHP.HaskellSupport
 import qualified Data.Text as Text
 import qualified Data.Char as Char
-import qualified IHP.IDE.SchemaDesigner.Parser as SchemaDesigner
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
@@ -119,11 +119,26 @@ generateController schema config =
             <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
             <> "        render EditView { .. }\n"
 
-        modelFields :: [Text]
-        modelFields = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
-                |> mapMaybe (fieldsForTable schema)
+        modelColumns :: [Column]
+        modelColumns = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> mapMaybe (columnsForTable schema)
                 |> headMay
                 |> fromMaybe []
+
+        modelFields :: [Text]
+        modelFields = modelColumns
+                |> map (.name)
+                |> map columnNameToFieldName
+
+        foreignKeys :: [(Text, Text)]
+        foreignKeys = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> map (foreignKeysForTable schema)
+                |> concat
+
+        extraUniqueColumns :: [Text]
+        extraUniqueColumns = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> map (uniqueColumnsForTable schema)
+                |> concat
 
         updateAction =
             ""
@@ -163,8 +178,39 @@ generateController schema config =
             ""
             <> "build" <> singularName <> " " <> modelVariableSingular <> " = " <> modelVariableSingular <> "\n"
             <> "    |> fill " <> toTypeLevelList modelFields <> "\n"
+            <> validationLines
 
         toTypeLevelList values = "@'" <> (values |> tshow |> Text.replace "," ", ")
+
+        validationLines :: Text
+        validationLines =
+            let
+                fkColumnNames = map fst foreignKeys
+                isTextLike = isTextLikeType . (.columnType)
+                isTextLikeType PText = True
+                isTextLikeType (PVaryingN _) = True
+                isTextLikeType (PCharacterN _) = True
+                isTextLikeType _ = False
+
+                validationsFor col =
+                    let fieldName = columnNameToFieldName col.name
+                        nonEmptyLine
+                            | col.notNull && isTextLike col && col.name `notElem` fkColumnNames
+                            = ["    |> validateField #" <> fieldName <> " nonEmpty"]
+                            | otherwise = []
+                        emailLine
+                            | "email" `Text.isSuffixOf` col.name && isTextLike col
+                            = ["    |> validateField #" <> fieldName <> " isEmail"]
+                            | otherwise = []
+                        uniqueLine
+                            | col.name `elem` extraUniqueColumns
+                            = ["    -- TODO: |> validateIsUnique #" <> fieldName]
+                            | otherwise = []
+                    in nonEmptyLine <> emailLine <> uniqueLine
+            in
+                case concatMap validationsFor modelColumns of
+                    [] -> ""
+                    lines -> intercalate "\n" lines <> "\n"
     in
         ""
         <> "module " <> moduleName <> " where" <> "\n"

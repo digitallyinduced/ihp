@@ -22,19 +22,11 @@ data-files:
     , static/*.svg
     
     , static/vendor/*.min.css
-    , static/vendor/*.min.css.map
     , static/vendor/*.min.js
     , static/vendor/*.min.js.map
     , static/vendor/*.js
 
-    , static/vendor/jquery-3.2.1.slim.min.js
-    , static/vendor/jquery-3.5.0.min.js
-    , static/vendor/jquery-3.6.0.min.js
-    , static/vendor/jquery-3.6.0.slim.min.js
     , static/vendor/popper-2.11.6.min.js
-
-    , static/vendor/bootstrap-5.2.1/*.min.css
-    , static/vendor/bootstrap-5.2.1/*.min.js
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
@@ -136,6 +128,7 @@ common shared-properties
             , wai-flash-messages
             , slugger
             , ihp-imagemagick
+            , wai-request-params
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -161,7 +154,8 @@ library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
-        IHP.AuthSupport.Authentication
+        IHP.ActionType
+        , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
         , IHP.Controller.FileUpload
@@ -207,7 +201,7 @@ library
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
-        , IHP.RequestBodyMiddleware
+        , IHP.Static
         , IHP.ValidationSupport
         , IHP.ViewPrelude
         , IHP.ViewSupport

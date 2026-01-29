@@ -7,7 +7,7 @@ module Test.Controller.ContextSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Controller.Context
-import IHP.RequestBodyMiddleware (RequestBody (..), Respond)
+import Wai.Request.Params.Middleware (RequestBody (..), Respond)
 import Control.Exception
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Test (defaultRequest)

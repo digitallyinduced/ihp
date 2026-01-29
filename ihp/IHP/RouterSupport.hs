@@ -33,10 +33,10 @@ CanRoute (..)
 import Prelude hiding (take)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe, catMaybes, mapMaybe)
 import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), empty)
 import Text.Read (readMaybe)
 import Control.Exception.Safe (SomeException)
 import Control.Exception (evaluate)
@@ -44,7 +44,7 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Network.Wai
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
@@ -59,7 +59,6 @@ import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
 import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.Char as Char
 import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
@@ -79,6 +78,7 @@ import IHP.Controller.Param
 import Data.Kind
 import IHP.Environment
 import qualified Data.TMap as TypeMap
+import IHP.ActionType (setActionType)
 
 runAction'
     :: forall application controller
@@ -90,9 +90,9 @@ runAction'
        )
      => controller -> Application
 runAction' controller waiRequest waiRespond = do
-    let ?request = waiRequest
+    let ?request = setActionType controller waiRequest
     let ?respond = waiRespond
-    let ?modelContext = waiRequest.modelContext
+    let ?modelContext = ?request.modelContext
     contextOrErrorResponse <- newContextForAction controller
     case contextOrErrorResponse of
         Left res -> res
@@ -153,12 +153,13 @@ parseFuncs parseIdType = [
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
+                    Just Refl -> case ByteString.readInt queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInt queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                     Just Refl -> Right Nothing
@@ -166,12 +167,13 @@ parseFuncs parseIdType = [
 
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Integer) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
+                    Just Refl -> case ByteString.readInteger queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInteger queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                     Just Refl -> Right Nothing
@@ -205,18 +207,16 @@ parseFuncs parseIdType = [
             -- Try and parse @[Int]@. If value is not present then default to empty list.
             \queryValue -> case eqT :: Maybe (d :~: [Int]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInt b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
 
             \queryValue -> case eqT :: Maybe (d :~: [Integer]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> Text.splitOn "," (cs queryValue)
-                        |> map (readMaybe . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe (\b -> case ByteString.readInteger b of Just (n, "") -> Just n; _ -> Nothing)
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
@@ -224,11 +224,8 @@ parseFuncs parseIdType = [
             -- Try and parse a raw [UUID]
             \queryValue -> case eqT :: Maybe (d :~: [UUID]) of
                 Just Refl -> case queryValue of
-                    Just queryValue -> queryValue
-                        |> cs
-                        |> Text.splitOn ","
-                        |> map (fromASCIIBytes . cs)
-                        |> catMaybes
+                    Just queryValue -> ByteString.split ',' queryValue
+                        |> mapMaybe fromASCIIBytes
                         |> Right
                     Nothing -> Right []
                 Nothing -> Left NotMatched,
@@ -335,6 +332,9 @@ class Data controller => AutoRoute controller where
             allConstructors :: [Constr]
             allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
 
+            prefix :: ByteString
+            prefix = Text.encodeUtf8 (actionPrefixText @controller)
+
             query :: Query
             query = queryString ?request
 
@@ -343,9 +343,6 @@ class Data controller => AutoRoute controller where
 
             parseAction :: Constr -> Parser controller
             parseAction constr = let
-                    prefix :: ByteString
-                    prefix = ByteString.pack (actionPrefix @controller)
-
                     actionName = ByteString.pack (showConstr constr)
 
                     actionPath :: ByteString
@@ -405,54 +402,95 @@ class Data controller => AutoRoute controller where
                 _ -> [GET, POST, HEAD]
     {-# INLINE allowedMethodsForAction #-}
 
+    -- | Custom route parser for overriding individual action routes.
+    --
+    -- Use this to provide custom URL patterns for specific actions while keeping
+    -- the auto-generated routes for all other actions.
+    --
+    -- The custom routes are tried first, before the auto-generated routes.
+    -- The auto-generated route for the overridden action still works as a fallback.
+    --
+    -- __Example:__
+    --
+    -- > instance AutoRoute PostsController where
+    -- >     customRoutes = do
+    -- >         string "/posts/"
+    -- >         postId <- parseId
+    -- >         endOfInput
+    -- >         onlyAllowMethods [GET, HEAD]
+    -- >         pure ShowPostAction { postId }
+    --
+    customRoutes :: (?request :: Request, ?respond :: Respond) => Parser controller
+    customRoutes = empty
+    {-# INLINE customRoutes #-}
+
+    -- | Custom path generation for overriding individual action URLs.
+    --
+    -- Use this together with 'customRoutes' to generate custom URLs for specific
+    -- actions while keeping the auto-generated URLs for all other actions.
+    --
+    -- Return @Just path@ for actions with custom URLs, or @Nothing@ to fall back
+    -- to the auto-generated URL.
+    --
+    -- __Example:__
+    --
+    -- > instance AutoRoute PostsController where
+    -- >     customPathTo ShowPostAction { postId } = Just ("/posts/" <> tshow postId)
+    -- >     customPathTo _ = Nothing
+    --
+    customPathTo :: controller -> Maybe Text
+    customPathTo _ = Nothing
+    {-# INLINE customPathTo #-}
+
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.
 --
 -- All controllers defined in the `Web/` directory don't have a prefix at all.
 --
 -- E.g. controllers in the `Admin/` directory are prefixed with @/admin/@.
-actionPrefix :: forall (controller :: Type). Typeable controller => String
-actionPrefix =
-        case moduleName of
-            ('W':'e':'b':'.':_) -> "/"
-            ('I':'H':'P':'.':_) -> "/"
-            ("") -> "/"
-            moduleName -> "/" <> let prefix = getPrefix "" moduleName in map Char.toLower prefix <> "/"
+actionPrefixText :: forall (controller :: Type). Typeable controller => Text
+actionPrefixText
+    | "Web." `Text.isPrefixOf` moduleName = "/"
+    | "IHP." `Text.isPrefixOf` moduleName = "/"
+    | Text.null moduleName = "/"
+    | otherwise = "/" <> Text.toLower (getPrefix moduleName) <> "/"
     where
-        moduleName :: String
-        moduleName = Typeable.typeOf (error "unreachable" :: controller)
+        moduleName :: Text
+        moduleName = Text.pack $ Typeable.typeOf (error "unreachable" :: controller)
                 |> Typeable.typeRepTyCon
                 |> Typeable.tyConModule
 
-        -- E.g. getPrefix "" "Admin.User" == "Admin"
-        getPrefix prefix ('.':_) = prefix
-        getPrefix prefix (x:xs) = getPrefix (prefix <> [x]) xs
-        getPrefix prefix [] = prefix
+        getPrefix :: Text -> Text
+        getPrefix t = fst (Text.breakOn "." t)
+{-# INLINE actionPrefixText #-}
 
-{-# INLINE actionPrefix #-}
-
--- | Strips the "Action" at the end of action names
+-- | Strips the "Action" suffix from action names
 --
--- >>> stripActionSuffixString "ShowUserAction"
+-- >>> stripActionSuffixByteString "ShowUserAction"
 -- "ShowUser"
 --
--- >>> stripActionSuffixString "UsersAction"
+-- >>> stripActionSuffixByteString "UsersAction"
 -- "UsersAction"
 --
--- >>> stripActionSuffixString "User"
+-- >>> stripActionSuffixByteString "User"
 -- "User"
-stripActionSuffixString :: String -> String
-stripActionSuffixString string =
-    case string of
-        "Action" -> ""
-        (x:xs) -> x : stripActionSuffixString xs
-        "" -> ""
-{-# INLINE stripActionSuffixString #-}
-
--- | Like 'stripActionSuffixString' but for ByteStrings
 stripActionSuffixByteString :: ByteString -> ByteString
 stripActionSuffixByteString actionName = fromMaybe actionName (ByteString.stripSuffix "Action" actionName)
 {-# INLINE stripActionSuffixByteString #-}
+
+-- | Strips the "Action" suffix from action names
+--
+-- >>> stripActionSuffixText "ShowUserAction"
+-- "ShowUser"
+--
+-- >>> stripActionSuffixText "UsersAction"
+-- "UsersAction"
+--
+-- >>> stripActionSuffixText "User"
+-- "User"
+stripActionSuffixText :: Text -> Text
+stripActionSuffixText actionName = fromMaybe actionName (Text.stripSuffix "Action" actionName)
+{-# INLINE stripActionSuffixText #-}
 
 
 -- | Returns the create action for a given controller.
@@ -497,7 +535,7 @@ updateAction =
 {-# INLINE updateAction #-}
 
 instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => CanRoute controller where
-    parseRoute' = autoRoute
+    parseRoute' = customRoutes <|> autoRoute
     {-# INLINABLE parseRoute' #-}
 
 -- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
@@ -528,13 +566,15 @@ instance QueryParam a => QueryParam [a] where
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
     {-# INLINABLE pathTo #-}
-    pathTo !action = Text.pack (appPrefix <> actionName <> arguments)
+    pathTo !action = case customPathTo action of
+        Just path -> path
+        Nothing -> appPrefix <> actionName <> Text.pack arguments
         where
-            appPrefix :: String
-            !appPrefix = actionPrefix @controller
+            appPrefix :: Text
+            !appPrefix = actionPrefixText @controller
 
-            actionName :: String
-            !actionName = stripActionSuffixString $! showConstr constructor
+            actionName :: Text
+            !actionName = stripActionSuffixText $! Text.pack (showConstr constructor)
 
             constructor = toConstr action
 
@@ -803,7 +843,7 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
 
 -- | Defines the start page for a router (when @\/@ is requested).
 startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?request :: Request, ?respond :: Respond, Typeable application, Typeable action) => action -> Parser Application
-startPage action = get (ByteString.pack (actionPrefix @action)) action
+startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 {-# INLINABLE startPage #-}
 
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
@@ -875,7 +915,7 @@ parseRouteWithId = do
 
 catchAll :: forall action application. (?request :: Request, ?respond :: Respond, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
 catchAll action = do
-    string (ByteString.pack (actionPrefix @action))
+    string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
     pure (runAction' @application action)
 {-# INLINABLE catchAll #-}

@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.AutoRefresh.Types where
 
 import IHP.Prelude
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Control.Concurrent.MVar (MVar)
 import qualified IHP.PGListener as PGListener
 import Network.Wai (Request)

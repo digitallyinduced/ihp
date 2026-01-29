@@ -174,6 +174,7 @@ ihpFlake:
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
                 };
 
@@ -190,6 +191,7 @@ ihpFlake:
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
                 };
 
@@ -226,10 +228,9 @@ ihpFlake:
                     name = "ihp-schema";
                     src = ihp;
                     phases = [ "unpackPhase" "installPhase" ];
-                    nativeBuildInputs = [ghcCompiler.ihp-ide.data];
                     installPhase = ''
                         mkdir $out
-                        cp ${hsDataDir ghcCompiler.ihp-ide.data}/IHPSchema.sql $out/
+                        cp ${ihp}/ihp-schema-compiler/data/IHPSchema.sql $out/
                     '';
                     allowedReferences = [];
                 };
@@ -284,7 +285,7 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
                             buildPhase = ''
                                 # shellcheck disable=SC2046
                                 make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
@@ -329,7 +330,7 @@ ihpFlake:
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    IHP_STATIC=${hsDataDir ghcCompiler.ihp.data}/static ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.ihp.exec = "start";
@@ -346,21 +347,22 @@ ihpFlake:
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
-                    schema = pkgs.runCommand "ihp-schema" {} ''
+                    schema = pkgs.runCommand "ihp-schema" {} (''
                         touch $out
 
                         echo "-- IHPSchema.sql" >> $out
                         echo "" >> $out
-                        cat ${hsDataDir ghcCompiler.ihp-ide.data + "/IHPSchema.sql"} >> $out
+                        cat ${ihp}/ihp-schema-compiler/data/IHPSchema.sql >> $out
                         echo "" >> $out
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out
                         cat ${cfg.projectPath + "/Application/Schema.sql"} >> $out
+                    '' + (if builtins.pathExists (cfg.projectPath + "/Application/Fixtures.sql") then ''
                         echo "" >> $out
                         echo "-- Application/Fixtures.sql" >> $out
                         echo "" >> $out
                         cat ${cfg.projectPath + "/Application/Fixtures.sql"} >> $out
-                    '';
+                    '' else ""));
                     }
                 ];
 
@@ -387,7 +389,11 @@ ihpFlake:
                         --option sandbox false \
                         --option extra-substituters "https://digitallyinduced.cachix.org" \
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
-                    ssh $1 systemctl start migrate
+                    
+                    # Only start migrate service if it exists
+                    if ssh $1 systemctl cat migrate.service >/dev/null 2>&1; then
+                        ssh $1 systemctl start migrate
+                    fi
                 '';
 
                 overlays = [ihp.overlays.default];

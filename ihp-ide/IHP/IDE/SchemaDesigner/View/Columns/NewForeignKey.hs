@@ -14,7 +14,7 @@ data NewForeignKeyView = NewForeignKeyView
 
 instance View NewForeignKeyView where
     html NewForeignKeyView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
@@ -30,7 +30,7 @@ instance View NewForeignKeyView where
                     <input type="hidden" name="tableName" value={tableName}/>
                     <input type="hidden" name="columnName" value={columnName}/>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Reference Table:</label>
                         <div class="col-sm-10">
                             <select name="referenceTable" class="form-control select2" autofocus="autofocus">
@@ -39,14 +39,14 @@ instance View NewForeignKeyView where
                         </div>
                     </div>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="constraintName" type="text" class="form-control" value={tableName <> "_ref_" <> columnName}/>
                         </div>
                     </div>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">On Delete:</label>
                         <div class="col-sm-10">
                             <select name="onDelete" class="form-control select2">
@@ -59,7 +59,7 @@ instance View NewForeignKeyView where
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Add Constraint</button>
                     </div>
                 </form>

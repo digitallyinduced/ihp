@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run, application) where
+module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
@@ -36,7 +36,8 @@ import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 
 import IHP.Controller.NotFound (handleNotFound)
-import IHP.RequestBodyMiddleware (requestBodyMiddleware)
+import IHP.Static (staticRouteShortcut)
+import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env
@@ -52,49 +53,23 @@ run configBuilder = do
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
         IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
-            approotMiddleware <- Approot.envFallback
-            assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware
-                    -- | The asset version is used for cache busting
-                    --
-                    -- If you deploy IHP on your own, you should provide the IHP_ASSET_VERSION
-                    -- env variable with e.g. the git commit hash of the production build.
-                    --
-                    -- If IHP cannot figure out an asset version, it will fallback to the static
-                    -- string @"dev"@.
-                    --
-                    "IHP_ASSET_VERSION"
-                    -- | Base URL used by the 'assetPath' helper. Useful to move your static files to a CDN                    
-                    "IHP_ASSET_BASEURL"
-
             withInitalizers frameworkConfig modelContext do
                 PGListener.withPGListener modelContext \pgListener -> do
-                    autoRefreshMiddleware <- AutoRefresh.initAutoRefreshMiddleware pgListener
-
                     let ?modelContext = modelContext
 
-                    sessionMiddleware <- initSessionMiddleware frameworkConfig
+                    middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
                     staticApp <- initStaticApp frameworkConfig
-                    let corsMiddleware = initCorsMiddleware frameworkConfig
                     let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
-                    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
 
                     useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
+
+                    let fullApp = middleware $ application staticApp requestLoggerMiddleware
+                    let staticShortcut = staticRouteShortcut staticApp fullApp
 
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
-                        . customMiddleware
-                        . corsMiddleware
-                        . methodOverridePost
-                        . sessionMiddleware
-                        . approotMiddleware
-                        . autoRefreshMiddleware
-                        . modelContextMiddleware modelContext
-                        . frameworkConfigMiddleware frameworkConfig
-                        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
-                        . pgListenerMiddleware pgListener
-                        . assetPathMiddleware
-                        $ application staticApp requestLoggerMiddleware
+                        $ staticShortcut
 
 {-# INLINABLE run #-}
 
@@ -115,7 +90,11 @@ withBackgroundWorkers pgListener frameworkConfig app = do
 -- - In production mode: We cache files forever. IHP's 'assetPath' helper will add a hash to files to cache bust when something has changed.
 initStaticApp :: FrameworkConfig -> IO Application
 initStaticApp frameworkConfig = do
-    frameworkStaticDir <- getDataFileName "static"
+    frameworkStaticDir <- do
+        ihpStaticOverride <- EnvVar.envOrNothing "IHP_STATIC"
+        case ihpStaticOverride of
+            Just dir -> pure dir
+            Nothing -> getDataFileName "static"
     appStaticDir <- EnvVar.envOrDefault "APP_STATIC" "static/"
     let
         maxAge = case frameworkConfig.environment of
@@ -156,6 +135,37 @@ initCorsMiddleware :: FrameworkConfig -> Middleware
 initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePolicy of
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
+
+-- | Initialize the complete middleware stack
+--
+-- Pass Nothing for PGListener in tests (auto-refresh will be disabled)
+-- Pass Just pgListener in production for full functionality
+initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> IO Middleware
+initMiddlewareStack frameworkConfig modelContext maybePgListener = do
+    sessionMiddleware <- initSessionMiddleware frameworkConfig
+    approotMiddleware <- Approot.envFallback
+    assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware "IHP_ASSET_VERSION" "IHP_ASSET_BASEURL"
+
+    autoRefreshMiddleware <- case maybePgListener of
+        Just pgListener -> AutoRefresh.initAutoRefreshMiddleware pgListener
+        Nothing -> pure id
+
+    let corsMiddleware = initCorsMiddleware frameworkConfig
+    let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+    let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
+
+    pure $
+        customMiddleware
+        . corsMiddleware
+        . methodOverridePost
+        . sessionMiddleware
+        . approotMiddleware
+        . autoRefreshMiddleware
+        . modelContextMiddleware modelContext
+        . frameworkConfigMiddleware frameworkConfig
+        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+        . pgListenerMw
+        . assetPathMiddleware
 
 application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do

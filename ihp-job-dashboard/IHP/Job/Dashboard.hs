@@ -34,7 +34,7 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
-import IHP.RequestBodyMiddleware (Respond)
+import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
@@ -147,7 +147,7 @@ instance JobsDashboard '[] where
     makeDashboard = pure $ SomeView $ HtmlView [hsx|
         <script>
             function initPopover() {
-                $('[data-toggle="popover"]').popover({ trigger: 'hover click' })
+                $('[data-bs-toggle="popover"]').popover({ trigger: 'hover click' })
             }
             $(document).on('ready turbolinks:load', initPopover);
             $(initPopover);

@@ -13,6 +13,7 @@
 , optimizationLevel ? "2"
 , filter
 , ihp-env-var-backwards-compat
+, ihp-static
 , static
 }:
 
@@ -34,7 +35,7 @@ let
             name = "${appName}-models-source";
         };
         nativeBuildInputs = [
-            (ghc.ghcWithPackages (p: [ p.ihp-ide ])) # Needed for build-generated-code
+            (ghc.ghcWithPackages (p: [ p.ihp-schema-compiler ])) # Needed for build-generated-code
             pkgs.gnumake # Needed for make print-ghc-options
         ];
         buildPhase = ''
@@ -291,12 +292,13 @@ CABAL_EOF
             paths = [ runServer allScripts ] ++ pkgs.lib.optional hasJobs runJobs;
         };
 in
-    pkgs.runCommandNoCC appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+    pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
                 --set-default IHP_ASSET_VERSION $INPUT_HASH \
                 --set-default APP_STATIC ${static} \
+                --set-default IHP_STATIC ${ihp-static} \
                 --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
 
             # Copy job runner binary to bin/ if we built it
@@ -304,6 +306,7 @@ in
                 makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
                     --set-default IHP_ASSET_VERSION $INPUT_HASH \
                     --set-default APP_STATIC ${static} \
+                    --set-default IHP_STATIC ${ihp-static} \
                     --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
 

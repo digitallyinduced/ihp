@@ -22,15 +22,15 @@ instance View EditView where
 renderForm :: Migration -> Text -> Html
 renderForm migration sqlStatements = [hsx|
 <form method="POST" action={UpdateMigrationAction (migration.revision)}>
-    <div class="form-group" id="form-group-migration_sqlStatements">
+    <div class="mb-3" id="form-group-migration_sqlStatements">
         <textarea name="sqlStatements" placeholder="" id="migration_sqlStatements" class="form-control">{sqlStatements}</textarea>
     </div>
     <div id="migration_sqlStatements_ace"/>
 
     <button
         class="btn btn-primary"
-        data-toggle="tooltip"
-        data-placement="right"
+        data-bs-toggle="tooltip"
+        data-bs-placement="right"
         title="⌘ Enter"
         >Save Migration</button>
 </form>

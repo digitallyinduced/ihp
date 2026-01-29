@@ -7,6 +7,7 @@
 :set -iihp
 :set -iihp/Test
 :set -iihp-ide
+:set -iihp-schema-compiler
 :set -iihp-postgres-parser
 :set -iihp-mail
 :set -iihp-auth-confirmation
@@ -16,6 +17,7 @@
 :set -iihp-hspec
 :set -iwai-asset-path
 :set -iwai-flash-messages
+:set -iwai-request-params
 :set -threaded
 
 :set -XGHC2021
