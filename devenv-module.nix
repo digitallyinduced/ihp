@@ -145,6 +145,28 @@ that is defined in flake-module.nix
         packages = {
             default = pkgs.ghc.ihp;
             ide = pkgs.ghc.ihp-ide;
+
+            ihp-static =
+                let
+                    jquery-min = pkgs.fetchurl {
+                        url = "https://code.jquery.com/jquery-3.7.1.min.js";
+                        sha256 = "06hb7y19azzim1k53d1gw78fq6whw7s1qj7hpxf08sqz4kfr76pw";
+                    };
+                    jquery-slim-min = pkgs.fetchurl {
+                        url = "https://code.jquery.com/jquery-3.7.1.slim.min.js";
+                        sha256 = "1ks0qcs51imwgxf88j1g89isdcznxzc50iv5wjb90fky82ryyqcj";
+                    };
+                in
+                    pkgs.symlinkJoin {
+                        name = "ihp-static";
+                        paths = [
+                            (hsDataDir pkgs.ghc.ihp.data + "/static")
+                            (pkgs.linkFarm "ihp-vendor-js" [
+                                { name = "vendor/jquery-3.7.1.min.js"; path = jquery-min; }
+                                { name = "vendor/jquery-3.7.1.slim.min.js"; path = jquery-slim-min; }
+                            ])
+                        ];
+                    };
             schema-compiler = pkgs.ghc.ihp-schema-compiler;
             ssc = pkgs.ghc.ihp-ssc;
             migrate = pkgs.ghc.ihp-migrate;

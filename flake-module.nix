@@ -174,6 +174,7 @@ ihpFlake:
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
                 };
 
@@ -190,6 +191,7 @@ ihpFlake:
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
                 };
 
@@ -328,7 +330,7 @@ ihpFlake:
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    IHP_STATIC=${hsDataDir ghcCompiler.ihp.data}/static ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.ihp.exec = "start";

@@ -27,10 +27,6 @@ data-files:
     , static/vendor/*.min.js.map
     , static/vendor/*.js
 
-    , static/vendor/jquery-3.2.1.slim.min.js
-    , static/vendor/jquery-3.5.0.min.js
-    , static/vendor/jquery-3.6.0.min.js
-    , static/vendor/jquery-3.6.0.slim.min.js
     , static/vendor/popper-2.11.6.min.js
 
     , static/vendor/bootstrap-5.2.1/*.min.css
