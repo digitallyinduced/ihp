@@ -38,7 +38,6 @@ module IHP.ModelSupport.Types
 , LabeledData (..)
   -- * Exceptions
 , RecordNotFoundException (..)
-, EnhancedSqlError (..)
 , HasqlException (..)
   -- * Type Classes
 , CanCreate (..)
@@ -182,17 +181,6 @@ data RecordNotFoundException
     deriving (Show)
 
 instance Exception RecordNotFoundException
-
--- | Whenever a database query raises an error, we wrap that exception in this data structure.
--- This allows us to show the actual database query that has triggered the error.
-data EnhancedSqlError
-    = EnhancedSqlError
-    { sqlErrorQuery :: ByteString
-    , sqlErrorQueryParams :: [ByteString]
-    , sqlError :: Text
-    } deriving (Show)
-
-instance Exception EnhancedSqlError
 
 -- | Thrown when a hasql session or pool query fails.
 -- This preserves the structured error information from hasql instead of

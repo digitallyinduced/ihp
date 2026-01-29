@@ -433,7 +433,7 @@ transactionConnectionOrError :: (?modelContext :: ModelContext) => Hasql.Connect
 transactionConnectionOrError = ?modelContext.transactionConnection
             |> \case
                 Just connection -> connection
-                Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
+                Nothing -> error "transactionConnectionOrError: Not in a transaction state"
 
 commitTransaction :: (?modelContext :: ModelContext) => IO ()
 commitTransaction = do
@@ -453,14 +453,6 @@ rollbackTransaction = do
         Right () -> pure ()
 {-# INLINABLE rollbackTransaction #-}
 
-withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransactionConnection block = do
-    -- For hasql, we acquire a dedicated connection for the transaction
-    -- This is needed because hasql-pool doesn't expose withResource-style access
-    -- We'll use the pool's use function with a session that runs the block
-    -- For now, this requires storing the connection string
-    error "withTransactionConnection: Not yet implemented for hasql. Use withTransaction instead."
-{-# INLINABLE withTransactionConnection #-}
 
 -- | Access meta data for a database table
 class
