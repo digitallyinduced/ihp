@@ -5,11 +5,12 @@ import Control.Exception
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
-import System.Directory (listDirectory, doesDirectoryExist)
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import qualified Data.List as List
 import qualified Control.Debounce as Debounce
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 data FileWatcherParams
     = FileWatcherParams
@@ -81,16 +82,18 @@ stopWatchingSubDirectory state path = do
 
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
-    rootDirectoryContents <- listDirectory "."
+    osEntries <- Directory.listDirectory "."
+    rootDirectoryContents <- mapM decodeUtf osEntries
     filterM shouldWatchDirectory rootDirectoryContents
 
 shouldWatchDirectory :: String -> IO Bool
 shouldWatchDirectory path = do
-    isDirectory <- doesDirectoryExist path
+    osPath <- encodeUtf path
+    isDirectory <- Directory.doesDirectoryExist osPath
     pure $ isDirectory && isDirectoryWatchable path
 
 isDirectoryWatchable :: String -> Bool
-isDirectoryWatchable path = 
+isDirectoryWatchable path =
     path /= ".devenv" && path /= ".direnv"
 
 fileWatcherConfig :: FS.WatchConfig

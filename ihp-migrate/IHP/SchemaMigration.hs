@@ -6,13 +6,14 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.SchemaMigration where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
 import qualified Data.Char as Char
 import IHP.Log.Types
 import IHP.EnvVar
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 data Migration = Migration
     { revision :: Int
@@ -98,8 +99,10 @@ findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revis
 findAllMigrations :: IO [Migration]
 findAllMigrations = do
     migrationDir <- detectMigrationDir
-    directoryFiles <- Directory.listDirectory (cs migrationDir)
-    directoryFiles
+    migrationDirOsPath <- encodeUtf (cs migrationDir)
+    directoryFiles <- Directory.listDirectory migrationDirOsPath
+    fileNames <- mapM decodeUtf directoryFiles
+    fileNames
         |> map cs
         |> filter (\path -> ".sql" `isSuffixOf` path)
         |> mapMaybe pathToMigration

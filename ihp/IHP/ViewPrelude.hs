@@ -40,7 +40,7 @@ module IHP.ViewPrelude (
 ) where
 
 import IHP.Prelude
-import           IHP.ViewSupport
+import IHP.ViewSupport
 import Text.Blaze (stringValue, (!))
 import Text.Blaze.Html5 (preEscapedToHtml, preEscapedTextValue)
 import IHP.View.Form
@@ -70,3 +70,7 @@ import IHP.PageHead.ViewFunctions
 import IHP.Breadcrumb.ViewFunctions
 import IHP.Pagination.ViewFunctions
 import Network.Wai
+
+instance ToHtml OsPath where
+    {-# INLINE toHtml #-}
+    toHtml = toHtml . osPathToText

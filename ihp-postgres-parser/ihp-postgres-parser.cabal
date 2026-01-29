@@ -22,6 +22,7 @@ common shared-properties
     default-language: GHC2021
     build-depends:
             base >= 4.17.0 && < 4.22
+          , filepath >= 1.5
           , text
           , megaparsec
           , parser-combinators
