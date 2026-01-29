@@ -43,7 +43,7 @@ buildPlan' includeIHPSchema description sqlStatements = do
                 then "-- Write your SQL migration code in here\n"
                 else compileSql appDiff
     pure (revision,
-            [ EnsureDirectory { directory = textToOsPath "Application/Migration" }
+            [ EnsureDirectory { directory = "Application/Migration" }
             , CreateFile { filePath = textToOsPath ("Application/Migration/" <> migrationFile), fileContent = migrationSql }
             ])
 

@@ -82,7 +82,7 @@ stopWatchingSubDirectory state path = do
 
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
-    osEntries <- Directory.listDirectory (textToOsPath ".")
+    osEntries <- Directory.listDirectory "."
     rootDirectoryContents <- mapM decodeUtf osEntries
     filterM shouldWatchDirectory rootDirectoryContents
 

@@ -93,7 +93,7 @@ instance Worker #{applicationName}Application where
 |]
         in
             [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Job") }
-            , AppendToFile { filePath = textToOsPath "Application/Schema.sql", fileContent = schemaSql }
+            , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
             , CreateFile { filePath = textToOsPath (config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs"), fileContent = job }
             ]
             <> if config.isFirstJobInApplication

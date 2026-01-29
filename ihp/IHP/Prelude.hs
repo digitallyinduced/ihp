@@ -140,3 +140,8 @@ textToOsPath text = unsafePerformIO (OsPath.encodeUtf (cs text))
 osPathToText :: OsPath -> Text
 osPathToText path = cs (unsafePerformIO (OsPath.decodeUtf path))
 {-# NOINLINE osPathToText #-}
+
+-- | Allows using string literals as OsPath values with OverloadedStrings.
+instance IsString OsPath where
+    fromString s = unsafePerformIO (OsPath.encodeUtf s)
+    {-# NOINLINE fromString #-}

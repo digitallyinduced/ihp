@@ -118,7 +118,7 @@ initSessionMiddleware FrameworkConfig { sessionCookie } = do
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
     hasSessionSecretFileEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET_FILE"
-    doesConfigDirectoryExist <- Directory.doesDirectoryExist (textToOsPath "Config")
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist "Config"
     store <- clientsessionStore <$>
             if hasSessionSecretFileEnvVar
                 then do

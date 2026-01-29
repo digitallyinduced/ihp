@@ -14,7 +14,7 @@ import IHP.Postgres.Types (Statement)
 
 -- | Path to the IHP schema file
 schemaFilePath :: OsPath
-schemaFilePath = textToOsPath "Application/Schema.sql"
+schemaFilePath = "Application/Schema.sql"
 
 -- | Parse the IHP schema file at 'Application/Schema.sql'
 parseSchemaSql :: IO (Either ByteString [Statement])

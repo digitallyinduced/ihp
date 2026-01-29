@@ -66,7 +66,7 @@ findEditor = do
 
 findWebControllers :: IO [Text]
 findWebControllers = do
-    osEntries <- Directory.listDirectory (textToOsPath "Web/Controller")
+    osEntries <- Directory.listDirectory "Web/Controller"
     directoryFiles <- mapM decodeUtf osEntries
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles

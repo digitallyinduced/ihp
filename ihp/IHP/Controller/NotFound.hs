@@ -56,7 +56,7 @@ handleNotFound request respond = do
 
 buildNotFoundResponse :: IO Response
 buildNotFoundResponse = do
-    hasCustomNotFound <- Directory.doesFileExist (textToOsPath "static/404.html")
+    hasCustomNotFound <- Directory.doesFileExist "static/404.html"
     if hasCustomNotFound
         then customNotFoundResponse
         else pure defaultNotFoundResponse

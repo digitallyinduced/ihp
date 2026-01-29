@@ -55,7 +55,7 @@ handleAccessDeniedFound request respond = do
 
 buildAccessDeniedResponse :: IO Response
 buildAccessDeniedResponse = do
-    hasCustomAccessDenied <- Directory.doesFileExist (textToOsPath "static/403.html")
+    hasCustomAccessDenied <- Directory.doesFileExist "static/403.html"
     if hasCustomAccessDenied
         then customAccessDeniedResponse
         else pure defaultAccessDeniedResponse

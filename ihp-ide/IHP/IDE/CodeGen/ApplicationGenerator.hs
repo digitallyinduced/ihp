@@ -210,9 +210,9 @@ generateGenericApplication applicationName =
             , EnsureDirectory { directory = textToOsPath (applicationName <> "/Controller") }
             , EnsureDirectory { directory = textToOsPath (applicationName <> "/View") }
             , EnsureDirectory { directory = textToOsPath (applicationName <> "/View/Static") }
-            , AddImport  { filePath = textToOsPath "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
-            , AddImport  { filePath = textToOsPath "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
-            , AddMountToFrontController { filePath = textToOsPath "Main.hs", applicationName = applicationName }
+            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
+            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
+            , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
             , CreateFile { filePath = textToOsPath (applicationName <> "/Types.hs"), fileContent = typesHs }
             , CreateFile { filePath = textToOsPath (applicationName <> "/Routes.hs"), fileContent = routesHs }
             , CreateFile { filePath = textToOsPath (applicationName <> "/FrontController.hs"), fileContent = frontControllerHs }

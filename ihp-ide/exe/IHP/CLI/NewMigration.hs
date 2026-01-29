@@ -30,5 +30,5 @@ usage = putStrLn "Usage: new-migration [DESCRIPTION]"
 
 ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
-    mainHsExists <- Directory.doesFileExist (textToOsPath "Main.hs")
+    mainHsExists <- Directory.doesFileExist "Main.hs"
     unless mainHsExists (fail "You have to be in a project directory to run the generator")

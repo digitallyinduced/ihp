@@ -50,7 +50,7 @@ postgresProcessParams :: (?context :: Context) => OsPath -> IO Process.CreatePro
 postgresProcessParams workingDirectory = do
     workingDirectoryStr <- decodeUtf workingDirectory
     let args = ["-D", "build/db/state", "-k", workingDirectoryStr <> "/build/db", "-c", "listen_addresses="]
-    baseProcess <- procDirenvAware (textToOsPath "postgres") args
+    baseProcess <- procDirenvAware "postgres" args
     pure baseProcess
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
@@ -82,23 +82,23 @@ redirectHandleToVariable !ref !handle !onLine = do
 
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
-    pidFileExists <- Directory.doesFileExist (textToOsPath "build/db/state/postmaster.pid")
+    pidFileExists <- Directory.doesFileExist "build/db/state/postmaster.pid"
     let stopFailedHandler (exception :: SomeException) = do
             -- pg_ctl: could not send stop signal (PID: 123456765432): No such process
             if ("No such process" `isInfixOf` (tshow exception))
-                then Directory.removeFile (textToOsPath "build/db/state/postmaster.pid")
+                then Directory.removeFile "build/db/state/postmaster.pid"
                 else putStrLn "Found postgres lockfile at 'build/db/state/postmaster.pid'. Could not bring the other postgres instance to halt. Please stop the running postgres manually and then restart this dev server"
     when pidFileExists do
         (Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
 
 needsDatabaseInit :: IO Bool
-needsDatabaseInit = not <$> Directory.doesDirectoryExist (textToOsPath "build/db/state")
+needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db/state"
 
 initDatabase :: IO ()
 initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     currentDirStr <- decodeUtf currentDir
-    Directory.createDirectoryIfMissing True (textToOsPath "build/db")
+    Directory.createDirectoryIfMissing True "build/db"
 
     Process.callProcess "initdb" [
                 "build/db/state"
