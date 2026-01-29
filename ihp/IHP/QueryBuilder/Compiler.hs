@@ -15,6 +15,7 @@ module IHP.QueryBuilder.Compiler
 , toSnippet'
 , compileConditionQuery
 , compileConditionArgs
+, compileConditionSnippet
 , compileOperator
 , negateFilterOperator
 ) where
@@ -241,16 +242,42 @@ toSnippet queryBuilderProvider = toSnippet' (buildQuery queryBuilderProvider)
 
 -- | Compile a SQLQuery into a Snippet that can be executed directly
 toSnippet' :: SQLQuery -> Snippet
-toSnippet' sqlQuery =
-    let (queryTemplate, params) = toSQL' sqlQuery
-        -- Build the snippet by interleaving the template parts with parameters
-        -- The template uses ? as placeholder
-        parts = ByteString.split '?' queryTemplate
-        interleave [] _ = mempty
-        interleave [p] _ = Snippet.sql (cs p)
-        interleave (p:ps) [] = Snippet.sql (cs p) <> mconcat (map (Snippet.sql . cs) ps)
-        interleave (p:ps) (v:vs) = Snippet.sql (cs p) <> v <> interleave ps vs
-    in interleave parts params
+toSnippet' SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, whereCondition, joins, orderByClause, limitClause, offsetClause, columns } =
+    mconcat $ catMaybes
+        [ Just $ Snippet.sql "SELECT"
+        , Snippet.sql . (" " <>) . cs <$> distinctClause
+        , Snippet.sql . (" " <>) . cs <$> distinctOnClause
+        , Just $ Snippet.sql (" " <> cs selectors)
+        , Just $ Snippet.sql (" FROM " <> cs selectFrom)
+        , Snippet.sql . (" " <>) . cs <$> joinClause
+        , whereSnippet
+        , Snippet.sql . (" " <>) . cs <$> orderByClause'
+        , Snippet.sql . (" " <>) . cs <$> limitClause
+        , Snippet.sql . (" " <>) . cs <$> offsetClause
+        ]
+    where
+        selectors :: ByteString
+        selectors = ByteString.intercalate ", " $ (catMaybes [queryIndex]) <> selectFromWithColumns
+            where
+                selectFromWithColumns :: [ByteString]
+                selectFromWithColumns =
+                    columns
+                    |> map (\column -> selectFrom <> "." <> column)
+
+        whereSnippet = case whereCondition of
+            Just condition -> Just $ Snippet.sql " WHERE " <> compileConditionSnippet condition
+            Nothing -> Nothing
+
+        orderByClause' :: Maybe ByteString
+        orderByClause' = case orderByClause of
+                [] -> Nothing
+                xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
+
+        joinClause :: Maybe ByteString
+        joinClause = buildJoinClause $ reverse joins
+        buildJoinClause :: [Join] -> Maybe ByteString
+        buildJoinClause [] = Nothing
+        buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <> " = " <>table joinClause <> "." <> otherJoinColumn joinClause <> maybe "" (" " <>) (buildJoinClause joinClauses)
 
 {-# INLINE compileConditionQuery #-}
 compileConditionQuery :: Condition -> ByteString
@@ -263,3 +290,19 @@ compileConditionArgs :: Condition -> [Snippet]
 compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
+
+-- | Compile a Condition directly to a Snippet without going through a ByteString template
+{-# INLINE compileConditionSnippet #-}
+compileConditionSnippet :: Condition -> Snippet
+compileConditionSnippet (VarCondition template param) =
+    let parts = ByteString.split '?' template
+    in case parts of
+        [before, after] -> Snippet.sql (cs before) <> param <> Snippet.sql (cs after)
+        [single] -> Snippet.sql (cs single)
+        _ -> error "compileConditionSnippet: multiple ? in single VarCondition"
+compileConditionSnippet (OrCondition a b) =
+    Snippet.sql "(" <> compileConditionSnippet a <> Snippet.sql ") OR ("
+    <> compileConditionSnippet b <> Snippet.sql ")"
+compileConditionSnippet (AndCondition a b) =
+    Snippet.sql "(" <> compileConditionSnippet a <> Snippet.sql ") AND ("
+    <> compileConditionSnippet b <> Snippet.sql ")"

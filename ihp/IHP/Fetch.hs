@@ -150,7 +150,6 @@ commonFetchOne !queryBuilder = do
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
 fetchCount !queryBuilder = do
-    let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
     let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> toSnippet' (buildQuery queryBuilder) <> Snippet.sql ") AS _count_values"
     trackTableRead (symbolToByteString @table)
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
