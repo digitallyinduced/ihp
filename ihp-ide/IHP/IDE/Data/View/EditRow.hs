@@ -22,7 +22,7 @@ instance View EditRowView where
     html EditRowView { .. } = [hsx|
         <div class="h-100">
             {headerNav}
-            <div class="h-100 row no-gutters">
+            <div class="h-100 row g-0">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
@@ -46,7 +46,7 @@ instance View EditRowView where
                     <input type="hidden" name="tableName" value={tableName}/>
                     {forEach (zip tableCols rowValues) renderFormField}
                     {forEach (zip primaryKeyFields (T.splitOn "---" targetPrimaryKey)) renderPrimaryKeyInput}
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Edit Row</button>
                     </div>
                 </form>
@@ -60,7 +60,7 @@ instance View EditRowView where
             
             renderFormField :: (ColumnDefinition, DynamicField) -> Html
             renderFormField (def, val) = [hsx|
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label class="row-form">{def.columnName}</label>
                         <span style="float:right;">
                             <a class="text-muted row-form">{def.columnType}</a>
@@ -99,7 +99,7 @@ instance View EditRowView where
                                 />
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
                                     <a class="dropdown-item">
@@ -108,7 +108,7 @@ instance View EditRowView where
                                             type="checkbox"
                                             name={def.columnName <> "_"}
                                             checked={True}
-                                            class="mr-1"
+                                            class="me-1"
                                             onclick={"sqlModeCheckbox('" <> def.columnName <> "', this, true)"}
                                             />
                                         <label class="form-check-label" for={def.columnName <> "-sqlbox"}> Parse as SQL</label>
@@ -145,7 +145,7 @@ instance View EditRowView where
                                 />
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "true"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "true"}>NULL</a>
                                     <a class="dropdown-item">
@@ -154,7 +154,7 @@ instance View EditRowView where
                                             type="checkbox"
                                             name={def.columnName <> "_"}
                                             checked={isSqlFunction (getColDefaultValue def)}
-                                            class="mr-1"
+                                            class="me-1"
                                             onclick={"sqlModeCheckbox('" <> def.columnName <> "', this, true)"}
                                             />
                                         <label class="form-check-label" for={def.columnName <> "-sqlbox"}> Parse as SQL</label>
@@ -179,7 +179,7 @@ instance View EditRowView where
                                 />
                             <div class="input-group-append">
                                 <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                                <div class="dropdown-menu dropdown-menu-right custom-menu menu-for-column shadow backdrop-blur">
+                                <div class="dropdown-menu dropdown-menu-end custom-menu menu-for-column shadow backdrop-blur">
                                     <a class="dropdown-item" data-value="DEFAULT" data-issql="True" onclick={fillField def "DEFAULT" "false"}>DEFAULT</a>
                                     <a class="dropdown-item" data-value="NULL" data-issql="True" onclick={fillField def "NULL" "false"}>NULL</a>
                                     <a class="dropdown-item">
@@ -188,7 +188,7 @@ instance View EditRowView where
                                             type="checkbox"
                                             name={def.columnName <> "_"}
                                             checked={isSqlFunction_ (value val)}
-                                            class="mr-1"
+                                            class="me-1"
                                             onclick={"sqlModeCheckbox('" <> def.columnName <> "', this)"}
                                             />
                                         <label class="form-check-label" for={def.columnName <> "-sqlbox"}> Parse as SQL</label>

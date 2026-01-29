@@ -67,7 +67,7 @@ migrationStatus = if hasPendingMigrations
                     <div><strong>Unmigrated Changes</strong></div>
                     Your app database is not in sync with the Schema
                 </div>
-                <div class="ml-auto d-flex justify-content-end">
+                <div class="ms-auto d-flex justify-content-end">
                     <a
                         href={NewMigrationAction}
                         class="btn px-4 btn-dark"
@@ -86,7 +86,7 @@ migrationStatus = if hasPendingMigrations
                     <div><strong>Pending Changes</strong></div>
                     You have migrations that haven't been run yet
                 </div>
-                <div class="ml-auto d-flex justify-content-end">
+                <div class="ms-auto d-flex justify-content-end">
                     <a
                         href="#"
                         class="btn px-4 btn-dark"
@@ -98,7 +98,7 @@ migrationStatus = if hasPendingMigrations
 
         migrationStatusIcon :: Html
         migrationStatusIcon = preEscapedToHtml [plain|
-            <svg width="33px" height="33px" viewBox="0 0 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="mr-3">
+            <svg width="33px" height="33px" viewBox="0 0 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="me-3">
                 <g id="Schema" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
                     <g id="Message" transform="translate(-383.000000, -813.000000)" fill="#FFCD1B">
                         <g id="Group" transform="translate(383.000000, 813.000000)">
@@ -114,7 +114,7 @@ migrationStatus = if hasPendingMigrations
 
 databaseControls :: Html
 databaseControls = [hsx|
-<div class="d-flex justify-content-end ml-auto">
+<div class="d-flex justify-content-end ms-auto">
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
@@ -126,10 +126,10 @@ databaseControls = [hsx|
             >Migrate DB →</a>
 
         <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            <span class="sr-only">Toggle Dropdown</span>
+            <span class="visually-hidden">Toggle Dropdown</span>
         </button>
 
-        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuLink">
+        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuLink">
             <button
                 type="submit"
                 form="update-db-form"
@@ -530,7 +530,7 @@ renderEnumSelector enumName values = [hsx|
         <div class="toolbox">
             <a
                 href={NewEnumValueAction enumName}
-                class="btn btn-link btn-add mr-1"
+                class="btn btn-link btn-add me-1"
                 data-bs-toggle="tooltip"
                 data-bs-placement="bottom"
                 title="Add Table"
@@ -566,12 +566,12 @@ renderValue value valueId enumName = [hsx|
 
 renderObjectSelector statements activeObjectName = [hsx|
     <div class={classes ["col", "object-selector", ("empty", isEmptySelector)]} oncontextmenu="showContextMenu('context-menu-object-root')">
-        <div class="d-flex align-items-center pl-2">
+        <div class="d-flex align-items-center ps-2">
             <h5>Tables</h5>
             <div class="toolbox">
                 <a
                     href={NewTableAction}
-                    class="btn btn-link btn-add mr-1"
+                    class="btn btn-link btn-add me-1"
                     data-bs-toggle="tooltip"
                     data-bs-placement="bottom"
                     title="Add Table"
@@ -603,7 +603,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             otherwise -> False
 
         enums = whenNonEmpty enumStatements [hsx|
-            <div class="d-flex pl-2">
+            <div class="d-flex ps-2">
                 <h5>Enums</h5>
             </div>
             {forEach enumStatements (\statement -> renderObject (snd statement) (fst statement))}
@@ -611,7 +611,7 @@ renderObjectSelector statements activeObjectName = [hsx|
 
         renderObject :: Statement -> Int -> Html
         renderObject (StatementCreateTable CreateTable { name }) id = [hsx|
-            <div class={classes [("object object-table w-100 context-table pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+            <div class={classes [("object object-table w-100 context-table ps-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
                 <div class="d-flex justify-content-between">
                     <a href={ShowTableAction name} class="flex-grow-1">{name}</a>
 
@@ -657,7 +657,7 @@ renderObjectSelector statements activeObjectName = [hsx|
                         |]
 
         renderObject CreateEnumType { name } id = [hsx|
-            <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+            <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum ps-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
                 <div class="d-flex">
                     {name}
                 </div>
