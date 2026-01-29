@@ -22,7 +22,6 @@ data-files:
     , static/*.svg
     
     , static/vendor/*.min.css
-    , static/vendor/*.min.css.map
     , static/vendor/*.min.js
     , static/vendor/*.min.js.map
     , static/vendor/*.js
