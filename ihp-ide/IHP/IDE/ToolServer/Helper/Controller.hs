@@ -29,7 +29,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
 import qualified Data.Text.IO as IO
-import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 -- | Returns the port used by the running app. Usually returns @8000@.
 theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber
@@ -66,7 +66,7 @@ findEditor = do
 
 findWebControllers :: IO [Text]
 findWebControllers = do
-    osEntries <- Directory.listDirectory [osp|Web/Controller|]
+    osEntries <- Directory.listDirectory (textToOsPath "Web/Controller")
     directoryFiles <- mapM decodeUtf osEntries
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles

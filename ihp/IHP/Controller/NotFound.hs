@@ -17,7 +17,6 @@ import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
 import qualified System.Directory.OsPath as Directory
 import IHP.Controller.Response (respondAndExit)
-import System.OsPath (osp)
 
 
 -- | Stops the action execution with a not found message (404) when the access condition is True.
@@ -57,7 +56,7 @@ handleNotFound request respond = do
 
 buildNotFoundResponse :: IO Response
 buildNotFoundResponse = do
-    hasCustomNotFound <- Directory.doesFileExist [osp|static/404.html|]
+    hasCustomNotFound <- Directory.doesFileExist (textToOsPath "static/404.html")
     if hasCustomNotFound
         then customNotFoundResponse
         else pure defaultNotFoundResponse

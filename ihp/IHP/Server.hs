@@ -27,7 +27,6 @@ import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import qualified System.Directory.OsPath as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
-import System.OsPath (osp)
 
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
@@ -119,7 +118,7 @@ initSessionMiddleware FrameworkConfig { sessionCookie } = do
 
     hasSessionSecretEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET"
     hasSessionSecretFileEnvVar <- EnvVar.hasEnvVar "IHP_SESSION_SECRET_FILE"
-    doesConfigDirectoryExist <- Directory.doesDirectoryExist [osp|Config|]
+    doesConfigDirectoryExist <- Directory.doesDirectoryExist (textToOsPath "Config")
     store <- clientsessionStore <$>
             if hasSessionSecretFileEnvVar
                 then do

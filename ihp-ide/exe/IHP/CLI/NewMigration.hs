@@ -7,7 +7,6 @@ import IHP.IDE.ToolServer.Helper.Controller (openEditor)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
 import Main.Utf8 (withUtf8)
-import System.OsPath (osp)
 
 main :: IO ()
 main = withUtf8 do
@@ -31,5 +30,5 @@ usage = putStrLn "Usage: new-migration [DESCRIPTION]"
 
 ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
-    mainHsExists <- Directory.doesFileExist [osp|Main.hs|]
+    mainHsExists <- Directory.doesFileExist (textToOsPath "Main.hs")
     unless mainHsExists (fail "You have to be in a project directory to run the generator")

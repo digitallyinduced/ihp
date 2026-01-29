@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import qualified Data.List as List
 import qualified Control.Debounce as Debounce
-import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 data FileWatcherParams
     = FileWatcherParams
@@ -82,7 +82,7 @@ stopWatchingSubDirectory state path = do
 
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
-    osEntries <- Directory.listDirectory [osp|.|]
+    osEntries <- Directory.listDirectory (textToOsPath ".")
     rootDirectoryContents <- mapM decodeUtf osEntries
     filterM shouldWatchDirectory rootDirectoryContents
 

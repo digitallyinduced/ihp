@@ -15,7 +15,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
-import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -50,7 +50,7 @@ postgresProcessParams :: (?context :: Context) => OsPath -> IO Process.CreatePro
 postgresProcessParams workingDirectory = do
     workingDirectoryStr <- decodeUtf workingDirectory
     let args = ["-D", "build/db/state", "-k", workingDirectoryStr <> "/build/db", "-c", "listen_addresses="]
-    baseProcess <- procDirenvAware [osp|postgres|] args
+    baseProcess <- procDirenvAware (textToOsPath "postgres") args
     pure baseProcess
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
@@ -82,23 +82,23 @@ redirectHandleToVariable !ref !handle !onLine = do
 
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
-    pidFileExists <- Directory.doesFileExist [osp|build/db/state/postmaster.pid|]
+    pidFileExists <- Directory.doesFileExist (textToOsPath "build/db/state/postmaster.pid")
     let stopFailedHandler (exception :: SomeException) = do
             -- pg_ctl: could not send stop signal (PID: 123456765432): No such process
             if ("No such process" `isInfixOf` (tshow exception))
-                then Directory.removeFile [osp|build/db/state/postmaster.pid|]
+                then Directory.removeFile (textToOsPath "build/db/state/postmaster.pid")
                 else putStrLn "Found postgres lockfile at 'build/db/state/postmaster.pid'. Could not bring the other postgres instance to halt. Please stop the running postgres manually and then restart this dev server"
     when pidFileExists do
         (Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
 
 needsDatabaseInit :: IO Bool
-needsDatabaseInit = not <$> Directory.doesDirectoryExist [osp|build/db/state|]
+needsDatabaseInit = not <$> Directory.doesDirectoryExist (textToOsPath "build/db/state")
 
 initDatabase :: IO ()
 initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     currentDirStr <- decodeUtf currentDir
-    Directory.createDirectoryIfMissing True [osp|build/db|]
+    Directory.createDirectoryIfMissing True (textToOsPath "build/db")
 
     Process.callProcess "initdb" [
                 "build/db/state"

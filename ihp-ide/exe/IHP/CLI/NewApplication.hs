@@ -6,7 +6,6 @@ import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ApplicationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
 import Main.Utf8 (withUtf8)
-import System.OsPath (osp)
 
 main :: IO ()
 main = withUtf8 do
@@ -29,5 +28,5 @@ usage = putStrLn "Usage: new-application RESOURCE_NAME"
 
 ensureIsInAppDirectory :: IO ()
 ensureIsInAppDirectory = do
-    mainHsExists <- Directory.doesFileExist [osp|Main.hs|]
+    mainHsExists <- Directory.doesFileExist (textToOsPath "Main.hs")
     unless mainHsExists (fail "You have to be in a project directory to run the generator")

@@ -35,7 +35,8 @@ import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
-import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import IHP.Prelude (textToOsPath)
 
 mainInParentDirectory :: IO ()
 mainInParentDirectory = do
@@ -153,7 +154,7 @@ ghciArguments =
 
 withGHCI :: (?context :: Context) => (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
 withGHCI callback = do
-    baseParams <- procDirenvAware [osp|ghci|] ghciArguments
+    baseParams <- procDirenvAware (textToOsPath "ghci") ghciArguments
     let params = baseParams
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe

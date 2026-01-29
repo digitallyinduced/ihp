@@ -44,6 +44,9 @@ module IHP.Prelude
 , module GHC.Stack
 , module Data.Kind
 , type (~)
+, OsPath
+, textToOsPath
+, osPathToText
 )
 where
 
@@ -81,6 +84,9 @@ import NeatInterpolation (trimming)
 import GHC.Stack (HasCallStack, CallStack)
 import Data.Kind (Type)
 import Data.Type.Equality (type (~))
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
+import System.IO.Unsafe (unsafePerformIO)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
@@ -123,3 +129,14 @@ initMay :: [a] -> Maybe [a]
 initMay = init
 
 plain = Data.String.Interpolate.i
+
+-- | Pure conversion from Text to OsPath using UTF-8 encoding.
+-- On POSIX (where IHP runs), this is safe for all valid Text values.
+textToOsPath :: Text -> OsPath
+textToOsPath text = unsafePerformIO (OsPath.encodeUtf (cs text))
+{-# NOINLINE textToOsPath #-}
+
+-- | Pure conversion from OsPath to Text using UTF-8 decoding.
+osPathToText :: OsPath -> Text
+osPathToText path = cs (unsafePerformIO (OsPath.decodeUtf path))
+{-# NOINLINE osPathToText #-}

@@ -18,8 +18,9 @@ import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import NeatInterpolation
 import Text.Countable (pluralize)
-import System.OsPath (OsPath, osp, encodeUtf, decodeUtf)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 import qualified System.OsPath as OsPath
+import IHP.Prelude (textToOsPath)
 
 data CompileException = CompileException ByteString deriving (Show)
 instance Exception CompileException where
@@ -33,17 +34,17 @@ compile = do
         Right statements -> do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
-            Directory.createDirectoryIfMissing True [osp|build/Generated|]
+            Directory.createDirectoryIfMissing True (textToOsPath "build/Generated")
 
             forEach (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
 
 compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
-    [ ([osp|build/Generated/Enums.hs|], compileEnums options schema)
-    , ([osp|build/Generated/ActualTypes.hs|], compileTypes options schema)
+    [ (textToOsPath "build/Generated/Enums.hs", compileEnums options schema)
+    , (textToOsPath "build/Generated/ActualTypes.hs", compileTypes options schema)
     ] <> tableModules options schema <>
-    [ ([osp|build/Generated/Types.hs|], compileIndex schema)
+    [ (textToOsPath "build/Generated/Types.hs", compileIndex schema)
     ]
 
 applyTables :: (CreateTable -> (OsPath, Text)) -> Schema -> [(OsPath, Text)]
@@ -65,7 +66,7 @@ tableModules options schema =
 
 tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (OsPath, Text)
 tableModule options table =
-        ((OsPath.</>) [osp|build/Generated|] (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
+        ((OsPath.</>) (textToOsPath "build/Generated") (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
     where
         body = Text.unlines
             [ prelude
@@ -83,7 +84,7 @@ tableModule options table =
 
 tableIncludeModule :: (?schema :: Schema) => CreateTable -> (OsPath, Text)
 tableIncludeModule table =
-        ((OsPath.</>) [osp|build/Generated|] (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
+        ((OsPath.</>) (textToOsPath "build/Generated") (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
     where
         moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
         prelude = [trimming|

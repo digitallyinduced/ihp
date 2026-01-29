@@ -24,8 +24,7 @@ import qualified System.Directory.OsPath as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Text.Inflections as Inflector
-import System.Directory (doesFileExist)
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import System.OsPath (decodeUtf)
 
 instance Controller CodeGenController where
     action GeneratorsAction = do
@@ -43,7 +42,7 @@ instance Controller CodeGenController where
         plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
         render NewControllerView { .. }
         where
-            doesControllerExist controllerName applicationName = doesFileExist $ cs applicationName <> "/Controller/" <> cs controllerName <> ".hs"
+            doesControllerExist controllerName applicationName = Directory.doesFileExist $ textToOsPath $ applicationName <> "/Controller/" <> controllerName <> ".hs"
 
     action CreateControllerAction = do
         let controllerName = param "name"
@@ -56,7 +55,7 @@ instance Controller CodeGenController where
 
     action NewScriptAction = do
         let scriptName = paramOrDefault "" "name"
-        scriptAlreadyExists <- doesFileExist $ "Application/Script/" <> cs scriptName <> ".hs"
+        scriptAlreadyExists <- Directory.doesFileExist $ textToOsPath $ "Application/Script/" <> scriptName <> ".hs"
         when scriptAlreadyExists do
             setErrorMessage "Script with this name already exists."
             redirectTo NewScriptAction
@@ -74,7 +73,7 @@ instance Controller CodeGenController where
         let viewName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
-        viewAlreadyExists <- doesFileExist $ (cs applicationName) <> "/View/" <> (cs controllerName) <> "/" <> (cs viewName) <>".hs"
+        viewAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/View/" <> controllerName <> "/" <> viewName <> ".hs"
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
             redirectTo NewViewAction
@@ -96,7 +95,7 @@ instance Controller CodeGenController where
         let mailName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
         let controllerName = paramOrDefault "" "controllerName"
-        mailAlreadyExists <- doesFileExist $ (cs applicationName) <> "/Mail/" <> (cs controllerName) <> "/" <> (cs mailName) <>".hs"
+        mailAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/Mail/" <> controllerName <> "/" <> mailName <> ".hs"
         when mailAlreadyExists do
             setErrorMessage "Mail with this name already exists."
             redirectTo NewMailAction
@@ -171,43 +170,42 @@ instance Controller CodeGenController where
                 redirectToUrl ("http://localhost:" <> tshow appPort <> "/" <> indexActionName)
 
 
--- | Helper to convert Text path to OsPath
-textToOsPath :: Text -> IO OsPath
-textToOsPath = encodeUtf . cs
-
 executePlan :: [GeneratorAction] -> IO ()
 executePlan actions = forEach actions evalAction
     where
         evalAction CreateFile { filePath, fileContent } = do
-            Text.writeFile (cs filePath) (cs fileContent)
-            putStrLn ("+ " <> filePath)
+            fp <- decodeUtf filePath
+            Text.writeFile fp (cs fileContent)
+            putStrLn ("+ " <> osPathToText filePath)
         evalAction AppendToFile { filePath, fileContent } = do
-            Text.appendFile (cs filePath) fileContent
-            putStrLn ("* " <> filePath)
+            fp <- decodeUtf filePath
+            Text.appendFile fp fileContent
+            putStrLn ("* " <> osPathToText filePath)
         evalAction AppendToMarker { marker, filePath, fileContent } = do
-            content <- Text.readFile (cs filePath)
+            fp <- decodeUtf filePath
+            content <- Text.readFile fp
             let newContent = Text.replace marker (marker <> "\n" <> cs fileContent) (cs content)
-            Text.writeFile (cs filePath) (cs newContent)
-            putStrLn ("* " <> filePath <> " (import)")
+            Text.writeFile fp (cs newContent)
+            putStrLn ("* " <> osPathToText filePath <> " (import)")
         evalAction AddImport { filePath, fileContent } = do
             addImport filePath fileContent
-            putStrLn ("* " <> filePath <> " (import)")
+            putStrLn ("* " <> osPathToText filePath <> " (import)")
         evalAction AddAction { filePath, fileContent } = do
             addAction filePath [fileContent]
-            putStrLn ("* " <> filePath <> " (AddAction)")
+            putStrLn ("* " <> osPathToText filePath <> " (AddAction)")
         evalAction AddMountToFrontController { filePath, applicationName } = do
             addMountControllerStatement filePath applicationName
-            putStrLn ("* " <> filePath <> " (AddMountToFrontController)")
+            putStrLn ("* " <> osPathToText filePath <> " (AddMountToFrontController)")
         evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
-            content <- Text.readFile (cs filePath)
+            fp <- decodeUtf filePath
+            content <- Text.readFile fp
             case addToDataConstructor content dataConstructor fileContent of
                 Just newContent -> do
-                    Text.writeFile (cs filePath) (cs newContent)
-                    putStrLn ("* " <> filePath <> " (AddToDataConstructor)")
-                Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
+                    Text.writeFile fp (cs newContent)
+                    putStrLn ("* " <> osPathToText filePath <> " (AddToDataConstructor)")
+                Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> osPathToText filePath)
         evalAction EnsureDirectory { directory } = do
-            osPath <- textToOsPath directory
-            Directory.createDirectoryIfMissing True osPath
+            Directory.createDirectoryIfMissing True directory
         evalAction RunShellCommand { shellCommand } = do
             _ <- Process.system (cs shellCommand)
             putStrLn ("* " <> shellCommand)
@@ -215,43 +213,43 @@ executePlan actions = forEach actions evalAction
 undoPlan :: [GeneratorAction] -> IO()
 undoPlan actions = forEach actions evalAction
     where
-        evalAction CreateFile { filePath, fileContent } = do
-            osPath <- textToOsPath filePath
-            Directory.removeFile osPath `catch` handleError
-            putStrLn ("- " <> filePath)
+        evalAction CreateFile { filePath } = do
+            Directory.removeFile filePath `catch` handleError
+            putStrLn ("- " <> osPathToText filePath)
         evalAction AppendToFile { filePath, fileContent } = do
-            deleteTextFromFile (cs filePath) fileContent `catch` handleError
-            putStrLn ("* " <> filePath)
-        evalAction AppendToMarker { marker, filePath, fileContent } = do
-            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
-            putStrLn ("* " <> filePath <> " (import)")
+            deleteTextFromFile filePath fileContent `catch` handleError
+            putStrLn ("* " <> osPathToText filePath)
+        evalAction AppendToMarker { filePath, fileContent } = do
+            deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
+            putStrLn ("* " <> osPathToText filePath <> " (import)")
         evalAction AddImport { filePath, fileContent } = do
-            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
-            putStrLn ("* " <> filePath <> " (import)")
+            deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
+            putStrLn ("* " <> osPathToText filePath <> " (import)")
         evalAction AddAction { filePath, fileContent } = do
-            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
-            putStrLn ("* " <> filePath <> " (RemoveAction)")
-        evalAction AddToDataConstructor { dataConstructor, filePath, fileContent } = do
-            (deleteTextFromFile (cs filePath) (fileContent <> "\n")) `catch` handleError
-            putStrLn ("* " <> filePath <> " (RemoveFromDataConstructor)")
+            deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
+            putStrLn ("* " <> osPathToText filePath <> " (RemoveAction)")
+        evalAction AddToDataConstructor { filePath, fileContent } = do
+            deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
+            putStrLn ("* " <> osPathToText filePath <> " (RemoveFromDataConstructor)")
         evalAction EnsureDirectory { directory } = do
-            osPath <- textToOsPath directory
-            Directory.removeDirectory osPath `catch` handleError
+            Directory.removeDirectory directory `catch` handleError
         evalAction RunShellCommand { shellCommand } = pure ()
         handleError :: SomeException -> IO ()
         handleError ex = putStrLn (tshow ex)
 
-deleteTextFromFile :: Text -> Text -> IO ()
+deleteTextFromFile :: OsPath -> Text -> IO ()
 deleteTextFromFile filePath lineContent = do
-    fileContent <- Text.readFile (cs filePath)
+    fp <- decodeUtf filePath
+    fileContent <- Text.readFile fp
     let replacedContent = Text.replace lineContent "" fileContent
-    Text.writeFile (cs filePath) replacedContent
+    Text.writeFile fp replacedContent
 
-addImport :: Text -> Text -> IO ()
+addImport :: OsPath -> Text -> IO ()
 addImport file importStatement = do
-    content :: Text <- Text.readFile (cs file)
+    fp <- decodeUtf file
+    content :: Text <- Text.readFile fp
     case addImport' content importStatement of
-        Just newContent -> Text.writeFile (cs file) (cs newContent)
+        Just newContent -> Text.writeFile fp (cs newContent)
         Nothing -> pure ()
     pure ()
 
@@ -261,23 +259,25 @@ addImport' content importStatement = do
         then Nothing
         else appendLineAfter content ("import" `isPrefixOf`) [importStatement]
 
-addAction :: Text -> [Text] -> IO ()
+addAction :: OsPath -> [Text] -> IO ()
 addAction filePath fileContent = do
-    content <- Text.readFile (cs filePath)
+    fp <- decodeUtf filePath
+    content <- Text.readFile fp
     case addAction' content fileContent of
-        Just newContent -> Text.writeFile (cs filePath) (cs newContent)
-        Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> filePath)
+        Just newContent -> Text.writeFile fp (cs newContent)
+        Nothing -> putStrLn ("Could not automatically add " <> tshow content <> " to " <> osPathToText filePath)
     pure ()
 
 addAction' :: Text -> [Text] -> Maybe Text
 addAction' fileContent = appendLineAfter fileContent ("instance Controller" `isPrefixOf`)
 
-addMountControllerStatement :: Text -> Text -> IO ()
+addMountControllerStatement :: OsPath -> Text -> IO ()
 addMountControllerStatement file applicationName = do
-    content :: Text <- Text.readFile (cs file)
+    fp <- decodeUtf file
+    content :: Text <- Text.readFile fp
     case addMountControllerStatement' applicationName content of
-        Just newContent -> Text.writeFile (cs file) (cs newContent)
-        Nothing -> putStrLn ("Could not automatically add " <> tshow applicationName <> " to " <> file)
+        Just newContent -> Text.writeFile fp (cs newContent)
+        Nothing -> putStrLn ("Could not automatically add " <> tshow applicationName <> " to " <> osPathToText file)
     pure ()
 
 addMountControllerStatement' :: Text -> Text -> Maybe Text

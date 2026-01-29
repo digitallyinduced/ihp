@@ -206,19 +206,19 @@ generateGenericApplication applicationName =
              <>"|]"
 
         in
-            [ EnsureDirectory { directory = applicationName }
-            , EnsureDirectory { directory = applicationName <> "/Controller" }
-            , EnsureDirectory { directory = applicationName <> "/View" }
-            , EnsureDirectory { directory = applicationName <> "/View/Static" }
-            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
-            , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
-            , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
-            , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
-            , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
-            , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
-            , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
-            , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
-            , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
-            , CreateFile { filePath = applicationName <> "/Controller/Static.hs", fileContent = welcomeControllerStaticHs }
-            , CreateFile { filePath = applicationName <> "/View/Static/Welcome.hs", fileContent = welcomeViewStaticHs }
+            [ EnsureDirectory { directory = textToOsPath applicationName }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/Controller") }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/View") }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/View/Static") }
+            , AddImport  { filePath = textToOsPath "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
+            , AddImport  { filePath = textToOsPath "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
+            , AddMountToFrontController { filePath = textToOsPath "Main.hs", applicationName = applicationName }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Types.hs"), fileContent = typesHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Routes.hs"), fileContent = routesHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/FrontController.hs"), fileContent = frontControllerHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Controller/Prelude.hs"), fileContent = controllerPreludeHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Layout.hs"), fileContent = viewLayoutHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Prelude.hs"), fileContent = viewPreludeHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Controller/Static.hs"), fileContent = welcomeControllerStaticHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Static/Welcome.hs"), fileContent = welcomeViewStaticHs }
             ]

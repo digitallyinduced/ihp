@@ -21,7 +21,6 @@ import IHP.Postgres.Compiler (compileSql)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
-import System.OsPath (OsPath, encodeUtf)
 
 buildPlan :: Text -> Maybe Text -> IO (Int, [GeneratorAction])
 buildPlan description sqlStatements = buildPlan' True description sqlStatements
@@ -44,8 +43,8 @@ buildPlan' includeIHPSchema description sqlStatements = do
                 then "-- Write your SQL migration code in here\n"
                 else compileSql appDiff
     pure (revision,
-            [ EnsureDirectory { directory = "Application/Migration" }
-            , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }
+            [ EnsureDirectory { directory = textToOsPath "Application/Migration" }
+            , CreateFile { filePath = textToOsPath ("Application/Migration/" <> migrationFile), fileContent = migrationSql }
             ])
 
 diffAppDatabase includeIHPSchema databaseUrl = do
@@ -66,8 +65,9 @@ parseIHPSchema = do
 
 findIHPSchemaSql :: IO OsPath
 findIHPSchemaSql = do
-    fp <- getDataFileName "IHPSchema.sql"
-    encodeUtf fp
+    fp <- getDataFileName ("IHPSchema.sql" :: String)
+    let fpText :: Text = cs fp
+    pure (textToOsPath fpText)
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
@@ -613,7 +613,7 @@ migrationPathFromPlan plan =
                     CreateFile {} -> True
                     otherwise     -> False
                 |> \case
-                    Just CreateFile { filePath } -> Just filePath
+                    Just CreateFile { filePath } -> Just (osPathToText filePath)
                     otherwise                    -> Nothing
         in
             path

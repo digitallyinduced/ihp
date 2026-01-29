@@ -4,14 +4,14 @@ import IHP.Prelude
 import IHP.Postgres.Types
 
 data GeneratorAction
-    = CreateFile { filePath :: Text, fileContent :: Text }
-    | AppendToFile { filePath :: Text, fileContent :: Text }
-    | AppendToMarker { marker :: Text, filePath :: Text, fileContent :: Text }
-    | AddImport { filePath :: Text, fileContent :: Text }
-    | AddAction { filePath :: Text, fileContent :: Text }
-    | AddToDataConstructor { dataConstructor :: Text, filePath :: Text, fileContent :: Text }
-    | AddMountToFrontController { filePath :: Text, applicationName :: Text }
-    | EnsureDirectory { directory :: Text }
+    = CreateFile { filePath :: OsPath, fileContent :: Text }
+    | AppendToFile { filePath :: OsPath, fileContent :: Text }
+    | AppendToMarker { marker :: Text, filePath :: OsPath, fileContent :: Text }
+    | AddImport { filePath :: OsPath, fileContent :: Text }
+    | AddAction { filePath :: OsPath, fileContent :: Text }
+    | AddToDataConstructor { dataConstructor :: Text, filePath :: OsPath, fileContent :: Text }
+    | AddMountToFrontController { filePath :: OsPath, applicationName :: Text }
+    | EnsureDirectory { directory :: OsPath }
     | RunShellCommand { shellCommand :: Text }
     deriving (Show, Eq)
 
