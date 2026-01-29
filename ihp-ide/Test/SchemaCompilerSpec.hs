@@ -180,7 +180,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -253,7 +253,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -325,7 +325,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -442,7 +442,7 @@ tests = do
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
-                    type instance GetModelByTableName "landing_pages" = Generated.ActualTypes.LandingPage
+                    type instance GetModelByTableName "landing_pages" = LandingPage
 
                     instance Default (Id' "landing_pages") where def = Id def
 
