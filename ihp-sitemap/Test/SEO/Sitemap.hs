@@ -76,7 +76,7 @@ config = do
     option (AppPort 8000)
 
 makeApplication = do
-    frameworkConfig <- buildFrameworkConfig config
+    (frameworkConfig, _) <- buildFrameworkConfig config
     pure $ frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app)
 
 tests :: Spec

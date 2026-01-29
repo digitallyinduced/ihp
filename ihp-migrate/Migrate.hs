@@ -10,23 +10,19 @@ import qualified IHP.EnvVar as EnvVar
 
 main :: IO ()
 main = withUtf8 do
-    frameworkConfig <- buildFrameworkConfig (pure ())
+    withFrameworkConfig (pure ()) \frameworkConfig -> do
+        -- We need a debug logger to print out all sql queries during the migration.
+        -- The production env logger could be set to a different log level, therefore
+        -- we don't use the logger in 'frameworkConfig'
+        --
+        withDefaultLogger \logger -> do
+            modelContext <- createModelContext
+                frameworkConfig.dbPoolIdleTime
+                frameworkConfig.dbPoolMaxConnections
+                frameworkConfig.databaseUrl
+                logger
 
-    -- We need a debug logger to print out all sql queries during the migration.
-    -- The production env logger could be set to a different log level, therefore
-    -- we don't use the logger in 'frameworkConfig'
-    --
-    logger <- defaultLogger
+            let ?modelContext = modelContext
 
-    modelContext <- createModelContext
-        frameworkConfig.dbPoolIdleTime
-        frameworkConfig.dbPoolMaxConnections
-        frameworkConfig.databaseUrl
-        logger
-
-    let ?modelContext = modelContext
-
-    minimumRevision <- EnvVar.envOrNothing "MINIMUM_REVISION"
-    migrate MigrateOptions { minimumRevision }
-
-    logger |> cleanup
+            minimumRevision <- EnvVar.envOrNothing "MINIMUM_REVISION"
+            migrate MigrateOptions { minimumRevision }

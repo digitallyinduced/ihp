@@ -14,6 +14,7 @@ module IHP.FrameworkConfig
 , defaultPort
 , defaultDatabaseUrl
 , defaultLoggerForEnv
+, configureLogger
 , isEnvironment
 , isDevelopment
 , isProduction
@@ -95,8 +96,9 @@ ihpDefaultConfig = do
 
     environment <- findOption @Environment
 
-    defaultLogger <- configIO (defaultLoggerForEnv environment)
+    (defaultLogger, loggerCleanup) <- configIO (defaultLoggerForEnv environment)
     option defaultLogger
+    option (LoggerCleanup loggerCleanup)
     logger <- findOption @Logger
 
     requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
@@ -183,7 +185,7 @@ findOptionOrNothing = do
         |> pure
 {-# INLINABLE findOptionOrNothing #-}
 
-buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
+buildFrameworkConfig :: ConfigBuilder -> IO (FrameworkConfig, IO ())
 buildFrameworkConfig appConfig = do
     let resolve = do
             (AppHostname appHostname) <- findOption @AppHostname
@@ -204,15 +206,16 @@ buildFrameworkConfig appConfig = do
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
+            (LoggerCleanup loggerCleanup) <- findOption @LoggerCleanup
 
             appConfig <- State.get
 
 
-            pure FrameworkConfig { .. }
+            pure (FrameworkConfig { .. }, loggerCleanup)
 
-    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
+    (result, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
 
-    pure frameworkConfig
+    pure result
 {-# INLINABLE buildFrameworkConfig #-}
 
 -- | Returns the default IHP session cookie configuration. Useful when you want to override the default settings in 'sessionCookie'
@@ -236,11 +239,27 @@ defaultDatabaseUrl = do
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     envOrDefault "DATABASE_URL" defaultDatabaseUrl
 
-defaultLoggerForEnv :: HasCallStack => Environment -> IO Logger
+defaultLoggerForEnv :: HasCallStack => Environment -> IO (Logger, IO ())
 defaultLoggerForEnv = \case
     Development -> defaultLogger
-    Production -> newLogger def { level = Info }
+    Production -> newLogger Info defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
 
+-- | Internal newtype to store the logger cleanup action in the TMap
+newtype LoggerCleanup = LoggerCleanup (IO ())
+
+-- | Configure a custom logger in the IHP config.
+--
+-- Use this in @Config\/Config.hs@ to customize the logger:
+--
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     configureLogger Info withTimeAndLevelFormatter (LogStdout defaultBufSize) simpleTimeFormat'
+--
+configureLogger :: LogLevel -> LogFormatter -> LogType -> TimeFormat -> ConfigBuilder
+configureLogger level formatter destination timeFormat = do
+    (logger, loggerCleanup) <- configIO (newLogger level formatter destination timeFormat)
+    option logger
+    option (LoggerCleanup loggerCleanup)
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
@@ -281,7 +300,7 @@ defaultCorsResourcePolicy = Nothing
 -- >     -- Do something with the FrameworkConfig here
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
-withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
+withFrameworkConfig configBuilder action = Exception.bracket (buildFrameworkConfig configBuilder) snd (action . fst)
 
 initModelContext :: FrameworkConfig -> IO ModelContext
 initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do

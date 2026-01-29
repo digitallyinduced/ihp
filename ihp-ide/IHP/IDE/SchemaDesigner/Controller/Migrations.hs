@@ -140,20 +140,13 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result
 withAppModelContext inner =
-        Exception.bracket initModelContext cleanupModelContext callback
-    where
-        callback (frameworkConfig, logger, modelContext) = let ?modelContext = modelContext in inner
-        initModelContext = do
-            frameworkConfig <- buildFrameworkConfig (pure ())
-            logger <- defaultLogger
-
+    withFrameworkConfig (pure ()) \frameworkConfig -> do
+        withDefaultLogger \logger -> do
             modelContext <- createModelContext
                 (frameworkConfig.dbPoolIdleTime)
                 (frameworkConfig.dbPoolMaxConnections)
                 (frameworkConfig.databaseUrl)
                 logger
 
-            pure (frameworkConfig, logger, modelContext)
-
-        cleanupModelContext (frameworkConfig, logger, modelContext) = do
-            logger |> cleanup
+            let ?modelContext = modelContext
+            inner

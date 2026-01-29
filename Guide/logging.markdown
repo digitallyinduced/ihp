@@ -51,31 +51,32 @@ import qualified IHP.Log as Log
 import IHP.Log.Types
 ```
 
-Using the [`newLogger`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:newLogger) function, create a logger with the desired options. For example, here is a logger that formats
+Use the [`configureLogger`](https://ihp.digitallyinduced.com/api-docs/IHP-FrameworkConfig.html#v:configureLogger) helper to set up a logger with custom options. For example, here is a logger that formats
 logs with a timestamp at the `Debug` log level:
 
 ```haskell
-logger <- liftIO $ newLogger def {
-  level = Debug,
-  formatter = withTimeFormatter
-  }
-option logger
+config :: ConfigBuilder
+config = do
+    configureLogger Debug withTimeFormatter (LogStdout defaultBufSize) simpleTimeFormat'
 ```
 
-The available configuration options can be found in the [`LoggerSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) record.
+The `configureLogger` function takes four arguments:
+
+- **level** - The minimum log level (e.g. `Debug`, `Info`, `Warn`, `Error`)
+- **formatter** - How to format log messages (see below)
+- **destination** - Where to send logs (a `LogType'` value)
+- **timeFormat** - The time format string for timestamps
+
+You can also construct a logger directly using [`newLogger`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:newLogger):
 
 ```haskell
-data LoggerSettings = LoggerSettings {
-  level       :: LogLevel,
-  formatter   :: LogFormatter,
-  destination :: LogDestination,
-  timeFormat  :: TimeFormat
-}
+(logger, cleanup) <- liftIO $ newLogger Debug withTimeFormatter (LogStdout defaultBufSize) simpleTimeFormat'
+option logger
 ```
 
 #### Configuring log level
 
-Set [`level`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) to one of the available constructors for the [`LogLevel`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LogLevel) type:
+Set the level to one of the available constructors for the [`LogLevel`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LogLevel) type:
 
 ```haskell
 data LogLevel
@@ -124,74 +125,59 @@ Which logs a message like:
 #### Configuring log destination
 
 By default, messages are logged to standard out.
-IHP includes all the destinations included in `fast-logger` wrapped in a custom API.
+IHP uses the `LogType'` constructors from the `fast-logger` package to configure destinations:
 
-```haskell
-data LogDestination
-    = None
-    -- | Log messages to standard output.
-    | Stdout BufSize
-    -- | Log messages to standard error.
-    | Stderr BufSize
-    -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
-    | File FilePath RotateSettings BufSize
-    -- | Send logged messages to a callback. Flush action called after every log.
-    | Callback (LogStr -> IO ()) (IO ())
-```
+- `LogStdout BufSize` - Log to standard output
+- `LogStderr BufSize` - Log to standard error
+- `LogFileNoRotate FilePath BufSize` - Log to a file without rotation
+- `LogFile FileLogSpec BufSize` - Log to a file with size-based rotation
+- `LogFileTimedRotate TimedFileLogSpec BufSize` - Log to a file with time-based rotation
+- `LogCallback (LogStr -> IO ()) (IO ())` - Log to a custom callback
 
 ##### Logging to a file
 
-When logging to a file, it is common to rotate the file logged to in order to prevent
-the log file from getting too big. IHP allows for this in three ways, through the [`RotateSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) record.
+When logging to a file, you can configure rotation to prevent log files from getting too large.
 
-- [`NoRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) never rotates the file, meaning the log file can become arbitrarily large.
-  Use with caution. The following example will log all messages to a file at `Log/production.log`.
+**No rotation** - the log file can grow without limit. Use with caution:
 
 ```haskell
-newLogger def {
-    destination = File "Log/production.log" NoRotate defaultBufSize
-}
+config :: ConfigBuilder
+config = do
+    configureLogger Debug defaultFormatter (LogFileNoRotate "Log/production.log" defaultBufSize) simpleTimeFormat'
 ```
 
-- [`SizeRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file after reaching a specified size (in bytes).
-  The following example will log all messages to a file at `Log/production.log`,
-  and rotate the file once it reaches 4 megabytes in size. It will
-  keep 7 log files before overwriting the first file.
+**Size-based rotation** using `FileLogSpec` - rotates the file after reaching a specified size.
+The following example rotates at 4 megabytes, keeping 7 backup files:
 
 ```haskell
-newLogger def {
-    destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
-}
+config :: ConfigBuilder
+config = do
+    let fileSpec = FileLogSpec "Log/production.log" (4 * 1024 * 1024) 7
+    configureLogger Debug defaultFormatter (LogFile fileSpec defaultBufSize) simpleTimeFormat'
 ```
 
-- [`TimedRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
+**Time-based rotation** using `TimedFileLogSpec` - rotates based on a time format string:
 
 ```haskell
-let
-    filePath = "Log/production.log"
-    formatString = "%FT%H%M%S"
-    timeCompare = (==) on C8.takeWhile (/=T))
-    compressFile fp = void . forkIO $
-        callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
-in
-  newLogger def {
-     destination = File
-       filePath
-       (TimedRotate formatString timeCompare compressFile)
-       defaultBufSize
-     }
+config :: ConfigBuilder
+config = do
+    let timedSpec = TimedFileLogSpec
+            "Log/production.log"
+            "%FT%H%M%S"
+            (\oldPath -> void . forkIO $ callProcess "tar" ["--remove-files", "-caf", oldPath <> ".gz", oldPath])
+    configureLogger Debug defaultFormatter (LogFileTimedRotate timedSpec defaultBufSize) simpleTimeFormat'
 ```
 
 #### Configuring timestamp format
 
-[`timeFormat`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:TimeFormat) expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
+The time format argument expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
 
 Example:
 
 ```haskell
-newLogger def {
-    timeFormat = "%A, %Y-%m-%d %H:%M:%S"
-}
+config :: ConfigBuilder
+config = do
+    configureLogger Debug defaultFormatter (LogStdout defaultBufSize) "%A, %Y-%m-%d %H:%M:%S"
 ```
 
 Would log a timestamp as:
@@ -219,14 +205,9 @@ instance InitControllerContext WebApplication where
 
 userIdLogger :: (?context :: ControllerContext) => Logger
 userIdLogger =
-    defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+    baseLogger { Log.log = \lvl msg -> baseLogger.log lvl (prependUserId msg) }
     where
-        defaultLogger = ?context.frameworkConfig.logger
-
-
-userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
-userIdFormatter existingFormatter time level string =
-    existingFormatter time level (prependUserId string)
+        baseLogger = ?context.frameworkConfig.logger
 
 prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
 prependUserId string =

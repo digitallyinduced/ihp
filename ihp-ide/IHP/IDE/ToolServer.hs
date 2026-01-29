@@ -90,7 +90,7 @@ data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
 -- - websocket support (for live reload)
 buildToolServerApplication :: ToolServerApplication -> Int -> _ -> IO ToolServerApplicationWithConfig
 buildToolServerApplication toolServerApplication port liveReloadClients = do
-    frameworkConfig <- Config.buildFrameworkConfig do
+    (frameworkConfig, _) <- Config.buildFrameworkConfig do
         Config.option $ Config.AppHostname "localhost"
         Config.option $ Config.AppPort port
         Config.option $ Config.AssetVersion Version.ihpVersion

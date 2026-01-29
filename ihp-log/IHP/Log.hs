@@ -21,7 +21,6 @@ module IHP.Log
 ) where
 
 import Prelude hiding (error, log)
-import Control.Monad (when)
 import IHP.Log.Types
 import Network.Wai (Middleware)
 import Network.Wai.Middleware.RequestLogger (mkRequestLogger, RequestLoggerSettings, destination)
@@ -96,12 +95,9 @@ unknown :: (?context :: context, LoggingProvider context, FastLogger.ToLogStr st
 unknown = log Unknown
 
 -- | Write a log if the given log level is greater than or equal to the logger's log level.
+-- Level checking, formatting, and time caching are baked into the logger's 'log' closure.
 writeLog :: (FastLogger.ToLogStr string) => LogLevel -> Logger -> string -> IO ()
-writeLog level logger text = do
-    let write = logger.write
-    let formatter = logger.formatter
-    when (level >= logger.level) $
-        write (\time -> formatter time level (toLogStr text))
+writeLog level logger text = logger.log level (toLogStr text)
 
 -- | Wraps 'RequestLogger' from wai-extra to log to an IHP logger.
 -- See 'Network.Wai.Middleware.RequestLogger'.
