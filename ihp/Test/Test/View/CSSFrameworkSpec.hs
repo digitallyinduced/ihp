@@ -295,19 +295,19 @@ tests = do
                         }
                 it "should render previous link" do
                     let pagination = basePagination
-                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"visually-hidden\">Previous</span></a></li>"
 
                 it "should render previous link disabled on the first page" do
                     let pagination = basePagination { currentPage = 1}
-                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"sr-only\">Previous</span></a></li>"
+                    styledPaginationLinkPrevious cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Previous\"><span aria-hidden=\"true\">&laquo;</span><span class=\"visually-hidden\">Previous</span></a></li>"
 
                 it "should render next link" do
                     let pagination = basePagination
-                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"visually-hidden\">Next</span></a></li>"
 
                 it "should render next link disabled on the last page" do
                     let pagination = basePagination { currentPage = 4}
-                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"sr-only\">Next</span></a></li>"
+                    styledPaginationLinkNext cssFramework cssFramework pagination "#" `shouldRenderTo` "<li class=\"page-item disabled\"><a class=\"page-link\" href=\"#\" aria-label=\"Next\"><span aria-hidden=\"true\">&raquo;</span><span class=\"visually-hidden\">Next</span></a></li>"
 
                 it "should render items per page selector" do
                     let pagination = basePagination

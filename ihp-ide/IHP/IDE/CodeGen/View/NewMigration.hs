@@ -54,7 +54,7 @@ instance View NewMigrationView where
                         />
                         <input type="hidden" name="runMigration" value={inputValue False}/>
                         <input type="hidden" name="description" value=""/>
-                        <label class="pl-1" for="runMigration">Run Migration after <q>Generate</q></label>
+                        <label class="ps-1" for="runMigration">Run Migration after <q>Generate</q></label>
                     </form>
                 </div>
             |]

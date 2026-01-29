@@ -22,15 +22,11 @@ data-files:
     , static/*.svg
     
     , static/vendor/*.min.css
-    , static/vendor/*.min.css.map
     , static/vendor/*.min.js
     , static/vendor/*.min.js.map
     , static/vendor/*.js
 
     , static/vendor/popper-2.11.6.min.js
-
-    , static/vendor/bootstrap-5.2.1/*.min.css
-    , static/vendor/bootstrap-5.2.1/*.min.js
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js

@@ -152,20 +152,70 @@ that is defined in flake-module.nix
                         url = "https://code.jquery.com/jquery-${version}";
                         sha256 = hash;
                     };
+                    bootstrapBase = version: "https://cdn.jsdelivr.net/npm/bootstrap@${version}/dist";
+                    bootstrapCss = version: hash: pkgs.fetchurl {
+                        url = "${bootstrapBase version}/css/bootstrap.min.css";
+                        sha256 = hash;
+                    };
+                    bootstrapJs = version: hash: pkgs.fetchurl {
+                        url = "${bootstrapBase version}/js/bootstrap.min.js";
+                        sha256 = hash;
+                    };
+                    bootstrap538css = bootstrapCss "5.3.8" "1pnyvfp2n8qzyp167h9rvg93msmcf09hsl6hnpwy2gkskkcjflyq";
+                    bootstrap538js  = bootstrapJs  "5.3.8" "01r295gwq51aq6kb0znj7yymaz6lry4h914kivc7y939bn4i83vv";
+                    bootstrap521css = bootstrapCss "5.2.1" "1l7sy8l7vbbck4mrbvwpq2ssk1hmk2h0qa4gpz5ygsm491iwjcr9";
+                    bootstrap521js  = bootstrapJs  "5.2.1" "0cx8khby1jg3xcmjbqas79zdsfi7jmvjs00ypi4d140ycch9z1wh";
+                    bootstrap45cssmap = pkgs.fetchurl {
+                        url = "https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/css/bootstrap.min.css.map";
+                        sha256 = "17jzy6x2shrj805r0czhsz0psjxm5vlv70ipybk8rqz4k7lbcm6j";
+                    };
+                    bootstrap45jsmap = pkgs.fetchurl {
+                        url = "https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.min.js.map";
+                        sha256 = "1fagbzf8qmf338r7qzap55xbj84nsrn91ad4pbq39hwrmi21fb5j";
+                    };
+                    # Select2 — pinned to develop branch (includes jQuery 4 support, PR #6332)
+                    select2commit = "595494a72fee67b0a61c64701cbb72e3121f97b9";
+                    select2js = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/js/select2.min.js";
+                        sha256 = "1y0j8qwdzkhcp1kn04fbr4hl89x87wi1lkhnirpd5gkc2sb06764";
+                    };
+                    select2css = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/css/select2.min.css";
+                        sha256 = "1fi1qdiybi30adg8vcqqa6n0jz7c658kv0z39bkvm2ama0i4g2s2";
+                    };
                 in
                     pkgs.symlinkJoin {
                         name = "ihp-static";
                         paths = [
                             (hsDataDir pkgs.ghc.ihp.data + "/static")
                             (pkgs.linkFarm "ihp-vendor-js" [
-                                # Current version
+                                # jQuery — current version
+                                { name = "vendor/jquery-4.0.0.min.js"; path = jquery "4.0.0.min.js" "1amdfbjdqncpv9x00n8f8xg43nvaapwfiq6kypx8nzyrkbm4d99r"; }
+                                { name = "vendor/jquery-4.0.0.slim.min.js"; path = jquery "4.0.0.slim.min.js" "01x39qb1rbdz6n2y5j7yd3i420f6x9aw6miki2wny8n7bnzsjcgh"; }
+                                # jQuery — backwards compatibility
                                 { name = "vendor/jquery-3.7.1.min.js"; path = jquery "3.7.1.min.js" "06hb7y19azzim1k53d1gw78fq6whw7s1qj7hpxf08sqz4kfr76pw"; }
                                 { name = "vendor/jquery-3.7.1.slim.min.js"; path = jquery "3.7.1.slim.min.js" "1ks0qcs51imwgxf88j1g89isdcznxzc50iv5wjb90fky82ryyqcj"; }
-                                # Backwards compatibility with existing apps
                                 { name = "vendor/jquery-3.6.0.min.js"; path = jquery "3.6.0.min.js" "0vpylcvvq148xv92k4z2yns3nya80qk1kfjsqs29qlw9fgxj65gz"; }
                                 { name = "vendor/jquery-3.6.0.slim.min.js"; path = jquery "3.6.0.slim.min.js" "04p56k5isbhhiv8j25jxqhynchw4qxixnvisfm41kdm23j9bkdxv"; }
                                 { name = "vendor/jquery-3.5.0.min.js"; path = jquery "3.5.0.min.js" "1965r7pswaffbrj42iwyr7ar922gx4yjfgy7w1w41di5mvcwvp64"; }
                                 { name = "vendor/jquery-3.2.1.slim.min.js"; path = jquery "3.2.1.slim.min.js" "16739f77k16kxyf3ngi6841j07wmjc7qm8jbvjik66xihw494rck"; }
+
+                                # Bootstrap 5.3.8 — versioned path for apps
+                                { name = "vendor/bootstrap-5.3.8/bootstrap.min.css"; path = bootstrap538css; }
+                                { name = "vendor/bootstrap-5.3.8/bootstrap.min.js";  path = bootstrap538js; }
+                                # Bootstrap 5.3.8 — generic path (used by IDE ToolServer)
+                                { name = "vendor/bootstrap.min.css"; path = bootstrap538css; }
+                                { name = "vendor/bootstrap.min.js";  path = bootstrap538js; }
+                                # Bootstrap 5.2.1 — backwards compatibility
+                                { name = "vendor/bootstrap-5.2.1/bootstrap.min.css"; path = bootstrap521css; }
+                                { name = "vendor/bootstrap-5.2.1/bootstrap.min.js";  path = bootstrap521js; }
+                                # Bootstrap 4.5 — backwards compatibility (source maps)
+                                { name = "vendor/bootstrap.min.css.map"; path = bootstrap45cssmap; }
+                                { name = "vendor/bootstrap.min.js.map";  path = bootstrap45jsmap; }
+
+                                # Select2 (develop branch with jQuery 4 support)
+                                { name = "vendor/select2.min.js";  path = select2js; }
+                                { name = "vendor/select2.min.css"; path = select2css; }
                             ])
                         ];
                     };

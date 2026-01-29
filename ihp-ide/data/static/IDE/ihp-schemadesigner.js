@@ -186,7 +186,7 @@ function initCodeEditor() {
 }
 
 function initTooltip() {
-    $('[data-toggle="tooltip"]').tooltip('dispose').tooltip({ container: 'body'});
+    $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip({ container: 'body'});
 }
 
 document.addEventListener('turbolinks:load', initSchemaDesigner);

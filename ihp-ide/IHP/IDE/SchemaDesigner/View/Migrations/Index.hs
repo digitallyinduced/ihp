@@ -18,12 +18,12 @@ instance View IndexView where
     html IndexView { migrationsWithSql = [] } = emptyState
     html IndexView { .. } = [hsx|
         <div class="pt-3 flex-grow-1" oncontextmenu="showContextMenu('context-menu-migrations')">
-            <div class="d-flex align-items-center mb-3 pr-2">
+            <div class="d-flex align-items-center mb-3 pe-2">
                 <a
                     href={NewMigrationAction}
-                    class="ml-auto btn btn-link btn-add"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    class="ms-auto btn btn-link btn-add"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Migration"
                     >
                     {addIcon}
@@ -60,16 +60,16 @@ instance View IndexView where
                             <a
                                 href={EditMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add"
-                                data-toggle="tooltip"
-                                data-placement="bottom"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
                                 title="Edit Migration"
                             >{editIcon}</a>
 
                             <a
                                 href={DeleteMigrationAction (migration.revision)}
                                 class="btn btn-link btn-add js-delete"
-                                data-toggle="tooltip"
-                                data-placement="bottom"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="bottom"
                                 title="Delete Migration"
                             >{deleteIcon}</a>
                         </div>
@@ -77,7 +77,7 @@ instance View IndexView where
 
 
                     currentErrorHtml = unless (isNothing currentError) [hsx|
-                        <div class="text-danger font-weight-bold mr-2">
+                        <div class="text-danger fw-bold me-2">
                             {currentError}
                         </div>
                     |]
@@ -86,7 +86,7 @@ instance View IndexView where
                     runOrStatus =
                         if pending
                                 then [hsx|
-                                <form method="POST" action={RunMigrationAction (migration.revision)} class="mr-2 d-flex align-items-center">
+                                <form method="POST" action={RunMigrationAction (migration.revision)} class="me-2 d-flex align-items-center">
                                     {currentErrorHtml}
                                     <button
                                         class="btn btn-secondary migration-run-button"
@@ -95,7 +95,7 @@ instance View IndexView where
                             |]
                             else [hsx|
                                 <div class="d-flex justify-content-end mb-2">
-                                    <span class="text-muted mr-2 user-select-none" style="opacity: 0.5">{timeAgo revisionTime}</span>
+                                    <span class="text-muted me-2 user-select-none" style="opacity: 0.5">{timeAgo revisionTime}</span>
                                     <strong class="text-success">
                                         {checkmark}
                                     </strong>
