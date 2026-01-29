@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
+module IHP.Server (run, application, staticRouteShortcut, initSessionMiddleware, initMiddlewareStack) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
