@@ -77,14 +77,14 @@ tests = do
             response <- runSession (request' defaultRequest) app
             cs (simpleBody response) `shouldBe` ("/static/app.css?v=abc123" :: String)
 
-        it "includes base URL before /static/ prefix" $ do
+        it "skips /static/ prefix when base URL is specified" $ do
             let middleware = assetPathMiddleware "abc123" (Just "https://cdn.example.com")
             let innerApp req respond = do
                     let result = assetPath req "/app.js"
                     respond $ responseLBS status200 [] (cs result)
             let app = middleware innerApp
             response <- runSession (request' defaultRequest) app
-            cs (simpleBody response) `shouldBe` ("https://cdn.example.com/static/app.js?v=abc123" :: String)
+            cs (simpleBody response) `shouldBe` ("https://cdn.example.com/app.js?v=abc123" :: String)
 
 request' :: Request -> Session SResponse
 request' = srequest . flip SRequest ""
