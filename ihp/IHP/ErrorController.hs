@@ -29,7 +29,6 @@ import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HSX.QQ (hsx)
@@ -146,7 +145,7 @@ postgresHandler exception controller additionalInfo = do
         handleSqlError exception = do
             let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let sqlError = exception.sqlError
-            let title = [hsx|{sqlError.sqlErrorMsg}|]
+            let title = [hsx|{sqlError}|]
             let errorMessage = [hsx|
                         <h2>While running the following Query:</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
@@ -164,18 +163,16 @@ postgresHandler exception controller additionalInfo = do
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
     case fromException exception of
-        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
-        Nothing -> case fromException exception of
             -- Catching  `relation "..." does not exist`
             Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+                |  "relation" `ByteString.isPrefixOf` (cs sqlError)
+                && "does not exist" `ByteString.isSuffixOf` (cs sqlError)
                 -> Just (handlePostgresOutdatedError exception "A table is missing.")
 
             -- Catching  `columns "..." does not exist`
             Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+                |  "column" `ByteString.isPrefixOf` (cs sqlError)
+                && "does not exist" `ByteString.isSuffixOf` (cs sqlError)
                 -> Just (handlePostgresOutdatedError exception "A column is missing.")
             -- Catching other SQL Errors
             Just exception -> Just (handleSqlError exception)
@@ -274,16 +271,12 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
             let errorMessage = [hsx|
                     <p>
                         The following SQL was executed:
-                        <pre class="ihp-error-code">{query}</pre>
-                    </p>
-                    <p>
-                        These query parameters have been used:
-                        <pre class="ihp-error-code">{params}</pre>
+                        <pre class="ihp-error-code">{queryAndParams}</pre>
                     </p>
 
                     <p>

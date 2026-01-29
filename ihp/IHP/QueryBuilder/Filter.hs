@@ -42,390 +42,238 @@ module IHP.QueryBuilder.Filter
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.Types (In (In))
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (negateFilterOperator)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text.Encoding as Text
 import Data.Text (toLower)
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 
 -- | Adds a simple @WHERE x = y@ condition to the query.
---
--- __Example:__ Only show projects where @active@ is @True@.
---
--- > activeProjects <- query @Project
--- >     |> filterWhere (#active, True)
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE active = True
---
--- __Example:__ Find book with title @Learn you a Haskell@.
---
--- > book <- query @Book
--- >     |> filterWhere (#title, "Learn you a Haskell")
--- >     |> fetchOne
--- > -- SELECT * FROM books WHERE name = 'Learn you a Haskell' LIMIT 1
---
---
--- __Example:__ Find active projects owned by the current user.
---
--- > projects <- query @Project
--- >     |> filterWhere (#active, True)
--- >     |> filterWhere (#currentUserId, currentUserId)
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE active = true AND current_user_id = '..'
---
---
--- For dynamic conditions (e.g. involving @NOW()@), see 'filterWhereSql'.
---
--- For @WHERE x IN (a, b, c)@ conditions, take a look at 'filterWhereIn' and 'filterWhereNotIn'.
---
--- For @WHERE x LIKE a@ or @WHERE x ~ a@  conditions, see 'filterWhereLike' and 'filterWhereMatches' respectively.
--- For case-insensitive versions of these operators, see 'filterWhereILike' and 'filterWhereIMatches'.
---
--- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
-filterWhere :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhere :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhere (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhere #-}
 
--- | Like 'filterWhere', but takes a type argument specifying the table which holds the column that is to be compared. The column must have been joined before using 'innerJoin' or 'innerJoinThirdTable'. Example:
---
--- __Example:__ get posts by user Tom.
---
--- > tomPosts <- query @Post
--- >                    |> innerJoin @User (#createdBy, #id)
--- >                    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
--- >                    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name = 'Tom'
---
-filterWhereJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereJoinedTable #-}
 
--- | Like 'filterWhereJoinedTable', but adds a @WHERE LOWER(x) = LOWER(y)@ condition to the query. Example:
---
--- __Example:__ get posts by user Tom, ignoring case.
---
--- > tomPosts <- query @Post
--- >                    |> innerJoin @User (#createdBy, #id)
--- >                    |> filterWhereCaseInsensitiveJoinedTable @User (#name, "Tom" :: Text)
--- >                    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE LOWER(users.name) = LOWER('Tom')
---
-filterWhereCaseInsensitiveJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereCaseInsensitiveJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value), applyLeft = Just "LOWER", applyRight = Just "LOWER" }
+filterWhereCaseInsensitiveJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereCaseInsensitiveJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, Snippet.param value), applyLeft = Just "LOWER", applyRight = Just "LOWER" }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereCaseInsensitiveJoinedTable #-}
 
--- | Like 'filterWhere' but negates the condition.
---
--- __Example:__ Only show projects created by other users.
---
--- > activeProjects <- query @Project
--- >     |> filterWhereNot (#userId, currentUserId)
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE user_id != '23d5ea33-b28e-4f0a-99b3-77a3564a2546'
---
-filterWhereNot :: forall name table model value. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
-filterWhereNot (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereNot :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereNot (name, value) queryBuilder = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
 {-# INLINE filterWhereNot #-}
 
--- | Like 'filterWhereNotJoinedTable' but negates the condition.
---
--- __Example:__ Only show projects not created by user Tom.
---
--- > tomPosts <- query @Post
--- >                    |> innerJoin @User (#createdBy, #id)
--- >                    |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
--- >                    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name = 'Tom'
---
-filterWhereNotJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereNotJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, negateFilterOperator (toEqOrIsOperator value), Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotJoinedTable #-}
--- | Adds a @WHERE x IN (y)@ condition to the query.
---
--- __Example:__ Only show projects where @status@ is @Draft@ or @Active@.
---
--- > visibleProjects <- query @Project
--- >     |> filterWhereIn (#status, [Draft, Active])
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE status IN ('draft', 'active')
---
--- For negation use 'filterWhereNotIn'
---
-filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereIn (name, value) queryBuilderProvider =
-        case head nullValues of
-            Nothing -> injectQueryBuilder whereInQuery -- All values non null
-            Just nullValue ->
-                let
-                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
-                in
-                    case head nonNullValues of
-                        Just nonNullValue -> -- Some non null values, some null values
-                            injectQueryBuilder $ UnionQueryBuilder
-                                (injectQueryBuilder whereInQuery)
-                                (injectQueryBuilder isNullValueExpr)
-                        Nothing -> injectQueryBuilder isNullValueExpr -- All values null
-    where
-        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
-        -- https://github.com/digitallyinduced/ihp/issues/906
-        --
-        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+-- | Adds a @WHERE x IN (y)@ condition to the query.
+-- For hasql, we build an IN expression with individual parameters
+filterWhereIn :: forall name table model value queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIn (name, values) queryBuilderProvider =
+    case nullValues of
+        [] -> injectQueryBuilder whereInQuery -- All values non null
+        (nullValue:_) ->
+            case nonNullValues of
+                (_:_) -> -- Some non null values, some null values
+                    injectQueryBuilder $ UnionQueryBuilder
+                        (injectQueryBuilder whereInQuery)
+                        (injectQueryBuilder isNullValueExpr)
+                [] -> injectQueryBuilder isNullValueExpr -- All values null
+    where
+        (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
+
+        -- Build IN clause with individual params: col IN ($1, $2, $3, ...)
+        inSnippet = case nonNullValues of
+            [] -> Snippet.sql "(NULL)" -- Empty IN - should never match
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
+                , Snippet.sql ")"
+                ]
+
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
+
+        isNullValueExpr = case nullValues of
+            (nv:_) -> FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, Snippet.param nv), applyLeft = Nothing, applyRight = Nothing }
+            [] -> error "filterWhereIn: impossible"
 
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIn #-}
 
--- Like 'filterWhereIn', but case insensitive.
---
--- __Example:__ Only show users where @email@ is @User1@example.com@ or @User2@example.com@.
---
--- > users <- query @User
--- >     |> filterWhereInCaseInsensitive (#email, ['User1@example.com', 'User2@example.com'])
--- >     |> fetch
--- > -- SELECT * FROM users WHERE LOWER(email) IN ('user1@example.com', 'user2@example.com')
---
-filterWhereInCaseInsensitive :: forall name table model value queryBuilderProvider (joinRegister :: Type). ( KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
+-- | Like 'filterWhereIn', but case insensitive.
+filterWhereInCaseInsensitive :: forall name table model value queryBuilderProvider (joinRegister :: Type). ( KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value, Table model) => (Proxy name, [Text]) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
-        case head nullValues of
-            Nothing -> injectQueryBuilder whereInQuery
-            Just nullValue ->
-                let
-                    isNullValueExpr = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing }
-                in
-                    case head nonNullValues of
-                        Just _ ->
-                            injectQueryBuilder $ UnionQueryBuilder
-                                (injectQueryBuilder whereInQuery)
-                                (injectQueryBuilder isNullValueExpr)
-                        Nothing -> injectQueryBuilder isNullValueExpr
+    case nullValues of
+        [] -> injectQueryBuilder whereInQuery
+        (nullValue:_) ->
+            case nonNullValues of
+                (_:_) ->
+                    injectQueryBuilder $ UnionQueryBuilder
+                        (injectQueryBuilder whereInQuery)
+                        (injectQueryBuilder isNullValueExpr)
+                [] -> injectQueryBuilder isNullValueExpr
     where
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
-
         lowerValues = map toLower nonNullValues
 
-        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, toField (In lowerValues)), applyLeft = Nothing, applyRight = Nothing }
+        inSnippet = case lowerValues of
+            [] -> Snippet.sql "(NULL)"
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
+                , Snippet.sql ")"
+                ]
+
+        whereInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (lowerColumnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
+
+        isNullValueExpr = case nullValues of
+            (nv:_) -> FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsOp, Snippet.param nv), applyLeft = Nothing, applyRight = Nothing }
+            [] -> error "filterWhereInCaseInsensitive: impossible"
 
         lowerColumnName = "LOWER(" <> columnName <> ")"
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
-
 {-# INLINE filterWhereInCaseInsensitive #-}
 
--- | Like 'filterWhereIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
---
--- __Example:__ get posts by Tom and Tim.
---
--- > tomOrTimPosts <- query @Post
--- >    |> innerJoin @User (#createdBy, #id)
--- >    |> filterWhereInJoinedTable @User (#name, ["Tom","Tim"])
--- >    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name IN ('Tom', 'Tim')
---
-filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereInJoinedTable (name, values) queryBuilderProvider =
+    let inSnippet = case values of
+            [] -> Snippet.sql "(NULL)"
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
+                , Snippet.sql ")"
+                ]
+    in injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereInJoinedTable #-}
 
-
--- | Adds a @WHERE x NOT IN (y)@ condition to the query.
---
--- __Example:__ Only show projects where @status@ is not @Archived@
---
--- > visibleProjects <- query @Project
--- >     |> filterWhereNotIn (#status, [Archived])
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE status NOT IN ('archived')
---
--- The inclusive version of this function is called 'filterWhereIn'.
---
-filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
-filterWhereNotIn (name, value) queryBuilderProvider =
-        case head nullValues of
-            Nothing -> injectQueryBuilder whereNotInQuery -- All values non null
-            Just nullValue ->
-                case head nonNullValues of
-                    Just nonNullValue -> injectQueryBuilder FilterByQueryBuilder { queryBuilder = whereNotInQuery, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- Some non null values, some null values
-                    Nothing -> injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsNotOp, toField nullValue), applyLeft = Nothing, applyRight = Nothing } -- All values null
+filterWhereNotIn :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, EqOrIsOperator value) => (Proxy name, [value]) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereNotIn (_, []) queryBuilder = queryBuilder
+filterWhereNotIn (name, values) queryBuilderProvider =
+    case nullValues of
+        [] -> injectQueryBuilder whereNotInQuery
+        (nullValue:_) ->
+            case nonNullValues of
+                (_:_) -> injectQueryBuilder FilterByQueryBuilder { queryBuilder = whereNotInQuery, queryFilter = (columnName, IsNotOp, Snippet.param nullValue), applyLeft = Nothing, applyRight = Nothing }
+                [] -> injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, IsNotOp, Snippet.param nullValue), applyLeft = Nothing, applyRight = Nothing }
     where
-        -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
-        -- https://github.com/digitallyinduced/ihp/issues/906
-        --
-        (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
+        (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        whereNotInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In nonNullValues)), applyLeft = Nothing, applyRight = Nothing }
+        inSnippet = case nonNullValues of
+            [] -> Snippet.sql "(NULL)"
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
+                , Snippet.sql ")"
+                ]
+
+        whereNotInQuery = FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
 
         columnName = Text.encodeUtf8 (symbolToText @table) <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotIn #-}
 
--- | Like 'filterWhereNotIn', but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
---
--- __Example:__ get posts by users not named Tom or Tim.
---
--- > notTomOrTimPosts <- query @Post
--- >    |> innerJoin @User (#createdBy, #id)
--- >    |> filterWhereNotInJoinedTable @User (#name, ["Tom","Tim"])
--- >    |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name NOT IN ('Tom', 'Tim')
-filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
-filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, toField (In value)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereNotInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider
+filterWhereNotInJoinedTable (name, values) queryBuilderProvider =
+    let inSnippet = case values of
+            [] -> Snippet.sql "(NULL)"
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") (map Snippet.param vs)
+                , Snippet.sql ")"
+                ]
+    in injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, NotInOp, inSnippet), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereNotInJoinedTable #-}
 
-
--- | Adds a @WHERE x LIKE y@ condition to the query.
---
--- __Example:__ Find titles matching search term.
---
--- > articles <- query @Article
--- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
--- >     |> fetch
--- > -- SELECT * FROM articles WHERE title LIKE '%..%'
-filterWhereLike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereLike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereLike #-}
 
--- | Like 'filterWhereLik'e, but takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
---
--- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
---
--- > olafPosts <- query @Post
--- >                |> innerJoin @User (#createdBy, #id)
--- >                |> filterWhereLikeJoinedTable @User (#name, "%Olaf%")
--- >                |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name LIKE '%Olaf%'
-filterWhereLikeJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereLikeJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseSensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereLikeJoinedTable #-}
 
-
--- | Adds a @WHERE x ILIKE y@ condition to the query. Case-insensitive version of 'filterWhereLike'.
---
--- __Example:__ Find titles matching search term.
---
--- > articles <- query @Article
--- >     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
--- >     |> fetch
--- > -- SELECT * FROM articles WHERE title ILIKE '%..%'
-filterWhereILike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereILike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereILike #-}
 
--- | Like 'filterWhereILike'; case-insensitive version of filterWhereLikeJoinedTable, takes a type argument specifying the table which holds the column that is compared. The table needs to have been joined before using 'innerJoin' or 'innerJoinThirdTable'.
---
--- __Example:__ Serach for Posts by users whose name contains "olaf" (case insensitive)
---
--- > olafPosts <-
--- >    query @Post
---      |> innerJoin @User (#createdBy, #id)
---      |> filterWhereILikeJoinedTable @User (#name, "%Olaf%")
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE '%Olaf%'
-filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LikeOp CaseInsensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereILikeJoinedTable #-}
 
-
--- | Adds a @WHERE x ~ y@ condition to the query.
---
--- __Example:__ Find names with titles in front.
---
--- > articles <- query @User
--- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
--- >     |> fetch
--- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
-filterWhereMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereMatches #-}
 
--- | Adds a @WHERE x ~ y@ condition to the query, where the column x is held by a joined table.
---
--- __Example:__ Find Posts by people with names with titles in front.
---
--- > articles <- query @Post
--- >     |> innerJoin @User (#createdBy, #id)
--- >     |> filterWhereMatchesJoinedTable (#title, "^(M(rs|r|iss|s)|Dr|Sir). ")
--- >     |> fetch
--- > -- SELECT posts.* FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.title ~ '^(M(rs|r|iss|s)|Dr|Sir). '
-
-filterWhereMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseSensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereMatchesJoinedTable #-}
 
-
--- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
-filterWhereIMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereIMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIMatches #-}
 
--- | Case-insensitive version of 'filterWhereMatchesJoinedTable'
-filterWhereIMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
-filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereIMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
+filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, MatchesOp CaseInsensitive, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereIMatchesJoinedTable #-}
 
-
--- | Filter all rows by whether a field is in the past, determined by comparing 'NOW()' to the field's value.
---
--- Opposite of 'filterWhereFuture'
---
--- __Example:__ Fetch all posts scheduled for the past.
---
--- > publicPosts <- query @Post
--- >     |> filterWherePast #scheduledAt
--- >     |> fetch
--- > -- SELECT * FROM posts WHERE scheduled_at <= NOW()
 filterWherePast
     :: ( KnownSymbol table
        , KnownSymbol name
-       , ToField value
+       , DefaultParamEncoder value
        , HasField name (GetModelByTableName table) value
        , HasQueryBuilder queryBuilderProvider joinRegister
        , Table (GetModelByTableName table)
@@ -434,20 +282,10 @@ filterWherePast
 filterWherePast name = filterWhereSql (name, "<= NOW()")
 {-# INLINE filterWherePast #-}
 
--- | Filter all rows by whether a field is in the future, determined by comparing 'NOW()' to the field's value.
---
--- Opposite of 'filterWherePast'
---
--- __Example:__ Fetch all posts scheduled for the future.
---
--- > hiddenPosts <- query @Post
--- >     |> filterWhereFuture #scheduledAt
--- >     |> fetch
--- > -- SELECT * FROM posts WHERE scheduled_at > NOW()
 filterWhereFuture
     :: ( KnownSymbol table
        , KnownSymbol name
-       , ToField value
+       , DefaultParamEncoder value
        , HasField name (GetModelByTableName table) value
        , HasQueryBuilder queryBuilderProvider joinRegister
        , Table (GetModelByTableName table)
@@ -456,156 +294,60 @@ filterWhereFuture
 filterWhereFuture name = filterWhereSql (name, "> NOW()")
 {-# INLINE filterWhereFuture #-}
 
--- | Adds a @WHERE x > y@ condition to the query.
---
--- __Example:__ Find assignments with grade greater than 80.
---
--- > greatAssignments <- query @Assignment
--- >     |> filterWhereGreaterThan (#grade, 80)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade > 80
---
--- See also: 'filterWhereLarger', 'filterWhereGreaterThanOrEqualTo', 'filterWhereAtLeast'
-filterWhereGreaterThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereGreaterThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereGreaterThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereGreaterThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOp, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereGreaterThan #-}
 
--- | Alias for 'filterWhereGreaterThan'. Adds a @WHERE x > y@ condition to the query.
---
--- __Example:__ Find assignments with grade larger than 80.
---
--- > greatAssignments <- query @Assignment
--- >     |> filterWhereLarger (#grade, 80)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade > 80
-filterWhereLarger :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLarger :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereLarger = filterWhereGreaterThan
 {-# INLINE filterWhereLarger #-}
 
--- | Adds a @WHERE x >= y@ condition to the query.
---
--- __Example:__ Find assignments with grade at least 80.
---
--- > greatAssignments <- query @Assignment
--- >     |> filterWhereGreaterThanOrEqualTo (#grade, 80)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade >= 80
---
--- See also: 'filterWhereAtLeast', 'filterWhereGreaterThan', 'filterWhereLarger'
-filterWhereGreaterThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereGreaterThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOrEqualToOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereGreaterThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereGreaterThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, GreaterThanOrEqualToOp, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereGreaterThanOrEqualTo #-}
 
--- | Alias for 'filterWhereGreaterThanOrEqualTo'. Adds a @WHERE x >= y@ condition to the query.
---
--- __Example:__ Find assignments with grade at least 80.
---
--- > greatAssignments <- query @Assignment
--- >     |> filterWhereAtLeast (#grade, 80)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade >= 80
-filterWhereAtLeast :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereAtLeast :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereAtLeast = filterWhereGreaterThanOrEqualTo
 {-# INLINE filterWhereAtLeast #-}
 
--- | Adds a @WHERE x < y@ condition to the query.
---
--- __Example:__ Find assignments with grade less than 60.
---
--- > poorAssignments <- query @Assignment
--- >     |> filterWhereLessThan (#grade, 60)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade < 60
---
--- See also: 'filterWhereSmaller', 'filterWhereLessThanOrEqualTo', 'filterWhereAtMost'
-filterWhereLessThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereLessThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereLessThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLessThan (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOp, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereLessThan #-}
 
--- | Alias for 'filterWhereLessThan'. Adds a @WHERE x < y@ condition to the query.
---
--- __Example:__ Find assignments with grade smaller than 60.
---
--- > poorAssignments <- query @Assignment
--- >     |> filterWhereSmaller (#grade, 60)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade < 60
-filterWhereSmaller :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereSmaller :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereSmaller = filterWhereLessThan
 {-# INLINE filterWhereSmaller #-}
 
--- | Adds a @WHERE x <= y@ condition to the query.
---
--- __Example:__ Find assignments with grade at most 60.
---
--- > poorAssignments <- query @Assignment
--- >     |> filterWhereLessThanOrEqualTo (#grade, 60)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade <= 60
---
--- See also: 'filterWhereAtMost', 'filterWhereLessThan', 'filterWhereSmaller'
-filterWhereLessThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereLessThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOrEqualToOp, toField value), applyLeft = Nothing, applyRight = Nothing }
+filterWhereLessThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereLessThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, LessThanOrEqualToOp, Snippet.param value), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereLessThanOrEqualTo #-}
 
--- | Alias for 'filterWhereLessThanOrEqualTo'. Adds a @WHERE x <= y@ condition to the query.
---
--- __Example:__ Find assignments with grade at most 60.
---
--- > poorAssignments <- query @Assignment
--- >     |> filterWhereAtMost (#grade, 60)
--- >     |> fetch
--- > -- SELECT * FROM assignments WHERE grade <= 60
-filterWhereAtMost :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereAtMost :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereAtMost = filterWhereLessThanOrEqualTo
 {-# INLINE filterWhereAtMost #-}
 
-
 -- | Allows to add a custom raw sql where condition
---
--- If your query cannot be represented with 'filterWhereSql', take a look at 'IHP.ModelSupport.sqlQuery'.
---
--- __Example:__ Fetching all projects created in the last 24 hours.
---
--- > latestProjects <- query @Project
--- >     |> filterWhereSql (#startedAt, "< current_timestamp - interval '1 day'")
--- >     |> fetch
--- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
---
-filterWhereSql :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, ByteString) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Plain (Builder.byteString sqlCondition)), applyLeft = Nothing, applyRight = Nothing }
+filterWhereSql :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, ByteString) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Snippet.sql (cs sqlCondition)), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE filterWhereSql #-}
 
--- | Adds a @WHERE LOWER(x) = LOWER(y)@ condition to the query.
---
--- __Example:__ Get a user by an email address, ignoring case
---
--- > user <- query @User
--- >     |> filterWhereCaseInsensitive (#email, "marc@digitallyinduced.com")
--- >     |> fetchOne
--- > -- SELECT * FROM users WHERE LOWER(email) = 'marc@digitallyinduced.com'
---
--- For high performance it's best to have an index for @LOWER(field)@ in your Schema.sql
---
--- >>> CREATE UNIQUE INDEX users_email_index ON users ((LOWER(email)));
---
-filterWhereCaseInsensitive :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, ToField value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, toField value), applyLeft = Just "LOWER", applyRight = Just "LOWER" }
+filterWhereCaseInsensitive :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, toEqOrIsOperator value, Snippet.param value), applyLeft = Just "LOWER", applyRight = Just "LOWER" }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider
@@ -614,13 +356,23 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
 
 filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIdIn values queryBuilderProvider =
-    -- We don't need to treat null values differently here, because primary keys imply not-null
     let
-        pkConditions = map (primaryKeyConditionForId @model) values
-
+        pkSnippets = map (primaryKeyConditionForId @model) values
+        inSnippet = case pkSnippets of
+            [] -> Snippet.sql "(NULL)"
+            vs -> mconcat
+                [ Snippet.sql "("
+                , mconcat $ intersperse' (Snippet.sql ", ") vs
+                , Snippet.sql ")"
+                ]
         queryBuilder = getQueryBuilder queryBuilderProvider
-
-        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, toField (In pkConditions)), applyLeft = Nothing, applyRight = Nothing}
+        whereInQuery = FilterByQueryBuilder {queryBuilder, queryFilter = (primaryKeyConditionColumnSelector @model, InOp, inSnippet), applyLeft = Nothing, applyRight = Nothing}
      in
         injectQueryBuilder whereInQuery
 {-# INLINE filterWhereIdIn #-}
+
+-- | Helper: intersperse for lists (avoids depending on Data.List.intersperse which conflicts)
+intersperse' :: a -> [a] -> [a]
+intersperse' _ [] = []
+intersperse' _ [x] = [x]
+intersperse' sep (x:xs) = x : sep : intersperse' sep xs

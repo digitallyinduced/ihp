@@ -33,7 +33,7 @@ module IHP.Prelude
 , module IHP.NameSupport
 , module IHP.ModelSupport
 , module Data.TMap
-, module Database.PostgreSQL.Simple
+, module Hasql.DynamicStatements.Snippet
 , module Data.IORef
 , module Data.Time.Format
 , null
@@ -72,9 +72,10 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..), FromRow (..), FromField (..))
 import Data.TMap (TMap)
-import Database.PostgreSQL.Simple (FromRow)
+import Hasql.DynamicStatements.Snippet (Snippet, sql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import Data.IORef
 import Data.Time.Format
 import Control.Exception.Safe (throw, throwIO, catch)

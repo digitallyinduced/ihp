@@ -14,6 +14,9 @@ import qualified Data.Char as Char
 import IHP.Log.Types
 import IHP.EnvVar
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Decoders as Decoders
 
 data Migration = Migration
     { revision :: Int
@@ -43,13 +46,8 @@ runMigration migration@Migration { revision, migrationFile } = do
     migrationFilePath <- migrationPath migration
     migrationSql <- Text.readFile (cs migrationFilePath)
 
-    let fullSql = [trimming|
-        BEGIN;
-            ${migrationSql};
-            INSERT INTO schema_migrations (revision) VALUES (?);
-        COMMIT;
-    |]
-    sqlExec (fromString . cs $ fullSql) [revision]
+    let fullSql = Snippet.sql (cs ("BEGIN; " <> migrationSql <> "; INSERT INTO schema_migrations (revision) VALUES (")) <> Snippet.param revision <> Snippet.sql "); COMMIT;"
+    sqlExec fullSql
 
     pure ()
 
@@ -61,13 +59,12 @@ createSchemaMigrationsTable = do
         -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
         -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
         -- https://github.com/digitallyinduced/ihp/issues/818
-        maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
+        maybeTableName :: Maybe Text <- sqlQueryScalar (Snippet.sql "SELECT (to_regclass('schema_migrations')) :: text") (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text)))
         let schemaMigrationTableExists = isJust maybeTableName
 
         unless schemaMigrationTableExists do
-            let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-            _ <- sqlExec ddl ()
-            pure ()
+            let ddl = Snippet.sql "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
+            sqlExec ddl
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
@@ -88,7 +85,9 @@ findOpenMigrations !minimumRevision = do
 -- [ 1604850570, 1604850660 ]
 --
 findMigratedRevisions :: (?modelContext :: ModelContext) => IO [Int]
-findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revision FROM schema_migrations ORDER BY revision" ()
+findMigratedRevisions = do
+    rows <- sqlQuery (Snippet.sql "SELECT revision FROM schema_migrations ORDER BY revision") (Decoders.rowList (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8))))
+    pure rows
 
 -- | Returns all migrations found in @Application/Migration@
 --

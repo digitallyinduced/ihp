@@ -18,7 +18,6 @@ import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigra
 import IHP.Log.Types
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
-import qualified Database.PostgreSQL.Simple as PG
 import System.OsPath (encodeUtf)
 
 instance Controller MigrationsController where
@@ -60,7 +59,7 @@ instance Controller MigrationsController where
                 case result of
                     Left (exception :: SomeException) -> do
                         let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError
                                 Nothing -> tshow exception
 
                         setErrorMessage errorMessage
@@ -101,7 +100,7 @@ instance Controller MigrationsController where
         case result of
             Left (exception :: SomeException) -> do
                 let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError
                         Nothing -> tshow exception
 
                 setErrorMessage errorMessage
@@ -137,7 +136,7 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
         emptyListIfTablesDoesntExists operation = do
             result <- Exception.try operation
             case result of
-                Left (EnhancedSqlError { sqlError }) | sqlError.sqlErrorMsg == "relation \"schema_migrations\" does not exist" -> pure []
+                Left (EnhancedSqlError { sqlError }) | "relation \"schema_migrations\" does not exist" `isInfixOf` sqlError -> pure []
                 Right result -> pure result
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result

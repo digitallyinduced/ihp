@@ -30,7 +30,6 @@ module IHP.ControllerPrelude
     , module IHP.Controller.Layout
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
-    , Only (..)
     , module IHP.PageHead.ControllerFunctions
     , module IHP.WebSocket
     , module IHP.FileStorage.Types
@@ -62,7 +61,6 @@ import Network.Wai.Parse (FileInfo(..))
 import qualified Network.Wai
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
-import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages
 import IHP.Controller.Context
 import IHP.Controller.Layout

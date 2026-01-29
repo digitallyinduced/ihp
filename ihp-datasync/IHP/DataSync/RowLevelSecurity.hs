@@ -5,20 +5,19 @@ module IHP.DataSync.RowLevelSecurity
 , makeCachedEnsureRLSEnabled
 , sqlQueryWithRLS
 , sqlExecWithRLS
+, wrapStatementWithRLS
 )
 where
 
 import IHP.ControllerPrelude
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.ToRow as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Decoders as Decoders
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
 
 sqlQueryWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -26,17 +25,15 @@ sqlQueryWithRLS ::
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    , FromRow result
-    ) => PG.Query -> parameters -> IO [result]
-sqlQueryWithRLS query parameters = sqlQuery queryWithRLS parametersWithRLS
+    , DefaultParamEncoder userId
+    ) => Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWithRLS snippet decoder = sqlQuery queryWithRLS decoder
     where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+        queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlQueryWithRLS #-}
 
 sqlExecWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -44,16 +41,15 @@ sqlExecWithRLS ::
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    ) => PG.Query -> parameters -> IO Int64
-sqlExecWithRLS query parameters = sqlExec queryWithRLS parametersWithRLS
+    , DefaultParamEncoder userId
+    ) => Snippet -> IO ()
+sqlExecWithRLS snippet = sqlExec queryWithRLS
     where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+        queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlExecWithRLS #-}
 
 wrapStatementWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -61,12 +57,10 @@ wrapStatementWithRLS ::
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    ) => PG.Query -> parameters -> (PG.Query, [PG.Action])
-wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
+    , DefaultParamEncoder userId
+    ) => Snippet -> Snippet
+wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenticatedRole) <> "; SET LOCAL rls.ihp_user_id = " <> encodedUserId <> "; " <> snippet <> ";"
     where
-        queryWithRLS = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query <> ";"
-
         maybeUserId = (.id) <$> currentUserOrNothing
 
         -- When the user is not logged in and maybeUserId is Nothing, we cannot
@@ -76,10 +70,8 @@ wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
         -- means "not logged in".
         --
         encodedUserId = case maybeUserId of
-                Just userId -> PG.toField userId
-                Nothing -> PG.toField ("" :: Text)
-
-        parametersWithRLS = [PG.toField (PG.Identifier Role.authenticatedRole), PG.toField encodedUserId] <> (PG.toRow parameters)
+                Just userId -> Snippet.param (tshow userId)
+                Nothing -> Snippet.param ("" :: Text)
 {-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
@@ -128,7 +120,7 @@ makeCachedEnsureRLSEnabled = do
 -- >>> hasRLSEnabled "my_table"
 -- True
 hasRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO Bool
-hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(?)::regclass" [table]
+hasRLSEnabled table = sqlQueryScalar ("SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(" <> Snippet.param table <> ")::regclass") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --

@@ -1,8 +1,10 @@
 module IHP.Hspec (withIHPApp) where
 
 import IHP.Prelude
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Hasql.Connection as Hasql
+import qualified Hasql.Connection.Setting as HasqlSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Session as Hasql
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
@@ -21,7 +23,14 @@ import IHP.Log.Types
 import qualified System.Process as Process
 import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
 
-withConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close
+withConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
+withConnection databaseUrl = Exception.bracket acquireOrFail Hasql.release
+    where
+        acquireOrFail = do
+            result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+            case result of
+                Left err -> error ("withConnection: Failed to acquire connection: " <> show err)
+                Right conn -> pure conn
 
 -- | Create contexts that can be used for mocking
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
@@ -46,16 +55,27 @@ withTestDatabase masterDatabaseUrl callback = do
 
     withConnection masterDatabaseUrl \masterConnection ->
         Exception.bracket_
-            (PG.execute masterConnection "CREATE DATABASE ?" [PG.Identifier testDatabaseName])
+            (runScript masterConnection ("CREATE DATABASE " <> quoteIdentifier testDatabaseName))
             (
                 -- The WITH FORCE is required to force close open connections
-                PG.execute masterConnection "DROP DATABASE ? WITH (FORCE)" [PG.Identifier testDatabaseName]
+                runScript masterConnection ("DROP DATABASE " <> quoteIdentifier testDatabaseName <> " WITH (FORCE)")
             )
             do
                 let testDatabaseUrl = injectDatabaseName testDatabaseName masterDatabaseUrl
                 importSql testDatabaseUrl
                 callback testDatabaseUrl
     pure ()
+
+runScript :: Hasql.Connection -> ByteString -> IO ()
+runScript conn scriptText = do
+    result <- Hasql.run (Hasql.sql scriptText) conn
+    case result of
+        Left err -> error ("runScript failed: " <> show err)
+        Right () -> pure ()
+
+-- | Quotes an identifier for use in SQL statements (e.g. database names)
+quoteIdentifier :: Text -> ByteString
+quoteIdentifier name = "\"" <> cs name <> "\""
 
 -- | Imports the IHP Schema.sql and Application/Schema.sql
 importSql :: ByteString -> IO ()
