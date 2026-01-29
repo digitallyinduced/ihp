@@ -109,8 +109,32 @@ CABAL_EOF
         disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
     };
 
-    # Build the models package as a proper Haskell package
-    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (ghc.callCabal2nix "${appName}-models" modelsPackageSrc {}));
+    # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
+    # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
+    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions }: mkDerivation {
+            pname = "${appName}-models";
+            version = "0.1.0";
+            src = modelsPackageSrc;
+            libraryHaskellDepends = [
+                base
+                ihp
+                basic-prelude
+                text
+                bytestring
+                time
+                uuid
+                aeson
+                postgresql-simple
+                deepseq
+                data-default
+                ip
+                scientific
+                string-conversions
+            ];
+            license = pkgs.lib.licenses.free;
+        }) {}
+    ));
 
     allHaskellPackages =
         (if withHoogle
