@@ -13,7 +13,7 @@ import IHP.Postgres.Parser (parseSqlFile)
 import IHP.Postgres.Types (Statement)
 
 -- | Path to the IHP schema file
-schemaFilePath :: FilePath
+schemaFilePath :: OsPath
 schemaFilePath = "Application/Schema.sql"
 
 -- | Parse the IHP schema file at 'Application/Schema.sql'

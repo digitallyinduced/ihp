@@ -71,7 +71,7 @@ buildPlan' schema config =
                 <> "        Hello World\n"
                 <> "    |]\n"
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/Mail/" <> controllerName }
-            , CreateFile { filePath = config.applicationName <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = mail }
-            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Mail/" <> controllerName) }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = mail }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]

@@ -27,8 +27,9 @@ module IHP.FrameworkConfig
 
 import IHP.Prelude
 import IHP.FrameworkConfig.Types
-import System.Directory (getCurrentDirectory)
+import qualified System.Directory.OsPath as Directory
 import IHP.Environment
+import System.OsPath (decodeUtf)
 import qualified Data.Text as Text
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
@@ -232,7 +233,8 @@ defaultPort = 8000
 
 defaultDatabaseUrl :: HasCallStack => IO ByteString
 defaultDatabaseUrl = do
-    currentDirectory <- getCurrentDirectory
+    currentDirectoryOsPath <- Directory.getCurrentDirectory
+    currentDirectory <- decodeUtf currentDirectoryOsPath
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     envOrDefault "DATABASE_URL" defaultDatabaseUrl
 

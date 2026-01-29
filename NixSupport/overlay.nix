@@ -9,9 +9,33 @@ final: prev: {
                 filter = inputs.nix-filter.lib;
                 # Disable profiling and haddock for faster local builds
                 fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
-                localPackage = name: fastBuild (super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {});
+
+                filteredSrc = name: filter {
+                    root = "${toString flakeRoot}/${name}";
+                    include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
+                };
+
+                # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
+                # IFD causes nix to build cabal2nix during evaluation, making derivation
+                # hashes platform-dependent and breaking caching across machines.
+                # To regenerate: run ./update-nix-from-cabal.sh after changing .cabal files.
+                localPackage = name: fastBuild (
+                    final.haskell.lib.overrideSrc
+                        (super.callPackage "${flakeRoot}/${name}/default.nix" {})
+                        { src = filteredSrc name; }
+                );
+
+                # For quick testing during development, you can use callCabal2nix directly
+                # (slower eval due to IFD, but no generated files needed):
+                #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
+
                 # ihp-with-docs has haddock for reference docs
-                localPackageWithHaddock = name: final.haskell.lib.disableLibraryProfiling (super.callCabal2nix name (filter { root = "${toString flakeRoot}/${name}"; include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ]; }) {});
+                localPackageWithHaddock = name:
+                    final.haskell.lib.disableLibraryProfiling (
+                        final.haskell.lib.overrideSrc
+                            (super.callPackage "${flakeRoot}/${name}/default.nix" {})
+                            { src = filteredSrc name; }
+                    );
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";

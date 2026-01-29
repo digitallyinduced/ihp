@@ -17,8 +17,9 @@ import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
 import IHP.Log.Types
 import qualified Control.Exception.Safe as Exception
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Database.PostgreSQL.Simple as PG
+import System.OsPath (encodeUtf)
 
 instance Controller MigrationsController where
     beforeAction = setLayout schemaDesignerLayout
@@ -86,9 +87,10 @@ instance Controller MigrationsController where
 
     action DeleteMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
-        path <- cs <$> SchemaMigration.migrationPath migration
+        path <- SchemaMigration.migrationPath migration
+        osPath <- encodeUtf (cs path)
 
-        Directory.removeFile path
+        Directory.removeFile osPath
 
         redirectTo MigrationsAction
 

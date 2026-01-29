@@ -15,7 +15,7 @@ import Network.HTTP.Types.Header
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import IHP.Controller.Response (respondAndExit)
 
 

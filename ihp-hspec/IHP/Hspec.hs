@@ -62,7 +62,7 @@ importSql :: ByteString -> IO ()
 importSql databaseUrl = do
     -- Import IHP Schema
     ihpSchemaSql <- findIHPSchemaSql
-    Process.callCommand ("psql " <> cs databaseUrl <> " < " <> ihpSchemaSql)
+    Process.callCommand ("psql " <> cs databaseUrl <> " < " <> cs (osPathToText ihpSchemaSql))
 
     -- Import Application Schema
     Process.callCommand ("psql " <> cs databaseUrl <> " < Application/Schema.sql")

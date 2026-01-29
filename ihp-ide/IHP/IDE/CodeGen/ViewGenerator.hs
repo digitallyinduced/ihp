@@ -253,9 +253,9 @@ buildPlan' schema config =
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/View/" <> controllerName }
-            , CreateFile { filePath = config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/View/" <> controllerName) }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = chosenView }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
 
 -- | Maps a Postgres column type to the appropriate IHP form field helper name.

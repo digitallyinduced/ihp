@@ -28,6 +28,7 @@ import Text.Megaparsec
 import Data.Void
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
+import System.OsPath (OsPath, decodeUtf)
 import Control.Monad.Combinators.Expr
 
 -- | Helper to convert Int parsing results
@@ -36,10 +37,11 @@ textToInt text = case reads (Text.unpack text) of
     [(n, "")] -> Just n
     _ -> Nothing
 
-parseSqlFile :: FilePath -> IO (Either ByteString [Statement])
+parseSqlFile :: OsPath -> IO (Either ByteString [Statement])
 parseSqlFile schemaFilePath = do
-    schemaSql <- Text.readFile schemaFilePath
-    let result = runParser parseDDL (cs schemaFilePath) schemaSql
+    fp <- decodeUtf schemaFilePath
+    schemaSql <- Text.readFile fp
+    let result = runParser parseDDL fp schemaSql
     case result of
         Left error -> pure (Left (cs $ errorBundlePretty error))
         Right r -> pure (Right r)
