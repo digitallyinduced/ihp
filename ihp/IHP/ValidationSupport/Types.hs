@@ -1,8 +1,15 @@
 module IHP.ValidationSupport.Types where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
 import qualified Data.Text as Text
-import IHP.ModelSupport (Violation (..))
+import Data.Proxy (Proxy)
+import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.Records (HasField(..))
+import IHP.HaskellSupport (SetField(..), modify, (|>))
+import Data.String.Conversions (cs)
+import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
+import IHP.ModelSupport () -- for SetField instances on MetaBag
 import Text.Blaze.Html5 (Html)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 import qualified Data.List as List

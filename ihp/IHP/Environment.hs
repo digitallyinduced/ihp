@@ -1,5 +1,5 @@
 module IHP.Environment where
-import IHP.Prelude
+import Prelude
 
 -- | The 'Environment' type is used to switch between development and production configurations.
 --
