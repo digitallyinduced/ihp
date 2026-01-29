@@ -41,6 +41,7 @@ fetchNextJob :: forall job.
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
     , Table job
+    , PrimaryKey (GetTableName job) ~ UUID
     ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
 fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
     let table = tableName @job

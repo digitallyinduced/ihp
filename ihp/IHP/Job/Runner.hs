@@ -136,6 +136,7 @@ worker :: forall job.
     , CanUpdate job
     , Show job
     , Table job
+    , PrimaryKey (GetTableName job) ~ UUID
     ) => JobWorker
 worker = JobWorker (jobWorkerFetchAndRunLoop @job)
 
@@ -157,6 +158,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , CanUpdate job
     , Show job
     , Table job
+    , PrimaryKey (GetTableName job) ~ UUID
     ) => JobWorkerArgs -> ResourceT IO JobWorkerProcess
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig

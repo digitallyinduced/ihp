@@ -13,6 +13,10 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder(defaultParam))
+import Data.Functor.Contravariant (contramap)
+import Data.Functor.Contravariant.Divisible (divide, conquer)
 
 data Post = Post
         { id :: UUID
@@ -42,12 +46,14 @@ instance Table WeirdPkTag where
     columnNames = ["tag_iden", "tag_text"]
     primaryKeyColumnNames = ["tag_iden"]
     primaryKeyConditionForId (Id id) = Snippet.param id
+    primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
 
 
 instance Table Post where
     columnNames = ["id", "title", "external_url", "created_at", "public", "created_by", "category_id"]
     primaryKeyColumnNames = ["id"]
     primaryKeyConditionForId (Id id) = Snippet.param id
+    primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
 
 data Tag = Tag
         { id :: UUID
@@ -62,6 +68,7 @@ instance Table Tag where
     columnNames = ["id", "tag_text"]
     primaryKeyColumnNames = ["id"]
     primaryKeyConditionForId (Id id) = Snippet.param id
+    primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
 
 data Tagging = Tagging
         { id :: UUID
@@ -78,6 +85,7 @@ instance Table Tagging where
     columnNames = ["id", "post_id", "tag_id"]
     primaryKeyColumnNames = ["id"]
     primaryKeyConditionForId (Id id) = Snippet.param id
+    primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
 
 data CompositeTagging = CompositeTagging
         { postId :: UUID
@@ -93,6 +101,7 @@ instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
     primaryKeyColumnNames = ["post_id", "tag_id"]
     primaryKeyConditionForId (Id (postId, tagId)) = Snippet.sql "(" <> Snippet.param postId <> Snippet.sql "," <> Snippet.param tagId <> Snippet.sql ")"
+    primaryKeyEncoder = divide (\(Id (a, b)) -> (a, b)) (Encoders.param defaultParam) (Encoders.param defaultParam)
 
 
 data User = User
@@ -108,6 +117,7 @@ instance Table User where
     columnNames = ["id", "name"]
     primaryKeyColumnNames = ["id"]
     primaryKeyConditionForId (Id id) = Snippet.param id
+    primaryKeyEncoder = contramap (\(Id pk) -> pk) (Encoders.param defaultParam)
 
 data FavoriteTitle = FavoriteTitle
     {
@@ -122,6 +132,7 @@ instance Table FavoriteTitle where
     columnNames = ["title", "likes"]
     primaryKeyConditionForId _ = mempty
     primaryKeyColumnNames = []
+    primaryKeyEncoder = conquer
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 -- Uses hasql's dynamicallyParameterized to assemble the final SQL with $1, $2, etc. placeholders.
