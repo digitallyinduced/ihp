@@ -20,7 +20,7 @@ toolServerLayout inner = [hsx|
         <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-        <script src={assetPath "/vendor/jquery-3.7.1.min.js"}></script>
+        <script src={assetPath "/vendor/jquery-4.0.0.min.js"}></script>
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>

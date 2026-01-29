@@ -107,7 +107,7 @@ generateGenericApplication applicationName =
                 <> "scripts :: Html\n"
                 <> "scripts = [hsx|\n"
                 <> "        {when isDevelopment devScripts}\n"
-                <> "        <script src={assetPath \"/vendor/jquery-3.7.1.slim.min.js\"}></script>\n"
+                <> "        <script src={assetPath \"/vendor/jquery-4.0.0.slim.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/timeago.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/popper-2.11.6.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/bootstrap-5.3.8/bootstrap.min.js\"}></script>\n"
