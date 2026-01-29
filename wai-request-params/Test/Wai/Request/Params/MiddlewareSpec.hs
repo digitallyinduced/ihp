@@ -1,7 +1,11 @@
-module Test.Wai.Request.Params.MiddlewareSpec where
+{-# LANGUAGE OverloadedStrings #-}
+module Wai.Request.Params.MiddlewareSpec where
 
-import IHP.Prelude
+import Prelude
 import Test.Hspec
+import Data.String.Conversions (cs)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
 import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
@@ -45,7 +49,7 @@ makeRequest method headers = srequest $ SRequest req ""
         , requestHeaders = headers
         }
 
-makeRequestWithBody :: ByteString -> [(HeaderName, ByteString)] -> LByteString -> Session SResponse
+makeRequestWithBody :: ByteString -> [(HeaderName, ByteString)] -> LBS.ByteString -> Session SResponse
 makeRequestWithBody method headers body = srequest $ SRequest req body
   where
     req = defaultRequest
@@ -53,8 +57,8 @@ makeRequestWithBody method headers body = srequest $ SRequest req body
         , requestHeaders = headers
         }
 
-tests :: Spec
-tests = do
+spec :: Spec
+spec = do
     describe "requestBodyMiddleware" $ do
         describe "skips body parsing for bodyless methods" $ do
             it "returns empty FormBody for GET requests" $ do
