@@ -97,9 +97,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let poolSettings =
             [ HasqlPoolConfig.size maxConnections
             , HasqlPoolConfig.idlenessTimeout (realToFrac idleTime)
-            , HasqlPoolConfig.staticConnectionSettings
-                [ HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))
-                ]
+            , HasqlPoolConfig.staticConnectionSettings (connectionSettingsFromDatabaseUrl databaseUrl)
             ]
     connectionPool <- HasqlPool.acquire (HasqlPoolConfig.settings poolSettings)
 
@@ -307,10 +305,11 @@ sqlExecDiscardResult = sqlExec
 
 -- | Convert a Snippet to a hasql Session for execution
 --
--- This uses hasql-dynamic-statements to construct a session from a Snippet and decoder.
--- The statement is not prepared (suitable for dynamic/one-off queries).
+-- This uses hasql-dynamic-statements to construct a prepared session from a Snippet and decoder.
+-- Prepared statements cache the query plan on the PostgreSQL server, avoiding re-planning
+-- for repeated query patterns (only the parameter values change between invocations).
 snippetToSession :: Snippet -> Decoders.Result result -> Hasql.Session result
-snippetToSession snippet decoder = DynSession.dynamicallyParameterizedStatement snippet decoder False
+snippetToSession snippet decoder = DynSession.dynamicallyParameterizedStatement snippet decoder True
 {-# INLINABLE snippetToSession #-}
 
 -- | Run a hasql session, using the pool or transaction connection
@@ -411,10 +410,16 @@ withTransaction block = do
     pure result
 {-# INLINABLE withTransaction #-}
 
+-- | Build hasql connection settings from a database URL
+connectionSettingsFromDatabaseUrl :: ByteString -> [HasqlSetting.Setting]
+connectionSettingsFromDatabaseUrl databaseUrl =
+    [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+{-# INLINABLE connectionSettingsFromDatabaseUrl #-}
+
 -- | Acquires a new hasql connection using the database URL from ModelContext
 acquireConnection :: ModelContext -> IO Hasql.Connection
 acquireConnection modelContext = do
-    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs modelContext.databaseUrl))]
+    result <- Hasql.acquire (connectionSettingsFromDatabaseUrl modelContext.databaseUrl)
     case result of
         Left err -> throwIO (userError ("Failed to acquire connection: " <> show err))
         Right conn -> pure conn

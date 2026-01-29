@@ -55,7 +55,6 @@ common shared-properties
             , hasql
             , hasql-pool
             , hasql-dynamic-statements
-            , hasql-transaction
             , hasql-notifications
             , contravariant
             , wai-app-static
