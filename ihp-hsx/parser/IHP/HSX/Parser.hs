@@ -28,10 +28,12 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import Data.String.Conversions
 import qualified Data.List as List
+import Data.List (sortOn)
 import Control.Monad (unless)
 import qualified "template-haskell" Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
 
@@ -224,7 +226,11 @@ hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
         let checkingMarkup = ?settings.checkMarkup
-        unless (isValidAttributeName name || not checkingMarkup) (fail $ "Invalid attribute name: " <> cs name)
+        unless (isValidAttributeName name || not checkingMarkup) do
+            let allAttrs = attributes `Set.union` ?settings.additionalAttributeNames
+            let suggestions = findSuggestions name allAttrs
+            let prefixHint = missingPrefixHint name
+            fail $ "Invalid attribute name: " <> cs name <> cs (formatSuggestions suggestions) <> cs prefixHint
         pure name
     where
         isValidAttributeName name =
@@ -253,7 +259,7 @@ hsxSplicedValue = do
 
 hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
     where
-        friendlyErrorMessage = show (Text.unpack ("</" <> name <> ">"))
+        friendlyErrorMessage = "closing tag </" <> Text.unpack name <> "> (to match opening <" <> Text.unpack name <> "> tag)"
         hsxClosingElement' name = do
             _ <- string ("</" <> name)
             space
@@ -314,7 +320,10 @@ hsxElementName = do
                                   && not (Char.isNumber (Text.head name))
     let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
     let checkingMarkup = ?settings.checkMarkup
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) (fail $ "Invalid tag name: " <> cs name)
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) do
+        let allTags = parents `Set.union` leafs `Set.union` ?settings.additionalTagNames
+        let suggestions = findSuggestions name allTags
+        fail $ "Invalid tag name: " <> cs name <> cs (formatSuggestions suggestions)
     space
     pure name
 
@@ -630,6 +639,52 @@ stripFirstTextNodeWhitespaces :: [Node] -> [Node]
 stripFirstTextNodeWhitespaces [] = []
 stripFirstTextNodeWhitespaces (TextNode text : rest) = TextNode (Text.stripStart text) : rest
 stripFirstTextNodeWhitespaces nodes = nodes
+
+-- | Computes the Damerau-Levenshtein edit distance between two texts.
+-- Counts insertions, deletions, substitutions, and adjacent transpositions.
+editDistance :: Text -> Text -> Int
+editDistance a b = d Map.! (m, n)
+    where
+        m = Text.length a
+        n = Text.length b
+        d = Map.fromList [((i, j), cost i j) | i <- [0..m], j <- [0..n]]
+        cost 0 j = j
+        cost i 0 = i
+        cost i j = minimum $
+            [ (d Map.! (i-1, j)) + 1
+            , (d Map.! (i, j-1)) + 1
+            , (d Map.! (i-1, j-1)) + if Text.index a (i-1) == Text.index b (j-1) then 0 else 1
+            ] ++
+            [ (d Map.! (i-2, j-2)) + 1
+            | i > 1, j > 1
+            , Text.index a (i-1) == Text.index b (j-2)
+            , Text.index a (i-2) == Text.index b (j-1)
+            ]
+
+-- | Find up to 3 closest suggestions from a set of valid names
+findSuggestions :: Text -> Set Text -> [Text]
+findSuggestions name validNames =
+    let maxDist = max 2 (Text.length name `div` 2)
+        candidates = [(n, editDistance name n) | n <- Set.toList validNames, n /= name]
+        close = List.filter (\(_, d) -> d <= maxDist) candidates
+    in List.map fst $ List.take 3 $ sortOn snd close
+
+-- | Format a "Did you mean" suggestion string
+formatSuggestions :: [Text] -> Text
+formatSuggestions [] = ""
+formatSuggestions [x] = "\n\nDid you mean: " <> x <> "?"
+formatSuggestions xs = "\n\nDid you mean one of these: " <> Text.intercalate ", " xs <> "?"
+
+-- | Hint when an attribute name looks like it's missing a prefix hyphen
+missingPrefixHint :: Text -> Text
+missingPrefixHint name
+    | hasPrefix "data" && not (hasPrefix "data-") = hint "data-" 4
+    | hasPrefix "aria" && not (hasPrefix "aria-") = hint "aria-" 4
+    | hasPrefix "hx"   && not (hasPrefix "hx-")   = hint "hx-"   2
+    | otherwise = ""
+    where
+        hasPrefix p = p `Text.isPrefixOf` name
+        hint prefix dropLen = "\nDid you mean to use a " <> prefix <> " attribute (e.g. " <> prefix <> Text.drop dropLen name <> ")?"
 
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text

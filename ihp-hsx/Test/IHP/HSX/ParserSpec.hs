@@ -12,6 +12,7 @@ import qualified Text.Megaparsec.Error as Megaparsec
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax as TH
 import qualified Data.Set as Set
+import qualified Data.List as List
 
 
 tests = do
@@ -21,17 +22,19 @@ tests = do
     describe "HSX Parser" do
         let settings = HsxSettings True Set.empty Set.empty
         it "should fail on invalid html tags" do
-            let errorText = "1:13:\n  |\n1 | <myinvalidel>\n  |             ^\nInvalid tag name: myinvalidel\n"
-            let (Left error) = parseHsx settings position extensions "<myinvalidel>"
-            (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+            case parseHsx settings position extensions "<myinvalidel>" of
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid tag name: myinvalidel" `List.isInfixOf` e
+                Right _ -> fail "Expected parser to fail with invalid tag name"
 
         it "should fail on invalid attribute names" do
-            let errorText = "1:23:\n  |\n1 | <div invalid-attribute=\"test\">\n  |                       ^\nInvalid attribute name: invalid-attribute\n"
-            let (Left error) = parseHsx settings position extensions "<div invalid-attribute=\"test\">"
-            (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+            case parseHsx settings position extensions "<div invalid-attribute=\"test\">" of
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid attribute name: invalid-attribute" `List.isInfixOf` e
+                Right _ -> fail "Expected parser to fail with invalid attribute name"
 
         it "should fail on unmatched tags" do
-            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting \"</div>\", identifier, or white space\n"
+            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting closing tag </div> (to match opening <div> tag), identifier, or white space\n"
             let (Left error) = parseHsx settings position extensions "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
@@ -89,6 +92,24 @@ tests = do
             let p = parseHsx settings position extensions "<!DOCTYPE html><html lang=\"en\"><body>hello</body></html>"
             p `shouldBe` (Right (Children [Node "!DOCTYPE" [StaticAttribute "html" (TextValue "html")] [] True, Node "html" [StaticAttribute "lang" (TextValue "en")] [Node "body" [] [TextNode "hello"] False] False]))
 
+        it "should suggest similar tag names for typos" do
+            case parseHsx settings position extensions "<dvi>" of
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid tag name: dvi" `List.isInfixOf` e && "div" `List.isInfixOf` e
+                Right _ -> fail "Expected parser to fail with invalid tag name"
+
+        it "should suggest similar attribute names for typos" do
+            case parseHsx settings position extensions "<div classs=\"test\">" of
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid attribute name: classs" `List.isInfixOf` e && "class" `List.isInfixOf` e
+                Right _ -> fail "Expected parser to fail with invalid attribute name"
+
+        it "should not suggest anything for completely wrong names" do
+            case parseHsx settings position extensions "<zzzzz>" of
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid tag name: zzzzz" `List.isInfixOf` e && not ("Did you mean" `List.isInfixOf` e)
+                Right _ -> fail "Expected parser to fail with invalid tag name"
+
     describe "uncheckedHsx" do
         let settings = HsxSettings False Set.empty Set.empty
         it "should not check markup" do
@@ -100,7 +121,7 @@ tests = do
             p `shouldBe` (Right (Children [Node "div" [StaticAttribute "invalid-attribute" (TextValue "invalid")] [] False]))
 
         it "should fail on unmatched tags" do
-            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting \"</div>\", identifier, or white space\n"
+            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^\nunexpected '/'\nexpecting closing tag </div> (to match opening <div> tag), identifier, or white space\n"
             let (Left error) = parseHsx settings position extensions "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
@@ -131,7 +152,7 @@ tests = do
         it "should collapse spaces" do
             let p = parseHsx settings position extensions "\n    Hello\n    World\n    !    "
             p `shouldBe`  (Right (Children [TextNode "Hello World !"]))
-        
+
         it "should parse spread values" do
             let p = parseHsx settings position extensions "<div {...variables}/>"
             -- We cannot easily construct the @VarE variables@ expression, therefore we use show here for comparison
@@ -160,9 +181,9 @@ tests = do
             p `shouldBe` (Right (Children [Node "mycustomtag" [] [TextNode "hello"] False]))
 
         it "should reject non-specified custom tags" do
-            let errorText = "1:15:\n  |\n1 | <notallowedtag>hello</notallowedtag>\n  |               ^\nInvalid tag name: notallowedtag\n"
             case parseHsx customSettings position extensions "<notallowedtag>hello</notallowedtag>" of
-                Left error -> (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid tag name: notallowedtag" `List.isInfixOf` e
                 Right _ -> fail "Expected parser to fail with invalid tag name"
 
         it "should allow specified custom attributes" do
@@ -170,9 +191,9 @@ tests = do
             p `shouldBe` (Right (Children [Node "div" [StaticAttribute "my-custom-attr" (TextValue "hello")] [TextNode "test"] False]))
 
         it "should reject non-specified custom attributes" do
-            let errorText = "1:22:\n  |\n1 | <div not-allowed-attr=\"test\">\n  |                      ^\nInvalid attribute name: not-allowed-attr\n"
             case parseHsx customSettings position extensions "<div not-allowed-attr=\"test\">" of
-                Left error -> (Megaparsec.errorBundlePretty error) `shouldBe` errorText
+                Left error -> (Megaparsec.errorBundlePretty error) `shouldSatisfy` \e ->
+                    "Invalid attribute name: not-allowed-attr" `List.isInfixOf` e
                 Right _ -> fail "Expected parser to fail with invalid attribute name"
 
         it "should allow mixing custom and standard elements" do
