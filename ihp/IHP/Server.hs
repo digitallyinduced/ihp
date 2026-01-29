@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run, application, staticRouteShortcut, initSessionMiddleware, initMiddlewareStack) where
+module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
@@ -36,6 +36,7 @@ import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 
 import IHP.Controller.NotFound (handleNotFound)
+import IHP.Static (staticRouteShortcut)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
 import qualified Network.Socket as Socket
@@ -166,23 +167,6 @@ application :: (FrontController RootApplication) => Application -> Middleware ->
 application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
-
--- | Routes requests with a @/static/@ prefix directly to the static file server,
--- bypassing the full middleware stack (session, CORS, auto-refresh, etc.).
--- All other requests go through the normal middleware pipeline.
---
--- This improves performance for static assets since they only need to be
--- read from disk.
-staticRouteShortcut :: Application -> Application -> Application
-staticRouteShortcut staticApp fallbackApp request respond =
-    case request.pathInfo of
-        ("static":rest) ->
-            let strippedRequest = request
-                    { pathInfo = rest
-                    , rawPathInfo = ByteString.drop (ByteString.length "/static") request.rawPathInfo
-                    }
-            in staticApp strippedRequest respond
-        _ -> fallbackApp request respond
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = \app -> do

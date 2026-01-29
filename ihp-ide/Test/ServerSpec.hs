@@ -7,7 +7,7 @@ import Network.Wai.Test
 import Network.HTTP.Types
 import qualified Data.ByteString.Lazy as LBS
 
-import IHP.Server (staticRouteShortcut)
+import IHP.Static (staticRouteShortcut)
 import Network.Wai.Middleware.AssetPath (assetPathMiddleware, assetPath)
 
 -- | A simple WAI app that responds with the pathInfo and rawPathInfo it received
