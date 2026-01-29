@@ -90,34 +90,67 @@ parser = do
     pure node
 
 hsxElement :: Parser Node
-hsxElement = try hsxNoRenderComment <|> try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
+hsxElement = try hsxNoRenderComment <|> hsxOpenTag
 
 manyHsxElement :: Parser Node
 manyHsxElement = do
     children <- many hsxChild
     pure (Children (stripTextNodeWhitespaces children))
 
-hsxSelfClosingElement :: Parser Node
-hsxSelfClosingElement = do
+-- | Parses any element starting with @<@ (comments or tags).
+-- After consuming @<@, dispatches to comment or tag parser without backtracking.
+hsxOpenTag :: Parser Node
+hsxOpenTag = do
     _ <- char '<'
+    hsxCommentContent <|> hsxTagContent
+
+-- | Parses an HTML comment after the opening @<@ has been consumed.
+hsxCommentContent :: Parser Node
+hsxCommentContent = do
+    _ <- string "!--"
+    body <- hsxCommentBody
+    space
+    pure (CommentNode body)
+
+-- | Scans for @-->@ producing Text directly (avoids intermediate String).
+hsxCommentBody :: Parser Text
+hsxCommentBody = Text.concat . reverse <$> go []
+    where
+        go acc = do
+            chunk <- takeWhileP Nothing (/= '-')
+            let acc' = chunk : acc
+            (string "-->" *> pure acc') <|> do
+                c <- anySingle
+                go (Text.singleton c : acc')
+
+hsxNoRenderComment :: Parser Node
+hsxNoRenderComment = do
+    string "{-"
+    skipUntil "-}"
+    space
+    pure NoRenderCommentNode
+    where
+        skipUntil end = do
+            _ <- takeWhileP Nothing (/= Text.head end)
+            (string end *> pure ()) <|> (anySingle *> skipUntil end)
+
+-- | Parses a tag element after the opening @<@ has been consumed.
+-- Handles both self-closing (@/>@) and normal elements (@>...children...</tag>@)
+-- in a single pass, avoiding backtracking over the tag name and attributes.
+hsxTagContent :: Parser Node
+hsxTagContent = do
     name <- hsxElementName
     let isLeaf = name `Set.member` leafs
-    attributes <-
-      if isLeaf
-        then hsxNodeAttributes (string ">" <|> string "/>")
-        else hsxNodeAttributes (string "/>")
-    space
-    pure (Node name attributes [] isLeaf)
+    attributes <- hsxAttributes
+    -- Determine self-closing vs opening tag from the closing delimiter
+    (string "/>" >> space >> pure (Node name attributes [] isLeaf))
+        <|> (char '>' >> if isLeaf
+                then space >> pure (Node name attributes [] True)
+                else hsxTagChildren name attributes)
 
-hsxNormalElement :: Parser Node
-hsxNormalElement = do
-    (name, attributes) <- hsxOpeningElement
-    let parsePreEscapedTextChildren transformText = do
-                    let closingElement = "</" <> name <> ">"
-                    text <- cs <$> manyTill anySingle (string closingElement)
-                    pure [PreEscapedTextNode (transformText text)]
-    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> (space >> (manyTill (try hsxChild) (try (space >> hsxClosingElement name))))
-
+-- | Parses the children and closing tag of a normal (non-self-closing) element.
+hsxTagChildren :: Text -> [Attribute] -> Parser Node
+hsxTagChildren name attributes = do
     -- script and style tags have special handling for their children. Inside those tags
     -- we allow any kind of content. Using a haskell expression like @<script>{myHaskellExpr}</script>@
     -- will just literally output the string @{myHaskellExpr}@ without evaluating the haskell expression itself.
@@ -129,38 +162,36 @@ hsxNormalElement = do
     -- Additionally we don't do the usual escaping for style and script bodies, as this will make e.g. the
     -- javascript unusuable.
     children <- case name of
-            "script" -> parsePreEscapedTextChildren Text.strip
-            "style" -> parsePreEscapedTextChildren (collapseSpace . Text.strip)
-            otherwise -> parseNormalHSXChildren
+        "script" -> parsePreEscapedTextChildren name Text.strip
+        "style" -> parsePreEscapedTextChildren name (collapseSpace . Text.strip)
+        _ -> stripTextNodeWhitespaces <$> (space >> manyTill (try hsxChild) (try (space >> hsxClosingElement name)))
     pure (Node name attributes children False)
 
-hsxOpeningElement :: Parser (Text, [Attribute])
-hsxOpeningElement = do
-    char '<'
-    name <- hsxElementName
-    space
-    attributes <- hsxNodeAttributes (char '>')
-    pure (name, attributes)
+-- | Parses pre-escaped text (for script/style bodies) by scanning for the closing tag.
+-- Produces Text directly without an intermediate String allocation.
+parsePreEscapedTextChildren :: Text -> (Text -> Text) -> Parser [Node]
+parsePreEscapedTextChildren name transformText = do
+    body <- scanUntilTag ("</" <> name <> ">")
+    pure [PreEscapedTextNode (transformText body)]
 
-hsxComment :: Parser Node
-hsxComment = do
-    string "<!--"
-    body :: String <- manyTill (satisfy (const True)) (string "-->")
-    space
-    pure (CommentNode (cs body))
+-- | Efficiently scans for a closing tag, producing Text directly.
+scanUntilTag :: Text -> Parser Text
+scanUntilTag closingTag = Text.concat . reverse <$> go []
+    where
+        firstChar = Text.head closingTag
+        go acc = do
+            chunk <- takeWhileP Nothing (/= firstChar)
+            let acc' = chunk : acc
+            (string closingTag *> pure acc') <|> do
+                c <- anySingle
+                go (Text.singleton c : acc')
 
-hsxNoRenderComment :: Parser Node
-hsxNoRenderComment = do
-    string "{-"
-    manyTill (satisfy (const True)) (string "-}")
-    space
-    pure NoRenderCommentNode
-
-
-hsxNodeAttributes :: Parser a -> Parser [Attribute]
-hsxNodeAttributes end = do
-    attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
-    -- Single-pass duplicate detection using a Set
+-- | Parses tag attributes until a non-attribute token (like @>@ or @/>@) is encountered.
+-- Uses 'many' instead of 'manyTill' since attribute parsers naturally fail
+-- on non-identifier characters like @>@ and @/@.
+hsxAttributes :: Parser [Attribute]
+hsxAttributes = do
+    attributes <- many (hsxNodeAttribute <|> hsxSplicedAttributes)
     case findDuplicateKey Set.empty attributes of
         Just dupKey -> fail $ "Duplicate attribute found in tag: " <> show dupKey
         Nothing -> pure attributes
@@ -171,9 +202,6 @@ hsxNodeAttributes end = do
             | name `Set.member` seen = Just name
             | otherwise = findDuplicateKey (Set.insert name seen) rest
         findDuplicateKey !seen (_ : rest) = findDuplicateKey seen rest
-
-isStaticAttribute (StaticAttribute _ _) = True
-isStaticAttribute _ = False
 
 hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
