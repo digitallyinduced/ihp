@@ -17,6 +17,7 @@ import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.SchemaCompilerSpec
 import qualified Test.IDE.ToolServer.MiddlewareSpec
 import qualified Test.ServerSpec
+import qualified Test.Wai.Request.Params.MiddlewareSpec
 
 main :: IO ()
 main = hspec do
@@ -34,3 +35,4 @@ main = hspec do
     Test.SchemaCompilerSpec.tests
     Test.IDE.ToolServer.MiddlewareSpec.tests
     Test.ServerSpec.tests
+    Test.Wai.Request.Params.MiddlewareSpec.tests
