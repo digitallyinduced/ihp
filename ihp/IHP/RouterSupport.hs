@@ -153,12 +153,13 @@ parseFuncs parseIdType = [
             -- Try and parse @Int@ or @Maybe Int@
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Int) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
+                    Just Refl -> case ByteString.readInt queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Int" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInt queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Int) of
                     Just Refl -> Right Nothing
@@ -166,12 +167,13 @@ parseFuncs parseIdType = [
 
             \case
                 Just queryValue -> case eqT :: Maybe (d :~: Integer) of
-                    Just Refl -> readMaybe (cs queryValue :: String)
-                        |> \case
-                            Just int -> Right int
-                            Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
+                    Just Refl -> case ByteString.readInteger queryValue of
+                        Just (n, "") -> Right n
+                        _ -> Left BadType { field = "", value = Just queryValue, expectedType = "Integer" }
                     Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
-                        Just Refl -> Right $ readMaybe (cs queryValue :: String)
+                        Just Refl -> Right $ case ByteString.readInteger queryValue of
+                            Just (n, "") -> Just n
+                            _ -> Nothing
                         Nothing -> Left NotMatched
                 Nothing -> case eqT :: Maybe (d :~: Maybe Integer) of
                     Just Refl -> Right Nothing
