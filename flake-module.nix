@@ -345,7 +345,7 @@ ihpFlake:
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
-                    schema = pkgs.runCommand "ihp-schema" {} ''
+                    schema = pkgs.runCommand "ihp-schema" {} (''
                         touch $out
 
                         echo "-- IHPSchema.sql" >> $out
@@ -355,11 +355,12 @@ ihpFlake:
                         echo "-- Application/Schema.sql" >> $out
                         echo "" >> $out
                         cat ${cfg.projectPath + "/Application/Schema.sql"} >> $out
+                    '' + (if builtins.pathExists (cfg.projectPath + "/Application/Fixtures.sql") then ''
                         echo "" >> $out
                         echo "-- Application/Fixtures.sql" >> $out
                         echo "" >> $out
                         cat ${cfg.projectPath + "/Application/Fixtures.sql"} >> $out
-                    '';
+                    '' else ""));
                     }
                 ];
 
