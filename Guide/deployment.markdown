@@ -214,7 +214,7 @@ flake.nixosConfigurations."ihp-app" = nixpkgs.lib.nixosSystem {
 
             services.ihp = {
                 domain = "myihpapp.com";
-                migrations = ./Application/Migration;
+                migrations = ./Application/Migration; # Optional: Remove this line or set to null if you don't use migrations
                 schema = ./Application/Schema.sql;
                 fixtures = ./Application/Fixtures.sql;
                 sessionSecret = "xxx";
@@ -282,7 +282,7 @@ Make sure you put this into the `flake-parts.lib.mkFlake` block. The final `flak
 +
 +                        services.ihp = {
 +                            domain = "myihpapp.com";
-+                            migrations = ./Application/Migration;
++                            migrations = ./Application/Migration; # Optional: Remove this line or set to null if you don't use migrations
 +                            schema = ./Application/Schema.sql;
 +                            fixtures = ./Application/Fixtures.sql;
 +                            sessionSecret = "xxx";

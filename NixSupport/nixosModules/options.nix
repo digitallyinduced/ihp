@@ -15,7 +15,11 @@ with lib;
         };
 
         migrations = mkOption {
-            type = types.path;
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+                Path to the migrations directory. If null, migrations will be skipped.
+            '';
         };
 
         schema = mkOption {
