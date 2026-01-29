@@ -173,6 +173,16 @@ that is defined in flake-module.nix
                         url = "https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.min.js.map";
                         sha256 = "1fagbzf8qmf338r7qzap55xbj84nsrn91ad4pbq39hwrmi21fb5j";
                     };
+                    # Select2 — pinned to develop branch (includes jQuery 4 support, PR #6332)
+                    select2commit = "595494a72fee67b0a61c64701cbb72e3121f97b9";
+                    select2js = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/js/select2.min.js";
+                        sha256 = "1y0j8qwdzkhcp1kn04fbr4hl89x87wi1lkhnirpd5gkc2sb06764";
+                    };
+                    select2css = pkgs.fetchurl {
+                        url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/css/select2.min.css";
+                        sha256 = "1fi1qdiybi30adg8vcqqa6n0jz7c658kv0z39bkvm2ama0i4g2s2";
+                    };
                 in
                     pkgs.symlinkJoin {
                         name = "ihp-static";
@@ -202,6 +212,10 @@ that is defined in flake-module.nix
                                 # Bootstrap 4.5 — backwards compatibility (source maps)
                                 { name = "vendor/bootstrap.min.css.map"; path = bootstrap45cssmap; }
                                 { name = "vendor/bootstrap.min.js.map";  path = bootstrap45jsmap; }
+
+                                # Select2 (develop branch with jQuery 4 support)
+                                { name = "vendor/select2.min.js";  path = select2js; }
+                                { name = "vendor/select2.min.css"; path = select2css; }
                             ])
                         ];
                     };
