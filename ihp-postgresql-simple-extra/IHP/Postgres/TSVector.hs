@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-|
 Module: IHP.Postgres.TSVector
 Description: Adds support for the Postgres tsvector type
@@ -7,13 +6,9 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.Postgres.TSVector where
 
 import BasicPrelude
-import IHP.Postgres.TypeInfo
-import Database.PostgreSQL.Simple.ToField
-import Database.PostgreSQL.Simple.FromField
-import Database.PostgreSQL.Simple.TypeInfo.Macro
 import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
-import Data.ByteString.Builder (byteString, charUtf8)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 -- | Represents a Postgres tsvector
@@ -30,17 +25,6 @@ data Lexeme
 data LexemeRanking
     = LexemeRanking { position :: Int, weight :: Char }
     deriving (Eq, Show, Ord)
-
-instance FromField TSVector where
-    fromField f v =
-        if typeOid f /= $(inlineTypoid tsvector)
-        then returnError Incompatible f ""
-        else case v of
-               Nothing -> returnError UnexpectedNull f ""
-               Just bs ->
-                   case parseOnly parseTSVector bs of
-                     Left  err -> returnError ConversionFailed f err
-                     Right val -> pure val
 
 -- 'a:1A fat:2B,4C cat:5D'
 -- 'descript':4 'one':1,3 'titl':2
@@ -65,19 +49,14 @@ parseTSVector = TSVector <$> many' parseLexeme
 
             pure $ Lexeme { token = Text.decodeUtf8 token, ranking }
 
-
-instance ToField TSVector where
-    toField = serializeTSVector
-
-serializeTSVector :: TSVector -> Action
-serializeTSVector (TSVector lexemes) = Many $ map serializeLexeme lexemes
+-- | Serialize a TSVector to its Postgres text representation
+tsvectorToText :: TSVector -> Text
+tsvectorToText (TSVector lexemes) = Text.unwords (map lexemeToText lexemes)
     where
-        serializeLexeme Lexeme { token, ranking } = Many
-            [ Plain $ byteString $ Text.encodeUtf8 token
-            , toField ':'
-            , Many $ intersperse (toField ',') (map serializeLexemeRanking ranking)
-            ]
-        serializeLexemeRanking LexemeRanking { position, weight } = Many [toField position, toField weight]
+        lexemeToText :: Lexeme -> Text
+        lexemeToText Lexeme { token, ranking } =
+            "'" <> token <> "':" <> Text.intercalate "," (map rankingToText ranking)
 
-instance ToField Char where
-    toField char = Plain $ charUtf8 char
+        rankingToText :: LexemeRanking -> Text
+        rankingToText LexemeRanking { position, weight } =
+            tshow position <> (if weight == 'D' then "" else Text.singleton weight)

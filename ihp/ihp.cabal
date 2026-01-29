@@ -52,8 +52,12 @@ common shared-properties
             , http-types
             , inflections
             , text
-            , postgresql-simple
-            , ihp-pglistener
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
+            , hasql-transaction
+            , hasql-notifications
+            , contravariant
             , wai-app-static
             , wai-util
             , bytestring
@@ -93,7 +97,7 @@ common shared-properties
             , binary
             , http-client
             , http-client-tls
-            , resource-pool
+            , hasql-implicits
             , unordered-containers
             , hashable
             , scientific

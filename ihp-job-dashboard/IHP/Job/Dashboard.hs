@@ -38,9 +38,9 @@ import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Data.List as List
 import qualified Network.Wai as Wai
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
@@ -59,8 +59,8 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
+    , FromField (PrimaryKey (GetTableName job))
+    , DefaultParamEncoder (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -169,8 +169,9 @@ instance JobsDashboard '[] where
         tables <- mapM buildBaseJobTable tableNames
         render $ SomeView tables
         where
-            getAllTableNames = map extractText <$> sqlQuery
-                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'" ()
+            getAllTableNames = sqlQuery
+                "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'"
+                (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
     listJob' _ = do
@@ -196,7 +197,7 @@ instance JobsDashboard '[] where
                 setSuccessMessage (columnNameToFieldLabel (param "tableName") <> " job started.")
                 redirectTo ListJobsAction
             else render $ HtmlView $ renderNewBaseJobForm (param "tableName")
-        where insertJob = sqlExec (PG.Query $ "INSERT into " <> param "tableName" <> " DEFAULT VALUES") ()
+        where insertJob = sqlExec (Snippet.sql $ cs $ "INSERT into " <> (param @Text "tableName") <> " DEFAULT VALUES")
 
     deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
     deleteJob' _ = do
@@ -206,7 +207,7 @@ instance JobsDashboard '[] where
         setSuccessMessage (columnNameToFieldLabel table <> " record deleted.")
         redirectTo ListJobsAction
 
-        where delete id table = sqlExec (PG.Query $ cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id)
+        where delete id table = sqlExec (Snippet.sql (cs $ "DELETE FROM " <> table <> " WHERE id = ") <> Snippet.param id)
 
     retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
     retryJob' = do
@@ -216,7 +217,7 @@ instance JobsDashboard '[] where
         setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
         redirectTo ListJobsAction
 
-        where retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
+        where retryJobById table id = sqlExec (Snippet.sql ("UPDATE \"" <> cs table <> "\" SET status = 'job_status_retry' WHERE id = ") <> Snippet.param id)
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -333,7 +334,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
     retryJob table uuid = do
         let id    :: UUID = param "id"
             table :: Text = param "tableName"
-            retryJobById table id = sqlExec ("UPDATE ? SET status = 'job_status_retry' WHERE id = ?") (PG.Identifier table, id)
+            retryJobById table id = sqlExec (Snippet.sql ("UPDATE \"" <> cs table <> "\" SET status = 'job_status_retry' WHERE id = ") <> Snippet.param id)
         retryJobById table id
         setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
         redirectTo ListJobsAction
@@ -344,23 +345,27 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
             then retryJob @(job:rest) table (param "id")
             else retryJob' @rest
 
-extractText = \(Only t) -> t
-getNotIncludedTableNames includedNames = map extractText <$> sqlQuery
-    "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
-    (Only $ In $ includedNames)
+getNotIncludedTableNames includedNames = sqlQuery
+    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ("
+    <> inList
+    <> Snippet.sql ")")
+    (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
+    where
+        inList = case includedNames of
+            [] -> Snippet.sql "NULL"
+            names -> mconcat $ List.intersperse (Snippet.sql ", ") (map Snippet.param names)
 buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Wai.Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
-    baseJobs <- sqlQuery (PG.Query $ cs $ queryString) (Only tableName)
+    baseJobs <- sqlQuery
+        (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql (cs $ ", id, status, updated_at, created_at, last_error FROM "
+            <> tableName
+            <> " ORDER BY created_at DESC LIMIT 10"))
+        (Decoders.rowList (fromRow @BaseJob))
     baseJobs
         |> renderBaseJobTable tableName
         |> HtmlView
         |> SomeView
         |> pure
-
-    where
-        queryString = "SELECT ?, id, status, updated_at, created_at, last_error FROM "
-            <> tableName
-            <> " ORDER BY created_at DESC LIMIT 10"
 
 buildBaseJob :: forall job. (DisplayableJob job) => job -> BaseJob
 buildBaseJob job = BaseJob
@@ -381,15 +386,15 @@ getTableName _ = tableName @job
 queryBaseJob :: (?modelContext :: ModelContext) => Text -> UUID -> IO BaseJob
 queryBaseJob table id = do
     (job : _) <- sqlQuery
-        (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " where id = ?")
-        [table, tshow id]
+        (Snippet.sql "select " <> Snippet.param table <> Snippet.sql (cs $ ", id, status, updated_at, created_at, last_error from " <> table <> " where id = ") <> Snippet.param id)
+        (Decoders.rowList (fromRow @BaseJob))
     pure job
 
 queryBaseJobsFromTablePaginated :: (?modelContext :: ModelContext) => Text -> Int -> Int -> IO [BaseJob]
 queryBaseJobsFromTablePaginated table page pageSize =
     sqlQuery
-        (PG.Query $ cs $ "select ?, id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
-        (Only table)
+        (Snippet.sql "select " <> Snippet.param table <> Snippet.sql (cs $ ", id, status, updated_at, created_at, last_error from " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize))
+        (Decoders.rowList (fromRow @BaseJob))
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType

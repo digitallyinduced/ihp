@@ -13,10 +13,10 @@ module IHP.QueryBuilder.Union
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (query)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 
 -- | Merges the results of two query builders.
 --
@@ -53,7 +53,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >      projects <- fetch theQuery
 -- >      render IndexView { .. }
 queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
-queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Plain "id"), applyLeft = Nothing, applyRight = Nothing }
+queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Snippet.sql "id"), applyLeft = Nothing, applyRight = Nothing }
 queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
 queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
 

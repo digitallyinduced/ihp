@@ -21,18 +21,18 @@ tests = do
                 output `shouldBe` [trimming|
                     data Mood = Happy | VeryHappy | Sad | VerySad deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField Mood where
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "happy") = pure Happy
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "very happy") = pure VeryHappy
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "sad") = pure Sad
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "very sad") = pure VerySad
-                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
-                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                        fromField = Decoders.enum \case
+                            "happy" -> Just Happy
+                            "very happy" -> Just VeryHappy
+                            "sad" -> Just Sad
+                            "very sad" -> Just VerySad
+                            _ -> Nothing
                     instance Default Mood where def = Happy
-                    instance ToField Mood where
-                        toField Happy = toField ("happy" :: Text)
-                        toField VeryHappy = toField ("very happy" :: Text)
-                        toField Sad = toField ("sad" :: Text)
-                        toField VerySad = toField ("very sad" :: Text)
+                    instance DefaultParamEncoder Mood where
+                        -- TODO: DefaultParamEncoder for Happy
+                        -- TODO: DefaultParamEncoder for VeryHappy
+                        -- TODO: DefaultParamEncoder for Sad
+                        -- TODO: DefaultParamEncoder for VerySad
                     instance InputValue Mood where
                         inputValue Happy = "happy" :: Text
                         inputValue VeryHappy = "very happy" :: Text
@@ -58,30 +58,30 @@ tests = do
                 output `shouldBe` [trimming|
                     data Province = Alberta | Britishcolumbia | Saskatchewan | Manitoba | Ontario | Quebec | Novascotia | Newbrunswick | Princeedwardisland | Newfoundlandandlabrador deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField Province where
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Alberta") = pure Alberta
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "BritishColumbia") = pure Britishcolumbia
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Saskatchewan") = pure Saskatchewan
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Manitoba") = pure Manitoba
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Ontario") = pure Ontario
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "Quebec") = pure Quebec
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NovaScotia") = pure Novascotia
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NewBrunswick") = pure Newbrunswick
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "PrinceEdwardIsland") = pure Princeedwardisland
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "NewfoundlandAndLabrador") = pure Newfoundlandandlabrador
-                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
-                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                        fromField = Decoders.enum \case
+                            "Alberta" -> Just Alberta
+                            "BritishColumbia" -> Just Britishcolumbia
+                            "Saskatchewan" -> Just Saskatchewan
+                            "Manitoba" -> Just Manitoba
+                            "Ontario" -> Just Ontario
+                            "Quebec" -> Just Quebec
+                            "NovaScotia" -> Just Novascotia
+                            "NewBrunswick" -> Just Newbrunswick
+                            "PrinceEdwardIsland" -> Just Princeedwardisland
+                            "NewfoundlandAndLabrador" -> Just Newfoundlandandlabrador
+                            _ -> Nothing
                     instance Default Province where def = Alberta
-                    instance ToField Province where
-                        toField Alberta = toField ("Alberta" :: Text)
-                        toField Britishcolumbia = toField ("BritishColumbia" :: Text)
-                        toField Saskatchewan = toField ("Saskatchewan" :: Text)
-                        toField Manitoba = toField ("Manitoba" :: Text)
-                        toField Ontario = toField ("Ontario" :: Text)
-                        toField Quebec = toField ("Quebec" :: Text)
-                        toField Novascotia = toField ("NovaScotia" :: Text)
-                        toField Newbrunswick = toField ("NewBrunswick" :: Text)
-                        toField Princeedwardisland = toField ("PrinceEdwardIsland" :: Text)
-                        toField Newfoundlandandlabrador = toField ("NewfoundlandAndLabrador" :: Text)
+                    instance DefaultParamEncoder Province where
+                        -- TODO: DefaultParamEncoder for Alberta
+                        -- TODO: DefaultParamEncoder for Britishcolumbia
+                        -- TODO: DefaultParamEncoder for Saskatchewan
+                        -- TODO: DefaultParamEncoder for Manitoba
+                        -- TODO: DefaultParamEncoder for Ontario
+                        -- TODO: DefaultParamEncoder for Quebec
+                        -- TODO: DefaultParamEncoder for Novascotia
+                        -- TODO: DefaultParamEncoder for Newbrunswick
+                        -- TODO: DefaultParamEncoder for Princeedwardisland
+                        -- TODO: DefaultParamEncoder for Newfoundlandandlabrador
                     instance InputValue Province where
                         inputValue Alberta = "Alberta" :: Text
                         inputValue Britishcolumbia = "BritishColumbia" :: Text
@@ -104,14 +104,14 @@ tests = do
                 output `shouldBe` [trimming|
                     data PropertyType = PropertyTypeApartment | House deriving (Eq, Show, Read, Enum, Bounded, Ord)
                     instance FromField PropertyType where
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "APARTMENT") = pure PropertyTypeApartment
-                        fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 "HOUSE") = pure House
-                        fromField field (Just value) = returnError ConversionFailed field ("Unexpected value for enum value. Got: " <> Data.String.Conversions.cs value)
-                        fromField field Nothing = returnError UnexpectedNull field "Unexpected null for enum value"
+                        fromField = Decoders.enum \case
+                            "APARTMENT" -> Just PropertyTypeApartment
+                            "HOUSE" -> Just House
+                            _ -> Nothing
                     instance Default PropertyType where def = PropertyTypeApartment
-                    instance ToField PropertyType where
-                        toField PropertyTypeApartment = toField ("APARTMENT" :: Text)
-                        toField House = toField ("HOUSE" :: Text)
+                    instance DefaultParamEncoder PropertyType where
+                        -- TODO: DefaultParamEncoder for PropertyTypeApartment
+                        -- TODO: DefaultParamEncoder for House
                     instance InputValue PropertyType where
                         inputValue PropertyTypeApartment = "APARTMENT" :: Text
                         inputValue House = "HOUSE" :: Text
@@ -130,21 +130,29 @@ tests = do
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id" (Only (model.id))
+                            let theSnippet = sql "INSERT INTO users (id) VALUES (" <> param model.id <> sql ") RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (model.id)]) models)
+                            let theSnippet = sql "INSERT INTO users (id) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ")") models <> sql " RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
+                            let theSnippet = sql "INSERT INTO users (id) VALUES (" <> param model.id <> sql ")"
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
                     |]
 
             it "should compile CanUpdate instance with an array type with an explicit cast" do
@@ -157,9 +165,12 @@ tests = do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ? RETURNING id, ids" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id, ids"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[] WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should deal with double default values" do
                 let statement = StatementCreateTable (table "users")
@@ -189,7 +200,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
+                        primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -198,9 +209,9 @@ tests = do
 
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
-                            id <- field
-                            ids <- field
-                            electricityUnitPrice <- field
+                            id <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
+                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
                             let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -210,19 +221,27 @@ tests = do
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ") RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")") models <> sql " RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")"
+                            sqlExecDiscardResult theSnippet
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql ", " <> sql "electricity_unit_price = " <> case fieldWithUpdate #electricityUnitPrice model of { NoUpdate _ -> sql "electricity_unit_price"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql ", " <> sql "electricity_unit_price = " <> case fieldWithUpdate #electricityUnitPrice model of { NoUpdate _ -> sql "electricity_unit_price"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -262,7 +281,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
+                        primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -271,9 +290,9 @@ tests = do
 
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
-                            id <- field
-                            ids <- field
-                            electricityUnitPrice <- field
+                            id <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
+                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
                             let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -283,19 +302,27 @@ tests = do
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ") RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")") models <> sql " RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
+                            let theSnippet = sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> param model.id <> sql ", " <> param model.ids <> sql " :: UUID[]" <> sql ", " <> case fieldWithDefault #electricityUnitPrice model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")"
+                            sqlExecDiscardResult theSnippet
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql ", " <> sql "electricity_unit_price = " <> case fieldWithUpdate #electricityUnitPrice model of { NoUpdate _ -> sql "electricity_unit_price"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id, ids, electricity_unit_price"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "ids = " <> case fieldWithUpdate #ids model of { NoUpdate _ -> sql "ids"; Update v -> param v <> sql " :: UUID[]" } <> sql ", " <> sql "electricity_unit_price = " <> case fieldWithUpdate #electricityUnitPrice model of { NoUpdate _ -> sql "electricity_unit_price"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -334,7 +361,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
+                        primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -343,8 +370,8 @@ tests = do
 
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
-                            id <- field
-                            ts <- field
+                            id <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
+                            ts <- Decoders.column (Decoders.nullable fromField)
                             let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -354,19 +381,27 @@ tests = do
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id, ts" (Only (model.id))
+                            let theSnippet = sql "INSERT INTO users (id) VALUES (" <> param model.id <> sql ") RETURNING id, ts"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id, ts") (List.concat $ List.map (\model -> [toField (model.id)]) models)
+                            let theSnippet = sql "INSERT INTO users (id) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ")") models <> sql " RETURNING id, ts"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
+                            let theSnippet = sql "INSERT INTO users (id) VALUES (" <> param model.id <> sql ")"
+                            sqlExecDiscardResult theSnippet
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id, ts" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id, ts"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE users SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -398,21 +433,29 @@ tests = do
                     instance CanCreate Generated.ActualTypes.Post where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO posts (id, title, body) VALUES (?, ?, ?) RETURNING id, title, body, body_index_col" ((model.id, model.title, model.body))
+                            let theSnippet = sql "INSERT INTO posts (id, title, body) VALUES (" <> param model.id <> sql ", " <> param model.title <> sql ", " <> param model.body <> sql ") RETURNING id, title, body, body_index_col"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Post)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO posts (id, title, body) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?, ?)") models)) <> " RETURNING id, title, body, body_index_col") (List.concat $ List.map (\model -> [toField (model.id), toField (model.title), toField (model.body)]) models)
+                            let theSnippet = sql "INSERT INTO posts (id, title, body) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ", " <> param model.title <> sql ", " <> param model.body <> sql ")") models <> sql " RETURNING id, title, body, body_index_col"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Post)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO posts (id, title, body) VALUES (?, ?, ?)" ((model.id, model.title, model.body))
+                            let theSnippet = sql "INSERT INTO posts (id, title, body) VALUES (" <> param model.id <> sql ", " <> param model.title <> sql ", " <> param model.body <> sql ")"
+                            sqlExecDiscardResult theSnippet
                     |]
 
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate Generated.ActualTypes.Post where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE posts SET id = ?, title = ?, body = ? WHERE id = ? RETURNING id, title, body, body_index_col" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #body model, model.id))
+                            let theSnippet = sql "UPDATE posts SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "title = " <> case fieldWithUpdate #title model of { NoUpdate _ -> sql "title"; Update v -> param v } <> sql ", " <> sql "body = " <> case fieldWithUpdate #body model of { NoUpdate _ -> sql "body"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id, title, body, body_index_col"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Post)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE posts SET id = ?, title = ?, body = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #body model, model.id))
+                            let theSnippet = sql "UPDATE posts SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql ", " <> sql "title = " <> case fieldWithUpdate #title model of { NoUpdate _ -> sql "title"; Update v -> param v } <> sql ", " <> sql "body = " <> case fieldWithUpdate #body model of { NoUpdate _ -> sql "body"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should deal with multiple has many relationships to the same table" do
                 let statements = parseSqlStatements [trimming|
@@ -451,7 +494,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
+                        primaryKeyConditionForId (Id (id)) = param id
                         {-# INLINABLE primaryKeyConditionForId #-}
 
 
@@ -460,7 +503,7 @@ tests = do
 
                     instance FromRow Generated.ActualTypes.LandingPage where
                         fromRow = do
-                            id <- field
+                            id <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
                             let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -470,19 +513,27 @@ tests = do
                     instance CanCreate Generated.ActualTypes.LandingPage where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO landing_pages (id) VALUES (?) RETURNING id" (Only (fieldWithDefault #id model))
+                            let theSnippet = sql "INSERT INTO landing_pages (id) VALUES (" <> case fieldWithDefault #id model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ") RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.LandingPage)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
+                            let theSnippet = sql "INSERT INTO landing_pages (id) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> case fieldWithDefault #id model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")") models <> sql " RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.LandingPage)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO landing_pages (id) VALUES (?)" (Only (fieldWithDefault #id model))
+                            let theSnippet = sql "INSERT INTO landing_pages (id) VALUES (" <> case fieldWithDefault #id model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")"
+                            sqlExecDiscardResult theSnippet
 
                     instance CanUpdate Generated.ActualTypes.LandingPage where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE landing_pages SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id <> sql " RETURNING id"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.LandingPage)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE landing_pages SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
+                            let theSnippet = sql "UPDATE landing_pages SET " <> sql "id = " <> case fieldWithUpdate #id model of { NoUpdate _ -> sql "id"; Update v -> param v } <> sql " WHERE id = " <> param model.id
+                            sqlExecDiscardResult theSnippet
 
                     instance Record Generated.ActualTypes.LandingPage where
                         {-# INLINE newRecord #-}
@@ -508,13 +559,18 @@ tests = do
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[]) RETURNING id, keywords" ((model.id, model.keywords))
+                            let theSnippet = sql "INSERT INTO users (id, keywords) VALUES (" <> param model.id <> sql ", " <> param model.keywords <> sql " :: TEXT[]" <> sql ") RETURNING id, keywords"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO users (id, keywords) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: TEXT[])") models)) <> " RETURNING id, keywords") (List.concat $ List.map (\model -> [toField (model.id), toField (model.keywords)]) models)
+                            let theSnippet = sql "INSERT INTO users (id, keywords) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.id <> sql ", " <> param model.keywords <> sql " :: TEXT[]" <> sql ")") models <> sql " RETURNING id, keywords"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.User)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO users (id, keywords) VALUES (?, ? :: TEXT[])" ((model.id, model.keywords))
+                            let theSnippet = sql "INSERT INTO users (id, keywords) VALUES (" <> param model.id <> sql ", " <> param model.keywords <> sql " :: TEXT[]" <> sql ")"
+                            sqlExecDiscardResult theSnippet
                     |]
         describe "compileStatementPreview for table with arbitrarily named primary key" do
             let statements = parseSqlStatements [trimming|
@@ -539,27 +595,35 @@ tests = do
                     instance CanCreate Generated.ActualTypes.Thing where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Thing -> IO Generated.ActualTypes.Thing
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO things (thing_arbitrary_ident) VALUES (?) RETURNING thing_arbitrary_ident" (Only (fieldWithDefault #thingArbitraryIdent model))
+                            let theSnippet = sql "INSERT INTO things (thing_arbitrary_ident) VALUES (" <> case fieldWithDefault #thingArbitraryIdent model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ") RETURNING thing_arbitrary_ident"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Thing)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO things (thing_arbitrary_ident) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING thing_arbitrary_ident") (List.concat $ List.map (\model -> [toField (fieldWithDefault #thingArbitraryIdent model)]) models)
+                            let theSnippet = sql "INSERT INTO things (thing_arbitrary_ident) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> case fieldWithDefault #thingArbitraryIdent model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")") models <> sql " RETURNING thing_arbitrary_ident"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Thing)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.Thing -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO things (thing_arbitrary_ident) VALUES (?)" (Only (fieldWithDefault #thingArbitraryIdent model))
+                            let theSnippet = sql "INSERT INTO things (thing_arbitrary_ident) VALUES (" <> case fieldWithDefault #thingArbitraryIdent model of { Default -> sql "DEFAULT"; NonDefault v -> param v } <> sql ")"
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate Generated.ActualTypes.Thing where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ? RETURNING thing_arbitrary_ident" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
+                            let theSnippet = sql "UPDATE things SET " <> sql "thing_arbitrary_ident = " <> case fieldWithUpdate #thingArbitraryIdent model of { NoUpdate _ -> sql "thing_arbitrary_ident"; Update v -> param v } <> sql " WHERE thing_arbitrary_ident = " <> param model.thingArbitraryIdent <> sql " RETURNING thing_arbitrary_ident"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.Thing)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE things SET thing_arbitrary_ident = ? WHERE thing_arbitrary_ident = ?" ((fieldWithUpdate #thingArbitraryIdent model, model.thingArbitraryIdent))
+                            let theSnippet = sql "UPDATE things SET " <> sql "thing_arbitrary_ident = " <> case fieldWithUpdate #thingArbitraryIdent model of { NoUpdate _ -> sql "thing_arbitrary_ident"; Update v -> param v } <> sql " WHERE thing_arbitrary_ident = " <> param model.thingArbitraryIdent
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
                     instance FromRow Generated.ActualTypes.Thing where
                         fromRow = do
-                            thingArbitraryIdent <- field
+                            thingArbitraryIdent <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
                             let theRecord = Generated.ActualTypes.Thing thingArbitraryIdent (QueryBuilder.filterWhere (#thingRef, thingArbitraryIdent) (QueryBuilder.query @Other)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
@@ -570,7 +634,7 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
-                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = toField thingArbitraryIdent
+                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = param thingArbitraryIdent
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
@@ -608,39 +672,47 @@ tests = do
                     instance CanCreate Generated.ActualTypes.BitPartRef where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.BitPartRef -> IO Generated.ActualTypes.BitPartRef
                         create model = do
-                            sqlQuerySingleRow "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?) RETURNING bit_ref, part_ref" ((model.bitRef, model.partRef))
+                            let theSnippet = sql "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (" <> param model.bitRef <> sql ", " <> param model.partRef <> sql ") RETURNING bit_ref, part_ref"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.BitPartRef)
+                            sqlQuerySingleRow theSnippet decoder
                         createMany [] = pure []
                         createMany models = do
-                            sqlQuery (Query $ "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?)") models)) <> " RETURNING bit_ref, part_ref") (List.concat $ List.map (\model -> [toField (model.bitRef), toField (model.partRef)]) models)
+                            let theSnippet = sql "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES " <> mconcat $ List.intersperse (sql ", ") $ List.map (\model -> sql "(" <> param model.bitRef <> sql ", " <> param model.partRef <> sql ")") models <> sql " RETURNING bit_ref, part_ref"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.BitPartRef)
+                            sqlQuery theSnippet decoder
                         createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.BitPartRef -> IO ()
                         createRecordDiscardResult model = do
-                            sqlExecDiscardResult "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (?, ?)" ((model.bitRef, model.partRef))
+                            let theSnippet = sql "INSERT INTO bit_part_refs (bit_ref, part_ref) VALUES (" <> param model.bitRef <> sql ", " <> param model.partRef <> sql ")"
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should compile CanUpdate instance with sqlQuery" $ \statement -> do
                 getInstanceDecl "CanUpdate" compileOutput `shouldBe` [trimming|
                     instance CanUpdate Generated.ActualTypes.BitPartRef where
                         updateRecord model = do
-                            sqlQuerySingleRow "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?) RETURNING bit_ref, part_ref" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
+                            let theSnippet = sql "UPDATE bit_part_refs SET " <> sql "bit_ref = " <> case fieldWithUpdate #bitRef model of { NoUpdate _ -> sql "bit_ref"; Update v -> param v } <> sql ", " <> sql "part_ref = " <> case fieldWithUpdate #partRef model of { NoUpdate _ -> sql "part_ref"; Update v -> param v } <> sql " WHERE (bit_ref, part_ref) = " <> param model.bitRef <> sql ", " <> param model.partRef <> sql " RETURNING bit_ref, part_ref"
+                            let decoder = Decoders.rowList (fromRow @Generated.ActualTypes.BitPartRef)
+                            sqlQuerySingleRow theSnippet decoder
                         updateRecordDiscardResult model = do
-                            sqlExecDiscardResult "UPDATE bit_part_refs SET bit_ref = ?, part_ref = ? WHERE (bit_ref, part_ref) = (?, ?)" ((fieldWithUpdate #bitRef model, fieldWithUpdate #partRef model, model.bitRef, model.partRef))
+                            let theSnippet = sql "UPDATE bit_part_refs SET " <> sql "bit_ref = " <> case fieldWithUpdate #bitRef model of { NoUpdate _ -> sql "bit_ref"; Update v -> param v } <> sql ", " <> sql "part_ref = " <> case fieldWithUpdate #partRef model of { NoUpdate _ -> sql "part_ref"; Update v -> param v } <> sql " WHERE (bit_ref, part_ref) = " <> param model.bitRef <> sql ", " <> param model.partRef
+                            sqlExecDiscardResult theSnippet
                     |]
             it "should compile FromRow instance" $ \statement -> do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
                     instance FromRow Generated.ActualTypes.BitPartRef where
                         fromRow = do
-                            bitRef <- field
-                            partRef <- field
+                            bitRef <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
+                            partRef <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
                             let theRecord = Generated.ActualTypes.BitPartRef bitRef partRef def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "(ToField bitRef, ToField partRef) => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
-                    instance (ToField bitRef, ToField partRef) => IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
+                getInstanceDecl "(DefaultParamEncoder bitRef, DefaultParamEncoder partRef) => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance (DefaultParamEncoder bitRef, DefaultParamEncoder partRef) => IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
                         tableName = "bit_part_refs"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
-                        primaryKeyConditionForId (Id (bitRef, partRef)) = Many [Plain "(", toField bitRef, Plain ",", toField partRef, Plain ")"]
+                        primaryKeyConditionForId (Id (bitRef, partRef)) = sql "(" <> param bitRef <> sql "," <> param partRef <> sql ")"
                         {-# INLINABLE primaryKeyConditionForId #-}
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
@@ -649,7 +721,7 @@ tests = do
                 getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
                     instance FromRow Generated.ActualTypes.Part where
                         fromRow = do
-                            partArbitraryIdent <- field
+                            partArbitraryIdent <- fmap Id (Decoders.column (Decoders.nonNullable Decoders.uuid))
                             let theRecord = Generated.ActualTypes.Part partArbitraryIdent (QueryBuilder.filterWhere (#partRef, partArbitraryIdent) (QueryBuilder.query @BitPartRef)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
                     |]

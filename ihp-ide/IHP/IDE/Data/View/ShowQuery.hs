@@ -1,12 +1,11 @@
 module IHP.IDE.Data.View.ShowQuery where
 
-import qualified Database.PostgreSQL.Simple as PG
 import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Data.View.Layout
 
 data ShowQueryView = ShowQueryView
-    { queryResult :: Maybe (Either PG.SqlError SqlConsoleResult)
+    { queryResult :: Maybe (Either SomeException SqlConsoleResult)
     , queryText :: Text
     }
 
@@ -55,11 +54,8 @@ instance View ShowQueryView where
                 |]
                 Just (Left sqlError) -> [hsx|
                     <div class="alert alert-danger" role="alert">
-                        <h4 class="alert-heading">SQL Error - {sqlError.sqlExecStatus}</h4>
-                        {showIfNotEmpty "Message" (sqlError.sqlErrorMsg)}
-                        {showIfNotEmpty "Details" (sqlError.sqlErrorDetail)}
-                        {showIfNotEmpty "Hint" (sqlError.sqlErrorHint)}
-                        {showIfNotEmpty "State" (sqlError.sqlState)}
+                        <h4 class="alert-heading">SQL Error</h4>
+                        <div>{tshow sqlError}</div>
                     </div>
                 |]
                 Nothing -> mempty
@@ -72,8 +68,3 @@ instance View ShowQueryView where
             renderField DynamicField { .. } = [hsx|<td><span data-fieldname={fieldName}>{sqlValueToText fieldValue}</span></td>|]
 
             columnNames rows = maybe [] (map (.fieldName)) (head rows)
-
-            showIfNotEmpty :: Text -> ByteString -> Html
-            showIfNotEmpty title = \case
-                "" -> mempty
-                text -> [hsx|<div><strong>{title}:</strong> {text}</div>|]

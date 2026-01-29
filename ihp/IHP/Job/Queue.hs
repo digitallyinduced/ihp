@@ -7,10 +7,10 @@ module IHP.Job.Queue where
 
 import IHP.Prelude
 import IHP.Job.Types
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Session as Hasql
+import qualified Hasql.Notifications as Notifications
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import IHP.ModelSupport
@@ -25,7 +25,7 @@ import Control.Monad.Trans.Resource
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
 -- The lock is set on the job row in an atomic way.
--- 
+--
 -- The job status is set to JobStatusRunning, lockedBy will be set to the worker id and the attemptsCount is incremented.
 --
 -- __Example:__ Locking a SendMailJob
@@ -40,17 +40,31 @@ fetchNextJob :: forall job.
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
     , Table job
     ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
 fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
-    let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
-    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
+    let table = tableName @job
+    let tableBS = cs table :: ByteString
+    let snippet =
+            Snippet.sql ("UPDATE \"" <> tableBS <> "\" SET status = ")
+            <> Snippet.param (jobStatusToText JobStatusRunning)
+            <> Snippet.sql ", locked_at = NOW(), locked_by = "
+            <> Snippet.param workerId
+            <> Snippet.sql ", attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM \""
+            <> Snippet.sql (tableBS <> "\" WHERE (((status = ")
+            <> Snippet.param (jobStatusToText JobStatusNotStarted)
+            <> Snippet.sql ") OR (status = "
+            <> Snippet.param (jobStatusToText JobStatusRetry)
+            <> Snippet.sql (" AND " <> retryQuery backoffStrategy)
+            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
+            <> timeoutConditionSnippet timeoutInMicroseconds
+            <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id"
 
-    result :: [PG.Only (Id job)] <- withoutQueryLogging (sqlQuery query params)
+    result :: [Id job] <- withoutQueryLogging do
+        sqlQuery snippet (Decoders.rowList (Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))))
     case result of
         [] -> pure Nothing
-        [PG.Only id] -> Just <$> withoutQueryLogging (fetch id)
+        [id] -> Just <$> withoutQueryLogging (fetch id)
         otherwise -> error (show otherwise)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
@@ -72,7 +86,7 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
 watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
-    liftIO $ withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
+    liftIO $ withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS))
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
@@ -89,12 +103,20 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
 --
 pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
-    let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " LIMIT 1")
-    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
+    let tableBS = cs tableName :: ByteString
+    let countSnippet =
+            Snippet.sql ("SELECT COUNT(*) FROM \"" <> tableBS <> "\" WHERE (((status = ")
+            <> Snippet.param (jobStatusToText JobStatusNotStarted)
+            <> Snippet.sql ") OR (status = "
+            <> Snippet.param (jobStatusToText JobStatusRetry)
+            <> Snippet.sql (" AND " <> retryQuery backoffStrategy)
+            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
+            <> timeoutConditionSnippet timeoutInMicroseconds
+            <> Snippet.sql " LIMIT 1"
     let handler = do
             forever do
                 -- We don't log the queries to the console as it's filling up the log entries with noise
-                count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
+                count :: Int <- withoutQueryLogging (sqlQueryScalar countSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))))
 
                 -- For every job we send one signal to the job workers
                 -- This way we use full concurrency when we find multiple jobs
@@ -110,8 +132,8 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
 
     fst <$> allocate (Async.async handler) Async.cancel
 
-createNotificationTrigger :: ByteString -> PG.Query
-createNotificationTrigger tableName = PG.Query $ ""
+createNotificationTrigger :: ByteString -> Snippet.Snippet
+createNotificationTrigger tableName = Snippet.sql $ ""
         <> "BEGIN;\n"
         <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
         <> "BEGIN\n"
@@ -193,7 +215,7 @@ jobDidTimeout job = do
         |> updateRecord
 
     pure ()
-  
+
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
 jobDidSucceed :: forall job context.
@@ -221,49 +243,42 @@ jobDidSucceed job = do
 
     pure ()
 
--- | Mapping for @JOB_STATUS@:
---
--- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
-instance PG.FromField JobStatus where
-    fromField field (Just "job_status_not_started") = pure JobStatusNotStarted
-    fromField field (Just "job_status_running") = pure JobStatusRunning
-    fromField field (Just "job_status_failed") = pure JobStatusFailed
-    fromField field (Just "job_status_timed_out") = pure JobStatusTimedOut
-    fromField field (Just "job_status_succeeded") = pure JobStatusSucceeded
-    fromField field (Just "job_status_retry") = pure JobStatusRetry
-    fromField field (Just value) = PG.returnError PG.ConversionFailed field ("Unexpected value for enum value. Got: " <> cs value)
-    fromField field Nothing = PG.returnError PG.UnexpectedNull field "Unexpected null for enum value"
+-- | Mapping for @JOB_STATUS@ enum
+jobStatusToText :: JobStatus -> Text
+jobStatusToText JobStatusNotStarted = "job_status_not_started"
+jobStatusToText JobStatusRunning = "job_status_running"
+jobStatusToText JobStatusFailed = "job_status_failed"
+jobStatusToText JobStatusTimedOut = "job_status_timed_out"
+jobStatusToText JobStatusSucceeded = "job_status_succeeded"
+jobStatusToText JobStatusRetry = "job_status_retry"
 
 -- The default state is @not started@
 instance Default JobStatus where
     def = JobStatusNotStarted
 
--- | Mapping for @JOB_STATUS@:
---
--- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
-instance PG.ToField JobStatus where
-    toField JobStatusNotStarted = PG.toField ("job_status_not_started" :: Text)
-    toField JobStatusRunning = PG.toField ("job_status_running" :: Text)
-    toField JobStatusFailed = PG.toField ("job_status_failed" :: Text)
-    toField JobStatusTimedOut = PG.toField ("job_status_timed_out" :: Text)
-    toField JobStatusSucceeded = PG.toField ("job_status_succeeded" :: Text)
-    toField JobStatusRetry = PG.toField ("job_status_retry" :: Text)
-
 instance InputValue JobStatus where
-    inputValue JobStatusNotStarted = "job_status_not_started" :: Text
-    inputValue JobStatusRunning = "job_status_running" :: Text
-    inputValue JobStatusFailed = "job_status_failed" :: Text
-    inputValue JobStatusTimedOut = "job_status_timed_out" :: Text
-    inputValue JobStatusSucceeded = "job_status_succeeded" :: Text
-    inputValue JobStatusRetry = "job_status_retry" :: Text
+    inputValue = jobStatusToText
 
 instance IHP.Controller.Param.ParamReader JobStatus where
     readParameter = IHP.Controller.Param.enumParamReader
+
+instance FromField JobStatus where
+    fromField = Decoders.enum \case
+        "job_status_not_started" -> Just JobStatusNotStarted
+        "job_status_running" -> Just JobStatusRunning
+        "job_status_failed" -> Just JobStatusFailed
+        "job_status_timed_out" -> Just JobStatusTimedOut
+        "job_status_succeeded" -> Just JobStatusSucceeded
+        "job_status_retry" -> Just JobStatusRetry
+        _ -> Nothing
 
 retryQuery :: BackoffStrategy -> ByteString
 retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"
 retryQuery ExponentialBackoff {} = "updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count)"
 
-timeoutCondition :: Maybe Int -> ByteString
-timeoutCondition (Just timeoutInMicroseconds) = "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((? + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
-timeoutCondition Nothing = "AND (? IS NULL)"
+timeoutConditionSnippet :: Maybe Int -> Snippet.Snippet
+timeoutConditionSnippet (Just timeoutInMicroseconds) =
+    Snippet.sql "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + (("
+    <> Snippet.param (timeoutInMicroseconds + 1000000)
+    <> Snippet.sql ") || 'microseconds')::interval < NOW())"
+timeoutConditionSnippet Nothing = Snippet.sql ""

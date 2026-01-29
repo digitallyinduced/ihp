@@ -68,7 +68,8 @@ library
         , time
         , uuid
         , aeson
-        , postgresql-simple
+        , hasql
+        , hasql-dynamic-statements
         , deepseq
         , data-default
         , ip

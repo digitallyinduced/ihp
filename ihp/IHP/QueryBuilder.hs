@@ -38,6 +38,8 @@ module IHP.QueryBuilder
   -- * SQL Compilation
 , toSQL
 , toSQL'
+, toSnippet
+, toSnippet'
 , buildQuery
   -- * Filtering
 , filterWhere
@@ -98,7 +100,6 @@ module IHP.QueryBuilder
 , compileOperator
 , negateFilterOperator
   -- * Re-exports
-, In (In)
 ) where
 
 import IHP.QueryBuilder.Types
@@ -107,4 +108,3 @@ import IHP.QueryBuilder.Filter
 import IHP.QueryBuilder.Join
 import IHP.QueryBuilder.Order
 import IHP.QueryBuilder.Union
-import Database.PostgreSQL.Simple.Types (In (In))

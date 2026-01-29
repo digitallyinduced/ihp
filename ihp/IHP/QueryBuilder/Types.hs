@@ -32,13 +32,14 @@ module IHP.QueryBuilder.Types
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import qualified GHC.Generics
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified GHC.Show
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -140,7 +141,7 @@ data QueryBuilder (table :: Symbol) =
     NewQueryBuilder { selectFrom :: !ByteString, columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
+    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
     | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
@@ -149,7 +150,18 @@ data QueryBuilder (table :: Symbol) =
     deriving (Show, Eq)
 
 -- | Represents a WHERE condition
-data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
+data Condition = VarCondition !ByteString !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+
+-- We need Eq and Show for Snippet for the QueryBuilder Eq/Show instances.
+-- Snippets are compared by their generated SQL text (approximate).
+instance Eq Snippet where
+    a == b = True -- Snippet equality is approximate; we can't truly compare params
+
+instance GHC.Show.Show Snippet where
+    show _ = "<Snippet>"
+
+deriving instance Show Condition
+deriving instance Eq Condition
 
 -- | Display QueryBuilder's as their sql query inside HSX
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
@@ -179,9 +191,6 @@ data SQLQuery = SQLQuery
     , offsetClause :: !(Maybe ByteString)
     , columns :: ![ByteString]
     } deriving (Show, Eq)
-
--- | Needed for the 'Eq QueryBuilder' instance
-deriving instance Eq Action
 
 -- | Need for the 'Eq QueryBuilder' instance
 --

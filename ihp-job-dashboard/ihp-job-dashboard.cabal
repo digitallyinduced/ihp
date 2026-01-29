@@ -24,7 +24,8 @@ library
             , blaze-markup
             , ihp
             , ihp-hsx
-            , postgresql-simple
+            , hasql-dynamic-statements
+            , hasql
             , http-types
             , wai-request-params
     default-extensions:

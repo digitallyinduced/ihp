@@ -11,6 +11,8 @@ module IHP.QueryBuilder.Compiler
 , buildQuery
 , toSQL
 , toSQL'
+, toSnippet
+, toSnippet'
 , compileConditionQuery
 , compileConditionArgs
 , compileOperator
@@ -18,14 +20,15 @@ module IHP.QueryBuilder.Compiler
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import qualified Data.List as List
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
-
+import qualified Control.DeepSeq as DeepSeq
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 
 -- | Compiles a 'FilterOperator' to its SQL representation
 compileOperator :: FilterOperator -> ByteString
@@ -49,10 +52,6 @@ compileOperator SqlOp = ""
 {-# INLINE compileOperator #-}
 
 -- | Returns the "NOT" version of an operator
---
--- >>> negateFilterOperator EqOp
--- NotEqOp
---
 negateFilterOperator :: FilterOperator -> FilterOperator
 negateFilterOperator EqOp = NotEqOp
 negateFilterOperator NotEqOp = EqOp
@@ -130,7 +129,7 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
                                 Nothing -> Just condition
     buildQueryHelper OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
             |> buildQueryHelper
-            |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
+            |> modify #orderByClause (\value -> value <> [queryOrderByClause] )
     buildQueryHelper LimitQueryBuilder { queryBuilder, queryLimit } =
                     queryBuilder
                     |> buildQueryHelper
@@ -168,18 +167,19 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
             firstQuery = buildQueryHelper queryBuilder
          in firstQuery { joins = joinData:joins firstQuery }
 
--- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
+-- | Transforms a @query @@User |> ..@ expression into a SQL Snippet.
+-- Returns a tuple with the sql query template ByteString and a list of Snippet params.
 --
 -- __Example:__ Get the sql query that is represented by a QueryBuilder
 --
 -- >>> let postsQuery = query @Post |> filterWhere (#public, True)
 -- >>> toSQL postsQuery
--- ("SELECT posts.* FROM posts WHERE public = ?", [Plain "true"])
-toSQL :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> (ByteString, [Action])
+-- Returns (ByteString, [Snippet]) pair representing the query
+toSQL :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> (ByteString, [Snippet])
 toSQL queryBuilderProvider = toSQL' (buildQuery queryBuilderProvider)
 {-# INLINE toSQL #-}
 
-toSQL' :: SQLQuery -> (ByteString, [Action])
+toSQL' :: SQLQuery -> (ByteString, [Snippet])
 toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
         (theQuery, theParams)
     where
@@ -234,6 +234,24 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
 
 {-# INLINE toSQL' #-}
 
+-- | Compile a SQL query and its parameters into a single Snippet for execution with hasql
+toSnippet :: (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet
+toSnippet queryBuilderProvider = toSnippet' (buildQuery queryBuilderProvider)
+{-# INLINE toSnippet #-}
+
+-- | Compile a SQLQuery into a Snippet that can be executed directly
+toSnippet' :: SQLQuery -> Snippet
+toSnippet' sqlQuery =
+    let (queryTemplate, params) = toSQL' sqlQuery
+        -- Build the snippet by interleaving the template parts with parameters
+        -- The template uses ? as placeholder
+        parts = ByteString.split '?' queryTemplate
+        interleave [] _ = mempty
+        interleave [p] _ = Snippet.sql (cs p)
+        interleave (p:ps) [] = Snippet.sql (cs p) <> mconcat (map (Snippet.sql . cs) ps)
+        interleave (p:ps) (v:vs) = Snippet.sql (cs p) <> v <> interleave ps vs
+    in interleave parts params
+
 {-# INLINE compileConditionQuery #-}
 compileConditionQuery :: Condition -> ByteString
 compileConditionQuery (VarCondition var _) =  var
@@ -241,7 +259,7 @@ compileConditionQuery (OrCondition a b) =  "(" <> compileConditionQuery a <> ") 
 compileConditionQuery (AndCondition a b) =  "(" <> compileConditionQuery a <> ") AND (" <> compileConditionQuery b <> ")"
 
 {-# INLINE compileConditionArgs #-}
-compileConditionArgs :: Condition -> [Action]
+compileConditionArgs :: Condition -> [Snippet]
 compileConditionArgs (VarCondition _ arg) = [arg]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b

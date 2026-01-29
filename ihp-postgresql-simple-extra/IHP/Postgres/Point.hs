@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-|
 Module: IHP.Postgres.Point
 Description: Adds support for the Postgres Point type
@@ -9,12 +8,7 @@ module IHP.Postgres.Point where
 import GHC.Float
 import BasicPrelude
 
-import Database.PostgreSQL.Simple.ToField
-import Database.PostgreSQL.Simple.FromField
-import qualified Database.PostgreSQL.Simple.TypeInfo.Static as TI
-import           Database.PostgreSQL.Simple.TypeInfo.Macro as TI
-import           Data.ByteString.Builder (byteString, char8)
-import           Data.Attoparsec.ByteString.Char8 hiding (Result, char8, Parser(..))
+import Data.Attoparsec.ByteString.Char8 hiding (Result, char8, Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
 import Data.Aeson
 
@@ -23,17 +17,6 @@ import Data.Aeson
 -- See https://www.postgresql.org/docs/9.5/datatype-geometric.html
 data Point = Point { x :: Double, y :: Double }
     deriving (Eq, Show, Ord)
-
-instance FromField Point where
-    fromField f v =
-        if typeOid f /= $(inlineTypoid TI.point)
-        then returnError Incompatible f ""
-        else case v of
-               Nothing -> returnError UnexpectedNull f ""
-               Just bs ->
-                   case parseOnly parsePoint bs of
-                     Left  err -> returnError ConversionFailed f err
-                     Right val -> pure val
 
 parsePoint :: Parser ByteString Point
 parsePoint = do
@@ -48,19 +31,9 @@ parsePoint = do
             -- with that here as well
             doubleOrNaN = double <|> (string "NaN" >> (pure $ 0 / 0))
 
-
-instance ToField Point where
-    toField = serializePoint
-
-serializePoint :: Point -> Action
-serializePoint Point { x, y } = Many
-    [ Plain (byteString "point(")
-    , toField x
-    , Plain (char8 ',')
-    , toField y
-    , Plain (char8 ')')
-    ]
-
+-- | Serialize a Point to its Postgres text representation
+pointToText :: Point -> Text
+pointToText Point { x, y } = "(" <> tshow x <> "," <> tshow y <> ")"
 
 instance FromJSON Point where
     parseJSON = withObject "Point" $ \v -> Point

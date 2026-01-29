@@ -11,7 +11,16 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
 import Data.Scientific (Scientific)
-import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import Hasql.Statement (Statement(..))
+import qualified Hasql.DynamicStatements.Statement as DynStatement
+import qualified Hasql.Decoders as Decoders
+
+-- | Convert a Snippet to its SQL text representation for testing purposes.
+snippetToSql :: Snippet -> ByteString
+snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
+    Statement sql _ _ _ -> sql
 
 tests = do
     describe "ModelSupport" do
@@ -32,7 +41,7 @@ tests = do
             describe "Double" do
                 it "should return numeric representation" do
                     (inputValue (1.337 :: Double)) `shouldBe` "1.337"
-                
+
                 it "should deal with large numbers" do
                     -- https://stackoverflow.com/questions/69306646/ihp-haskell-field-display-format-double-values
                     (inputValue (50000000 :: Double)) `shouldBe` "50000000.0"
@@ -45,7 +54,7 @@ tests = do
             describe "Float" do
                 it "should return numeric representation" do
                     (inputValue (1.337 :: Float)) `shouldBe` "1.337"
-                
+
                 it "should deal with large numbers" do
                     -- https://stackoverflow.com/questions/69306646/ihp-haskell-field-display-format-double-values
                     (inputValue (50000000 :: Float)) `shouldBe` "50000000.0"
@@ -114,25 +123,17 @@ tests = do
                 (project |> set #name "Test" |> didChange #name) `shouldBe` False
                 (project |> didChange #id) `shouldBe` False
 
-        describe "withRLSParams" do
+        describe "withRLSSnippet" do
             it "should do nothing if RLS is disabled" do
-                let query = "select 1"
-                let params = ([] :: [PG.Action])
+                let snippet = Snippet.sql "select 1"
                 let ?modelContext = notConnectedModelContext undefined
-                (withRLSParams (\query params -> (query, params)) query params) `shouldBe` (query, params)
-            
-            it "should add the RLS boilerplate if RLS is enabled" do
-                let query = "select ?"
-                let params = [PG.toField (1337 :: Int)]
-                let rowLevelSecurity = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = PG.toField ("userId" :: Text) }
-                let ?modelContext = (notConnectedModelContext undefined) { rowLevelSecurity = Just rowLevelSecurity }
-                (withRLSParams (\query params -> (query, params)) query params) `shouldBe`
-                        ( "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; select ?"
-                        , [ PG.EscapeIdentifier "ihp_authenticated", PG.Escape "userId", PG.Plain "1337" ]
-                        )
+                (snippetToSql (withRLSSnippet snippet)) `shouldBe` "select 1"
 
-instance Eq PG.Action where
-    a == b = tshow a == tshow b
+            it "should add the RLS boilerplate if RLS is enabled" do
+                let snippet = Snippet.sql "select " <> Snippet.param (1337 :: Int)
+                let rowLevelSecurityContext = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = Snippet.param ("userId" :: Text) }
+                let ?modelContext = (notConnectedModelContext undefined) { rowLevelSecurity = Just rowLevelSecurityContext }
+                (snippetToSql (withRLSSnippet snippet)) `shouldBe` "SET LOCAL ROLE $1; SET LOCAL rls.ihp_user_id = $2; select $3"
 
 data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
 instance SetField "id" Project Int where
