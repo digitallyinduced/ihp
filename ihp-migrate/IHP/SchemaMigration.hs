@@ -72,7 +72,7 @@ createSchemaMigrationsTable = do
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
 findOpenMigrations !minimumRevision = do
     let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
+    let ?modelContext = modelContext { logger = (modelContext.logger) { log = \_ _ -> pure ()} }
 
     migratedRevisions <- findMigratedRevisions
     migrations <- findAllMigrations

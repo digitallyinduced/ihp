@@ -29,7 +29,7 @@ withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
         let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime } = frameworkConfig
 
-        logger <- newLogger def { level = Warn } -- don't log queries
+        (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat' -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger

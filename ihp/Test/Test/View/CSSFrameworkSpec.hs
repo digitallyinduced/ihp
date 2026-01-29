@@ -725,7 +725,7 @@ shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `
 -}
 createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
 createControllerContextWithCSSFramework cssFramework = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+    (frameworkConfig, _) <- FrameworkConfig.buildFrameworkConfig do
                 option cssFramework
     let requestBody = FormBody { params = [], files = [] }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig

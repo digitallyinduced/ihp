@@ -23,7 +23,6 @@ import qualified IHP.Version as Version
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
-import Data.Default (def, Default (..))
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -84,7 +83,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- ensuring seamless transitions during app restarts (no connection refused errors)
     appSocket <- createListeningSocket portConfig.appPort
 
-    bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
+    Log.withDefaultLogger \logger -> do
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing

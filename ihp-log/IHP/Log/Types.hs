@@ -1,15 +1,18 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE NoFieldSelectors #-}
 {-|
 Module: IHP.Log.Types
 Description:  Types for the IHP logging system
 -}
 
 module IHP.Log.Types
-( Bytes(..)
-, LogStr
+( LogStr
 , BufSize
 , TimeFormat
-, RotateSettings(..)
+, LogType'(..)
+, LogType
+, FileLogSpec(..)
+, TimedFileLogSpec(..)
 , toLogStr
 , fromLogStr
 , defaultBufSize
@@ -17,14 +20,13 @@ module IHP.Log.Types
 , simpleTimeFormat'
 , Logger(..)
 , LogLevel(..)
-, LogDestination(..)
 , LoggingProvider(..)
-, LoggerSettings(..)
 , LogFormatter
 , FormattedTime
 , newLogger
 , defaultLogger
-, defaultDestination
+, withLogger
+, withDefaultLogger
 , defaultFormatter
 , withLevelFormatter
 , withTimeFormatter
@@ -34,10 +36,11 @@ module IHP.Log.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text as Text
-import Data.Default (Default (def))
+import qualified Control.Exception as Exception
 import System.Log.FastLogger (
     LogStr,
     LogType'(..),
+    LogType,
     BufSize,
     FileLogSpec(..),
     TimedFileLogSpec(..),
@@ -68,12 +71,13 @@ show = tshow
 -- | Interal logger type that encapsulates information needed to perform
 -- logging operations. Users can also access this though the 'LoggingProvider'
 -- class in controller and model actions to perform logic based on the set log level.
+--
+-- The 'log' closure bakes in level checking, formatting, and time caching,
+-- so callers just provide a level and message. Cleanup is handled externally
+-- via bracket (see 'withLogger', 'withDefaultLogger').
 data Logger = Logger {
-    write     :: !((FastLogger.FormattedTime -> LogStr) -> IO ()),
-    level     :: !LogLevel,
-    formatter :: !LogFormatter,
-    timeCache :: !(IO FastLogger.FormattedTime),
-    cleanup   :: !(IO ())
+    log   :: !(LogLevel -> LogStr -> IO ()),
+    level :: !LogLevel
 }
 
 data LogLevel
@@ -123,84 +127,6 @@ type FormattedTime = ByteString
 -- @
 type LogFormatter = FormattedTime -> LogLevel -> LogStr -> LogStr
 
--- | A number of bytes, used in 'RotateSettings'
-newtype Bytes = Bytes Integer
-
-data RotateSettings
-    -- | Log messages to a file which is never rotated.
-    --
-    -- @
-    -- newLogger def {
-    --    destination = File "Log/production.log" NoRotate defaultBufSize
-    --    }
-    -- @
-    = NoRotate
-    -- | Log messages to a file and rotate the file after it reaches the given size in bytes.
-    -- Third argument is the max number of rotated log files to keep around before overwriting the oldest one.
-    --
-    -- Example: log to a file rotated once it is 4MB, and keep 7 files before overwriting the first file.
-    --
-    -- @
-    --    newLogger def {
-    --      destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
-    --      }
-    -- @
-    | SizeRotate !Bytes !Int
-    -- | Log messages to a file rotated on a timed basis.
-    -- Expects a time format string as well as a function which compares two formatted time strings
-    -- which is used to determine if the file should be rotated.
-    -- Last argument is a function which is called on a log file once its rotated.
-    --
-    -- Example: rotate a file daily and compress the log file once rotated.
-    --
-    -- @
-    --   let
-    --       filePath = "Log/production.log"
-    --       formatString = "%FT%H%M%S"
-    --       timeCompare = (==) on C8.takeWhile (/=T))
-    --       compressFile fp = void . forkIO $
-    --           callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
-    --   in
-    --     newLogger def {
-    --        destination = File
-    --          filePath
-    --          (TimedRotate formatString timeCompare compressFile)
-    --          defaultBufSize
-    --        }
-    -- @
-    | TimedRotate !TimeFormat (FastLogger.FormattedTime -> FastLogger.FormattedTime -> Bool) (FilePath -> IO ())
-
--- | Where logged messages will be delivered to.
-data LogDestination
-    = None
-    -- | Log messages to standard output.
-    | Stdout !BufSize
-    -- | Log messages to standard error.
-    | Stderr !BufSize
-    -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
-    | File !FilePath !RotateSettings !BufSize
-    -- | Send logged messages to a callback. Flush action called after every log.
-    | Callback !(LogStr -> IO ()) !(IO ())
-
-data LoggerSettings = LoggerSettings {
-    level       :: LogLevel,
-    formatter   :: LogFormatter,
-    destination :: LogDestination,
-    timeFormat  :: TimeFormat
-}
-
-instance Default LoggerSettings where
-    def = LoggerSettings {
-        level = Debug,
-        formatter = defaultFormatter,
-        destination = defaultDestination,
-        timeFormat = simpleTimeFormat'
-    }
-
--- | Logger default destination is to standard out.
-defaultDestination :: LogDestination
-defaultDestination = Stdout defaultBufSize
-
 -- | Used to get the logger for a given environment.
 -- | Call in any instance of 'LoggingProvider' get the the environment's current logger.
 -- Useful in controller and model actions, which both have logging contexts.
@@ -210,30 +136,44 @@ instance HasField "logger" Logger Logger where
     getField logger = logger
 
 -- | Create a new 'FastLogger' and wrap it in an IHP 'Logger'.
--- Use with the default logger settings and record update syntax for nice configuration:
 --
--- > newLogger def { level = Error }
-newLogger :: LoggerSettings -> IO Logger
-newLogger LoggerSettings { .. } = do
+-- Returns the logger and an IO action to clean up resources (flush and close).
+-- Use 'withLogger' for bracket-style resource management.
+--
+-- > (logger, cleanup) <- newLogger Debug defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
+newLogger :: LogLevel -> LogFormatter -> LogType -> TimeFormat -> IO (Logger, IO ())
+newLogger level formatter destination timeFormat = do
     timeCache <- newTimeCache timeFormat
-    (write, cleanup) <- makeFastLogger timeCache destination
-    pure Logger { .. }
-    where
-        makeFastLogger timeCache destination = newTimedFastLogger timeCache $
-            case destination of
-                None                    -> LogNone
-                Stdout buf              -> LogStdout buf
-                Stderr buf              -> LogStderr buf
-                File path settings buf  -> makeFileLogger path settings buf
-                Callback callback flush -> LogCallback callback flush
+    (write, cleanup) <- newTimedFastLogger timeCache destination
+    let log logLevel msg =
+            if logLevel >= level
+            then write (\time -> formatter time logLevel msg)
+            else pure ()
+    pure (Logger { log, level }, cleanup)
 
-        makeFileLogger path NoRotate = LogFileNoRotate path
-        makeFileLogger path (SizeRotate (Bytes size) count) = LogFile (FileLogSpec path size count)
-        makeFileLogger path (TimedRotate fmt cmp post) = LogFileTimedRotate (TimedFileLogSpec path fmt cmp post)
+-- | Create a default logger that logs to stdout with no special formatting.
+--
+-- Returns the logger and an IO action to clean up resources.
+--
+-- > (logger, cleanup) <- defaultLogger
+defaultLogger :: IO (Logger, IO ())
+defaultLogger = newLogger Debug defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
 
--- | Formats logs as-is to stdout.
-defaultLogger :: IO Logger
-defaultLogger = newLogger def
+-- | Bracket-style logger construction. Ensures cleanup runs even on exception.
+--
+-- > withLogger Debug defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat' \logger -> do
+-- >     -- use logger
+withLogger :: LogLevel -> LogFormatter -> LogType -> TimeFormat -> (Logger -> IO a) -> IO a
+withLogger level formatter destination timeFormat action =
+    Exception.bracket (newLogger level formatter destination timeFormat) snd (action . fst)
+
+-- | Bracket-style default logger. Logs to stdout at Debug level.
+--
+-- > withDefaultLogger \logger -> do
+-- >     -- use logger
+withDefaultLogger :: (Logger -> IO a) -> IO a
+withDefaultLogger action =
+    Exception.bracket defaultLogger snd (action . fst)
 
 -- | Formats the log as-is with a newline added.
 defaultFormatter :: LogFormatter

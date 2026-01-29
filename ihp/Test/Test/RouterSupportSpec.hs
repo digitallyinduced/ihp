@@ -169,7 +169,7 @@ config = do
 
 initApplication :: IO Application
 initApplication = do
-    frameworkConfig <- buildFrameworkConfig (pure ())
+    (frameworkConfig, _) <- buildFrameworkConfig (pure ())
     pure (frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app))
 
 application = unsafePerformIO initApplication
