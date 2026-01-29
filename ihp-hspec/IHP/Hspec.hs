@@ -2,8 +2,6 @@ module IHP.Hspec (withIHPApp) where
 
 import IHP.Prelude
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Session as Hasql
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
@@ -27,7 +25,7 @@ withConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withConnection databaseUrl = Exception.bracket acquireOrFail Hasql.release
     where
         acquireOrFail = do
-            result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+            result <- Hasql.acquire (connectionSettingsFromDatabaseUrl databaseUrl)
             case result of
                 Left err -> error ("withConnection: Failed to acquire connection: " <> show err)
                 Right conn -> pure conn

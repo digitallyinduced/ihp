@@ -11,8 +11,6 @@ import IHP.IDE.Data.View.EditValue
 import IHP.IDE.Data.View.ShowForeignKeyHoverCard
 
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Session as Hasql
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
@@ -220,7 +218,7 @@ instance Controller DataController where
 
 connectToAppDb :: (?context :: ControllerContext) => IO Hasql.Connection
 connectToAppDb = do
-    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs ?context.frameworkConfig.databaseUrl))]
+    result <- Hasql.acquire (connectionSettingsFromDatabaseUrl (cs ?context.frameworkConfig.databaseUrl))
     case result of
         Left err -> error ("connectToAppDb: Failed to acquire connection: " <> show err)
         Right conn -> pure conn

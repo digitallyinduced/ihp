@@ -12,8 +12,6 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Session as Hasql
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
@@ -404,7 +402,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 -- Each transaction gets a dedicated connection
                 conn <- do
-                    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs globalModelContext.databaseUrl))]
+                    result <- Hasql.acquire (connectionSettingsFromDatabaseUrl globalModelContext.databaseUrl)
                     case result of
                         Left err -> do
                             let message = "StartTransaction: Failed to acquire connection: " <> tshow err

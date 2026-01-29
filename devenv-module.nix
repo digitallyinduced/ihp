@@ -72,7 +72,6 @@ that is defined in flake-module.nix
                         hasql
                         hasql-pool
                         hasql-dynamic-statements
-                        hasql-transaction
                         hasql-notifications
                         hasql-implicits
                         wai-app-static
