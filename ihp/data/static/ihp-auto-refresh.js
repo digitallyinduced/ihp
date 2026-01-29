@@ -50,25 +50,17 @@ function processAutoRefresh(metaTag) {
             return;
         }
 
-        // Use Turbo Streams for auto-refresh with intelligent DOM updates
         var html = event.data;
-        
-        // Check if it's a Turbo Stream or full HTML
+
         if (html.includes('<turbo-stream')) {
             // It's a Turbo Stream - let Turbo handle it
             document.body.insertAdjacentHTML('beforeend', html);
         } else {
-            // It's full HTML - send a refresh stream to trigger Turbo morphing
-            var refreshStream = '<turbo-stream action="refresh"></turbo-stream>';
-            document.body.insertAdjacentHTML('beforeend', refreshStream);
+            // It's full HTML - use morphPage for DOM morphing
+            var parser = new DOMParser();
+            var dom = parser.parseFromString(html, 'text/html');
+            window.morphPage(dom);
         }
-
-        window.clearAllIntervals();
-        window.clearAllTimeouts();
-        
-        // Update event to use Turbo
-        var event = new CustomEvent('turbo:load', {});
-        document.dispatchEvent(event);
     };
 }
 

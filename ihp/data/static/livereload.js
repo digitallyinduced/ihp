@@ -28,25 +28,7 @@ function refresh() {
             var parser = new DOMParser();
             var dom = parser.parseFromString(html, 'text/html');
 
-            // Use Turbo's built-in morphing for live reload
-            // https://github.com/digitallyinduced/ihp/issues/998
-            if (window.Turbo && window.Turbo.renderPage) {
-                // Let Turbo handle the live reload with morphing
-                window.Turbo.renderPage({
-                    snapshot: { html: dom.documentElement.outerHTML },
-                    isPreview: false
-                });
-            } else {
-                // Fallback: use Turbo Stream refresh action for live reload
-                var refreshStream = '<turbo-stream action="refresh"></turbo-stream>';
-                document.body.insertAdjacentHTML('beforeend', refreshStream);
-            }
-
-            window.clearAllIntervals();
-            window.clearAllTimeouts();
-
-            var event = new CustomEvent('turbo:load', {});
-            document.dispatchEvent(event);
+            window.morphPage(dom);
         });
 }
 

@@ -46,4 +46,4 @@ function initPolicyEditor() {
     });
 }
 
-document.addEventListener('turbo:load', initPolicyEditor);
+document.addEventListener('ihp:load', initPolicyEditor);
