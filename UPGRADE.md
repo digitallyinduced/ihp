@@ -52,6 +52,7 @@ Then you can use this prompt to copy/paste into your AI agent (e.g., Claude or C
 I ran devenv up 2>&1 | tee /tmp/devenv.log. Keep tailing /tmp/devenv.log and fix compile errors iteratively until the app builds.
   Rules:
 
+  - Check the git history at https://github.com/digitallyinduced/ihp to see what has changed.
   - Don’t touch anything under IHP/ (IHP core).
   - Always tail -n 120 /tmp/devenv.log after each change.
   - Fix only the app code (Web/, Application/, Config/, etc.).
