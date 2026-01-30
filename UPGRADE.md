@@ -58,6 +58,7 @@ I ran devenv up 2>&1 | tee /tmp/devenv.log. Keep tailing /tmp/devenv.log and fix
   - If a fix requires new deps/config, update project files accordingly (e.g., add p.ihp-mail in flake.nix when IHP.Mail imports fail) and tell me if I need to restart
     devenv up.
   - Keep going until the log shows no compile errors.
+  - Tests run with: runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
 ```
 
 # Upgrade to 1.4.0 from 1.3.0
