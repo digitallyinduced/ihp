@@ -30,6 +30,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , QuasiQuotes
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: shared-properties

@@ -45,6 +45,7 @@ common shared-properties
             -Wmissing-fields
             -Winaccessible-code
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -57,6 +58,7 @@ common shared-properties
             -Winaccessible-code
             -fspecialise-aggressively
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 library
     import: shared-properties

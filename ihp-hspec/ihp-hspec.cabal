@@ -27,6 +27,7 @@ library
         OverloadedStrings
         ImplicitParams
         RecordWildCards
+    ghc-options: -Werror=incomplete-patterns
     build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, postgresql-simple, wai-request-params
     hs-source-dirs: .
     exposed-modules: IHP.Hspec

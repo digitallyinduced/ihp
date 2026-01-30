@@ -163,6 +163,7 @@ instance FromJSON ChangeSet where
         case UUID.fromText id of
             Just largePgNotificationId -> pure ExternalChangeSet { largePgNotificationId }
             Nothing -> fail "Invalid UUID"
+    parseJSON invalid = fail $ cs ("Expected Array or String for ChangeSet, got: " <> tshow invalid)
 
 instance FromJSON Change where
     parseJSON = withObject "Change" $ \values -> do

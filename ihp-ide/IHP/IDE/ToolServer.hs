@@ -143,6 +143,7 @@ openUrl url = do
     let defaultOSBrowser = case os of
             "linux" -> "xdg-open"
             "darwin" -> "open"
+            _ -> "xdg-open"
     let browser = selectedBrowser |> fromMaybe defaultOSBrowser
     async $ Process.callCommand (browser <> " " <> cs url)
     pure ()

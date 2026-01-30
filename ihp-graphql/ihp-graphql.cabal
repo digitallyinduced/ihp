@@ -47,6 +47,7 @@ common shared-properties
         , LambdaCase
         , TemplateHaskell
         , OverloadedRecordDot
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: shared-properties

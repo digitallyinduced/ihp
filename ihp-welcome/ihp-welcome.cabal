@@ -32,6 +32,7 @@ common ihp-std
         ImplicitParams
         DataKinds
         UndecidableInstances
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: ihp-std

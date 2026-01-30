@@ -49,6 +49,9 @@ instance Controller TablesController where
             Failure message -> do
                 setErrorMessage message
                 redirectTo TablesAction
+            FailureHtml message -> do
+                setErrorMessage message
+                redirectTo TablesAction
             Success -> do
                 updateSchema (SchemaOperations.addTable tableName)
                 redirectTo ShowTableAction { .. }
@@ -67,6 +70,9 @@ instance Controller TablesController where
         let validationResult = tableName |> validateTable statements (Just oldTableName)
         case validationResult of
             Failure message -> do
+                setErrorMessage message
+                redirectTo ShowTableAction { tableName = oldTableName }
+            FailureHtml message -> do
                 setErrorMessage message
                 redirectTo ShowTableAction { tableName = oldTableName }
             Success -> do
