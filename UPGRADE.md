@@ -59,6 +59,7 @@ I ran devenv up 2>&1 | tee /tmp/devenv.log. Keep tailing /tmp/devenv.log and fix
     devenv up.
   - Keep going until the log shows no compile errors.
   - Tests run with: runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+  - Tests now need the ihp-hspec in flake.nix
 ```
 
 # Upgrade to 1.4.0 from 1.3.0
