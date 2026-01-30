@@ -1,6 +1,10 @@
 module IHP.SchemaCompiler
 ( compile
 , compileStatementPreview
+, compileStatementPreviewWith
+, CompilerOptions(..)
+, fullCompileOptions
+, previewCompilerOptions
 ) where
 
 import ClassyPrelude
@@ -16,6 +20,7 @@ import qualified IHP.Postgres.Parser as PostgresParser
 import IHP.Postgres.Types
 import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
+import qualified System.Environment
 import NeatInterpolation
 import Text.Countable (pluralize)
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
@@ -28,7 +33,8 @@ instance Exception CompileException where
 
 compile :: IO ()
 compile = do
-    let options = fullCompileOptions
+    relationSupport <- System.Environment.lookupEnv "IHP_RELATION_SUPPORT"
+    let options = fullCompileOptions { compileRelationSupport = relationSupport /= Just "0" }
     SchemaDesigner.parseSchemaSql >>= \case
         Left parserError -> Exception.throwIO (CompileException parserError)
         Right statements -> do
@@ -42,13 +48,14 @@ compile = do
 
 compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
-    [ ("build/Generated/Enums.hs", compileEnums options schema)
-    ]
-    <> actualTypesTableModules schema
-    <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
-    <> tableModules options schema
-    <> [ ("build/Generated/Types.hs", compileIndex schema)
-    ]
+    let ?compilerOptions = options
+    in [ ("build/Generated/Enums.hs", compileEnums options schema)
+       ]
+       <> actualTypesTableModules schema
+       <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
+       <> tableModules options schema
+       <> [ ("build/Generated/Types.hs", compileIndex schema)
+       ]
 
 applyTables :: (CreateTable -> (OsPath, Text)) -> Schema -> [(OsPath, Text)]
 applyTables applyFunction schema =
@@ -60,12 +67,12 @@ applyTables applyFunction schema =
                 otherwise -> Nothing
             )
 
-actualTypesTableModules :: Schema -> [(OsPath, Text)]
+actualTypesTableModules :: (?compilerOptions :: CompilerOptions) => Schema -> [(OsPath, Text)]
 actualTypesTableModules schema =
     let ?schema = schema
     in applyTables actualTypesTableModule schema
 
-actualTypesTableModule :: (?schema :: Schema) => CreateTable -> (OsPath, Text)
+actualTypesTableModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
 actualTypesTableModule table =
         ((OsPath.</>) "build/Generated/ActualTypes" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
     where
@@ -83,14 +90,16 @@ actualTypesTableModule table =
             import Generated.Enums
         |]
 
-tableModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
+tableModules :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> [(OsPath, Text)]
 tableModules options schema =
     let ?schema = schema
     in
         applyTables (tableModule options) schema
-        <> applyTables tableIncludeModule schema
+        <> if options.compileRelationSupport
+            then applyTables tableIncludeModule schema
+            else []
 
-tableModule :: (?schema :: Schema) => CompilerOptions -> CreateTable -> (OsPath, Text)
+tableModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CompilerOptions -> CreateTable -> (OsPath, Text)
 tableModule options table =
         ((OsPath.</>) "build/Generated" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
     where
@@ -108,7 +117,7 @@ tableModule options table =
             import Generated.ActualTypes
         |]
 
-tableIncludeModule :: (?schema :: Schema) => CreateTable -> (OsPath, Text)
+tableIncludeModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
 tableIncludeModule table =
         ((OsPath.</>) "build/Generated" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
     where
@@ -121,7 +130,7 @@ tableIncludeModule table =
         |] <> "\n\n"
 
 
-tableModuleBody :: (?schema :: Schema) => CompilerOptions -> CreateTable -> Text
+tableModuleBody :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CompilerOptions -> CreateTable -> Text
 tableModuleBody options table = Text.unlines
     [ compileInputValueInstance table
     , compileFromRowInstance table
@@ -145,14 +154,18 @@ data CompilerOptions = CompilerOptions {
         -- This is e.g. disabled when showing the code preview in the schema designer
         -- as it's very noisy and does not add any values. But of course it's needed
         -- when do a compilation for the Types.hs
-        compileGetAndSetFieldInstances :: Bool
+        compileGetAndSetFieldInstances :: Bool,
+        -- | When disabled, generates simpler types without Include\/fetchRelated type machinery.
+        -- This removes type parameters from record types, removes has-many QueryBuilder fields,
+        -- and skips generating Include modules. Set @IHP_RELATION_SUPPORT=0@ to disable.
+        compileRelationSupport :: Bool
     }
 
 fullCompileOptions :: CompilerOptions
-fullCompileOptions = CompilerOptions { compileGetAndSetFieldInstances = True }
+fullCompileOptions = CompilerOptions { compileGetAndSetFieldInstances = True, compileRelationSupport = True }
 
 previewCompilerOptions :: CompilerOptions
-previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = False }
+previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = False, compileRelationSupport = True }
 
 atomicType :: PostgresType -> Text
 atomicType = \case
@@ -208,7 +221,7 @@ writeIfDifferent path content = do
         putStrLn $ "Updating " <> cs fp
         writeFile fp (cs content)
 
-compileTypes :: CompilerOptions -> Schema -> Text
+compileTypes :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> Text
 compileTypes options schema@(Schema statements) = [trimming|
         -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
         {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
@@ -233,7 +246,7 @@ compileTypes options schema@(Schema statements) = [trimming|
         rexports = ("module Generated.Enums" : map (\n -> "module " <> n) perTableModuleNames)
             |> Text.intercalate ", "
 
-compileActualTypesForTable :: (?schema :: Schema) => CreateTable -> Text
+compileActualTypesForTable :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileActualTypesForTable table = Text.unlines
     [ compileData table
     , compilePrimaryKeyInstance table
@@ -243,7 +256,7 @@ compileActualTypesForTable table = Text.unlines
     , compileTableInstance table
     ]
 
-compileIndex :: Schema -> Text
+compileIndex :: (?compilerOptions :: CompilerOptions) => Schema -> Text
 compileIndex schema = [trimming|
         -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
         module Generated.Types ($rexports) where
@@ -257,9 +270,10 @@ compileIndex schema = [trimming|
                         StatementCreateTable table ->
                             let modelName = tableNameToModelName table.name
                             in
-                                [ "Generated." <> modelName
-                                , "Generated." <> modelName <> "Include"
-                                ]
+                                [ "Generated." <> modelName ]
+                                <> if ?compilerOptions.compileRelationSupport
+                                    then [ "Generated." <> modelName <> "Include" ]
+                                    else []
                         otherwise -> []
                     )
                 |> concat
@@ -336,21 +350,25 @@ compileEnums options schema@(Schema statements) = Text.unlines
         |]
 
 compileStatementPreview :: [Statement] -> Statement -> Text
-compileStatementPreview statements statement =
+compileStatementPreview = compileStatementPreviewWith previewCompilerOptions
+
+compileStatementPreviewWith :: CompilerOptions -> [Statement] -> Statement -> Text
+compileStatementPreviewWith options statements statement =
     let ?schema = Schema statements
+        ?compilerOptions = options
     in
         case statement of
             CreateEnumType {} -> compileEnumDataDefinitions statement
             StatementCreateTable table -> Text.unlines
                 [ compileActualTypesForTable table
-                , tableModuleBody previewCompilerOptions table
+                , tableModuleBody options table
                 ]
 
 -- | Skip generation of tables with no primary keys
 tableHasPrimaryKey :: CreateTable -> Bool
 tableHasPrimaryKey table = table.primaryKeyConstraint /= (PrimaryKeyConstraint [])
 
-compileTypeAlias :: (?schema :: Schema) => CreateTable -> Text
+compileTypeAlias :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileTypeAlias table@(CreateTable { name, columns }) =
         "type "
         <> modelName
@@ -362,14 +380,17 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         <> "\n"
     where
         modelName = tableNameToModelName name
-        hasManyDefaults = columnsReferencingTable name
+        hasManyDefaults
+            | ?compilerOptions.compileRelationSupport =
+                columnsReferencingTable name
                 |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
+            | otherwise = ""
 
 primaryKeyTypeName :: Text -> Text
 primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
-compileData :: (?schema :: Schema) => CreateTable -> Text
+compileData :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileData table@(CreateTable { name, columns }) =
         "data " <> modelName <> "' " <> typeArguments
         <> " = " <> modelName <> " {"
@@ -391,8 +412,10 @@ compileInputValueInstance table =
         modelName = qualifiedConstructorNameFromTableName table.name
 
 -- | Returns all the type arguments of the data structure for an entity
-dataTypeArguments :: (?schema :: Schema) => CreateTable -> [Text]
-dataTypeArguments table = (map columnNameToFieldName belongsToVariables) <> hasManyVariables
+dataTypeArguments :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Text]
+dataTypeArguments table
+    | not ?compilerOptions.compileRelationSupport = []
+    | otherwise = (map columnNameToFieldName belongsToVariables) <> hasManyVariables
     where
         belongsToVariables = variableAttributes table |> map (.name)
         hasManyVariables =
@@ -401,7 +424,7 @@ dataTypeArguments table = (map columnNameToFieldName belongsToVariables) <> hasM
             |> map snd
 
 -- | Returns the field names and types for the @data MyRecord = MyRecord { .. }@ for a given table
-dataFields :: (?schema :: Schema) => CreateTable -> [(Text, Text)]
+dataFields :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [(Text, Text)]
 dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderFields <> [("meta", "MetaBag")]
     where
         columnFields = columns |> map columnField
@@ -415,7 +438,9 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
                         else haskellType table column
                 )
 
-        queryBuilderFields = columnsReferencingTable name |> compileQueryBuilderFields
+        queryBuilderFields
+            | ?compilerOptions.compileRelationSupport = columnsReferencingTable name |> compileQueryBuilderFields
+            | otherwise = []
 
 compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
@@ -481,11 +506,13 @@ columnsReferencingTable theTableName =
             AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName -> Just (tableName, columnName)
             _ -> Nothing
 
-variableAttributes :: (?schema :: Schema) => CreateTable -> [Column]
+variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
 variableAttributes table@(CreateTable { columns }) = filter (isVariableAttribute table) columns
 
-isVariableAttribute :: (?schema :: Schema) => CreateTable -> Column -> Bool
-isVariableAttribute = isRefCol
+isVariableAttribute :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Column -> Bool
+isVariableAttribute table column
+    | not ?compilerOptions.compileRelationSupport = False
+    | otherwise = isRefCol table column
 
 
 -- | Returns @True@ when the coluns is referencing another column via foreign key constraint
@@ -679,7 +706,7 @@ compileUpdate table@(CreateTable { name, columns }) =
                 )
             )
 
-compileFromRowInstance :: (?schema :: Schema) => CreateTable -> Text
+compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
 instance FromRow #{modelName} where
     fromRow = do
@@ -766,14 +793,17 @@ instance FromRow #{modelName} where
         --                Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
         --                otherwise -> toBinding modelName attributes
 
-compileBuild :: (?schema :: Schema) => CreateTable -> Text
+compileBuild :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =
     let
         constructor = qualifiedConstructorNameFromTableName name
+        qbDefaults = if ?compilerOptions.compileRelationSupport
+            then columnsReferencingTable name |> map (const "def") |> unwords
+            else ""
     in
         "instance Record " <> constructor <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
-        <> "    newRecord = " <> constructor <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> (columnsReferencingTable name |> map (const "def") |> unwords) <> " def\n"
+        <> "    newRecord = " <> constructor <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> qbDefaults <> " def\n"
 
 
 compileDefaultIdInstance :: CreateTable -> Text
@@ -809,12 +839,12 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                             _ -> "def"
 toDefaultValueExpr _ = "def"
 
-compileHasTableNameInstance :: (?schema :: Schema) => CreateTable -> Text
+compileHasTableNameInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
     "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
-compilePrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
+compilePrimaryKeyInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"
     where
         symbol = tshow name
@@ -826,7 +856,7 @@ compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [
             where
                 colType column = haskellType table column
 
-compileFilterPrimaryKeyInstance :: (?schema :: Schema) => CreateTable -> Text
+compileFilterPrimaryKeyInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFilterPrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance QueryBuilder.FilterPrimaryKey "#{name}" where
     filterWhereId #{primaryKeyPattern} builder =
@@ -845,7 +875,7 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
         primaryKeyFilter :: Column -> Text
         primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
 
-compileTableInstance :: (?schema :: Schema) => CreateTable -> Text
+compileTableInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance #{instanceHead} where
     tableName = \"#{name}\"
@@ -891,16 +921,16 @@ instance #{instanceHead} where
                 |> map (.name)
                 |> tshow
 
-compileGetModelName :: (?schema :: Schema) => CreateTable -> Text
+compileGetModelName :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
-compileDataTypePattern :: (?schema :: Schema) => CreateTable -> Text
+compileDataTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
 
-compileTypePattern :: (?schema :: Schema) => CreateTable -> Text
+compileTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
 
-compileInclude :: (?schema :: Schema) => CreateTable -> Text
+compileInclude :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
@@ -926,7 +956,7 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
         compileHasMany (refTableName, refColumnName) = includeType refColumnName ("[" <> tableNameToModelName refTableName <> "]")
 
 
-compileSetFieldInstances :: (?schema :: Schema) => CreateTable -> Text
+compileSetFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
@@ -943,7 +973,7 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
                     | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
                     | otherwise = name'
 
-compileUpdateFieldInstances :: (?schema :: Schema) => CreateTable -> Text
+compileUpdateFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
         modelName = tableNameToModelName name
@@ -963,7 +993,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                 compileTypePattern' ::  Text -> Text
                 compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
 
-compileHasFieldId :: (?schema :: Schema) => CreateTable -> Text
+compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
 instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}

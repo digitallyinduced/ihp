@@ -164,6 +164,28 @@ When you run `ihp-new blog` to create a new project on a system using Ubuntu run
 
 Switch to WSL 2.
 
+### Slow Compilation of Generated Types
+
+**Problem:**
+
+Your project has a large database schema and `Generated.Types` takes a long time to compile. This is especially noticeable when the schema has many tables with foreign key relationships.
+
+**Cause:**
+
+For each foreign key relationship, IHP generates type parameters on record types, `QueryBuilder` fields for has-many relationships, `Include` type family instances, and complex `UpdateField` instances. These are expensive for GHC's type checker, and the cost grows with the number of tables and relationships.
+
+**Solution:**
+
+If your project does not use `fetchRelated` or `Include` types, you can disable this machinery to speed up compilation:
+
+```bash
+export IHP_RELATION_SUPPORT=0
+```
+
+Add this to your `.envrc` or `.env` file to apply it during development. This produces simpler generated types without type parameters or `Include` modules.
+
+See [Relationships: Disabling Relation Support for Faster Compilation](relationships.html#disabling-relation-support-for-faster-compilation) for details on what changes and what stops working.
+
 ### OAuth/HTTPS in Docker fails: `certificate has unknown CA`
 
 **Problem:**

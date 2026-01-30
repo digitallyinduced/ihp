@@ -505,3 +505,77 @@ html PostsView { .. } = [hsx|
             <span>{tag.name}</span>
         |]
 ```
+
+## Disabling Relation Support for Faster Compilation
+
+IHP generates type-level machinery to support `fetchRelated` and `Include`: type parameters on record types, `QueryBuilder` fields for has-many relationships, and `Include` type family instances. For large schemas this adds significant compile time.
+
+If your project does not use `fetchRelated` or `Include` types, you can disable this machinery by setting the `IHP_RELATION_SUPPORT` environment variable to `0` before building:
+
+```bash
+export IHP_RELATION_SUPPORT=0
+```
+
+Add this to your `.envrc` or `.env` file to apply it persistently during development.
+
+### What Changes
+
+With `IHP_RELATION_SUPPORT=0`, the generated types are simplified:
+
+**Default (relation support enabled):**
+```haskell
+data Post' userId comments = Post
+    { id :: Id' "posts"
+    , title :: Text
+    , userId :: userId
+    , comments :: comments
+    , meta :: MetaBag
+    }
+
+type Post = Post' (Id' "users") (QueryBuilder.QueryBuilder "comments")
+```
+
+**With `IHP_RELATION_SUPPORT=0`:**
+```haskell
+data Post' = Post
+    { id :: Id' "posts"
+    , title :: Text
+    , userId :: (Id' "users")
+    , meta :: MetaBag
+    }
+
+type Post = Post'
+```
+
+The key differences:
+
+- Record types have no type parameters (foreign key columns use concrete types like `Id' "users"` directly)
+- Has-many `QueryBuilder` fields (e.g. `comments`) are omitted from records
+- `Include` type family modules are not generated
+- `UpdateField` instances are simplified (no type-changing updates)
+
+### What Stops Working
+
+When relation support is disabled, you cannot use:
+
+- `fetchRelated` and `collectionFetchRelated`
+- `Include` and `Include'` types
+- `modify` on `QueryBuilder` relationship fields (e.g. `modify #comments (orderByDesc #createdAt)`)
+- Direct access to has-many fields like `post.comments`
+
+You can still query related records manually:
+
+```haskell
+post <- fetch postId
+comments <- query @Comment
+    |> filterWhere (#postId, post.id)
+    |> fetch
+```
+
+### When to Use This
+
+This is useful when:
+
+- Your project has a large schema (50+ tables) and compile times are slow
+- You prefer explicit queries over `fetchRelated`
+- You are building an API-only service that does not use the `Include` pattern
