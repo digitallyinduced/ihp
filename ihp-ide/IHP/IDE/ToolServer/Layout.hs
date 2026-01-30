@@ -24,7 +24,7 @@ toolServerLayout inner = [hsx|
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
-        
+        <script type="module" src={assetPath "/vendor/ansi-up.min.js"}></script>
 
         <script src={assetPath "/vendor/turbolinks.js"}></script>
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
@@ -45,6 +45,7 @@ toolServerLayout inner = [hsx|
         <script src={assetPath "/IDE/query-editor.js"}></script>
         <script src={assetPath "/IDE/data-hovercard.js"}></script>
         <script src={assetPath "/IDE/migration-editor.js"}></script>
+        <script type="module" src={assetPath "/IDE/log-color.js"}></script>
 
 
         <title>IHP IDE</title>
