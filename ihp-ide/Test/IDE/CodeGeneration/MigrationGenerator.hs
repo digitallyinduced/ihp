@@ -5,7 +5,7 @@ Copyright: (c) digitally induced GmbH, 2021
 module Test.IDE.CodeGeneration.MigrationGenerator where
 
 import Test.Hspec
-import IHP.Prelude
+import IHP.Prelude hiding (sql)
 import IHP.IDE.CodeGen.MigrationGenerator
 import Data.String.Interpolate.IsString (i)
 import qualified Text.Megaparsec as Megaparsec

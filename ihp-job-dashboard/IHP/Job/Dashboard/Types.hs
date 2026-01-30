@@ -14,8 +14,8 @@ import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ViewPrelude (Html)
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
-import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import IHP.Job.Queue () -- get FromField definition for JobStatus
+import qualified Hasql.Decoders as Decoders
 
 
 data BaseJob = BaseJob {
@@ -47,7 +47,13 @@ class TableViewable a where
     getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 
 instance FromRow BaseJob where
-    fromRow = BaseJob <$> field <*> field <*> field <*> field <*> field <*> field
+    fromRow = BaseJob
+        <$> Decoders.column (Decoders.nonNullable fromField)
+        <*> Decoders.column (Decoders.nonNullable fromField)
+        <*> Decoders.column (Decoders.nonNullable fromField)
+        <*> Decoders.column (Decoders.nonNullable fromField)
+        <*> Decoders.column (Decoders.nonNullable fromField)
+        <*> Decoders.column (Decoders.nullable fromField)
 
 -- | Often, jobs are related to some model type. These relations are modeled through the type system.
 -- For example, the type 'Include "userId" UpdateUserJob' models an 'UpdateUserJob' type that can access

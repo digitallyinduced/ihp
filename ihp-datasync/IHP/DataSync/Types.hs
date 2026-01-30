@@ -3,7 +3,7 @@ module IHP.DataSync.Types where
 import IHP.Prelude
 import Data.Aeson
 import IHP.DataSync.DynamicQuery
-import qualified Database.PostgreSQL.Simple as PG
+import qualified Hasql.Connection as Hasql
 import Control.Concurrent.MVar as MVar
 
 
@@ -64,7 +64,7 @@ data GraphQLResult = GraphQLResult { graphQLResult :: !UndecodedJSON, requestId 
 data DataSyncTransaction
     = DataSyncTransaction
     { id :: !UUID
-    , connection :: !PG.Connection
+    , connection :: !Hasql.Connection
     , close :: MVar ()
     }
 

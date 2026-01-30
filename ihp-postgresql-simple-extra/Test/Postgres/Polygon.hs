@@ -7,10 +7,8 @@ module Test.Postgres.Polygon where
 import CorePrelude
 import Data.Either
 import Test.Hspec
-import Test.Postgres.Support
 import IHP.Postgres.Point
 import IHP.Postgres.Polygon
-import Database.PostgreSQL.Simple.ToField
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 
 tests = do
@@ -20,25 +18,6 @@ tests = do
     let parsedPoint2 = Point { x = 300, y = 400 }
     let raw = "(" <> rawPoint1 <> "," <> rawPoint2 <> ")"
     let parsed = Polygon { points = [ parsedPoint1, parsedPoint2 ] }
-    let serialized = Many
-            [ Plain "polygon'"
-            , Many
-                [ Plain "("
-                , Plain "100.0"
-                , Plain ","
-                , Plain "200.0"
-                , Plain ")"
-                ]
-            , Plain ","
-            , Many
-                [ Plain "("
-                , Plain "300.0"
-                , Plain ","
-                , Plain "400.0"
-                , Plain ")"
-                ]
-            , Plain "'"
-            ]
 
     describe "Polygon" do
         describe "Parser" do
@@ -46,5 +25,5 @@ tests = do
                 Attoparsec.parseOnly parsePolygon raw `shouldBe` Right parsed
 
         describe "Serializer" do
-            it "Should Serialize" do
-                serializePolygon parsed `shouldBe` serialized
+            it "Should Serialize to Text" do
+                polygonToText parsed `shouldBe` "((100.0,200.0),(300.0,400.0))"

@@ -18,7 +18,6 @@ import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigra
 import IHP.Log.Types
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
-import qualified Database.PostgreSQL.Simple as PG
 import System.OsPath (encodeUtf)
 
 instance Controller MigrationsController where
@@ -59,9 +58,7 @@ instance Controller MigrationsController where
                 result <- Exception.try (migrateAppDB revision)
                 case result of
                     Left (exception :: SomeException) -> do
-                        let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
-                                Nothing -> tshow exception
+                        let errorMessage = cs (displayException exception)
 
                         setErrorMessage errorMessage
                         redirectTo MigrationsAction
@@ -100,9 +97,7 @@ instance Controller MigrationsController where
         result <- Exception.try (migrateAppDB migrationId)
         case result of
             Left (exception :: SomeException) -> do
-                let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
-                        Nothing -> tshow exception
+                let errorMessage = cs (displayException exception)
 
                 setErrorMessage errorMessage
                 redirectTo MigrationsAction
@@ -135,9 +130,14 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
         -- The schema_migrations table might not have been created yet
         -- In that case there cannot be any migrations that have been run yet
         emptyListIfTablesDoesntExists operation = do
-            result <- Exception.try operation
+            (result :: Either SomeException _) <- Exception.try operation
             case result of
-                Left (EnhancedSqlError { sqlError }) | sqlError.sqlErrorMsg == "relation \"schema_migrations\" does not exist" -> pure []
+                Left exception
+                    | let msg = cs (displayException exception) :: Text
+                    , "schema_migrations" `isInfixOf` msg
+                    , "does not exist" `isInfixOf` msg
+                    -> pure []
+                Left exception -> Exception.throwIO exception
                 Right result -> pure result
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result

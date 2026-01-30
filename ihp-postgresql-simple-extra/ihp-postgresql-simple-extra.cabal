@@ -24,7 +24,6 @@ common shared-properties
             , attoparsec
             , basic-prelude
             , text
-            , postgresql-simple
             , ip
             , time
             , time-compat

@@ -69,7 +69,11 @@ that is defined in flake-module.nix
                         http-types
                         inflections
                         text
-                        postgresql-simple
+                        hasql
+                        hasql-pool
+                        hasql-dynamic-statements
+                        hasql-notifications
+                        hasql-implicits
                         wai-app-static
                         wai-util
                         aeson

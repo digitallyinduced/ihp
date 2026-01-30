@@ -29,7 +29,6 @@ import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HSX.QQ (hsx)
@@ -142,43 +141,31 @@ postgresHandler exception controller additionalInfo = do
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
 
-        handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
+        handleSqlError :: ModelSupport.HasqlException -> IO ResponseReceived
         handleSqlError exception = do
-            let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
-            let sqlError = exception.sqlError
-            let title = [hsx|{sqlError.sqlErrorMsg}|]
+            let errorText = cs (Exception.displayException exception) :: Text
+            let title = [hsx|{errorText}|]
             let errorMessage = [hsx|
-                        <h2>While running the following Query:</h2>
-                        <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQuery}</code>
-                        </div>
-
-                        <h2>With Query Parameters:</h2>
-                        <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQueryParams}</code>
-                        </div>
-
                         <h2>Details:</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                        <p style="font-family: monospace; font-size: 16px">{errorText}</p>
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+    let errorText = cs (Exception.displayException exception) :: ByteString
     case fromException exception of
-        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
-        Nothing -> case fromException exception of
             -- Catching  `relation "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A table is missing.")
+            Just (hasqlException :: ModelSupport.HasqlException)
+                |  "relation" `ByteString.isInfixOf` errorText
+                && "does not exist" `ByteString.isInfixOf` errorText
+                -> Just (handlePostgresOutdatedError hasqlException "A table is missing.")
 
-            -- Catching  `columns "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A column is missing.")
+            -- Catching  `column "..." does not exist`
+            Just (hasqlException :: ModelSupport.HasqlException)
+                |  "column" `ByteString.isInfixOf` errorText
+                && "does not exist" `ByteString.isInfixOf` errorText
+                -> Just (handlePostgresOutdatedError hasqlException "A column is missing.")
             -- Catching other SQL Errors
-            Just exception -> Just (handleSqlError exception)
+            Just hasqlException -> Just (handleSqlError hasqlException)
             Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
@@ -274,16 +261,12 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
             let errorMessage = [hsx|
                     <p>
                         The following SQL was executed:
-                        <pre class="ihp-error-code">{query}</pre>
-                    </p>
-                    <p>
-                        These query parameters have been used:
-                        <pre class="ihp-error-code">{params}</pre>
+                        <pre class="ihp-error-code">{queryAndParams}</pre>
                     </p>
 
                     <p>

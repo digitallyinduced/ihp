@@ -290,34 +290,17 @@ data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
 In the case above, `a` would be instantiated by (Id' "tags") and `b` by `Post`.
 
 ### Simple Joins and Outer Joins
-An alternative approach to joining data in IHP can be accomplished by using the [postresql-simple (:.)](https://hackage.haskell.org/package/postgresql-simple-0.6.4/docs/Database-PostgreSQL-Simple-Types.html#t::.)
-and a custom sql query.
+An alternative approach to joining data in IHP can be accomplished by using a custom SQL query with `sqlQuery` and a custom hasql decoder.
 
 For example say there is a `Student`, `StudentDeskCombo`, and `Desk` data type derived by IHP from
 `students`, `student_desk_combos`, and `desks` tables.
 
 If the application wished to get a list of all the desks and whether a student
 is associated with that desk a `left outer join` on the three tables would be a simple
-way of accomplishing this. The postgresql data type `(:.)` allows for a compound data
-structure to be created without having to define any `newtype` wrappers or define
-functions that do any type level computations.
-
-All that is required is that a `FromRow` instance for any potentially nullable return value in the query, e.g. `Maybe Student`,
-is manually defined in the IHP application:
-
-```haskell
-instance FromRow (Maybe Student) where
-    fromRow =  (null *> null *> null *> pure Nothing) <|> (Just <$> fromRow)
-       where null = field :: RowParser Null
-```
-
-At the moment the postgresql-simple library does not derive this instance generically.
-
-Once you define this instance, preferably in `Application.Helper.Controller`, you can then
-access the IHP derived data types directly by writing a custom sql query:
+way of accomplishing this. You can define a custom result type and a `FromRow` instance for it, or use `sqlQuery` with a custom decoder:
 
 ```
-deskStudentCombos :: [Desk :. Maybe StudentDeskCombo :. Maybe Student] <- sqlQuery [select * from desks
+deskStudentCombos <- sqlQuery [sql|select * from desks
                       left outer join on studentdeskcombo.desk_id = desks.id
                       left outer join on studentdeskcombo.student_id = students.id
                       ]()

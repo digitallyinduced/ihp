@@ -44,7 +44,7 @@ CREATE TABLE users (
 );
 ```
 
-Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the well-known [`postgresql-simple`](https://hackage.haskell.org/package/postgresql-simple) Haskell library to connect to the database.
+Haskell data structures and types are automatically generated from the `Schema.sql` file. They are re-generated on every file change of the `Schema.sql`. We use the [`hasql`](https://hackage.haskell.org/package/hasql) Haskell library to connect to the database, which uses PostgreSQL's binary protocol for efficient query execution with prepared statements.
 
 ### Schema Designer
 

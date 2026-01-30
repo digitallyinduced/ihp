@@ -23,7 +23,7 @@ import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response 
 import qualified IHP.PGListener as PGListener
-import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Data.String.Interpolate.IsString
 import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
@@ -176,7 +176,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
         -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
-            sqlExec createTriggerSql ()
+            sqlExec createTriggerSql
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
@@ -236,8 +236,8 @@ channelName :: ByteString -> ByteString
 channelName tableName = "ar_did_change_" <> tableName
 
 -- | Returns the sql code to set up a database trigger
-notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query [i|
+notificationTrigger :: ByteString -> Snippet.Snippet
+notificationTrigger tableName = Snippet.sql $ (cs :: String -> ByteString) [i|
         BEGIN;
             CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
                 BEGIN
@@ -247,13 +247,13 @@ notificationTrigger tableName = PG.Query [i|
             $$ language plpgsql;
             DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
             CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-            
+
             DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
             CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
 
             DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
             CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-        
+
         COMMIT;
     |]
     where

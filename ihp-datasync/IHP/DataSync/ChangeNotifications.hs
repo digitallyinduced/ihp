@@ -10,7 +10,6 @@ module IHP.DataSync.ChangeNotifications
 ) where
 
 import IHP.Prelude
-import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport
 import Data.String.Interpolate.IsString (i)
 import Data.Aeson
@@ -18,6 +17,9 @@ import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Decoders as Decoders
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -37,8 +39,8 @@ data Change = Change
     } deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationFunction :: RLS.TableWithRLS -> PG.Query
-createNotificationFunction table = [i|
+createNotificationFunction :: RLS.TableWithRLS -> Snippet
+createNotificationFunction table = Snippet.sql [i|
     DO $$
     BEGIN
             CREATE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
@@ -97,7 +99,7 @@ createNotificationFunction table = [i|
         EXCEPTION
             WHEN duplicate_function THEN
             null;
-        
+
         IF NOT EXISTS (
             SELECT FROM pg_catalog.pg_class c
             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -125,7 +127,7 @@ createNotificationFunction table = [i|
 installTableChangeTriggers :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO ()
 installTableChangeTriggers tableNameRLS = do
     withoutQueryLogging -- This spams the log way to much
-        (sqlExec (createNotificationFunction tableNameRLS) ())
+        (sqlExec (createNotificationFunction tableNameRLS))
     pure ()
 
 makeCachedInstallTableChangeTriggers :: (?modelContext :: ModelContext) => IO (RLS.TableWithRLS -> IO ())
@@ -177,7 +179,7 @@ instance FromJSON Change where
 retrieveChanges :: (?modelContext :: ModelContext) => ChangeSet -> IO [Change]
 retrieveChanges InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges ExternalChangeSet { largePgNotificationId } = do
-    (payload :: ByteString) <- sqlQueryScalar "SELECT payload FROM large_pg_notifications WHERE id = ? LIMIT 1" (PG.Only largePgNotificationId)
+    payload :: ByteString <- sqlQueryScalar ("SELECT payload FROM large_pg_notifications WHERE id = " <> Snippet.param largePgNotificationId <> " LIMIT 1") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
     case eitherDecodeStrict' payload of
         Left e -> fail e
         Right result -> pure result
