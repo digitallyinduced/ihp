@@ -22,7 +22,6 @@ sqlQueryWithRLS ::
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -40,7 +39,6 @@ sqlExecWithRLS ::
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -57,7 +55,6 @@ wrapStatementWithRLS ::
     , ?context :: ControllerContext
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))

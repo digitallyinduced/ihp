@@ -25,6 +25,7 @@ module IHP.FrameworkConfig.Types
 , RLSAuthenticatedRole (..)
 , AssetVersion (..)
 , CustomMiddleware (..)
+, AuthMiddleware (..)
 , DataSyncMaxSubscriptionsPerConnection (..)
 , DataSyncMaxTransactionsPerConnection (..)
 , Initializer (..)
@@ -100,6 +101,22 @@ newtype AssetVersion = AssetVersion Text
 
 newtype CustomMiddleware = CustomMiddleware Middleware
 
+-- | Middleware for authentication.
+--
+-- This middleware runs after the session and model context middlewares,
+-- and populates the WAI request vault with the authenticated user/admin.
+--
+-- __Example:__
+--
+-- > -- Config.hs
+-- > import IHP.LoginSupport.Middleware
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option $ AuthMiddleware authMiddleware
+--
+newtype AuthMiddleware = AuthMiddleware Middleware
+
 newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
 newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
 
@@ -166,6 +183,10 @@ data FrameworkConfig = FrameworkConfig
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
+
+    -- | Authentication middleware that populates the request vault with the
+    -- current user/admin. Runs after session and model context middlewares.
+    , authMiddleware :: !AuthMiddleware
     , initializers :: ![Initializer]
     }
 
