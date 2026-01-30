@@ -510,13 +510,22 @@ html PostsView { .. } = [hsx|
 
 IHP generates type-level machinery to support `fetchRelated` and `Include`: type parameters on record types, `QueryBuilder` fields for has-many relationships, and `Include` type family instances. For large schemas this adds significant compile time.
 
-If your project does not use `fetchRelated` or `Include` types, you can disable this machinery by setting the `IHP_RELATION_SUPPORT` environment variable to `0` before building:
+If your project does not use `fetchRelated` or `Include` types, you can disable this machinery by setting `ihp.relationSupport = false;` in your `flake.nix`:
+
+```nix
+ihp = {
+    enable = true;
+    relationSupport = false;
+};
+```
+
+This applies to both the dev shell and production builds.
+
+Alternatively, set the environment variable manually:
 
 ```bash
 export IHP_RELATION_SUPPORT=0
 ```
-
-Add this to your `.envrc` or `.env` file to apply it persistently during development.
 
 ### What Changes
 

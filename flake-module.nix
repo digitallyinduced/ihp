@@ -115,6 +115,16 @@ ihpFlake:
                     default = "1";
                 };
 
+                relationSupport = lib.mkOption {
+                    description = ''
+                        Enable relation support (Include/fetchRelated type machinery).
+                        Set to false for simpler generated types without type parameters,
+                        which compiles significantly faster.
+                    '';
+                    type = lib.types.bool;
+                    default = true;
+                };
+
                 static.extraDirs = lib.mkOption {
                     type = lib.types.attrsOf (lib.types.oneOf [ lib.types.path lib.types.package ]);
                     default = {};
@@ -171,6 +181,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
+                    relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
@@ -188,6 +199,7 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
+                    relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
@@ -371,6 +383,8 @@ ihpFlake:
 
                 # Used by .ghci https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.ghci
                 env.IHP_LIB = config.devenv.shells.default.env.IHP;
+
+                env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
