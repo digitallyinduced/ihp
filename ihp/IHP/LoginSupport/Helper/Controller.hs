@@ -33,24 +33,14 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Data.Typeable
-import IHP.LoginSupport.Types (currentUserVaultKey, currentAdminVaultKey, lookupAuthVault)
 
 -- | Returns the current user or 'Nothing' if not logged in.
 --
--- Reads from the WAI request vault (populated by 'authMiddleware').
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
--- Falls back to the controller context (populated by 'initAuthentication') for backward compatibility.
+-- Requires @AuthMiddleware (authMiddleware \@User currentUserVaultKey)@ in Config.hs.
 currentUserOrNothing :: forall user. (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => Maybe user
-currentUserOrNothing =
-    -- Try vault first (new path via authMiddleware)
-    case lookupAuthVault currentUserVaultKey ?context.request of
-        Just user -> Just user
-        Nothing ->
-            -- Fall back to controller context (legacy initAuthentication path)
-            case unsafePerformIO (maybeFromContext @(Maybe user)) of
-                Just mUser -> mUser
-                Nothing -> Nothing
+currentUserOrNothing = lookupAuthVault currentUserVaultKey ?context.request
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the current user. Redirects to login if not logged in.
@@ -73,19 +63,11 @@ ensureIsUser =
 
 -- | Returns the current admin or 'Nothing' if not logged in.
 --
--- Reads from the WAI request vault (populated by 'adminAuthMiddleware').
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
--- Falls back to the controller context (populated by 'initAuthentication') for backward compatibility.
+-- Requires @AuthMiddleware (authMiddleware \@Admin currentAdminVaultKey)@ in Config.hs.
 currentAdminOrNothing :: forall admin. (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
-currentAdminOrNothing =
-    -- Try vault first (new path via adminAuthMiddleware)
-    case lookupAuthVault currentAdminVaultKey ?context.request of
-        Just admin -> Just admin
-        Nothing ->
-            -- Fall back to controller context (legacy initAuthentication path)
-            case unsafePerformIO (maybeFromContext @(Maybe admin)) of
-                Just mAdmin -> mAdmin
-                Nothing -> Nothing
+currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?context.request
 {-# INLINE currentAdminOrNothing #-}
 
 -- | Returns the current admin. Redirects to login if not logged in.
@@ -157,7 +139,6 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 --
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
--- >         initAuthentication @User
 -- >         enableRowLevelSecurityIfLoggedIn
 --
 -- Let's assume we have a policy defined in our Schema.sql that only allows users to see and edit rows in the projects table that have @projects.user_id = current_user_id@:
