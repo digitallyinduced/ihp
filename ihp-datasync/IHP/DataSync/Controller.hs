@@ -5,14 +5,12 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 
 import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.ControllerImpl (runDataSyncController)
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 
 instance (
-    PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))

@@ -4,9 +4,6 @@ module IHP.DataSync.REST.Controller where
 import IHP.ControllerPrelude hiding (OrderByClause)
 import IHP.DataSync.REST.Types
 import Data.Aeson
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Vector as Vector
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Control.Exception.Safe as Exception
@@ -17,16 +14,22 @@ import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
 import qualified Data.Text as Text
 import qualified Data.Scientific as Scientific
+import qualified Data.List as List
+import Data.Int (Int32)
+import IHP.Postgres.Point (Point(..))
 
 import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Decoders as Decoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 
 
 instance (
-    PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -38,54 +41,59 @@ instance (
 
         case payload of
             Object hashMap -> do
-                let query = "INSERT INTO ? ? VALUES ? RETURNING *"
                 let columns = hashMap
                         |> Aeson.keys
                         |> map (fieldNameToColumnName . Aeson.toText)
 
                 let values = hashMap
                         |> Aeson.elems
-                        |> map aesonValueToPostgresValue
+                        |> map aesonValueToSnippet
 
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
+                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+                let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") values
 
-                result :: Either EnhancedSqlError [[Field]] <- Exception.try do
-                    sqlQueryWithRLS query params
+                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
+
+                result :: Either SomeException [[Field]] <- Exception.try do
+                    sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
-                    Left error -> renderErrorJson error
+                    Left e -> renderErrorJson (show e :: Text)
                     Right result -> renderJson result
 
             Array objects -> do
-                let query = "INSERT INTO ? ? ? RETURNING *"
-                let columns = objects
-                        |> Vector.toList
-                        |> head
-                        |> \case
-                            Just value -> value
-                            Nothing -> error "Atleast one record is required"
-                        |> \case
-                            Object hashMap -> hashMap
-                            otherwise -> error "Expected object"
-                        |> Aeson.keys
-                        |> map (fieldNameToColumnName . Aeson.toText)
+                let objectList = Vector.toList objects
+                case objectList of
+                    [] -> renderErrorJson ("At least one record is required" :: Text)
+                    (firstElement:_) -> case firstElement of
+                        Object firstHashMap -> do
+                            let columns = firstHashMap
+                                    |> Aeson.keys
+                                    |> map (fieldNameToColumnName . Aeson.toText)
 
-                let values = objects
-                        |> Vector.toList
-                        |> map (\object ->
-                                object
-                                |> \case
-                                    Object hashMap -> hashMap
-                                    otherwise -> error "Expected object"
-                                |> Aeson.elems
-                                |> map aesonValueToPostgresValue
-                            )
+                            let parseObject value = case value of
+                                    Object hashMap -> Right hashMap
+                                    _otherwise -> Left ("Expected object, got: " <> show value)
 
+                            case mapM parseObject objectList of
+                                Left err -> renderErrorJson (cs err :: Text)
+                                Right hashMaps -> do
+                                    let values = hashMaps
+                                            |> map (\hashMap ->
+                                                    hashMap
+                                                    |> Aeson.elems
+                                                    |> map aesonValueToSnippet
+                                                )
 
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
+                                    let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+                                    let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
+                                    let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
 
-                result :: [[Field]] <- sqlQueryWithRLS query params
-                renderJson result
+                                    let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
+
+                                    result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    renderJson result
+                        _otherwise -> renderErrorJson ("Expected object" :: Text)
 
             _ -> error "Expected JSON object or array"
 
@@ -100,24 +108,19 @@ instance (
         let columns = payload
                 |> Aeson.keys
                 |> map (fieldNameToColumnName . Aeson.toText)
-                |> map PG.Identifier
 
         let values = payload
                 |> Aeson.elems
-                |> map aesonValueToPostgresValue
+                |> map aesonValueToSnippet
 
         let keyValues = zip columns values
 
         let setCalls = keyValues
-                |> map (\_ -> "? = ?")
-                |> ByteString.intercalate ", "
-        let query = "UPDATE ? SET " <> setCalls <> " WHERE id = ? RETURNING *"
+                |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
+        let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
+        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
 
-        let params = [PG.toField (PG.Identifier table)]
-                <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
-                <> [PG.toField id]
-
-        result :: [[Field]] <- sqlQueryWithRLS (PG.Query query) params
+        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
 
         renderJson (head result)
 
@@ -125,7 +128,7 @@ instance (
     action DeleteRecordAction { table, id } = do
         ensureRLSEnabled table
 
-        sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+        sqlExecWithRLS (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
 
         renderJson True
 
@@ -133,7 +136,7 @@ instance (
     action ShowRecordAction { table, id } = do
         ensureRLSEnabled table
 
-        result :: [[Field]] <- sqlQueryWithRLS "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
+        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
 
         renderJson (head result)
 
@@ -143,8 +146,8 @@ instance (
     action ListRecordsAction { table } = do
         ensureRLSEnabled table
 
-        let (theQuery, theParams) = compileQuery (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
+        let theSnippet = compileQuery (buildDynamicQueryFromRequest table)
+        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery theSnippet) dynamicRowDecoder
 
         renderJson result
 
@@ -180,41 +183,21 @@ instance ParamReader OrderByClause where
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
-instance ToJSON PG.SqlError where
-    toJSON PG.SqlError { sqlState, sqlErrorMsg, sqlErrorDetail, sqlErrorHint } = object
-                [ "state" .= ((cs sqlState) :: Text)
-                , "errorMsg" .= ((cs sqlErrorMsg) :: Text)
-                , "errorDetail" .= ((cs sqlErrorDetail) :: Text)
-                , "errorHint" .= ((cs sqlErrorHint) :: Text)
-                ]
-        where
-            fieldValueToJSON (IntValue value) = toJSON value
-            fieldValueToJSON (DoubleValue value) = toJSON value
-            fieldValueToJSON (TextValue value) = toJSON value
-            fieldValueToJSON (BoolValue value) = toJSON value
-            fieldValueToJSON (UUIDValue value) = toJSON value
-            fieldValueToJSON (DateTimeValue value) = toJSON value
-            fieldValueToJSON (PointValue value) = toJSON value
-            fieldValueToJSON (IntervalValue value) = toJSON value
-            fieldValueToJSON (ArrayValue value) = toJSON value
-            fieldValueToJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
-
-instance ToJSON EnhancedSqlError where
-    toJSON EnhancedSqlError { sqlError } = toJSON sqlError
-
-renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderErrorJson :: (?context :: ControllerContext) => ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 
-aesonValueToPostgresValue :: Value -> PG.Action
-aesonValueToPostgresValue (String text) = PG.toField text
-aesonValueToPostgresValue (Bool value) = PG.toField value
-aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger value of -- Hacky, we should make this function "Schema.sql"-aware in the future
-    Left (floating :: Double) -> PG.toField floating
-    Right (integer :: Integer) -> PG.toField integer
-aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue (Data.Aeson.Array values) = PG.toField (PG.PGArray (map aesonValueToPostgresValue (Vector.toList values)))
-aesonValueToPostgresValue object@(Object values) =
+-- | Convert an Aeson Value to a Snippet parameter for use in dynamic SQL queries
+aesonValueToSnippet :: Value -> Snippet
+aesonValueToSnippet (String text) = Snippet.param text
+aesonValueToSnippet (Bool value) = Snippet.param value
+aesonValueToSnippet (Number value) = case Scientific.floatingOrInteger value of -- Hacky, we should make this function "Schema.sql"-aware in the future
+    Left (floating :: Double) -> Snippet.param floating
+    Right (integer :: Integer) -> Snippet.param (fromIntegral integer :: Int32)
+aesonValueToSnippet Data.Aeson.Null = Snippet.sql "NULL"
+aesonValueToSnippet (Data.Aeson.Array values) =
+    Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map aesonValueToSnippet (Vector.toList values))) <> Snippet.sql "]"
+aesonValueToSnippet object@(Object values) =
     let
         tryDecodeAsPoint :: Maybe Point
         tryDecodeAsPoint = do
@@ -229,10 +212,12 @@ aesonValueToPostgresValue object@(Object values) =
                 pure Point { x, y }
     in
         -- This is really hacky and is mostly duck typing. We should refactor this in the future to
-        -- become more type aware by passing the DDL of the table to 'aesonValueToPostgresValue'.
+        -- become more type aware by passing the DDL of the table to 'aesonValueToSnippet'.
         if Aeson.size values == 2
-            then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
-            else PG.toField (toJSON object)
+            then fromMaybe (Snippet.param (toJSON object)) (pointToSnippet <$> tryDecodeAsPoint)
+            else Snippet.param (toJSON object)
+    where
+        pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
 
 
 instance ToJSON GraphQLResult where

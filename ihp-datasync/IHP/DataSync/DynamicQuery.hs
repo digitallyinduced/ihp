@@ -6,17 +6,25 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.DataSync.DynamicQuery where
 
-import IHP.ControllerPrelude hiding (OrderByClause)
-import Data.Aeson
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
+import IHP.ControllerPrelude hiding (OrderByClause, Null)
+import Data.Aeson hiding (Null)
+import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import Data.Functor.Contravariant (contramap)
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
+import qualified Data.Scientific as Scientific
+import qualified Data.UUID as UUID
+import qualified Data.Vector as Vector
+import qualified Database.PostgreSQL.Simple.ToField as PG
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -97,13 +105,14 @@ data SelectedColumns
     | SelectSpecific [Text] -- ^ SELECT a, b, c FROM table
     deriving (Show, Eq)
 
-instance FromJSON ByteString where
-    parseJSON (String v) = pure $ cs v
-    parseJSON invalid = fail $ cs ("Expected String for ByteString, got: " <> tshow invalid)
-
+-- | Needed for TH-derived FromJSON instances of QueryBuilder.Condition which contains PG.Action
 instance FromJSON PG.Action where
     parseJSON (String v) = pure (PG.Escape (cs v))
     parseJSON invalid = fail $ cs ("Expected String for PG.Action, got: " <> tshow invalid)
+
+instance FromJSON ByteString where
+    parseJSON (String v) = pure $ cs v
+    parseJSON invalid = fail $ cs ("Expected String for ByteString, got: " <> tshow invalid)
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
     toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
@@ -121,39 +130,91 @@ instance ToJSON DynamicValue where
     toJSON (PointValue value) = toJSON value
     toJSON (IntervalValue value) = toJSON value
     toJSON (ArrayValue value) = toJSON value
-    toJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
+    toJSON Null = toJSON Aeson.Null
 
-instance PG.FromField Field where
-    fromField field fieldValue' = do
-            fieldValue <- PG.fromField field fieldValue'
-            pure Field { .. }
-        where
-            fieldName = (PG.name field)
-                |> fmap cs
-                |> fromMaybe ""
+-- | Wraps a SQL query snippet so that each row is returned as a JSON object.
+--
+-- This is needed because hasql decoders are positional and don't provide column name metadata.
+-- By wrapping with @row_to_json@, we get column names in the JSON keys, which we can then
+-- decode into @[Field]@.
+--
+-- Uses a CTE (Common Table Expression) which works for both SELECT queries
+-- and DML statements (INSERT, UPDATE, DELETE) with RETURNING:
+--
+-- @
+-- WITH _ihp_dynamic_result AS (...original query...) SELECT row_to_json(t) FROM _ihp_dynamic_result AS t
+-- @
+wrapDynamicQuery :: Snippet -> Snippet
+wrapDynamicQuery innerQuery =
+    Snippet.sql "WITH _ihp_dynamic_result AS (" <> innerQuery <> Snippet.sql ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
 
-instance PG.FromField DynamicValue where
-    fromField field fieldValue' = fieldValue
-        where
-            fieldValue =
-                    (IntValue <$> PG.fromField field fieldValue')
-                <|> (TextValue <$> PG.fromField field fieldValue')
-                <|> (BoolValue <$> PG.fromField field fieldValue')
-                <|> (UUIDValue <$> PG.fromField field fieldValue')
-                <|> (DoubleValue <$> PG.fromField field fieldValue')
-                <|> (DateTimeValue <$> PG.fromField field fieldValue')
-                <|> (PointValue <$> PG.fromField field fieldValue')
-                <|> (IntervalValue <$> PG.fromField field fieldValue')
-                <|> (ArrayValue <$> PG.fromField field fieldValue')
-                <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
-                <|> fromFieldCustomEnum field fieldValue'
+-- | Decoder for dynamic query results wrapped with 'wrapDynamicQuery'.
+--
+-- Each row comes back as a single JSON column (from @row_to_json@), which is then
+-- parsed into a list of @Field@ values.
+dynamicRowDecoder :: Decoders.Result [[Field]]
+dynamicRowDecoder = Decoders.rowList dynamicRowJsonDecoder
 
-            fromFieldCustomEnum field (Just value) = pure (TextValue (cs value))
-            fromFieldCustomEnum field Nothing      = pure IHP.DataSync.DynamicQuery.Null
+-- | Decodes a single row from a @row_to_json@ wrapped query.
+-- The row consists of a single JSONB column containing the original row as a JSON object.
+dynamicRowJsonDecoder :: Decoders.Row [Field]
+dynamicRowJsonDecoder = do
+    jsonValue <- Decoders.column (Decoders.nonNullable Decoders.jsonb)
+    case jsonToFields jsonValue of
+        Right fields -> pure fields
+        Left err -> error ("dynamicRowJsonDecoder: Failed to decode JSON row: " <> cs err)
 
-instance PG.FromField UndecodedJSON where
-    fromField field (Just value) = pure (UndecodedJSON value)
-    fromField field Nothing = pure (UndecodedJSON "null")
+-- | Converts a JSON object (from @row_to_json@) into a list of Fields
+jsonToFields :: Value -> Either String [Field]
+jsonToFields (Object obj) = Right $ map toField (Aeson.toList obj)
+    where
+        toField (key, value) = Field
+            { fieldName = Aeson.toText key
+            , fieldValue = aesonToDynamicValue value
+            }
+jsonToFields other = Left (cs ("Expected JSON object but got: " <> show other))
+
+-- | Converts an Aeson Value to a DynamicValue
+aesonToDynamicValue :: Value -> DynamicValue
+aesonToDynamicValue Aeson.Null = Null
+aesonToDynamicValue (Bool b) = BoolValue b
+aesonToDynamicValue (String t) =
+    -- Try to parse as UUID first (since postgres UUID columns come back as strings in JSON)
+    case UUID.fromText t of
+        Just uuid -> UUIDValue uuid
+        Nothing -> TextValue t
+aesonToDynamicValue (Number n) =
+    case Scientific.floatingOrInteger n of
+        Left (d :: Double) -> DoubleValue d
+        Right (i :: Integer) -> IntValue (fromIntegral i)
+aesonToDynamicValue (Array arr) = ArrayValue (map aesonToDynamicValue (Vector.toList arr))
+aesonToDynamicValue (Object obj) = TextValue (cs (encode (Object obj))) -- Fallback for nested objects (e.g. JSONB columns)
+
+-- | Decode a JSON value without parsing it
+decodeUndecodedJSON :: Decoders.Value UndecodedJSON
+decodeUndecodedJSON = Decoders.custom \_ bytes -> Right (UndecodedJSON bytes)
+
+-- | Encode a DynamicValue as a parameter for hasql queries.
+-- Converts values to their text representation and uses the unknown encoder,
+-- letting PostgreSQL cast the value to the appropriate type.
+instance DefaultParamEncoder DynamicValue where
+    defaultParam = Encoders.nonNullable dynamicValueEncoder
+
+-- | Encoder for DynamicValue that converts to text representation
+dynamicValueEncoder :: Encoders.Value DynamicValue
+dynamicValueEncoder = contramap dynamicValueToText Encoders.text
+    where
+        dynamicValueToText :: DynamicValue -> Text
+        dynamicValueToText (IntValue int) = tshow int
+        dynamicValueToText (DoubleValue double) = tshow double
+        dynamicValueToText (TextValue text) = text
+        dynamicValueToText (BoolValue bool) = if bool then "true" else "false"
+        dynamicValueToText (UUIDValue uuid) = tshow uuid
+        dynamicValueToText (DateTimeValue utcTime) = tshow utcTime
+        dynamicValueToText (PointValue point) = tshow point
+        dynamicValueToText (IntervalValue interval) = tshow interval
+        dynamicValueToText (ArrayValue values) = "{" <> intercalate "," (map dynamicValueToText values) <> "}"
+        dynamicValueToText Null = ""
 
 -- | Returns a list of all id's in a result
 recordIds :: [[Field]] -> [UUID]

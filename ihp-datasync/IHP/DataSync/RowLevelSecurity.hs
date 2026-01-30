@@ -5,68 +5,88 @@ module IHP.DataSync.RowLevelSecurity
 , makeCachedEnsureRLSEnabled
 , sqlQueryWithRLS
 , sqlExecWithRLS
+, sqlQueryScalarWithRLS
+, wrapStatementWithRLS
 )
 where
 
-import IHP.ControllerPrelude
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.ToRow as PG
+import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
+import qualified Control.Exception.Safe as Exception
+import qualified Hasql.Connection as Hasql
+import qualified Hasql.Connection.Setting as HasqlSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Session as Hasql
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Session as DynSession
+import qualified Hasql.Decoders as Decoders
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
 
+-- | Acquire a temporary hasql connection, run a snippet, release the connection.
+runHasql :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
+runHasql snippet decoder = do
+    let settings = [HasqlSetting.connection (HasqlConnection.string (cs ?modelContext.databaseUrl))]
+    Exception.bracket
+        (Hasql.acquire settings >>= either (\err -> Exception.throwIO (userError (cs $ tshow err))) pure)
+        Hasql.release
+        (\conn -> do
+            result <- Hasql.run (DynSession.dynamicallyParameterizedStatement snippet decoder True) conn
+            case result of
+                Left err -> Exception.throwIO (userError (cs $ tshow err))
+                Right val -> pure val
+        )
+{-# INLINE runHasql #-}
+
 sqlQueryWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    , FromRow result
-    ) => PG.Query -> parameters -> IO [result]
-sqlQueryWithRLS query parameters = sqlQuery queryWithRLS parametersWithRLS
+    ) => Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWithRLS snippet decoder = runHasql queryWithRLS decoder
     where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+        queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlQueryWithRLS #-}
 
 sqlExecWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    ) => PG.Query -> parameters -> IO Int64
-sqlExecWithRLS query parameters = sqlExec queryWithRLS parametersWithRLS
+    ) => Snippet -> IO ()
+sqlExecWithRLS snippet = runHasql queryWithRLS Decoders.noResult
     where
-        (queryWithRLS, parametersWithRLS) = wrapStatementWithRLS query parameters
+        queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlExecWithRLS #-}
+
+sqlQueryScalarWithRLS ::
+    ( ?modelContext :: ModelContext
+    , ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Snippet -> Decoders.Result result -> IO result
+sqlQueryScalarWithRLS snippet decoder = runHasql queryWithRLS decoder
+    where
+        queryWithRLS = wrapStatementWithRLS snippet
+{-# INLINE sqlQueryScalarWithRLS #-}
 
 wrapStatementWithRLS ::
     ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
     , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    ) => PG.Query -> parameters -> (PG.Query, [PG.Action])
-wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
+    ) => Snippet -> Snippet
+wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenticatedRole) <> "; SET LOCAL rls.ihp_user_id = " <> encodedUserId <> "; " <> snippet <> ";"
     where
-        queryWithRLS = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query <> ";"
-
         maybeUserId = (.id) <$> currentUserOrNothing
 
         -- When the user is not logged in and maybeUserId is Nothing, we cannot
@@ -76,10 +96,8 @@ wrapStatementWithRLS query parameters = (queryWithRLS, parametersWithRLS)
         -- means "not logged in".
         --
         encodedUserId = case maybeUserId of
-                Just userId -> PG.toField userId
-                Nothing -> PG.toField ("" :: Text)
-
-        parametersWithRLS = [PG.toField (PG.Identifier Role.authenticatedRole), PG.toField encodedUserId] <> (PG.toRow parameters)
+                Just userId -> Snippet.param (tshow userId)
+                Nothing -> Snippet.param ("" :: Text)
 {-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
@@ -128,7 +146,7 @@ makeCachedEnsureRLSEnabled = do
 -- >>> hasRLSEnabled "my_table"
 -- True
 hasRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO Bool
-hasRLSEnabled table = sqlQueryScalar "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(?)::regclass" [table]
+hasRLSEnabled table = runHasql ("SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(" <> Snippet.param table <> ")::regclass") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --

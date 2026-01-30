@@ -73,6 +73,8 @@ data ModelContext = ModelContext
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
+    -- | The database URL used to connect. Used by DataSync to create its own hasql connections.
+    , databaseUrl :: ByteString
     }
 
 -- | When row level security is enabled at runtime, this keeps track of the current

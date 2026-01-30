@@ -78,6 +78,7 @@ notConnectedModelContext logger = ModelContext
     , logger = logger
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
+    , databaseUrl = error "Not connected"
     }
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
@@ -88,7 +89,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
     let rowLevelSecurity = Nothing
-    pure ModelContext { .. }
+    pure ModelContext { databaseUrl, .. }
 
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext =
