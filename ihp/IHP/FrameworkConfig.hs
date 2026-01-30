@@ -144,6 +144,7 @@ ihpDefaultConfig = do
     option $ DataSyncMaxTransactionsPerConnection dataSyncMaxTransactionsPerConnection
 
     option $ CustomMiddleware id
+    option $ AuthMiddleware id
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -187,6 +188,7 @@ buildFrameworkConfig appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
+            authMiddleware <- findOption @AuthMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get
