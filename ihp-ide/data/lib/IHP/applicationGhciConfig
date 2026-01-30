@@ -49,7 +49,7 @@
 :set -XDeepSubsumption
 :set -XOverloadedRecordDot
 :set -Werror=missing-fields
-:set -Werror=incomplete-patterns
+:set -fwarn-incomplete-patterns
 :set -package ghc
 :set -fno-warn-ambiguous-fields 
 :l Main.hs
