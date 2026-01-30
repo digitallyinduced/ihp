@@ -50,6 +50,7 @@ compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
     let ?compilerOptions = options
     in [ ("build/Generated/Enums.hs", compileEnums options schema)
+       , ("build/Generated/ActualTypes/PrimaryKeys.hs", compilePrimaryKeysModule schema)
        ]
        <> actualTypesTableModules schema
        <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
@@ -88,6 +89,7 @@ actualTypesTableModule table =
             module $moduleName where
             $defaultImports
             import Generated.Enums
+            import Generated.ActualTypes.PrimaryKeys
         |]
 
 tableModules :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> [(OsPath, Text)]
@@ -227,6 +229,7 @@ compileTypes options schema@(Schema statements) = [trimming|
         {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
         module Generated.ActualTypes ($rexports) where
         import Generated.Enums
+        import Generated.ActualTypes.PrimaryKeys
         $perTableImports
     |]
     where
@@ -243,11 +246,21 @@ compileTypes options schema@(Schema statements) = [trimming|
             |> map (\n -> "import " <> n)
             |> Text.unlines
 
-        rexports = ("module Generated.Enums" : map (\n -> "module " <> n) perTableModuleNames)
+        rexports = ("module Generated.Enums" : "module Generated.ActualTypes.PrimaryKeys" : map (\n -> "module " <> n) perTableModuleNames)
             |> Text.intercalate ", "
 
 compileActualTypesForTable :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileActualTypesForTable table = Text.unlines
+    [ compileData table
+    , compileTypeAlias table
+    , compileHasTableNameInstance table
+    , compileTableInstance table
+    ]
+
+-- | Like 'compileActualTypesForTable' but includes PrimaryKey and Default Id' instances inline.
+-- Used by 'compileStatementPreviewWith' so the IDE preview and tests see a self-contained output.
+compileActualTypesForTablePreview :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileActualTypesForTablePreview table = Text.unlines
     [ compileData table
     , compilePrimaryKeyInstance table
     , compileTypeAlias table
@@ -349,6 +362,28 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Control.DeepSeq as DeepSeq
         |]
 
+compilePrimaryKeysModule :: (?compilerOptions :: CompilerOptions) => Schema -> Text
+compilePrimaryKeysModule schema@(Schema statements) =
+    let ?schema = schema
+    in Text.unlines
+        [ prelude
+        , statements
+            |> mapMaybe (\case
+                StatementCreateTable table | tableHasPrimaryKey table ->
+                    Just (compilePrimaryKeyInstance table <> compileDefaultIdInstance table)
+                _ -> Nothing)
+            |> Text.intercalate "\n"
+        ]
+    where
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+            module Generated.ActualTypes.PrimaryKeys where
+            $defaultImports
+            import Generated.Enums
+        |]
+
 compileStatementPreview :: [Statement] -> Statement -> Text
 compileStatementPreview = compileStatementPreviewWith previewCompilerOptions
 
@@ -360,7 +395,7 @@ compileStatementPreviewWith options statements statement =
         case statement of
             CreateEnumType {} -> compileEnumDataDefinitions statement
             StatementCreateTable table -> Text.unlines
-                [ compileActualTypesForTable table
+                [ compileActualTypesForTablePreview table
                 , tableModuleBody options table
                 ]
 
