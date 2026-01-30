@@ -43,7 +43,8 @@ let
             build-generated-code
 
             # Find all generated modules and create cabal file
-            MODULES=$(find build/Generated -name '*.hs' -printf '%f\n' | sed 's/\.hs$//' | sort)
+            # Use path relative to build/ and convert slashes to dots for module names
+            MODULES=$(cd build && find Generated -name '*.hs' | sed 's/\.hs$//' | sed 's|/|.|g' | sort)
 
             # Create cabal file
             cat > ${appName}-models.cabal <<'CABAL_EOF'
@@ -75,7 +76,7 @@ CABAL_EOF
 
             # Add each module to exposed-modules
             for mod in $MODULES; do
-                echo "        Generated.$mod" >> ${appName}-models.cabal
+                echo "        $mod" >> ${appName}-models.cabal
             done
 
             # Add default extensions matching the generated code
