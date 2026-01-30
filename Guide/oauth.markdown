@@ -51,7 +51,7 @@ For Google OAuth Login to work, we need to add a `google_user_id TEXT` column to
 Open `Application/Schema.sql` and add `google_user_id TEXT` to the `CREATE TABLE users` statement:
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     -- ... ,
     google_user_id TEXT
 );
@@ -296,7 +296,7 @@ For GitHub OAuth Login to work, we need to add a `github_user_id INT` column to 
 Open `Application/Schema.sql` and add `github_iser_id INT` to the `CREATE TABLE users` statement:
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     -- ... ,
     github_user_id INT DEFAULT NULL UNIQUE,
 );
