@@ -73,6 +73,8 @@ data ModelContext = ModelContext
     , trackTableReadCallback :: Maybe (ByteString -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
+    -- | The database URL used to create connections (needed for PGListener)
+    , databaseUrl :: ByteString
     }
 
 -- | When row level security is enabled at runtime, this keeps track of the current
