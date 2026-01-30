@@ -176,13 +176,22 @@ For each foreign key relationship, IHP generates type parameters on record types
 
 **Solution:**
 
-If your project does not use `fetchRelated` or `Include` types, you can disable this machinery to speed up compilation:
+If your project does not use `fetchRelated` or `Include` types, you can disable this machinery to speed up compilation. Set `ihp.relationSupport = false;` in your `flake.nix`:
+
+```nix
+ihp = {
+    enable = true;
+    relationSupport = false;
+};
+```
+
+This applies to both the dev shell and production builds.
+
+Alternatively, set the environment variable manually:
 
 ```bash
 export IHP_RELATION_SUPPORT=0
 ```
-
-Add this to your `.envrc` or `.env` file to apply it during development. This produces simpler generated types without type parameters or `Include` modules.
 
 See [Relationships: Disabling Relation Support for Faster Compilation](relationships.html#disabling-relation-support-for-faster-compilation) for details on what changes and what stops working.
 

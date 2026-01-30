@@ -11,6 +11,7 @@
 , rtsFlags ? ""
 , appName ? "app"
 , optimizationLevel ? "2"
+, relationSupport ? true
 , filter
 , ihp-env-var-backwards-compat
 , ihp-static
@@ -39,6 +40,8 @@ let
             pkgs.gnumake # Needed for make print-ghc-options
         ];
         buildPhase = ''
+            export IHP_RELATION_SUPPORT=${if relationSupport then "1" else "0"}
+
             # Generate types from schema
             build-generated-code
 
