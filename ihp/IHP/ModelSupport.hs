@@ -78,6 +78,7 @@ notConnectedModelContext logger = ModelContext
     , logger = logger
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
+    , databaseUrl = error "Not connected"
     }
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext

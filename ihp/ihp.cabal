@@ -53,6 +53,8 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , hasql
+            , hasql-notifications
             , wai-app-static
             , wai-util
             , bytestring

@@ -70,6 +70,8 @@ that is defined in flake-module.nix
                         inflections
                         text
                         postgresql-simple
+                        hasql
+                        hasql-notifications
                         wai-app-static
                         wai-util
                         aeson
