@@ -17,6 +17,7 @@ main = withUtf8 do
         Just "" -> usage
         Just appAndControllerName -> do
             generateController appAndControllerName
+        Nothing -> usage
 
 usage :: IO ()
 usage = putStrLn "Usage: new-controller RESOURCE_NAME"

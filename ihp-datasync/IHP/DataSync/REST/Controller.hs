@@ -87,7 +87,7 @@ instance (
                 result :: [[Field]] <- sqlQueryWithRLS query params
                 renderJson result
 
-
+            _ -> error "Expected JSON object or array"
 
     action UpdateRecordAction { table, id } = do
         ensureRLSEnabled table
@@ -95,6 +95,7 @@ instance (
         let payload = requestBodyJSON
                 |> \case
                     Object hashMap -> hashMap
+                    _ -> error "Expected JSON object"
 
         let columns = payload
                 |> Aeson.keys
@@ -147,6 +148,9 @@ instance (
 
         renderJson result
 
+    action GraphQLQueryAction = do
+        error "GraphQLQueryAction is handled by the GraphQL middleware"
+
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
     , selectedColumns = paramOrDefault SelectAll "fields"
@@ -170,6 +174,7 @@ instance ParamReader OrderByClause where
                 orderByDirection <- parseOrder order
                 pure OrderByClause { orderByColumn, orderByDirection }
             [orderByColumn] -> pure OrderByClause { orderByColumn, orderByDirection = Asc }
+            _ -> Left "Invalid order by clause"
         where
             parseOrder "asc" = Right Asc
             parseOrder "desc" = Right Desc
@@ -184,10 +189,15 @@ instance ToJSON PG.SqlError where
                 ]
         where
             fieldValueToJSON (IntValue value) = toJSON value
+            fieldValueToJSON (DoubleValue value) = toJSON value
             fieldValueToJSON (TextValue value) = toJSON value
             fieldValueToJSON (BoolValue value) = toJSON value
             fieldValueToJSON (UUIDValue value) = toJSON value
             fieldValueToJSON (DateTimeValue value) = toJSON value
+            fieldValueToJSON (PointValue value) = toJSON value
+            fieldValueToJSON (IntervalValue value) = toJSON value
+            fieldValueToJSON (ArrayValue value) = toJSON value
+            fieldValueToJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
 
 instance ToJSON EnhancedSqlError where
     toJSON EnhancedSqlError { sqlError } = toJSON sqlError

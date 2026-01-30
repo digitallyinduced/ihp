@@ -186,5 +186,6 @@ instance PG.ToField DynamicValue where
     toField (UUIDValue uuid) = PG.toField uuid
     toField (DateTimeValue utcTime) = PG.toField utcTime
     toField (PointValue point) = PG.toField point
+    toField (IntervalValue interval) = PG.toField interval
     toField (ArrayValue values) = PG.toField (PG.PGArray values)
     toField Null = PG.toField PG.Null

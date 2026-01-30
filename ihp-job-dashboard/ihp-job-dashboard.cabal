@@ -15,6 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
+    ghc-options: -Werror=incomplete-patterns
     build-depends:
             base >= 4.17.0 && < 4.22
             , wai

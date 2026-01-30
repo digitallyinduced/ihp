@@ -55,9 +55,13 @@ compileOperator SqlOp = ""
 --
 negateFilterOperator :: FilterOperator -> FilterOperator
 negateFilterOperator EqOp = NotEqOp
+negateFilterOperator NotEqOp = EqOp
 negateFilterOperator InOp = NotInOp
+negateFilterOperator NotInOp = InOp
 negateFilterOperator IsOp = IsNotOp
+negateFilterOperator IsNotOp = IsOp
 negateFilterOperator (LikeOp matchSensitivity) = (NotLikeOp matchSensitivity)
+negateFilterOperator (NotLikeOp matchSensitivity) = (LikeOp matchSensitivity)
 negateFilterOperator (MatchesOp matchSensitivity) = error "not supported"
 negateFilterOperator GreaterThanOp = LessThanOrEqualToOp
 negateFilterOperator GreaterThanOrEqualToOp = LessThanOp

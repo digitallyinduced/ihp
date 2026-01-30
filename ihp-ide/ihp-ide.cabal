@@ -122,6 +122,7 @@ common shared-properties
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -137,6 +138,7 @@ common shared-properties
             -Wall-missed-specialisations
             -fspecialise-aggressively
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 library
     import: shared-properties
@@ -238,6 +240,7 @@ executable RunDevServer
             -threaded
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fconstraint-solver-iterations=100
@@ -258,6 +261,7 @@ executable RunDevServer
             -with-rtsopts=--nonmoving-gc
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
 

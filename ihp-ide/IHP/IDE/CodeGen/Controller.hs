@@ -228,6 +228,9 @@ undoPlan actions = forEach actions evalAction
         evalAction AddAction { filePath, fileContent } = do
             deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
             putStrLn ("* " <> osPathToText filePath <> " (RemoveAction)")
+        evalAction AddMountToFrontController { filePath, applicationName } = do
+            -- Undo is best-effort; removing the mount statement is not straightforward
+            putStrLn ("* " <> osPathToText filePath <> " (RemoveMountFromFrontController - manual removal may be needed)")
         evalAction AddToDataConstructor { filePath, fileContent } = do
             deleteTextFromFile filePath (fileContent <> "\n") `catch` handleError
             putStrLn ("* " <> osPathToText filePath <> " (RemoveFromDataConstructor)")
