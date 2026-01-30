@@ -18,7 +18,10 @@ module IHP.Controller.Context
     , ActionType(..)
     ) where
 
-import IHP.Prelude
+import Prelude
+import Data.IORef (IORef, newIORef, readIORef)
+import GHC.Records (HasField(..))
+import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types

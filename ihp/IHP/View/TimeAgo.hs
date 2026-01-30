@@ -5,7 +5,11 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.TimeAgo (timeAgo, dateTime, date, time) where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format (formatTime, defaultTimeLocale)
+import Data.String.Conversions (cs)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import IHP.HSX.ConvertibleStrings ()
 import Text.Blaze.Html5 (Html, (!))

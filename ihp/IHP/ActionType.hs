@@ -13,7 +13,9 @@ module IHP.ActionType
 , isActiveController
 ) where
 
-import IHP.Prelude
+import Prelude
+import GHC.Records (HasField(..))
+import Data.Typeable (Typeable)
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault

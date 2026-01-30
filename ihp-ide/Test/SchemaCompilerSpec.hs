@@ -180,7 +180,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -253,7 +253,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -325,7 +325,7 @@ tests = do
                     type User = User' 
 
                     type instance GetTableName (User' ) = "users"
-                    type instance GetModelByTableName "users" = Generated.ActualTypes.User
+                    type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
@@ -442,7 +442,7 @@ tests = do
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
-                    type instance GetModelByTableName "landing_pages" = Generated.ActualTypes.LandingPage
+                    type instance GetModelByTableName "landing_pages" = LandingPage
 
                     instance Default (Id' "landing_pages") where def = Id def
 
@@ -674,6 +674,121 @@ tests = do
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
                     |]
+
+        describe "simple mode (compileRelationSupport = False)" do
+            let simpleOptions = previewCompilerOptions { compileRelationSupport = False }
+            it "should produce no type parameters and no QueryBuilder fields for a table with FK and has-many relations" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        user_id UUID NOT NULL
+                    );
+                    CREATE TABLE comments (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        post_id UUID NOT NULL,
+                        body TEXT NOT NULL
+                    );
+                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE comments ADD CONSTRAINT comments_ref_post_id FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just postStatement) = find (isTargetTable "posts") statements
+                let compileOutput = compileStatementPreviewWith simpleOptions statements postStatement |> Text.strip
+
+                -- data Post' has no type parameters, no QueryBuilder field, and userId has concrete type
+                compileOutput `shouldBe` [trimming|
+                    data Post'  = Post {id :: (Id' "posts"), title :: Text, userId :: (Id' "users"), meta :: MetaBag} deriving (Eq, Show)
+
+                    type instance PrimaryKey "posts" = UUID
+
+                    type Post = Post' 
+
+                    type instance GetTableName (Post' ) = "posts"
+                    type instance GetModelByTableName "posts" = Post
+
+                    instance Default (Id' "posts") where def = Id def
+
+                    instance () => IHP.ModelSupport.Table (Post' ) where
+                        tableName = "posts"
+                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "posts"
+                        columnNames = ["id","title","user_id"]
+                        primaryKeyColumnNames = ["id"]
+                        primaryKeyConditionForId (Id (id)) = toField id
+                        {-# INLINABLE primaryKeyConditionForId #-}
+
+
+                    instance InputValue Generated.ActualTypes.Post where inputValue = IHP.ModelSupport.recordToInputValue
+
+
+                    instance FromRow Generated.ActualTypes.Post where
+                        fromRow = do
+                            id <- field
+                            title <- field
+                            userId <- field
+                            let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
+                    type instance GetModelName (Post' ) = "Post"
+
+                    instance CanCreate Generated.ActualTypes.Post where
+                        create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
+                        create model = do
+                            sqlQuerySingleRow "INSERT INTO posts (id, title, user_id) VALUES (?, ?, ?) RETURNING id, title, user_id" ((fieldWithDefault #id model, model.title, model.userId))
+                        createMany [] = pure []
+                        createMany models = do
+                            sqlQuery (Query $ "INSERT INTO posts (id, title, user_id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?, ?)") models)) <> " RETURNING id, title, user_id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model), toField (model.title), toField (model.userId)]) models)
+                        createRecordDiscardResult :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
+                        createRecordDiscardResult model = do
+                            sqlExecDiscardResult "INSERT INTO posts (id, title, user_id) VALUES (?, ?, ?)" ((fieldWithDefault #id model, model.title, model.userId))
+
+                    instance CanUpdate Generated.ActualTypes.Post where
+                        updateRecord model = do
+                            sqlQuerySingleRow "UPDATE posts SET id = ?, title = ?, user_id = ? WHERE id = ? RETURNING id, title, user_id" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #userId model, model.id))
+                        updateRecordDiscardResult model = do
+                            sqlExecDiscardResult "UPDATE posts SET id = ?, title = ?, user_id = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #userId model, model.id))
+
+                    instance Record Generated.ActualTypes.Post where
+                        {-# INLINE newRecord #-}
+                        newRecord = Generated.ActualTypes.Post def def def  def
+
+
+                    instance QueryBuilder.FilterPrimaryKey "posts" where
+                        filterWhereId id builder =
+                            builder |> QueryBuilder.filterWhere (#id, id)
+                        {-# INLINE filterWhereId #-}
+                |]
+            it "should produce no type parameters for a table that is referenced by other tables" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                    CREATE TABLE posts (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_id UUID NOT NULL
+                    );
+                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just userStatement) = find (isTargetTable "users") statements
+                let compileOutput = compileStatementPreviewWith simpleOptions statements userStatement |> Text.strip
+
+                -- User has no has-many posts field, no type parameters
+                getInstanceDecl "Record" compileOutput `shouldBe` [trimming|
+                    instance Record Generated.ActualTypes.User where
+                        {-# INLINE newRecord #-}
+                        newRecord = Generated.ActualTypes.User def  def
+                |]
 
 getInstanceDecl :: Text -> Text -> Text
 getInstanceDecl instanceName full =

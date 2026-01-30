@@ -180,6 +180,8 @@ library
         , IHP.View.Form
         , IHP.View.TimeAgo
         , IHP.RequestVault
+        , IHP.RequestVault.Helper
+        , IHP.RequestVault.ModelContext
         , IHP.ControllerPrelude
         , IHP.ControllerSupport
         , IHP.Environment
