@@ -150,6 +150,6 @@ generateGenericAction schema config doGenerateView =
                 else typesContentWithParameter
 
         in
-            [ AddAction { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = chosenContent}
-            , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = config.applicationName <> "/Types.hs", fileContent = chosenType }
+            [ AddAction { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = chosenContent}
+            , AddToDataConstructor { dataConstructor = "data " <> controllerName, filePath = textToOsPath (config.applicationName <> "/Types.hs"), fileContent = chosenType }
             ]

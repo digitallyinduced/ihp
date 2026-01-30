@@ -465,7 +465,7 @@ class
     -- "users"
     --
     tableNameByteString :: ByteString
-    tableNameByteString = Text.encodeUtf8 (tableName @record)
+    tableNameByteString = symbolToByteString @(GetTableName record)
     {-# INLINE tableNameByteString #-}
 
     -- | Returns the list of column names for a given model

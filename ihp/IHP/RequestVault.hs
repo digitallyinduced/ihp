@@ -1,12 +1,8 @@
 module IHP.RequestVault
-( -- * Vault infrastructure
-  insertVaultMiddleware
-, lookupRequestVault
-, insertVaultMiddlewareAndGetter
-  -- * ModelContext
-, modelContextVaultKey
-, modelContextMiddleware
-, requestModelContext
+( -- * Vault infrastructure (re-exported from Helper)
+  module IHP.RequestVault.Helper
+  -- * ModelContext (re-exported from ModelContext)
+, module IHP.RequestVault.ModelContext
   -- * FrameworkConfig
 , frameworkConfigVaultKey
 , frameworkConfigMiddleware
@@ -15,9 +11,6 @@ module IHP.RequestVault
 , pgListenerVaultKey
 , pgListenerMiddleware
 , requestPGListener
-  -- * RequestBody (re-exported from RequestBodyMiddleware)
-, RequestBody (..)
-, requestBodyVaultKey
 ) where
 
 import IHP.Prelude
@@ -28,28 +21,8 @@ import Data.Proxy
 import Data.Typeable
 import IHP.FrameworkConfig
 import IHP.PGListener
-import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
-
-insertVaultMiddleware :: Vault.Key value -> value -> Middleware
-insertVaultMiddleware key value app req respond = do
-    let req' = req { vault = Vault.insert key value req.vault }
-    app req' respond
-
-lookupRequestVault :: forall value. Typeable value => Vault.Key value -> Request -> value
-lookupRequestVault key req =
-    case Vault.lookup key req.vault of
-        Just modelContext -> modelContext
-        Nothing -> error $ "lookupRequestVault: Could not find " <> show (typeRep (Proxy @value) ) <> " in request.vault. Did you forget to add the middleware to your application?"
-
-insertVaultMiddlewareAndGetter :: Typeable value => Vault.Key value -> (value -> Middleware, Request -> value)
-insertVaultMiddlewareAndGetter key = (insertVaultMiddleware key, lookupRequestVault key)
-
--- request.modelContext
-modelContextVaultKey :: Vault.Key ModelContext
-modelContextVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE modelContextVaultKey #-}
-
-(modelContextMiddleware, requestModelContext) = insertVaultMiddlewareAndGetter modelContextVaultKey
+import IHP.RequestVault.Helper
+import IHP.RequestVault.ModelContext
 
 -- request.frameworkConfig
 frameworkConfigVaultKey :: Vault.Key FrameworkConfig
@@ -65,12 +38,6 @@ pgListenerVaultKey = unsafePerformIO Vault.newKey
 
 (pgListenerMiddleware, requestPGListener) = insertVaultMiddlewareAndGetter pgListenerVaultKey
 
--- request.parsedBody
-requestParsedBody :: Request -> RequestBody
-requestParsedBody = lookupRequestVault requestBodyVaultKey
-
 -- Field access helpers
 instance HasField "frameworkConfig" Request FrameworkConfig where getField request = requestFrameworkConfig request
-instance HasField "modelContext" Request ModelContext where getField request = requestModelContext request
 instance HasField "pgListener" Request PGListener where getField request = requestPGListener request
-instance HasField "parsedBody" Request RequestBody where getField request = requestParsedBody request

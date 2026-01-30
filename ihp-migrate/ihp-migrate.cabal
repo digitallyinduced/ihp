@@ -30,13 +30,13 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory, ihp-migrate
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate
     hs-source-dirs: .
     main-is: Migrate.hs
 
@@ -44,5 +44,5 @@ test-suite tests
     import: ihp-std
     type: exitcode-stdio-1.0
     main-is: SchemaMigrationSpec.hs
-    build-depends: base >= 4.17.0 && < 4.22, hspec, ihp, with-utf8, directory, ihp-migrate, filepath, temporary
+    build-depends: base >= 4.17.0 && < 4.22, hspec, ihp, with-utf8, directory >= 1.3.8.0, ihp-migrate, filepath >= 1.5, temporary
     hs-source-dirs: Test

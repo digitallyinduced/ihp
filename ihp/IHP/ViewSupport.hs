@@ -44,7 +44,7 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
-import IHP.RouterSupport hiding (get)
+import IHP.Router.UrlGenerator (HasPath(..))
 import qualified Network.Wai as Wai
 import Text.Blaze.Html5.Attributes as A
 import IHP.HSX.QQ (hsx)

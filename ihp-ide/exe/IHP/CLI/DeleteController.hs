@@ -1,7 +1,7 @@
 module Main where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ControllerGenerator
 import IHP.IDE.CodeGen.Controller (undoPlan)

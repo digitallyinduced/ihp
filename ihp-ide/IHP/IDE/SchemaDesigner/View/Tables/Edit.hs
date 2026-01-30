@@ -14,7 +14,7 @@ data EditTableView = EditTableView
 
 instance View EditTableView where
     html EditTableView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
         </div>
         {renderModal modal}
@@ -23,14 +23,14 @@ instance View EditTableView where
             modalContent = [hsx|
                 <form method="POST" action={UpdateTableAction}>
                     <input type="hidden" name="tableId" value={tshow tableId}/>
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input id="nameInput" name="tableName" type="text" class="form-control" autofocus="autofocus" value={tableName}/>
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Edit Table</button>
                     </div>
                 </form>

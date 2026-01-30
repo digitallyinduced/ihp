@@ -7,7 +7,8 @@ module IHP.Controller.NotFound
 )
  where
 
-import IHP.Prelude hiding (displayException)
+import Prelude
+import Control.Monad (when, unless)
 import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status404)
 import Network.Wai
@@ -15,7 +16,7 @@ import Network.HTTP.Types.Header
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Data.ByteString.Lazy as LBS
 import IHP.HSX.QQ (hsx)
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import IHP.Controller.Response (respondAndExit)
 
 

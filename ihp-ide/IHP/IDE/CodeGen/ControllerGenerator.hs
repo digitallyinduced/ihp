@@ -1,6 +1,7 @@
 module IHP.IDE.CodeGen.ControllerGenerator (buildPlan, buildPlan') where
 
 import ClassyPrelude
+import IHP.Prelude (textToOsPath)
 import IHP.NameSupport
 import IHP.HaskellSupport
 import qualified Data.Text as Text
@@ -25,11 +26,11 @@ buildPlan' schema applicationName controllerName modelName paginationEnabled =
         config = ControllerConfig { modelName, controllerName, applicationName, paginationEnabled }
         viewPlans = generateViews schema applicationName controllerName paginationEnabled
     in
-        [ CreateFile { filePath = applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = (generateController schema config) }
-        , AppendToFile { filePath = applicationName <> "/Routes.hs", fileContent = "\n" <> (controllerInstance config) }
-        , AppendToFile { filePath = applicationName <> "/Types.hs", fileContent = (generateControllerData config) }
-        , AppendToMarker { marker = "-- Controller Imports", filePath = applicationName <> "/FrontController.hs", fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
-        , AppendToMarker { marker = "-- Generator Marker", filePath = applicationName <> "/FrontController.hs", fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
+        [ CreateFile { filePath = textToOsPath (applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = (generateController schema config) }
+        , AppendToFile { filePath = textToOsPath (applicationName <> "/Routes.hs"), fileContent = "\n" <> (controllerInstance config) }
+        , AppendToFile { filePath = textToOsPath (applicationName <> "/Types.hs"), fileContent = (generateControllerData config) }
+        , AppendToMarker { marker = "-- Controller Imports", filePath = textToOsPath (applicationName <> "/FrontController.hs"), fileContent = ("import " <> applicationName <> ".Controller." <> controllerName) }
+        , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (applicationName <> "/FrontController.hs"), fileContent = ("        , parseRoute @" <> controllerName <> "Controller") }
         ]
         <> viewPlans
 

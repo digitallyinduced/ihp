@@ -99,7 +99,7 @@ generateGenericApplication applicationName =
                 <> "\n"
                 <> "stylesheets :: Html\n"
                 <> "stylesheets = [hsx|\n"
-                <> "        <link rel=\"stylesheet\" href={assetPath \"/vendor/bootstrap-5.2.1/bootstrap.min.css\"}/>\n"
+                <> "        <link rel=\"stylesheet\" href={assetPath \"/vendor/bootstrap-5.3.8/bootstrap.min.css\"}/>\n"
                 <> "        <link rel=\"stylesheet\" href={assetPath \"/vendor/flatpickr.min.css\"}/>\n"
                 <> "        <link rel=\"stylesheet\" href={assetPath \"/app.css\"}/>\n"
                 <> "    |]\n"
@@ -107,10 +107,10 @@ generateGenericApplication applicationName =
                 <> "scripts :: Html\n"
                 <> "scripts = [hsx|\n"
                 <> "        {when isDevelopment devScripts}\n"
-                <> "        <script src={assetPath \"/vendor/jquery-3.7.1.slim.min.js\"}></script>\n"
+                <> "        <script src={assetPath \"/vendor/jquery-4.0.0.slim.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/timeago.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/popper-2.11.6.min.js\"}></script>\n"
-                <> "        <script src={assetPath \"/vendor/bootstrap-5.2.1/bootstrap.min.js\"}></script>\n"
+                <> "        <script src={assetPath \"/vendor/bootstrap-5.3.8/bootstrap.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/flatpickr.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/morphdom-umd.min.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/turbolinks.js\"}></script>\n"
@@ -206,19 +206,19 @@ generateGenericApplication applicationName =
              <>"|]"
 
         in
-            [ EnsureDirectory { directory = applicationName }
-            , EnsureDirectory { directory = applicationName <> "/Controller" }
-            , EnsureDirectory { directory = applicationName <> "/View" }
-            , EnsureDirectory { directory = applicationName <> "/View/Static" }
+            [ EnsureDirectory { directory = textToOsPath applicationName }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/Controller") }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/View") }
+            , EnsureDirectory { directory = textToOsPath (applicationName <> "/View/Static") }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".FrontController" }
             , AddImport  { filePath = "Main.hs", fileContent = "import " <> applicationName <> ".Types" }
             , AddMountToFrontController { filePath = "Main.hs", applicationName = applicationName }
-            , CreateFile { filePath = applicationName <> "/Types.hs", fileContent = typesHs }
-            , CreateFile { filePath = applicationName <> "/Routes.hs", fileContent = routesHs }
-            , CreateFile { filePath = applicationName <> "/FrontController.hs", fileContent = frontControllerHs }
-            , CreateFile { filePath = applicationName <> "/Controller/Prelude.hs", fileContent = controllerPreludeHs }
-            , CreateFile { filePath = applicationName <> "/View/Layout.hs", fileContent = viewLayoutHs }
-            , CreateFile { filePath = applicationName <> "/View/Prelude.hs", fileContent = viewPreludeHs }
-            , CreateFile { filePath = applicationName <> "/Controller/Static.hs", fileContent = welcomeControllerStaticHs }
-            , CreateFile { filePath = applicationName <> "/View/Static/Welcome.hs", fileContent = welcomeViewStaticHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Types.hs"), fileContent = typesHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Routes.hs"), fileContent = routesHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/FrontController.hs"), fileContent = frontControllerHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Controller/Prelude.hs"), fileContent = controllerPreludeHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Layout.hs"), fileContent = viewLayoutHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Prelude.hs"), fileContent = viewPreludeHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/Controller/Static.hs"), fileContent = welcomeControllerStaticHs }
+            , CreateFile { filePath = textToOsPath (applicationName <> "/View/Static/Welcome.hs"), fileContent = welcomeViewStaticHs }
             ]

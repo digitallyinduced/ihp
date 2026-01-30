@@ -18,10 +18,13 @@ module IHP.View.Types
 )
 where
 
-import IHP.Prelude hiding (div)
+import Prelude
+import Data.Text (Text)
+import Data.ByteString (ByteString)
+import IHP.HaskellSupport (SetField(..))
 import qualified Text.Blaze.Html5 as Blaze
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.ModelSupport (Violation)
+import IHP.ModelSupport.Types (Violation)
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Types
 import qualified Network.Wai as Wai

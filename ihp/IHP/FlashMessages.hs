@@ -5,7 +5,9 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.FlashMessages where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
+import Data.Maybe (fromMaybe)
 import IHP.Controller.Context
 import IHP.Controller.Session
 import qualified Data.Maybe as Maybe

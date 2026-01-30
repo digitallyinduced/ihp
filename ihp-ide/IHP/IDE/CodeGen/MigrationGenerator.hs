@@ -44,7 +44,7 @@ buildPlan' includeIHPSchema description sqlStatements = do
                 else compileSql appDiff
     pure (revision,
             [ EnsureDirectory { directory = "Application/Migration" }
-            , CreateFile { filePath = "Application/Migration/" <> migrationFile, fileContent = migrationSql }
+            , CreateFile { filePath = textToOsPath ("Application/Migration/" <> migrationFile), fileContent = migrationSql }
             ])
 
 diffAppDatabase includeIHPSchema databaseUrl = do
@@ -63,8 +63,11 @@ parseIHPSchema = do
     ihpSchemaSql <- findIHPSchemaSql
     Parser.parseSqlFile ihpSchemaSql
 
-findIHPSchemaSql :: IO FilePath
-findIHPSchemaSql = getDataFileName "IHPSchema.sql"
+findIHPSchemaSql :: IO OsPath
+findIHPSchemaSql = do
+    fp <- getDataFileName ("IHPSchema.sql" :: String)
+    let fpText :: Text = cs fp
+    pure (textToOsPath fpText)
 
 diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
@@ -610,7 +613,7 @@ migrationPathFromPlan plan =
                     CreateFile {} -> True
                     otherwise     -> False
                 |> \case
-                    Just CreateFile { filePath } -> Just filePath
+                    Just CreateFile { filePath } -> Just (osPathToText filePath)
                     otherwise                    -> Nothing
         in
             path

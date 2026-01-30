@@ -12,7 +12,7 @@ import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
@@ -23,6 +23,9 @@ import qualified Control.Exception as Exception
 import qualified System.Environment
 import NeatInterpolation
 import Text.Countable (pluralize)
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import qualified System.OsPath as OsPath
+
 
 data CompileException = CompileException ByteString deriving (Show)
 instance Exception CompileException where
@@ -38,20 +41,23 @@ compile = do
             -- let validationErrors = validate database
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             Directory.createDirectoryIfMissing True "build/Generated"
+            Directory.createDirectoryIfMissing True "build/Generated/ActualTypes"
 
             forEach (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
 
-compileModules :: CompilerOptions -> Schema -> [(FilePath, Text)]
+compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
     let ?compilerOptions = options
     in [ ("build/Generated/Enums.hs", compileEnums options schema)
-       , ("build/Generated/ActualTypes.hs", compileTypes options schema)
-       ] <> tableModules options schema <>
-       [ ("build/Generated/Types.hs", compileIndex schema)
+       ]
+       <> actualTypesTableModules schema
+       <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
+       <> tableModules options schema
+       <> [ ("build/Generated/Types.hs", compileIndex schema)
        ]
 
-applyTables :: (CreateTable -> (FilePath, Text)) -> Schema -> [(FilePath, Text)]
+applyTables :: (CreateTable -> (OsPath, Text)) -> Schema -> [(OsPath, Text)]
 applyTables applyFunction schema =
     let ?schema = schema
     in
@@ -61,7 +67,30 @@ applyTables applyFunction schema =
                 otherwise -> Nothing
             )
 
-tableModules :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> [(FilePath, Text)]
+actualTypesTableModules :: (?compilerOptions :: CompilerOptions) => Schema -> [(OsPath, Text)]
+actualTypesTableModules schema =
+    let ?schema = schema
+    in applyTables actualTypesTableModule schema
+
+actualTypesTableModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
+actualTypesTableModule table =
+        ((OsPath.</>) "build/Generated/ActualTypes" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
+    where
+        body = Text.unlines
+            [ prelude
+            , compileActualTypesForTable table
+            ]
+        moduleName = "Generated.ActualTypes." <> tableNameToModelName table.name
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+            module $moduleName where
+            $defaultImports
+            import Generated.Enums
+        |]
+
+tableModules :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> [(OsPath, Text)]
 tableModules options schema =
     let ?schema = schema
     in
@@ -70,9 +99,9 @@ tableModules options schema =
             then applyTables tableIncludeModule schema
             else []
 
-tableModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CompilerOptions -> CreateTable -> (FilePath, Text)
+tableModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CompilerOptions -> CreateTable -> (OsPath, Text)
 tableModule options table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> ".hs", body)
+        ((OsPath.</>) "build/Generated" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
     where
         body = Text.unlines
             [ prelude
@@ -88,9 +117,9 @@ tableModule options table =
             import Generated.ActualTypes
         |]
 
-tableIncludeModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (FilePath, Text)
+tableIncludeModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
 tableIncludeModule table =
-        ("build/Generated/" <> cs (tableNameToModelName table.name) <> "Include.hs", prelude <> compileInclude table)
+        ((OsPath.</>) "build/Generated" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
     where
         moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
         prelude = [trimming|
@@ -183,36 +212,39 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
 -- haskellType table (HasMany {name}) = "(QueryBuilder.QueryBuilder " <> tableNameToModelName name <> ")"
 
 
-writeIfDifferent :: FilePath -> Text -> IO ()
+writeIfDifferent :: OsPath -> Text -> IO ()
 writeIfDifferent path content = do
+    fp <- decodeUtf path
     alreadyExists <- Directory.doesFileExist path
-    existingContent <- if alreadyExists then readFile path else pure ""
+    existingContent <- if alreadyExists then readFile fp else pure ""
     when (existingContent /= cs content) do
-        putStrLn $ "Updating " <> cs path
-        writeFile (cs path) (cs content)
+        putStrLn $ "Updating " <> cs fp
+        writeFile fp (cs content)
 
 compileTypes :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> Text
-compileTypes options schema@(Schema statements) = Text.unlines
-        [ prelude
-        , let ?schema = schema in body
-        ]
+compileTypes options schema@(Schema statements) = [trimming|
+        -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+        {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+        module Generated.ActualTypes ($rexports) where
+        import Generated.Enums
+        $perTableImports
+    |]
     where
-        body :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text
-        body =
+        tableModelNames =
             statements
-                |> mapMaybe (\case
-                    StatementCreateTable table | tableHasPrimaryKey table -> Just (compileActualTypesForTable table)
-                    otherwise -> Nothing
-                )
-                |> Text.intercalate "\n\n"
-        prelude = [trimming|
-            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
-            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
-            module Generated.ActualTypes (module Generated.ActualTypes, module Generated.Enums) where
-            $defaultImports
-            import Generated.Enums
-        |]
+            |> mapMaybe (\case
+                StatementCreateTable table | tableHasPrimaryKey table -> Just (tableNameToModelName table.name)
+                otherwise -> Nothing
+            )
+
+        perTableModuleNames = map (\n -> "Generated.ActualTypes." <> n) tableModelNames
+
+        perTableImports = perTableModuleNames
+            |> map (\n -> "import " <> n)
+            |> Text.unlines
+
+        rexports = ("module Generated.Enums" : map (\n -> "module " <> n) perTableModuleNames)
+            |> Text.intercalate ", "
 
 compileActualTypesForTable :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileActualTypesForTable table = Text.unlines
@@ -810,7 +842,7 @@ toDefaultValueExpr _ = "def"
 compileHasTableNameInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
     "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
-    <> "type instance GetModelByTableName " <> tshow name <> " = Generated.ActualTypes." <> tableNameToModelName name <> "\n"
+    <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [trimming|type instance PrimaryKey $symbol = $idType|] <> "\n"

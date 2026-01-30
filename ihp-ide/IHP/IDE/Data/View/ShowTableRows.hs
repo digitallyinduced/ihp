@@ -21,7 +21,7 @@ instance View ShowTableRowsView where
     html ShowTableRowsView { .. } = [hsx|
         <div class="h-100">
             {headerNav}
-            <div class="h-100 row no-gutters">
+            <div class="h-100 row g-0">
                 {renderTableSelector tableNames tableName}
                 <div class="col" oncontextmenu="showContextMenu('context-menu-data-root')">
                     <div style="overflow: scroll; max-height: 80vh">
@@ -101,7 +101,7 @@ instance View ShowTableRowsView where
                         
 
             renderPageButton :: Int -> Html
-            renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark font-weight-bold" else "text-muted")]}>{nr}</a>|]
+            renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark fw-bold" else "text-muted")]}>{nr}</a>|]
 
             emptyState :: Html
             emptyState = [hsx|

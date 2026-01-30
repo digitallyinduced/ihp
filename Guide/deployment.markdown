@@ -648,7 +648,7 @@ The files that are bundled together to get our `prod.css` and `prod.js` are conf
 CSS_FILES += ${IHP}/static/vendor/bootstrap.min.css
 CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 
-JS_FILES += ${IHP}/static/vendor/jquery-3.7.1.slim.min.js
+JS_FILES += ${IHP}/static/vendor/jquery-4.0.0.slim.min.js
 JS_FILES += ${IHP}/static/vendor/timeago.js
 JS_FILES += ${IHP}/static/vendor/popper-2.11.6.min.js
 JS_FILES += ${IHP}/static/vendor/bootstrap.min.js
@@ -715,7 +715,7 @@ scripts :: Html
 scripts = do
     when isDevelopment [hsx|
         <script id="livereload-script" src="/livereload.js"></script>
-        <script src="/vendor/jquery-3.7.1.slim.min.js"></script>
+        <script src="/vendor/jquery-4.0.0.slim.min.js"></script>
         <script src="/vendor/timeago.js"></script>
         <script src="/vendor/popper-2.11.6.min.js"></script>
         <script src="/vendor/bootstrap.min.js"></script>

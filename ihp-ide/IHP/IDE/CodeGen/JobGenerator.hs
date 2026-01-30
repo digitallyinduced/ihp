@@ -3,7 +3,7 @@ module IHP.IDE.CodeGen.JobGenerator (buildPlan, buildPlan', JobConfig (..)) wher
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 
 data JobConfig = JobConfig
     { applicationName :: Text
@@ -14,7 +14,8 @@ data JobConfig = JobConfig
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
-    isFirstJobInApplication <- not <$> Directory.doesFileExist (cs $ applicationName <> "/Worker.hs")
+    let workerPath = textToOsPath (applicationName <> "/Worker.hs")
+    isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
     if null jobName
         then pure $ Left "Job name cannot be empty"
         else do
@@ -91,13 +92,13 @@ instance Worker #{applicationName}Application where
         ]
 |]
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/Job" }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Job") }
             , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
-            , CreateFile { filePath = config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs"), fileContent = job }
             ]
             <> if config.isFirstJobInApplication
-                    then [ CreateFile { filePath = config.applicationName <> "/Worker.hs", fileContent = emptyWorkerHs } ]
+                    then [ CreateFile { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = emptyWorkerHs } ]
                     else
-                        [ AddImport { filePath = config.applicationName <> "/Worker.hs", fileContent = "import " <> qualifiedJobModuleName config }
-                        , AppendToMarker { marker = "-- Generator Marker", filePath = config.applicationName <> "/Worker.hs", fileContent = "        , worker @" <> nameWithSuffix }
+                        [ AddImport { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "import " <> qualifiedJobModuleName config }
+                        , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "        , worker @" <> nameWithSuffix }
                         ]
