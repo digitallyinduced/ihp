@@ -10,12 +10,8 @@ module IHP.DataSync.ChangeNotifications
 ) where
 
 import IHP.Prelude
-import IHP.ModelSupport hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Control.Exception.Safe as Exception
-import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
-import qualified Hasql.Session as Hasql
+import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Session as DynSession
 import Data.String.Interpolate.IsString (i)
 import Data.Aeson
@@ -27,19 +23,14 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 
--- | Acquire a temporary hasql connection, run a snippet, release the connection.
-runHasql :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
-runHasql snippet decoder = do
-    let settings = [HasqlSetting.connection (HasqlConnection.string (cs ?modelContext.databaseUrl))]
-    Exception.bracket
-        (Hasql.acquire settings >>= either (\err -> Exception.throwIO (userError (cs $ tshow err))) pure)
-        Hasql.release
-        (\conn -> do
-            result <- Hasql.run (DynSession.dynamicallyParameterizedStatement snippet decoder True) conn
-            case result of
-                Left err -> Exception.throwIO (userError (cs $ tshow err))
-                Right val -> pure val
-        )
+-- | Run a hasql snippet using a connection from the given pool.
+runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
+runHasql pool snippet decoder = do
+    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
+    result <- Hasql.Pool.use pool session
+    case result of
+        Left err -> Exception.throwIO (userError (cs $ tshow err))
+        Right val -> pure val
 {-# INLINE runHasql #-}
 
 data ChangeNotification
@@ -145,20 +136,19 @@ createNotificationFunction table = Snippet.sql [i|
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
 
-installTableChangeTriggers :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO ()
-installTableChangeTriggers tableNameRLS = do
-    withoutQueryLogging -- This spams the log way to much
-        (runHasql (createNotificationFunction tableNameRLS) Decoders.noResult)
+installTableChangeTriggers :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO ()
+installTableChangeTriggers pool tableNameRLS = do
+    runHasql pool (createNotificationFunction tableNameRLS) Decoders.noResult
     pure ()
 
-makeCachedInstallTableChangeTriggers :: (?modelContext :: ModelContext) => IO (RLS.TableWithRLS -> IO ())
-makeCachedInstallTableChangeTriggers = do
+makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
+makeCachedInstallTableChangeTriggers pool = do
     tables <- newIORef Set.empty
     pure \tableName -> do
         triggersInstalled <- Set.member tableName <$> readIORef tables
 
         unless triggersInstalled do
-            installTableChangeTriggers tableName
+            installTableChangeTriggers pool tableName
             modifyIORef' tables (Set.insert tableName)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
@@ -198,10 +188,10 @@ instance FromJSON Change where
 --
 -- This function retrieves the patch from the @large_pg_notifications@ table, or directly returns the patch
 -- when it's less than 8000 bytes.
-retrieveChanges :: (?modelContext :: ModelContext) => ChangeSet -> IO [Change]
-retrieveChanges InlineChangeSet { changeSet } = pure changeSet
-retrieveChanges ExternalChangeSet { largePgNotificationId } = do
-    payload :: ByteString <- runHasql ("SELECT payload FROM large_pg_notifications WHERE id = " <> Snippet.param largePgNotificationId <> " LIMIT 1") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
+retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
+retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
+    payload :: ByteString <- runHasql pool ("SELECT payload FROM large_pg_notifications WHERE id = " <> Snippet.param largePgNotificationId <> " LIMIT 1") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
     case eitherDecodeStrict' payload of
         Left e -> fail e
         Right result -> pure result

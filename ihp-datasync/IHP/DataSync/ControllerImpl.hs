@@ -12,6 +12,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Pool
 import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
@@ -52,11 +53,11 @@ runDataSyncController ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    ) => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
-runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
+runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
-    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
+    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
 
 
     sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
@@ -116,8 +117,8 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
-buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
+buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
     where
             pgListener = ?context.request.pgListener
             handleMessage :: DataSyncMessage -> IO ()
@@ -126,7 +127,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let theSnippet = compileQueryWithRenamer (renamer query.table) query
 
-                rawResult :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery theSnippet) dynamicRowDecoder
+                rawResult :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery theSnippet) dynamicRowDecoder
                 let result = map (map (renameField (renamer query.table))) rawResult
 
                 sendJSON DataSyncResult { result, requestId }
@@ -146,7 +147,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let theSnippet = compileQueryWithRenamer (renamer query.table) query
 
-                rawResult :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery theSnippet) dynamicRowDecoder
+                rawResult :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
                 let result = map (map (renameField (renamer query.table))) rawResult
 
                 let tableName = query.table
@@ -173,7 +174,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery (Snippet.sql "SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1")) dynamicRowDecoder
+                                newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1")) dynamicRowDecoder
 
                                 case headMay newRecord of
                                     Just rawRecord -> do
@@ -191,17 +192,17 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                                 when isWatchingRecord do
                                     -- The updated record could not be part of the query result set anymore
                                     -- E.g. if it's not matched anymore by the WHERE condition after the update
-                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
-                                    changes <- ChangeNotifications.retrieveChanges changeSet
+                                    changes <- ChangeNotifications.retrieveChanges hasqlPool changeSet
                                     if isRecordInResultSet
                                         then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
-                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-                                    changes <- ChangeNotifications.retrieveChanges (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
+                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    changes <- ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
                                     if isRecordInResultSet
                                         then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
                                         else sendJSON DidDelete { subscriptionId, id }
@@ -238,7 +239,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> theSnippet <> Snippet.sql ") AS _inner"
                 let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
 
-                count :: Int <- sqlQueryScalarWithRLS countSnippet countDecoder
+                count :: Int <- sqlQueryScalarWithRLS hasqlPool countSnippet countDecoder
                 countRef <- newIORef count
 
                 installTableChangeTriggers tableNameRLS
@@ -246,7 +247,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 let
                     callback :: ChangeNotifications.ChangeNotification -> IO ()
                     callback _ = do
-                        newCount :: Int <- sqlQueryScalarWithRLS countSnippet countDecoder
+                        newCount :: Int <- sqlQueryScalarWithRLS hasqlPool countSnippet countDecoder
                         lastCount <- readIORef countRef
 
                         when (newCount /= count) (sendJSON DidChangeCount { subscriptionId, count = newCount })
@@ -287,7 +288,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
 
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     [rawRecord] ->
@@ -322,7 +323,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                         let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
 
-                        rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                        rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
                         let records = map (map (renameField (renamer table))) rawRecords
 
                         sendJSON DidCreateRecords { requestId, records }
@@ -347,7 +348,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
                 let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
 
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     [rawRecord] ->
@@ -379,7 +380,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") idSnippets
                 let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id IN (" <> inList <> Snippet.sql ") RETURNING *"
 
-                rawRecords <- sqlQueryWithRLSAndTransactionId transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                rawRecords <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
                 let records = map (map (renameField (renamer table))) rawRecords
 
                 sendJSON DidUpdateRecords { requestId, records }
@@ -389,7 +390,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
             handleMessage DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                sqlExecWithRLSAndTransactionId transactionId (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
+                sqlExecWithRLSAndTransactionId hasqlPool transactionId (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
 
                 sendJSON DidDeleteRecord { requestId }
 
@@ -398,7 +399,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                 let idSnippets = map Snippet.param ids
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") idSnippets
-                sqlExecWithRLSAndTransactionId transactionId (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id IN (" <> inList <> Snippet.sql ")")
+                sqlExecWithRLSAndTransactionId hasqlPool transactionId (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id IN (" <> inList <> Snippet.sql ")")
 
                 sendJSON DidDeleteRecords { requestId }
 
@@ -446,7 +447,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
             handleMessage RollbackTransaction { requestId, id } = do
                 DataSyncTransaction { id, close } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId (Just id) "ROLLBACK"
+                sqlExecWithRLSAndTransactionId hasqlPool (Just id) "ROLLBACK"
                 MVar.putMVar close ()
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
@@ -454,7 +455,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
             handleMessage CommitTransaction { requestId, id } = do
                 DataSyncTransaction { id, close } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId (Just id) "COMMIT"
+                sqlExecWithRLSAndTransactionId hasqlPool (Just id) "COMMIT"
                 MVar.putMVar close ()
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
@@ -505,35 +506,33 @@ maxSubscriptionsPerConnection =
         DataSyncMaxSubscriptionsPerConnection value -> value
 
 sqlQueryWithRLSAndTransactionId ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?state :: IORef DataSyncController
-    ) => Maybe UUID -> Snippet -> Decoders.Result [result] -> IO [result]
-sqlQueryWithRLSAndTransactionId (Just transactionId) snippet decoder = do
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
     let queryWithRLS = wrapStatementWithRLS snippet
     runSnippetOnConnection connection queryWithRLS decoder
-sqlQueryWithRLSAndTransactionId Nothing snippet decoder = sqlQueryWithRLS snippet decoder
+sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = sqlQueryWithRLS pool snippet decoder
 
 
 sqlExecWithRLSAndTransactionId ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?state :: IORef DataSyncController
-    ) => Maybe UUID -> Snippet -> IO ()
-sqlExecWithRLSAndTransactionId (Just transactionId) snippet = do
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> IO ()
+sqlExecWithRLSAndTransactionId _pool (Just transactionId) snippet = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
     let queryWithRLS = wrapStatementWithRLS snippet
     runSnippetOnConnection connection queryWithRLS Decoders.noResult
-sqlExecWithRLSAndTransactionId Nothing snippet = sqlExecWithRLS snippet
+sqlExecWithRLSAndTransactionId pool Nothing snippet = sqlExecWithRLS pool snippet
 
 -- | Run a snippet on an existing hasql connection. Used for transaction-scoped queries.
 runSnippetOnConnection :: Hasql.Connection -> Snippet -> Decoders.Result a -> IO a

@@ -26,7 +26,19 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import qualified Hasql.Pool
+import qualified Hasql.Pool.Config as Hasql.Pool.Config
+import qualified Hasql.Connection.Setting as HasqlSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 
+
+withHasqlPool :: (?modelContext :: ModelContext) => (Hasql.Pool.Pool -> IO a) -> IO a
+withHasqlPool action = do
+    let hasqlPoolConfig = Hasql.Pool.Config.settings
+            [ Hasql.Pool.Config.size 1
+            , Hasql.Pool.Config.staticConnectionSettings [HasqlSetting.connection (HasqlConnection.string (cs ?modelContext.databaseUrl))]
+            ]
+    Exception.bracket (Hasql.Pool.acquire hasqlPoolConfig) Hasql.Pool.release action
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -34,8 +46,8 @@ instance (
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Controller ApiController where
-    action CreateRecordAction { table } = do
-        ensureRLSEnabled table
+    action CreateRecordAction { table } = withHasqlPool \hasqlPool -> do
+        ensureRLSEnabled hasqlPool table
 
         let payload = requestBodyJSON
 
@@ -55,7 +67,7 @@ instance (
                 let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
 
                 result :: Either SomeException [[Field]] <- Exception.try do
-                    sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
+                    sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     Left e -> renderErrorJson (show e :: Text)
@@ -91,14 +103,14 @@ instance (
 
                                     let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
 
-                                    result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
                                     renderJson result
                         _otherwise -> renderErrorJson ("Expected object" :: Text)
 
             _ -> error "Expected JSON object or array"
 
-    action UpdateRecordAction { table, id } = do
-        ensureRLSEnabled table
+    action UpdateRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+        ensureRLSEnabled hasqlPool table
 
         let payload = requestBodyJSON
                 |> \case
@@ -120,34 +132,34 @@ instance (
         let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
         let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
 
-        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery snippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 
         renderJson (head result)
 
     -- DELETE /api/:table/:id
-    action DeleteRecordAction { table, id } = do
-        ensureRLSEnabled table
+    action DeleteRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+        ensureRLSEnabled hasqlPool table
 
-        sqlExecWithRLS (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
+        sqlExecWithRLS hasqlPool (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
 
         renderJson True
 
     -- GET /api/:table/:id
-    action ShowRecordAction { table, id } = do
-        ensureRLSEnabled table
+    action ShowRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+        ensureRLSEnabled hasqlPool table
 
-        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
 
         renderJson (head result)
 
     -- GET /api/:table
     -- GET /api/:table?orderBy=createdAt
     -- GET /api/:table?fields=id,title
-    action ListRecordsAction { table } = do
-        ensureRLSEnabled table
+    action ListRecordsAction { table } = withHasqlPool \hasqlPool -> do
+        ensureRLSEnabled hasqlPool table
 
         let theSnippet = compileQuery (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- sqlQueryWithRLS (wrapDynamicQuery theSnippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
 
         renderJson result
 

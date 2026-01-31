@@ -12,10 +12,7 @@ where
 
 import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Control.Exception.Safe as Exception
-import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
-import qualified Hasql.Session as Hasql
+import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Session as DynSession
@@ -23,63 +20,54 @@ import qualified Hasql.Decoders as Decoders
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
 
--- | Acquire a temporary hasql connection, run a snippet, release the connection.
-runHasql :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
-runHasql snippet decoder = do
-    let settings = [HasqlSetting.connection (HasqlConnection.string (cs ?modelContext.databaseUrl))]
-    Exception.bracket
-        (Hasql.acquire settings >>= either (\err -> Exception.throwIO (userError (cs $ tshow err))) pure)
-        Hasql.release
-        (\conn -> do
-            result <- Hasql.run (DynSession.dynamicallyParameterizedStatement snippet decoder True) conn
-            case result of
-                Left err -> Exception.throwIO (userError (cs $ tshow err))
-                Right val -> pure val
-        )
+-- | Run a hasql snippet using a connection from the given pool.
+runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
+runHasql pool snippet decoder = do
+    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
+    result <- Hasql.Pool.use pool session
+    case result of
+        Left err -> Exception.throwIO (userError (cs $ tshow err))
+        Right val -> pure val
 {-# INLINE runHasql #-}
 
 sqlQueryWithRLS ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Decoders.Result [result] -> IO [result]
-sqlQueryWithRLS snippet decoder = runHasql queryWithRLS decoder
+    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWithRLS pool snippet decoder = runHasql pool queryWithRLS decoder
     where
         queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlQueryWithRLS #-}
 
 sqlExecWithRLS ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> IO ()
-sqlExecWithRLS snippet = runHasql queryWithRLS Decoders.noResult
+    ) => Hasql.Pool.Pool -> Snippet -> IO ()
+sqlExecWithRLS pool snippet = runHasql pool queryWithRLS Decoders.noResult
     where
         queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlExecWithRLS #-}
 
 sqlQueryScalarWithRLS ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Decoders.Result result -> IO result
-sqlQueryScalarWithRLS snippet decoder = runHasql queryWithRLS decoder
+    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result result -> IO result
+sqlQueryScalarWithRLS pool snippet decoder = runHasql pool queryWithRLS decoder
     where
         queryWithRLS = wrapStatementWithRLS snippet
 {-# INLINE sqlQueryScalarWithRLS #-}
 
 wrapStatementWithRLS ::
-    ( ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
@@ -101,9 +89,9 @@ wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenti
 {-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
-ensureRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO TableWithRLS
-ensureRLSEnabled table = do
-    rlsEnabled <- hasRLSEnabled table
+ensureRLSEnabled :: Hasql.Pool.Pool -> Text -> IO TableWithRLS
+ensureRLSEnabled pool table = do
+    rlsEnabled <- hasRLSEnabled pool table
     unless rlsEnabled (error "Row level security is required for accessing this table")
     pure (TableWithRLS table)
 
@@ -114,7 +102,7 @@ ensureRLSEnabled table = do
 -- __Example:__
 --
 -- > -- Setup
--- > ensureRLSEnabled <- makeCachedEnsureRLSEnabled
+-- > ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
 -- >
 -- > ensureRLSEnabled "projects" -- Runs a database query to check if row level security is enabled for the projects table
 -- >
@@ -122,8 +110,8 @@ ensureRLSEnabled table = do
 -- >
 -- > ensureRLSEnabled "projects" -- Now this will instantly return True and don't fire any SQL queries anymore
 --
-makeCachedEnsureRLSEnabled :: (?modelContext :: ModelContext) => IO (Text -> IO TableWithRLS)
-makeCachedEnsureRLSEnabled = do
+makeCachedEnsureRLSEnabled :: Hasql.Pool.Pool -> IO (Text -> IO TableWithRLS)
+makeCachedEnsureRLSEnabled pool = do
     tables <- newIORef Set.empty
     pure \tableName -> do
         rlsEnabled <- Set.member tableName <$> readIORef tables
@@ -131,7 +119,7 @@ makeCachedEnsureRLSEnabled = do
         if rlsEnabled
             then pure TableWithRLS { tableName }
             else do
-                proof <- ensureRLSEnabled tableName
+                proof <- ensureRLSEnabled pool tableName
                 modifyIORef' tables (Set.insert tableName)
                 pure proof
 
@@ -143,10 +131,10 @@ makeCachedEnsureRLSEnabled = do
 --
 -- After this 'hasRLSEnabled' will return true:
 --
--- >>> hasRLSEnabled "my_table"
+-- >>> hasRLSEnabled pool "my_table"
 -- True
-hasRLSEnabled :: (?modelContext :: ModelContext) => Text -> IO Bool
-hasRLSEnabled table = runHasql ("SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(" <> Snippet.param table <> ")::regclass") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+hasRLSEnabled :: Hasql.Pool.Pool -> Text -> IO Bool
+hasRLSEnabled pool table = runHasql pool ("SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(" <> Snippet.param table <> ")::regclass") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --
