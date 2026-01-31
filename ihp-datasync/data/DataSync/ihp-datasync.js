@@ -203,11 +203,15 @@ class DataSyncController {
             clearTimeout(this.reconnectTimeout);
         }
         this.reconnectTimeout = setTimeout(async () => {
-            console.log('Trying to reconnect DataSync ...');
-            await this.startConnection();
+            try {
+                console.log('Trying to reconnect DataSync ...');
+                await this.startConnection();
 
-            for (const listener of this.eventListeners.reconnect) {
-                listener();
+                for (const listener of this.eventListeners.reconnect) {
+                    listener();
+                }
+            } catch (error) {
+                console.error('DataSync reconnection failed:', error);
             }
         }, 1000);
     }
