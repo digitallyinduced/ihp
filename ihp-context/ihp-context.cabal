@@ -32,6 +32,7 @@ common shared-properties
         , ImplicitParams
         , BlockArguments
         , LambdaCase
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: shared-properties

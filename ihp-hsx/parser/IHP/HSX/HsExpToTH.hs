@@ -49,6 +49,14 @@ toLit (HsInteger _ i _) = TH.IntegerL i
 toLit (HsRat _ f _) = TH.FloatPrimL (fl_value f)
 toLit (HsFloatPrim _ f) = TH.FloatPrimL (fl_value f)
 toLit (HsDoublePrim _ f) = TH.DoublePrimL (fl_value f)
+#if __GLASGOW_HASKELL__ >= 910
+toLit (HsInt8Prim _ i) = TH.IntPrimL i
+toLit (HsInt16Prim _ i) = TH.IntPrimL i
+toLit (HsInt32Prim _ i) = TH.IntPrimL i
+toLit (HsWord8Prim _ i) = TH.WordPrimL i
+toLit (HsWord16Prim _ i) = TH.WordPrimL i
+toLit (HsWord32Prim _ i) = TH.WordPrimL i
+#endif
 
 toLit' :: OverLitVal -> TH.Lit
 toLit' (HsIntegral i) = TH.IntegerL (il_value i)
@@ -197,6 +205,7 @@ toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) 
 #else
                             Unambiguous _ (unLoc -> name) -> toName name
                             Ambiguous _ (unLoc -> name) -> toName name
+                            XAmbiguousFieldOcc {} -> error "XAmbiguousFieldOcc"
 #endif
         in
             map f fields

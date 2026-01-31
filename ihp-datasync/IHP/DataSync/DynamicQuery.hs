@@ -99,9 +99,11 @@ data SelectedColumns
 
 instance FromJSON ByteString where
     parseJSON (String v) = pure $ cs v
+    parseJSON invalid = fail $ cs ("Expected String for ByteString, got: " <> tshow invalid)
 
 instance FromJSON PG.Action where
     parseJSON (String v) = pure (PG.Escape (cs v))
+    parseJSON invalid = fail $ cs ("Expected String for PG.Action, got: " <> tshow invalid)
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
     toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
@@ -184,6 +186,7 @@ transformColumnNamesToFieldNames (Object hashMap) =
                 |> Aeson.toText
                 |> function
                 |> Aeson.fromText
+transformColumnNamesToFieldNames otherwise = otherwise
 
 
 $(deriveFromJSON defaultOptions ''FunctionCall)

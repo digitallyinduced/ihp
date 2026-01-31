@@ -27,6 +27,7 @@ common ihp-std
         BlockArguments
         OverloadedStrings
         ImplicitParams
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: ihp-std

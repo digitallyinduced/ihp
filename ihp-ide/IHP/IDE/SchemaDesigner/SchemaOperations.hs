@@ -443,8 +443,11 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                         otheriwse                                   -> False
                     |> fmap \case
                         StatementCreateTable table -> table
+                        _ -> error "resolveFK: expected StatementCreateTable"
+            resolveFK _ = Nothing
 
             emptyPolicy = CreatePolicy { name = "", action = Nothing, tableName, using = Nothing, check = Nothing }
+suggestPolicy _ _ = error "suggestPolicy: expected StatementCreateTable"
 
 isUserIdColumn :: Column -> Bool
 isUserIdColumn Column { name = "user_id" } = True
@@ -565,6 +568,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 (Just using, Nothing) -> not (isRef using)
                 (Nothing, Just check) -> not (isRef check)
                 (Just using, Just check) -> not (isRef using && isRef check)
+                (Nothing, Nothing) -> True
             where
                 isRef :: Expression -> Bool
                 isRef (TextExpression {}) = False
@@ -575,6 +579,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (AndExpression a b) = isRef a || isRef b
                 isRef (IsExpression a b) = isRef a || isRef b
                 isRef (InExpression a b) = isRef a || isRef b
+                isRef (InArrayExpression exprs) = foldl' (||) False (map isRef exprs)
                 isRef (NotExpression a) = isRef a
                 isRef (ExistsExpression a) = isRef a
                 isRef (OrExpression a b) = isRef a || isRef b
@@ -633,12 +638,21 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             EqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             AndExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            InExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            InArrayExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
             NotExpression a -> expressionReferencesColumn a
+            ExistsExpression a -> expressionReferencesColumn a
             OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             LessThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             GreaterThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            DoubleExpression _ -> False
+            IntExpression _ -> False
+            TypeCastExpression a _ -> expressionReferencesColumn a
+            SelectExpression _ -> False
+            DotExpression a _ -> expressionReferencesColumn a
+            ConcatenationExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
 
 doesHaveExistingPolicies :: [Statement] -> Text -> Bool
 doesHaveExistingPolicies statements tableName = statements

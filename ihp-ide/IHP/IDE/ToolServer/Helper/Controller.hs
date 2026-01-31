@@ -62,6 +62,7 @@ findEditor = do
         [] -> case os of
             "linux" -> (False, "xdg-open")
             "darwin" -> (False, "open")
+            _ -> (False, "xdg-open")
 
 
 findWebControllers :: IO [Text]

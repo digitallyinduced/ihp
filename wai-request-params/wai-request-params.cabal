@@ -15,6 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
+    ghc-options: -Werror=incomplete-patterns
     hs-source-dirs: .
     exposed-modules:
           Wai.Request.Params

@@ -27,6 +27,7 @@ common shared-properties
         , DataKinds
         , RecordWildCards
         , QuasiQuotes
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: shared-properties

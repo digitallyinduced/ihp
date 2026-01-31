@@ -197,6 +197,9 @@ atomicType = \case
     PPolygon -> "Polygon"
     PInet -> "Net.IP.IP"
     PTSVector -> "TSVector"
+    PSingleChar -> "Text"
+    PTrigger -> error "atomicType: PTrigger not supported"
+    PEventTrigger -> error "atomicType: PEventTrigger not supported"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
 haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@Column { name, columnType, notNull, generator }
@@ -398,6 +401,7 @@ compileStatementPreviewWith options statements statement =
                 [ compileActualTypesForTablePreview table
                 , tableModuleBody options table
                 ]
+            _ -> ""
 
 -- | Skip generation of tables with no primary keys
 tableHasPrimaryKey :: CreateTable -> Bool
@@ -559,7 +563,7 @@ findForeignKeyConstraint :: (?schema :: Schema) => CreateTable -> Column -> Mayb
 findForeignKeyConstraint CreateTable { name } column =
         case find isFkConstraint statements of
             Just (AddConstraint { constraint }) -> Just constraint
-            Nothing -> Nothing
+            _ -> Nothing
     where
         isFkConstraint (AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName }}) = tableName == name && columnName == column.name
         isFkConstraint _ = False
@@ -621,6 +625,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
                     )
                 |> length
                 |> \count -> count == 1
+compileEnumDataDefinitions _ = ""
 
 compileToRowValues :: [Text] -> Text
 compileToRowValues bindingValues | length bindingValues == 1 = "Only (" <> (unsafeHead bindingValues) <> ")"
@@ -788,6 +793,7 @@ instance FromRow #{modelName} where
                 refColumn :: Column
                 refColumn = refTable
                         |> \case StatementCreateTable CreateTable { columns } -> columns
+                                 _ -> error "refColumn: expected StatementCreateTable"
                         |> find (\col -> col.name == refFieldName)
                         |> \case
                             Just refColumn -> refColumn
