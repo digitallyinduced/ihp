@@ -60,6 +60,7 @@ common shared-properties
             , vector
             , stm
             , unordered-containers
+            , vault
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -121,6 +122,7 @@ library
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Pool
         , IHP.DataSync.Role
     other-modules:
         Paths_ihp_datasync

@@ -27,18 +27,7 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import qualified Hasql.Pool
-import qualified Hasql.Pool.Config as Hasql.Pool.Config
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
-
-
-withHasqlPool :: (?modelContext :: ModelContext) => (Hasql.Pool.Pool -> IO a) -> IO a
-withHasqlPool action = do
-    let hasqlPoolConfig = Hasql.Pool.Config.settings
-            [ Hasql.Pool.Config.size 1
-            , Hasql.Pool.Config.staticConnectionSettings [HasqlSetting.connection (HasqlConnection.string (cs ?modelContext.databaseUrl))]
-            ]
-    Exception.bracket (Hasql.Pool.acquire hasqlPoolConfig) Hasql.Pool.release action
+import IHP.DataSync.Pool (requestHasqlPool)
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -46,7 +35,8 @@ instance (
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Controller ApiController where
-    action CreateRecordAction { table } = withHasqlPool \hasqlPool -> do
+    action CreateRecordAction { table } = do
+        let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
         let payload = requestBodyJSON
@@ -109,7 +99,8 @@ instance (
 
             _ -> error "Expected JSON object or array"
 
-    action UpdateRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+    action UpdateRecordAction { table, id } = do
+        let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
         let payload = requestBodyJSON
@@ -137,7 +128,8 @@ instance (
         renderJson (head result)
 
     -- DELETE /api/:table/:id
-    action DeleteRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+    action DeleteRecordAction { table, id } = do
+        let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
         sqlExecWithRLS hasqlPool (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
@@ -145,7 +137,8 @@ instance (
         renderJson True
 
     -- GET /api/:table/:id
-    action ShowRecordAction { table, id } = withHasqlPool \hasqlPool -> do
+    action ShowRecordAction { table, id } = do
+        let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
         result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
@@ -155,7 +148,8 @@ instance (
     -- GET /api/:table
     -- GET /api/:table?orderBy=createdAt
     -- GET /api/:table?fields=id,title
-    action ListRecordsAction { table } = withHasqlPool \hasqlPool -> do
+    action ListRecordsAction { table } = do
+        let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
         let theSnippet = compileQuery (buildDynamicQueryFromRequest table)
