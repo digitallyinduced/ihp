@@ -186,9 +186,6 @@ aesonToDynamicValue (Number n) =
 aesonToDynamicValue (Array arr) = ArrayValue (map aesonToDynamicValue (Vector.toList arr))
 aesonToDynamicValue (Object obj) = TextValue (cs (encode (Object obj))) -- Fallback for nested objects (e.g. JSONB columns)
 
--- | Decode a JSON value without parsing it
-decodeUndecodedJSON :: Decoders.Value UndecodedJSON
-decodeUndecodedJSON = Decoders.custom \_ bytes -> Right (UndecodedJSON bytes)
 
 
 -- | Returns a list of all id's in a result
@@ -201,28 +198,6 @@ recordIds result = result
             UUIDValue uuid -> Just uuid
             otherwise      -> Nothing
 
-
-
--- Here you can add functions which are available in all your controllers
-
--- | Transforms the keys of a JSON object from field name to column name
---
--- >>> transformColumnNamesToFieldNames [json|{"isCompleted": true}|]
--- [json|{"is_completed": true}|]
-transformColumnNamesToFieldNames :: Value -> Value
-transformColumnNamesToFieldNames (Object hashMap) =
-        hashMap
-        |> Aeson.toList
-        |> map (\(key, value) -> (applyKey columnNameToFieldName key, value))
-        |> Aeson.fromList
-        |> Object
-    where
-        applyKey function key =
-            key
-                |> Aeson.toText
-                |> function
-                |> Aeson.fromText
-transformColumnNamesToFieldNames otherwise = otherwise
 
 
 -- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
