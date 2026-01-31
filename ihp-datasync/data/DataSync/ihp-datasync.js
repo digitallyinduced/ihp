@@ -680,7 +680,10 @@ function undoCreateOptimisticRecord(table, record) {
 
 function markCreateOptimisticRecordFinished(record) {
     const dataSyncController = DataSyncController.getInstance();
-    dataSyncController.optimisticCreatedPendingRecordIds.splice(dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id), 1);
+    const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id);
+    if (index !== -1) {
+        dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
+    }
 }
 
 function updateRecordOptimistic(table, id, patch) {
