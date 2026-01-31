@@ -7,6 +7,8 @@ module IHP.DataSync.ChangeNotifications
 , installTableChangeTriggers
 , makeCachedInstallTableChangeTriggers
 , retrieveChanges
+, installTableChangeTriggersSession
+, retrieveChangesSession
 ) where
 
 import IHP.Prelude
@@ -19,10 +21,12 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import IHP.DataSync.Hasql (runHasql, runStatement)
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -127,9 +131,29 @@ createNotificationFunction table = Snippet.sql [i|
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
 
+-- Statements
+
+retrieveChangesStatement :: Statement.Statement UUID ByteString
+retrieveChangesStatement = Statement.Statement
+    "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
+    (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+    True
+
+-- Sessions
+
+installTableChangeTriggersSession :: RLS.TableWithRLS -> Session.Session ()
+installTableChangeTriggersSession table =
+    DynSession.dynamicallyParameterizedStatement (createNotificationFunction table) Decoders.noResult True
+
+retrieveChangesSession :: UUID -> Session.Session ByteString
+retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
+
+-- IO API (thin wrappers)
+
 installTableChangeTriggers :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO ()
 installTableChangeTriggers pool tableNameRLS = do
-    runHasql pool (createNotificationFunction tableNameRLS) Decoders.noResult
+    runSession pool (installTableChangeTriggersSession tableNameRLS)
     pure ()
 
 makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
@@ -182,17 +206,10 @@ instance FromJSON Change where
 retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
 retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
-    payload <- runStatement pool largePgNotificationId retrieveChangesStatement
+    payload <- runSession pool (retrieveChangesSession largePgNotificationId)
     case eitherDecodeStrict' payload of
         Left e -> fail e
         Right changes -> pure changes
-
-retrieveChangesStatement :: Statement.Statement UUID ByteString
-retrieveChangesStatement = Statement.Statement
-    "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
-    (Encoders.param (Encoders.nonNullable Encoders.uuid))
-    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
-    True
 
 $(deriveToJSON defaultOptions 'Change)
 $(deriveToJSON defaultOptions 'InlineChangeSet)

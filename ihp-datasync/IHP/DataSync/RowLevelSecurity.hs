@@ -7,6 +7,11 @@ module IHP.DataSync.RowLevelSecurity
 , sqlExecWithRLS
 , sqlQueryScalarWithRLS
 , wrapStatementWithRLS
+, hasRLSEnabledSession
+, ensureRLSEnabledSession
+, sqlQueryWithRLSSession
+, sqlExecWithRLSSession
+, sqlQueryScalarWithRLSSession
 )
 where
 
@@ -14,12 +19,66 @@ import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
+import qualified Hasql.Session as Session
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
-import IHP.DataSync.Hasql (runHasql, runStatement)
+import IHP.DataSync.Hasql (runSession)
+
+-- Statements
+
+hasRLSEnabledStatement :: Statement.Statement Text Bool
+hasRLSEnabledStatement = Statement.Statement
+    "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+    True
+
+-- Sessions
+
+hasRLSEnabledSession :: Text -> Session.Session Bool
+hasRLSEnabledSession table = Session.statement table hasRLSEnabledStatement
+
+ensureRLSEnabledSession :: Text -> Session.Session TableWithRLS
+ensureRLSEnabledSession table = do
+    rlsEnabled <- hasRLSEnabledSession table
+    unless rlsEnabled (error "Row level security is required for accessing this table")
+    pure (TableWithRLS table)
+
+sqlQueryWithRLSSession ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Snippet -> Decoders.Result [result] -> Session.Session [result]
+sqlQueryWithRLSSession snippet decoder = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) decoder True
+{-# INLINE sqlQueryWithRLSSession #-}
+
+sqlExecWithRLSSession ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Snippet -> Session.Session ()
+sqlExecWithRLSSession snippet = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) Decoders.noResult True
+{-# INLINE sqlExecWithRLSSession #-}
+
+sqlQueryScalarWithRLSSession ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Snippet -> Decoders.Result result -> Session.Session result
+sqlQueryScalarWithRLSSession snippet decoder = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) decoder True
+{-# INLINE sqlQueryScalarWithRLSSession #-}
+
+-- IO API (thin wrappers)
 
 sqlQueryWithRLS ::
     ( ?context :: ControllerContext
@@ -28,9 +87,7 @@ sqlQueryWithRLS ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
-sqlQueryWithRLS pool snippet decoder = runHasql pool queryWithRLS decoder
-    where
-        queryWithRLS = wrapStatementWithRLS snippet
+sqlQueryWithRLS pool snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 {-# INLINE sqlQueryWithRLS #-}
 
 sqlExecWithRLS ::
@@ -40,9 +97,7 @@ sqlExecWithRLS ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> Snippet -> IO ()
-sqlExecWithRLS pool snippet = runHasql pool queryWithRLS Decoders.noResult
-    where
-        queryWithRLS = wrapStatementWithRLS snippet
+sqlExecWithRLS pool snippet = runSession pool (sqlExecWithRLSSession snippet)
 {-# INLINE sqlExecWithRLS #-}
 
 sqlQueryScalarWithRLS ::
@@ -52,9 +107,7 @@ sqlQueryScalarWithRLS ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result result -> IO result
-sqlQueryScalarWithRLS pool snippet decoder = runHasql pool queryWithRLS decoder
-    where
-        queryWithRLS = wrapStatementWithRLS snippet
+sqlQueryScalarWithRLS pool snippet decoder = runSession pool (sqlQueryScalarWithRLSSession snippet decoder)
 {-# INLINE sqlQueryScalarWithRLS #-}
 
 wrapStatementWithRLS ::
@@ -81,10 +134,7 @@ wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenti
 
 -- | Returns a proof that RLS is enabled for a table
 ensureRLSEnabled :: Hasql.Pool.Pool -> Text -> IO TableWithRLS
-ensureRLSEnabled pool table = do
-    rlsEnabled <- hasRLSEnabled pool table
-    unless rlsEnabled (error "Row level security is required for accessing this table")
-    pure (TableWithRLS table)
+ensureRLSEnabled pool table = runSession pool (ensureRLSEnabledSession table)
 
 -- | Returns a factory for 'ensureRLSEnabled' that memoizes when a table has RLS enabled.
 --
@@ -125,14 +175,7 @@ makeCachedEnsureRLSEnabled pool = do
 -- >>> hasRLSEnabled pool "my_table"
 -- True
 hasRLSEnabled :: Hasql.Pool.Pool -> Text -> IO Bool
-hasRLSEnabled pool table = runStatement pool table hasRLSEnabledStatement
-
-hasRLSEnabledStatement :: Statement.Statement Text Bool
-hasRLSEnabledStatement = Statement.Statement
-    "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
-    (Encoders.param (Encoders.nonNullable Encoders.text))
-    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-    True
+hasRLSEnabled pool table = runSession pool (hasRLSEnabledSession table)
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --

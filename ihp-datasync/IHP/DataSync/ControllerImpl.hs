@@ -12,7 +12,8 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Pool
-import IHP.DataSync.Hasql (runHasqlOnConnection, withPoolConnection)
+import qualified Hasql.DynamicStatements.Session as DynSession
+import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withPoolConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -407,7 +408,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 withPoolConnection hasqlPool \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
-                    runHasqlOnConnection connection (wrapStatementWithRLS "BEGIN") Decoders.noResult
+                    runSessionOnConnection connection (DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS "BEGIN") Decoders.noResult True)
 
                     let transaction = DataSyncTransaction
                             { id = transactionId
@@ -494,9 +495,8 @@ sqlQueryWithRLSAndTransactionId ::
     ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> Decoders.Result [result] -> IO [result]
 sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
-    let queryWithRLS = wrapStatementWithRLS snippet
-    runHasqlOnConnection connection queryWithRLS decoder
-sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = sqlQueryWithRLS pool snippet decoder
+    runSessionOnConnection connection (sqlQueryWithRLSSession snippet decoder)
+sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 
 
 sqlExecWithRLSAndTransactionId ::
@@ -509,9 +509,8 @@ sqlExecWithRLSAndTransactionId ::
     ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> IO ()
 sqlExecWithRLSAndTransactionId _pool (Just transactionId) snippet = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
-    let queryWithRLS = wrapStatementWithRLS snippet
-    runHasqlOnConnection connection queryWithRLS Decoders.noResult
-sqlExecWithRLSAndTransactionId pool Nothing snippet = sqlExecWithRLS pool snippet
+    runSessionOnConnection connection (sqlExecWithRLSSession snippet)
+sqlExecWithRLSAndTransactionId pool Nothing snippet = runSession pool (sqlExecWithRLSSession snippet)
 
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where

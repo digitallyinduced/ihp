@@ -1,7 +1,6 @@
 module IHP.DataSync.Hasql
-( runHasql
-, runHasqlOnConnection
-, runStatement
+( runSession
+, runSessionOnConnection
 , withPoolConnection
 ) where
 
@@ -9,48 +8,27 @@ import IHP.Prelude
 import qualified Control.Exception.Safe as Exception
 import qualified Hasql.Pool
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
-import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Session as Session
-import qualified Hasql.Statement as Statement
 import Control.Monad.Reader (ask)
 import Control.Monad.IO.Class (liftIO)
 
--- | Run a hasql snippet using a connection from the given pool.
---
--- Throws 'Hasql.Pool.UsageError' on failure.
-runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
-runHasql pool snippet decoder = do
-    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
+-- | Run a composed Session against the pool. Throws 'Hasql.Pool.UsageError' on failure.
+runSession :: Hasql.Pool.Pool -> Session.Session a -> IO a
+runSession pool session = do
     result <- Hasql.Pool.use pool session
     case result of
         Left err -> Exception.throwIO err
         Right val -> pure val
-{-# INLINE runHasql #-}
+{-# INLINE runSession #-}
 
--- | Run a snippet on an existing hasql connection. Used for transaction-scoped queries.
---
--- Throws 'Hasql.Pool.UsageError' on failure.
-runHasqlOnConnection :: Hasql.Connection -> Snippet -> Decoders.Result a -> IO a
-runHasqlOnConnection conn snippet decoder = do
-    result <- Session.run (DynSession.dynamicallyParameterizedStatement snippet decoder True) conn
+-- | Run a composed Session on a bare connection. Throws 'Session.QueryError' on failure.
+runSessionOnConnection :: Hasql.Connection -> Session.Session a -> IO a
+runSessionOnConnection conn session = do
+    result <- Session.run session conn
     case result of
         Left err -> Exception.throwIO err
         Right val -> pure val
-{-# INLINE runHasqlOnConnection #-}
-
--- | Run a typed 'Statement.Statement' using a connection from the given pool.
---
--- Throws 'Hasql.Pool.UsageError' on failure.
-runStatement :: Hasql.Pool.Pool -> params -> Statement.Statement params result -> IO result
-runStatement pool params stmt = do
-    result <- Hasql.Pool.use pool (Session.statement params stmt)
-    case result of
-        Left err -> Exception.throwIO err
-        Right val -> pure val
-{-# INLINE runStatement #-}
+{-# INLINE runSessionOnConnection #-}
 
 -- | Borrow a connection from the pool for the duration of an IO action.
 --

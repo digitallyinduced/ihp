@@ -21,10 +21,10 @@ import qualified Hasql.Pool
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import IHP.DataSync.Hasql (runStatement)
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession)
 
-doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
-doesRoleExists pool name = runStatement pool name doesRoleExistsStatement
+-- Statements
 
 doesRoleExistsStatement :: Statement.Statement Text Bool
 doesRoleExistsStatement = Statement.Statement
@@ -33,24 +33,27 @@ doesRoleExistsStatement = Statement.Statement
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
     True
 
-ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
-ensureAuthenticatedRoleExists pool = do
-    roleExists <- doesRoleExists pool authenticatedRole
-    unless roleExists (createAuthenticatedRole pool authenticatedRole)
-    grantPermissions pool authenticatedRole
+-- Sessions
 
-createAuthenticatedRole :: Hasql.Pool.Pool -> Text -> IO ()
-createAuthenticatedRole pool role = do
+ensureAuthenticatedRoleSession :: (?context :: context, ConfigProvider context) => Session.Session ()
+ensureAuthenticatedRoleSession = do
+    let role = authenticatedRole
+    roleExists <- Session.statement role doesRoleExistsStatement
+    unless roleExists (createAuthenticatedRoleSession role)
+    grantPermissionsSession role
+
+createAuthenticatedRoleSession :: Text -> Session.Session ()
+createAuthenticatedRoleSession role = do
     -- The role is only going to be used from 'SET ROLE ..' calls
     -- Therefore we can disallow direct connection with NOLOGIN
-    runStatement pool () (Statement.Statement
+    Session.statement () (Statement.Statement
         ("CREATE ROLE " <> quoteIdentifier role <> " NOLOGIN")
         Encoders.noParams
         Decoders.noResult
         False)
 
-grantPermissions :: Hasql.Pool.Pool -> Text -> IO ()
-grantPermissions pool role = do
+grantPermissionsSession :: Text -> Session.Session ()
+grantPermissionsSession role = do
     -- From SO https://stackoverflow.com/a/17355059/14144232
     --
     -- GRANTs on different objects are separate. GRANTing on a database doesn't GRANT rights to the schema within. Similiarly, GRANTing on a schema doesn't grant rights on the tables within.
@@ -65,7 +68,7 @@ grantPermissions pool role = do
     --         No:  Reject access.
     --         Yes: Check column privileges.
 
-    let exec sql = runStatement pool () (Statement.Statement sql Encoders.noParams Decoders.noResult False)
+    let exec sql = Session.statement () (Statement.Statement sql Encoders.noParams Decoders.noResult False)
 
     -- The role should have access to all existing tables in our schema
     exec ("GRANT USAGE ON SCHEMA public TO " <> quoteIdentifier role)
@@ -75,6 +78,14 @@ grantPermissions pool role = do
 
     -- Also grant access to all tables created in the future
     exec ("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO " <> quoteIdentifier role)
+
+-- IO API (thin wrappers)
+
+doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
+doesRoleExists pool name = runSession pool (Session.statement name doesRoleExistsStatement)
+
+ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
+ensureAuthenticatedRoleExists pool = runSession pool ensureAuthenticatedRoleSession
 
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
 authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
