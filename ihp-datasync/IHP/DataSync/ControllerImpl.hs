@@ -10,13 +10,13 @@ import qualified Data.Aeson.Key as Aeson
 import Data.Aeson.TH
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Pool
 import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Session as Hasql
+import IHP.DataSync.Hasql (runHasqlOnConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -428,7 +428,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 Exception.bracket (pure conn) releaseConnection \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
-                    runSnippetOnConnection connection (wrapStatementWithRLS "BEGIN") Decoders.noResult
+                    runHasqlOnConnection connection (wrapStatementWithRLS "BEGIN") Decoders.noResult
 
                     let transaction = DataSyncTransaction
                             { id = transactionId
@@ -516,7 +516,7 @@ sqlQueryWithRLSAndTransactionId ::
 sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
     let queryWithRLS = wrapStatementWithRLS snippet
-    runSnippetOnConnection connection queryWithRLS decoder
+    runHasqlOnConnection connection queryWithRLS decoder
 sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = sqlQueryWithRLS pool snippet decoder
 
 
@@ -531,17 +531,9 @@ sqlExecWithRLSAndTransactionId ::
 sqlExecWithRLSAndTransactionId _pool (Just transactionId) snippet = do
     DataSyncTransaction { connection } <- findTransactionById transactionId
     let queryWithRLS = wrapStatementWithRLS snippet
-    runSnippetOnConnection connection queryWithRLS Decoders.noResult
+    runHasqlOnConnection connection queryWithRLS Decoders.noResult
 sqlExecWithRLSAndTransactionId pool Nothing snippet = sqlExecWithRLS pool snippet
 
--- | Run a snippet on an existing hasql connection. Used for transaction-scoped queries.
-runSnippetOnConnection :: Hasql.Connection -> Snippet -> Decoders.Result a -> IO a
-runSnippetOnConnection conn snippet decoder = do
-    result <- Hasql.run (DynSession.dynamicallyParameterizedStatement snippet decoder True) conn
-    case result of
-        Left err -> Exception.throwIO (userError (cs $ tshow err))
-        Right val -> pure val
-{-# INLINE runSnippetOnConnection #-}
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }

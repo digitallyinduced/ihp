@@ -10,9 +10,7 @@ module IHP.DataSync.ChangeNotifications
 ) where
 
 import IHP.Prelude
-import qualified Control.Exception.Safe as Exception
 import qualified Hasql.Pool
-import qualified Hasql.DynamicStatements.Session as DynSession
 import Data.String.Interpolate.IsString (i)
 import Data.Aeson
 import Data.Aeson.TH
@@ -22,16 +20,10 @@ import qualified Data.UUID as UUID
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
-
--- | Run a hasql snippet using a connection from the given pool.
-runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
-runHasql pool snippet decoder = do
-    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
-    result <- Hasql.Pool.use pool session
-    case result of
-        Left err -> Exception.throwIO (userError (cs $ tshow err))
-        Right val -> pure val
-{-# INLINE runHasql #-}
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runHasql)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -191,10 +183,18 @@ instance FromJSON Change where
 retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
 retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
-    payload :: ByteString <- runHasql pool ("SELECT payload FROM large_pg_notifications WHERE id = " <> Snippet.param largePgNotificationId <> " LIMIT 1") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+    let stmt = Statement.Statement
+            "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
+            (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+            True
+    result <- Hasql.Pool.use pool (Session.statement largePgNotificationId stmt)
+    payload :: ByteString <- case result of
+        Left err -> throwIO err
+        Right val -> pure val
     case eitherDecodeStrict' payload of
         Left e -> fail e
-        Right result -> pure result
+        Right changes -> pure changes
 
 $(deriveToJSON defaultOptions 'Change)
 $(deriveToJSON defaultOptions 'InlineChangeSet)

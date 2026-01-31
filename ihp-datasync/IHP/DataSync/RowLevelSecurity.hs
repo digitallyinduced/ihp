@@ -11,24 +11,16 @@ module IHP.DataSync.RowLevelSecurity
 where
 
 import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
-import qualified Control.Exception.Safe as Exception
 import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Session as Session
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
-
--- | Run a hasql snippet using a connection from the given pool.
-runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
-runHasql pool snippet decoder = do
-    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
-    result <- Hasql.Pool.use pool session
-    case result of
-        Left err -> Exception.throwIO (userError (cs $ tshow err))
-        Right val -> pure val
-{-# INLINE runHasql #-}
+import IHP.DataSync.Hasql (runHasql)
 
 sqlQueryWithRLS ::
     ( ?context :: ControllerContext
@@ -134,7 +126,16 @@ makeCachedEnsureRLSEnabled pool = do
 -- >>> hasRLSEnabled pool "my_table"
 -- True
 hasRLSEnabled :: Hasql.Pool.Pool -> Text -> IO Bool
-hasRLSEnabled pool table = runHasql pool ("SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident(" <> Snippet.param table <> ")::regclass") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+hasRLSEnabled pool table = do
+    let stmt = Statement.Statement
+            "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
+            (Encoders.param (Encoders.nonNullable Encoders.text))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+            True
+    result <- Hasql.Pool.use pool (Session.statement table stmt)
+    case result of
+        Left err -> throwIO err
+        Right val -> pure val
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --

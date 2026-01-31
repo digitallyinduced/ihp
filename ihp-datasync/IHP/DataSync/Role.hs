@@ -17,25 +17,26 @@ module IHP.DataSync.Role where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import qualified Control.Exception.Safe as Exception
 import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
-
--- | Run a hasql snippet using a connection from the given pool.
-runHasql :: Hasql.Pool.Pool -> Snippet -> Decoders.Result a -> IO a
-runHasql pool snippet decoder = do
-    let session = DynSession.dynamicallyParameterizedStatement snippet decoder True
-    result <- Hasql.Pool.use pool session
-    case result of
-        Left err -> Exception.throwIO (userError (cs $ tshow err))
-        Right val -> pure val
-{-# INLINE runHasql #-}
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runHasql)
 
 doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
-doesRoleExists pool name = runHasql pool ("SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = " <> Snippet.param name <> " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+doesRoleExists pool name = do
+    let stmt = Statement.Statement
+            "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1)"
+            (Encoders.param (Encoders.nonNullable Encoders.text))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+            True
+    result <- Hasql.Pool.use pool (Session.statement name stmt)
+    case result of
+        Left err -> throwIO err
+        Right val -> pure val
 
 ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
 ensureAuthenticatedRoleExists pool = do

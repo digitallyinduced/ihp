@@ -124,6 +124,7 @@ library
         , IHP.DataSync.REST.Controller
         , IHP.DataSync.Pool
         , IHP.DataSync.Role
+        , IHP.DataSync.Hasql
     other-modules:
         Paths_ihp_datasync
     autogen-modules:
