@@ -4,6 +4,7 @@ module IHP.LoginSupport.Middleware
     ( authMiddleware
     , adminAuthMiddleware
     , authMiddlewareFor
+    , authMiddlewareWith
     , currentUserVaultKey
     , currentAdminVaultKey
     , lookupAuthVault
@@ -84,12 +85,24 @@ authMiddlewareFor :: forall user normalizedModel.
     , KnownSymbol (GetModelName user)
     , HasNewSessionUrl user
     ) => Vault.Key (Maybe normalizedModel) -> Wai.Middleware
-authMiddlewareFor key app req respond = do
-    let ?request = req
-    let ?modelContext = req.modelContext
-    user <- getSession @(Id user) (sessionKey @user)
+authMiddlewareFor key = authMiddlewareWith key fetchUser
+  where
+    fetchUser req = do
+        let ?request = req
+        let ?modelContext = req.modelContext
+        getSession @(Id user) (sessionKey @user)
             >>= fetchOneOrNothing
+{-# INLINE authMiddlewareFor #-}
+
+-- | Low-level building block: middleware that runs a fetch function and stores
+-- the result in the request vault under the given key.
+--
+-- This decouples the vault insertion from the database lookup, making it
+-- useful for testing and custom authentication schemes.
+authMiddlewareWith :: Vault.Key (Maybe user) -> (Wai.Request -> IO (Maybe user)) -> Wai.Middleware
+authMiddlewareWith key fetchUser app req respond = do
+    user <- fetchUser req
     let req' = req { Wai.vault = Vault.insert key user (Wai.vault req) }
     app req' respond
-{-# INLINE authMiddlewareFor #-}
+{-# INLINE authMiddlewareWith #-}
 
