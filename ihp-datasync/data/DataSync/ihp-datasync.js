@@ -212,6 +212,7 @@ class DataSyncController {
                 }
             } catch (error) {
                 console.error('DataSync reconnection failed:', error);
+                this.retryToReconnect();
             }
         }, 1000);
     }
