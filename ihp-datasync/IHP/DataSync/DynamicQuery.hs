@@ -24,6 +24,10 @@ import qualified Data.Aeson.Key as Aeson
 import qualified Data.Scientific as Scientific
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
+import qualified Data.List as List
+import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as HashMap
+import IHP.Postgres.Point (Point(..))
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -194,7 +198,11 @@ decodeUndecodedJSON = Decoders.custom \_ bytes -> Right (UndecodedJSON bytes)
 instance DefaultParamEncoder DynamicValue where
     defaultParam = Encoders.nonNullable dynamicValueEncoder
 
--- | Encoder for DynamicValue that converts to text representation
+-- | Encoder for DynamicValue that converts to text representation.
+--
+-- Used as a fallback when no column type information is available.
+-- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
+-- which sends correctly typed parameters.
 dynamicValueEncoder :: Encoders.Value DynamicValue
 dynamicValueEncoder = contramap dynamicValueToText Encoders.text
     where
@@ -243,6 +251,24 @@ transformColumnNamesToFieldNames (Object hashMap) =
                 |> Aeson.fromText
 transformColumnNamesToFieldNames otherwise = otherwise
 
+
+-- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
+type ColumnTypeMap = HashMap.HashMap Text Text
+
+-- | Encode a 'DynamicValue' as a Snippet parameter using the default text encoder.
+--
+-- Used as a fallback when no column type information is available.
+-- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
+-- for correctly typed parameters.
+dynamicValueParam :: DynamicValue -> Snippet
+dynamicValueParam (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
+dynamicValueParam (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql "]"
+dynamicValueParam Null = Snippet.sql "NULL"
+dynamicValueParam value = Snippet.param value
+
+-- | Quote a SQL identifier (table name, column name) to prevent SQL injection
+quoteIdentifier :: Text -> Snippet
+quoteIdentifier name = Snippet.sql (cs ("\"" <> Text.replace "\"" "\"\"" name <> "\""))
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)

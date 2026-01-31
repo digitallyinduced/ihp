@@ -22,8 +22,8 @@ import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.DataSync.REST.Controller (aesonValueToSnippet)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
@@ -55,7 +55,8 @@ runDataSyncController ::
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
-    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
+    columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
     sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
@@ -115,15 +116,16 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
-buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeMap) -> (DataSyncMessage -> IO ())
+buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = handleMessage
     where
             pgListener = ?context.request.pgListener
             handleMessage :: DataSyncMessage -> IO ()
             handleMessage DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
 
-                let theSnippet = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let theSnippet = compileQueryTyped (renamer query.table) columnTypes query
 
                 rawResult :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery theSnippet) dynamicRowDecoder
                 let result = map (map (renameField (renamer query.table))) rawResult
@@ -143,7 +145,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 close <- MVar.newEmptyMVar
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
-                let theSnippet = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let theSnippet = compileQueryTyped (renamer query.table) columnTypes query
 
                 rawResult :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
                 let result = map (map (renameField (renamer query.table))) rawResult
@@ -232,7 +235,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 close <- MVar.newEmptyMVar
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
-                let theSnippet = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let theSnippet = compileQueryTyped (renamer query.table) columnTypes query
 
                 let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> theSnippet <> Snippet.sql ") AS _inner"
                 let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
@@ -273,16 +277,17 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
-                let columns = record
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
+                columnTypes <- columnTypeLookup table
 
-                let values = record
-                        |> HashMap.elems
-                        |> map aesonValueToSnippet
+                let pairs = record
+                        |> HashMap.toList
+                        |> map (\(fieldName, val) ->
+                            let col = (renamer table).fieldToColumn fieldName
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                        )
 
-                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") values
+                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map (quoteIdentifier . fst) pairs)
+                let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map snd pairs)
 
                 let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
 
@@ -301,18 +306,21 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
+                columnTypes <- columnTypeLookup table
+
                 case head records of
                     Nothing -> sendJSON DataSyncError { requestId, errorMessage = "At least one record is required" }
                     Just firstRecord -> do
-                        let columns = firstRecord
-                                |> HashMap.keys
-                                |> map (renamer table).fieldToColumn
+                        let fieldNames = HashMap.keys firstRecord
+                        let columns = map (renamer table).fieldToColumn fieldNames
 
                         let values = records
                                 |> map (\object ->
-                                        object
-                                        |> HashMap.elems
-                                        |> map aesonValueToSnippet
+                                        zip fieldNames columns
+                                        |> map (\(fieldName, col) ->
+                                            let val = fromMaybe Aeson.Null (HashMap.lookup fieldName object)
+                                            in typedAesonValueToSnippet (HashMap.lookup col columnTypes) val
+                                        )
                                     )
 
                         let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
@@ -331,15 +339,14 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                let columns = patch
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
+                columnTypes <- columnTypeLookup table
 
-                let values = patch
-                        |> HashMap.elems
-                        |> map aesonValueToSnippet
-
-                let keyValues = zip columns values
+                let keyValues = patch
+                        |> HashMap.toList
+                        |> map (\(fieldName, val) ->
+                            let col = (renamer table).fieldToColumn fieldName
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                        )
 
                 let setCalls = keyValues
                         |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
@@ -361,15 +368,14 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                let columns = patch
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
+                columnTypes <- columnTypeLookup table
 
-                let values = patch
-                        |> HashMap.elems
-                        |> map aesonValueToSnippet
-
-                let keyValues = zip columns values
+                let keyValues = patch
+                        |> HashMap.toList
+                        |> map (\(fieldName, val) ->
+                            let col = (renamer table).fieldToColumn fieldName
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                        )
 
                 let setCalls = keyValues
                         |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)

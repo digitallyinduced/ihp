@@ -7,13 +7,13 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
+import IHP.DataSync.TypedEncoder (typedDynamicValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.List as List
-import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as HashMap
 import Data.Int (Int32)
-import IHP.Postgres.Point (Point(..))
 
 data Renamer = Renamer
     { fieldToColumn :: Text -> Text
@@ -24,7 +24,11 @@ compileQuery :: DynamicSQLQuery -> Snippet
 compileQuery = compileQueryWithRenamer camelCaseRenamer
 
 compileQueryWithRenamer :: Renamer -> DynamicSQLQuery -> Snippet
-compileQueryWithRenamer renamer query = compileQueryMapped (mapColumnNames renamer.fieldToColumn query)
+compileQueryWithRenamer renamer = compileQueryTyped renamer HashMap.empty
+
+-- | Like 'compileQueryWithRenamer', but uses typed parameter encoding when column types are known.
+compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compileQueryTyped renamer columnTypes query = compileQueryMappedTyped columnTypes (mapColumnNames renamer.fieldToColumn query)
 
 -- | Default renamer used by DataSync.
 --
@@ -51,7 +55,10 @@ renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
 
 compileQueryMapped :: DynamicSQLQuery -> Snippet
-compileQueryMapped DynamicSQLQuery { .. } =
+compileQueryMapped = compileQueryMappedTyped HashMap.empty
+
+compileQueryMappedTyped :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
     Snippet.sql "SELECT"
     <> distinctOnSnippet
     <> compileSelectedColumns selectedColumns
@@ -73,7 +80,7 @@ compileQueryMapped DynamicSQLQuery { .. } =
                     <> mconcat (List.intersperse (Snippet.sql ", ") (map compileOrderByClauseSnippet orderByClauses))
 
         whereSnippet = case whereCondition of
-            Just condition -> Snippet.sql " WHERE " <> compileCondition condition
+            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnTypes condition
             Nothing -> mempty
 
         limitSnippet = case limit of
@@ -150,6 +157,51 @@ compileCondition (CallExpression { functionCall = ToTSQuery { text } }) = Snippe
 compileCondition (ListExpression { values }) =
     Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql ")"
 
+-- | Like 'compileCondition', but uses typed parameter encoding when column types are known.
+--
+-- When a condition compares a column to a literal value, the column's type is looked up
+-- in the 'ColumnTypeMap' and the value is encoded with the matching typed encoder.
+-- This avoids type mismatches like @operator does not exist: uuid = text@ in the
+-- extended query protocol.
+compileConditionTyped :: ColumnTypeMap -> ConditionExpression -> Snippet
+compileConditionTyped _ (ColumnExpression column) = quoteIdentifier column
+compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
+compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Null))
+compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
+    case partition ((/=) Null) values of
+        ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
+        (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
+-- When comparing a column to a literal or list, look up the column's type for typed encoding
+compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (LiteralExpression literal)) =
+    Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
+    where
+        colType = HashMap.lookup col types
+        rightOperand = case literal of
+            Null -> Snippet.sql "NULL"
+            _ -> Snippet.sql "(" <> typedDynamicValueParam colType literal <> Snippet.sql ")"
+compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (ListExpression { values })) =
+    Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " "
+    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam colType) values)) <> Snippet.sql ")"
+    where
+        colType = HashMap.lookup col types
+compileConditionTyped types (InfixOperatorExpression a operator b) =
+    Snippet.sql "(" <> compileConditionTyped types a <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
+    where
+        rightOperand = if rightParentheses
+                then Snippet.sql "(" <> compileConditionTyped types b <> Snippet.sql ")"
+                else compileConditionTyped types b
+
+        rightParentheses :: Bool
+        rightParentheses =
+            case b of
+                LiteralExpression Null -> False
+                ListExpression {} -> False
+                _ -> True
+compileConditionTyped _types (LiteralExpression literal) = dynamicValueParam literal
+compileConditionTyped _ (CallExpression { functionCall = ToTSQuery { text } }) = Snippet.sql "to_tsquery('english', " <> Snippet.param text <> Snippet.sql ")"
+compileConditionTyped _types (ListExpression { values }) =
+    Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql ")"
+
 compileOperator :: ConditionOperator -> Snippet
 compileOperator OpEqual = Snippet.sql "="
 compileOperator OpGreaterThan = Snippet.sql ">"
@@ -164,19 +216,3 @@ compileOperator OpIsNot = Snippet.sql "IS NOT"
 compileOperator OpTSMatch = Snippet.sql "@@"
 compileOperator OpIn = Snippet.sql "IN"
 
--- | Encode a 'DynamicValue' as a Snippet parameter
-dynamicValueParam :: DynamicValue -> Snippet
-dynamicValueParam (IntValue int) = Snippet.param (fromIntegral int :: Int32)
-dynamicValueParam (DoubleValue double) = Snippet.param double
-dynamicValueParam (TextValue text) = Snippet.param text
-dynamicValueParam (BoolValue bool) = Snippet.param bool
-dynamicValueParam (UUIDValue uuid) = Snippet.param uuid
-dynamicValueParam (DateTimeValue utcTime) = Snippet.param utcTime
-dynamicValueParam (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
-dynamicValueParam (IntervalValue interval) = Snippet.param (tshow interval)
-dynamicValueParam (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql "]"
-dynamicValueParam Null = Snippet.sql "NULL"
-
--- | Quote a SQL identifier (table name, column name) to prevent SQL injection
-quoteIdentifier :: Text -> Snippet
-quoteIdentifier name = Snippet.sql (cs ("\"" <> Text.replace "\"" "\"\"" name <> "\""))

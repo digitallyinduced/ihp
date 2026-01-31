@@ -117,6 +117,7 @@ library
         , IHP.DataSync.RowLevelSecurity
         , IHP.DataSync.DynamicQuery
         , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.TypedEncoder
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.ControllerImpl

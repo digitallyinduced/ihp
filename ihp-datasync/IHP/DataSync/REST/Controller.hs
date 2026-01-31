@@ -12,11 +12,10 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import qualified Data.Scientific as Scientific
 import qualified Data.List as List
-import Data.Int (Int32)
-import IHP.Postgres.Point (Point(..))
 
 import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson.Encoding.Internal as Aeson
@@ -25,7 +24,6 @@ import qualified Data.Aeson.Key as Aeson
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
-import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import qualified Hasql.Pool
 import IHP.DataSync.Pool (requestHasqlPool)
 
@@ -39,17 +37,22 @@ instance (
         let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+
         let payload = requestBodyJSON
 
         case payload of
             Object hashMap -> do
-                let columns = hashMap
-                        |> Aeson.keys
-                        |> map (fieldNameToColumnName . Aeson.toText)
+                let pairs = hashMap
+                        |> Aeson.toList
+                        |> map (\(key, val) ->
+                            let col = fieldNameToColumnName (Aeson.toText key)
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                        )
 
-                let values = hashMap
-                        |> Aeson.elems
-                        |> map aesonValueToSnippet
+                let columns = map fst pairs
+                let values = map snd pairs
 
                 let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
                 let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") values
@@ -82,9 +85,12 @@ instance (
                                 Right hashMaps -> do
                                     let values = hashMaps
                                             |> map (\hashMap ->
-                                                    hashMap
-                                                    |> Aeson.elems
-                                                    |> map aesonValueToSnippet
+                                                    columns
+                                                    |> map (\col ->
+                                                        let fieldName = columnNameToFieldName col
+                                                            val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
+                                                        in typedAesonValueToSnippet (HashMap.lookup col columnTypes) val
+                                                    )
                                                 )
 
                                     let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
@@ -103,20 +109,20 @@ instance (
         let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+
         let payload = requestBodyJSON
                 |> \case
                     Object hashMap -> hashMap
                     _ -> error "Expected JSON object"
 
-        let columns = payload
-                |> Aeson.keys
-                |> map (fieldNameToColumnName . Aeson.toText)
-
-        let values = payload
-                |> Aeson.elems
-                |> map aesonValueToSnippet
-
-        let keyValues = zip columns values
+        let keyValues = payload
+                |> Aeson.toList
+                |> map (\(key, val) ->
+                    let col = fieldNameToColumnName (Aeson.toText key)
+                    in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                )
 
         let setCalls = keyValues
                 |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
@@ -152,7 +158,9 @@ instance (
         let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
-        let theSnippet = compileQuery (buildDynamicQueryFromRequest table)
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+        let theSnippet = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
         result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
 
         renderJson result
@@ -192,39 +200,6 @@ instance ParamReader OrderByClause where
 renderErrorJson :: (?context :: ControllerContext) => ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
-
--- | Convert an Aeson Value to a Snippet parameter for use in dynamic SQL queries
-aesonValueToSnippet :: Value -> Snippet
-aesonValueToSnippet (String text) = Snippet.param text
-aesonValueToSnippet (Bool value) = Snippet.param value
-aesonValueToSnippet (Number value) = case Scientific.floatingOrInteger value of -- Hacky, we should make this function "Schema.sql"-aware in the future
-    Left (floating :: Double) -> Snippet.param floating
-    Right (integer :: Integer) -> Snippet.param (fromIntegral integer :: Int32)
-aesonValueToSnippet Data.Aeson.Null = Snippet.sql "NULL"
-aesonValueToSnippet (Data.Aeson.Array values) =
-    Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map aesonValueToSnippet (Vector.toList values))) <> Snippet.sql "]"
-aesonValueToSnippet object@(Object values) =
-    let
-        tryDecodeAsPoint :: Maybe Point
-        tryDecodeAsPoint = do
-                xValue <- Aeson.lookup "x" values
-                yValue <- Aeson.lookup "y" values
-                x <- case xValue of
-                        Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing
-                y <- case yValue of
-                        Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing
-                pure Point { x, y }
-    in
-        -- This is really hacky and is mostly duck typing. We should refactor this in the future to
-        -- become more type aware by passing the DDL of the table to 'aesonValueToSnippet'.
-        if Aeson.size values == 2
-            then fromMaybe (Snippet.param (toJSON object)) (pointToSnippet <$> tryDecodeAsPoint)
-            else Snippet.param (toJSON object)
-    where
-        pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
-
 
 instance ToJSON GraphQLResult where
     toJSON GraphQLResult { requestId, graphQLResult } = object [ "tag" .= ("GraphQLResult" :: Text), "requestId" .= requestId, "graphQLResult" .= ("" :: Text) ]
