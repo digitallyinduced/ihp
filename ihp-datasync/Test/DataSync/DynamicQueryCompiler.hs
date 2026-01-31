@@ -234,3 +234,17 @@ tests = do
 
                 snippetToSql (compileQuery query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"id\") IN ($1, $2)"
+
+            it "compile an empty WHERE IN query to FALSE" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "id") OpIn (ListExpression { values = [] })
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE FALSE"

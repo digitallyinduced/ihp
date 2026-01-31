@@ -291,7 +291,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
 
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     [rawRecord] ->
@@ -329,7 +329,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                         let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
 
-                        rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                        rawRecords :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
                         let records = map (map (renameField (renamer table))) rawRecords
 
                         sendJSON DidCreateRecords { requestId, records }
@@ -353,7 +353,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
                 let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
 
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     [rawRecord] ->
@@ -384,7 +384,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") idSnippets
                 let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id IN (" <> inList <> Snippet.sql ") RETURNING *"
 
-                rawRecords <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
+                rawRecords <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
                 let records = map (map (renameField (renamer table))) rawRecords
 
                 sendJSON DidUpdateRecords { requestId, records }
@@ -509,6 +509,24 @@ sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
         (DynSession.dynamicallyParameterizedStatement snippet decoder True)
 sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 
+-- | Like 'sqlQueryWithRLSAndTransactionId', but uses a write transaction when no transaction ID is provided.
+--
+-- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
+-- to return results (e.g. wrapped with 'wrapDynamicQuery').
+sqlQueryWriteWithRLSAndTransactionId ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?state :: IORef DataSyncController
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWriteWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
+    -- RLS role and user id were already set when the transaction was started
+    DataSyncTransaction { connection } <- findTransactionById transactionId
+    runSessionOnConnection connection
+        (DynSession.dynamicallyParameterizedStatement snippet decoder True)
+sqlQueryWriteWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWriteWithRLSSession snippet decoder)
 
 sqlExecWithRLSAndTransactionId ::
     ( ?context :: ControllerContext

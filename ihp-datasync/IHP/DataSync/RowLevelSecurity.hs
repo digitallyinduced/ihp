@@ -4,11 +4,13 @@ module IHP.DataSync.RowLevelSecurity
 , TableWithRLS (tableName)
 , makeCachedEnsureRLSEnabled
 , sqlQueryWithRLS
+, sqlQueryWriteWithRLS
 , sqlExecWithRLS
 , sqlQueryScalarWithRLS
 , hasRLSEnabledSession
 , ensureRLSEnabledSession
 , sqlQueryWithRLSSession
+, sqlQueryWriteWithRLSSession
 , sqlExecWithRLSSession
 , sqlQueryScalarWithRLSSession
 , setRLSConfigStatement
@@ -102,6 +104,27 @@ sqlQueryWithRLSSession snippet decoder =
             Nothing -> ""
 {-# INLINE sqlQueryWithRLSSession #-}
 
+-- | Like 'sqlQueryWithRLSSession', but uses a write transaction.
+--
+-- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
+-- to return results (e.g. wrapped with 'wrapDynamicQuery').
+sqlQueryWriteWithRLSSession ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Snippet -> Decoders.Result [result] -> Session.Session [result]
+sqlQueryWriteWithRLSSession snippet decoder =
+    Tx.transaction Tx.ReadCommitted Tx.Write $ do
+        Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
+        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+    where
+        encodedUserId = case (.id) <$> currentUserOrNothing of
+            Just userId -> tshow userId
+            Nothing -> ""
+{-# INLINE sqlQueryWriteWithRLSSession #-}
+
 sqlExecWithRLSSession ::
     ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -147,6 +170,20 @@ sqlQueryWithRLS ::
     ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
 sqlQueryWithRLS pool snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 {-# INLINE sqlQueryWithRLS #-}
+
+-- | Like 'sqlQueryWithRLS', but uses a write transaction.
+--
+-- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
+-- to return results (e.g. wrapped with 'wrapDynamicQuery').
+sqlQueryWriteWithRLS ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
+sqlQueryWriteWithRLS pool snippet decoder = runSession pool (sqlQueryWriteWithRLSSession snippet decoder)
+{-# INLINE sqlQueryWriteWithRLS #-}
 
 sqlExecWithRLS ::
     ( ?context :: ControllerContext

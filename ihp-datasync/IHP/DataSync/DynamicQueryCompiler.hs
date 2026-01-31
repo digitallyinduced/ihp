@@ -134,6 +134,7 @@ compileCondition :: ConditionExpression -> Snippet
 compileCondition (ColumnExpression column) = quoteIdentifier column
 compileCondition (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null)) -- Turn 'a = NULL' into 'a IS NULL'
 compileCondition (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIsNot (LiteralExpression Null)) -- Turn 'a <> NULL' into 'a IS NOT NULL'
+compileCondition (InfixOperatorExpression _a OpIn (ListExpression { values = [] })) = Snippet.sql "FALSE"
 compileCondition (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
     -- Turn 'a IN (NULL)' into 'a IS NULL'
     case partition ((/=) Null) values of
@@ -167,6 +168,7 @@ compileConditionTyped :: ColumnTypeMap -> ConditionExpression -> Snippet
 compileConditionTyped _ (ColumnExpression column) = quoteIdentifier column
 compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
 compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Null))
+compileConditionTyped _types (InfixOperatorExpression _a OpIn (ListExpression { values = [] })) = Snippet.sql "FALSE"
 compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
     case partition ((/=) Null) values of
         ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))

@@ -60,7 +60,7 @@ instance (
                 let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
 
                 result :: Either SomeException [[Field]] <- Exception.try do
-                    sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                    sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
                     Left e -> renderErrorJson (show e :: Text)
@@ -99,7 +99,7 @@ instance (
 
                                     let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
 
-                                    result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
                                     renderJson result
                         _otherwise -> renderErrorJson ("Expected object" :: Text)
 
@@ -129,7 +129,7 @@ instance (
         let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
         let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
 
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 
         renderJson (head result)
 
