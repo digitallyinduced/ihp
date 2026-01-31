@@ -18,12 +18,10 @@ module IHP.DataSync.Role where
 import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified Hasql.Pool
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import IHP.DataSync.Hasql (runHasql, runStatement)
+import IHP.DataSync.Hasql (runStatement)
 
 doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
 doesRoleExists pool name = runStatement pool name doesRoleExistsStatement
@@ -45,9 +43,11 @@ createAuthenticatedRole :: Hasql.Pool.Pool -> Text -> IO ()
 createAuthenticatedRole pool role = do
     -- The role is only going to be used from 'SET ROLE ..' calls
     -- Therefore we can disallow direct connection with NOLOGIN
-    runHasql pool ("CREATE ROLE " <> Snippet.sql (quoteIdentifier role) <> " NOLOGIN") Decoders.noResult
-
-    pure ()
+    runStatement pool () (Statement.Statement
+        ("CREATE ROLE " <> quoteIdentifier role <> " NOLOGIN")
+        Encoders.noParams
+        Decoders.noResult
+        False)
 
 grantPermissions :: Hasql.Pool.Pool -> Text -> IO ()
 grantPermissions pool role = do
@@ -65,16 +65,16 @@ grantPermissions pool role = do
     --         No:  Reject access.
     --         Yes: Check column privileges.
 
-    -- The role should have access to all existing tables in our schema
-    runHasql pool ("GRANT USAGE ON SCHEMA public TO " <> Snippet.sql (quoteIdentifier role)) Decoders.noResult
+    let exec sql = runStatement pool () (Statement.Statement sql Encoders.noParams Decoders.noResult False)
 
     -- The role should have access to all existing tables in our schema
-    runHasql pool ("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO " <> Snippet.sql (quoteIdentifier role)) Decoders.noResult
+    exec ("GRANT USAGE ON SCHEMA public TO " <> quoteIdentifier role)
+
+    -- The role should have access to all existing tables in our schema
+    exec ("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO " <> quoteIdentifier role)
 
     -- Also grant access to all tables created in the future
-    runHasql pool ("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO " <> Snippet.sql (quoteIdentifier role)) Decoders.noResult
-
-    pure ()
+    exec ("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO " <> quoteIdentifier role)
 
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
 authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
