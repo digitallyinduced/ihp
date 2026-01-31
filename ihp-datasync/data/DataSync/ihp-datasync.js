@@ -366,7 +366,10 @@ class DataSubscription {
         dataSyncController.removeEventListener('message', this.onMessage);
         dataSyncController.removeEventListener('close', this.onDataSyncClosed);
         dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect);
-        dataSyncController.dataSubscriptions.splice(dataSyncController.dataSubscriptions.indexOf(this), 1);
+        const index = dataSyncController.dataSubscriptions.indexOf(this);
+        if (index !== -1) {
+            dataSyncController.dataSubscriptions.splice(index, 1);
+        }
 
         this.isConnected = false;
     }
@@ -428,7 +431,10 @@ class DataSubscription {
         this.subscribers.push(callback);
 
         return () => {
-            this.subscribers.splice(this.subscribers.indexOf(callback), 1);
+            const index = this.subscribers.indexOf(callback);
+            if (index !== -1) {
+                this.subscribers.splice(index, 1);
+            }
 
             // We delay the close as react could be re-rendering a component
             // we garbage collect this connecetion once it's clearly not used anymore
