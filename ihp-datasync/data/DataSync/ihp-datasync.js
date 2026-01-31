@@ -348,8 +348,7 @@ class DataSubscription {
         // We cannot close the DataSubscription when the subscriptionId is not assigned
         if (!this.isClosed && !this.isConnected) {
             await this.createOnServerPromise;
-            this.close();
-            return;
+            return this.close();
         }
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
