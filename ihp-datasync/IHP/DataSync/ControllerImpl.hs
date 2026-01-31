@@ -12,11 +12,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Pool
-import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
-import qualified Hasql.Session as Hasql
-import IHP.DataSync.Hasql (runHasqlOnConnection)
+import IHP.DataSync.Hasql (runHasqlOnConnection, withPoolConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -408,24 +404,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 transactionId <- UUID.nextRandom
 
-                let globalModelContext = ?modelContext
-
-                -- Each transaction gets a dedicated connection
-                conn <- do
-                    result <- Hasql.acquire [HasqlSetting.connection (HasqlConnection.string (cs globalModelContext.databaseUrl))]
-                    case result of
-                        Left err -> do
-                            let message = "StartTransaction: Failed to acquire connection: " <> tshow err
-                            Log.error message
-                            Exception.throwIO (userError (cs message))
-                        Right conn -> pure conn
-
-                let releaseConnection conn = do
-                        -- Make sure there's no pending transaction in case something went wrong
-                        _ <- Hasql.run (Hasql.sql "ROLLBACK") conn
-                        Hasql.release conn
-
-                Exception.bracket (pure conn) releaseConnection \connection -> do
+                withPoolConnection hasqlPool \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
                     runHasqlOnConnection connection (wrapStatementWithRLS "BEGIN") Decoders.noResult
