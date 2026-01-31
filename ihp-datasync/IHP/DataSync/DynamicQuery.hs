@@ -24,7 +24,6 @@ import qualified Data.Aeson.Key as Aeson
 import qualified Data.Scientific as Scientific
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
-import qualified Database.PostgreSQL.Simple.ToField as PG
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -104,11 +103,6 @@ data SelectedColumns
     = SelectAll -- ^ SELECT * FROM table
     | SelectSpecific [Text] -- ^ SELECT a, b, c FROM table
     deriving (Show, Eq)
-
--- | Needed for TH-derived FromJSON instances of QueryBuilder.Condition which contains PG.Action
-instance FromJSON PG.Action where
-    parseJSON (String v) = pure (PG.Escape (cs v))
-    parseJSON invalid = fail $ cs ("Expected String for PG.Action, got: " <> tshow invalid)
 
 instance FromJSON ByteString where
     parseJSON (String v) = pure $ cs v
@@ -251,10 +245,7 @@ transformColumnNamesToFieldNames otherwise = otherwise
 
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
 $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
 $(deriveFromJSON defaultOptions ''DynamicValue)
