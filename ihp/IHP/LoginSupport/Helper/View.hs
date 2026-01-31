@@ -8,27 +8,27 @@ module IHP.LoginSupport.Helper.View
 where
 
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.LoginSupport.Helper.Controller (CurrentUserRecord, CurrentAdminRecord)
 import IHP.LoginSupport.Types (currentUserVaultKey, currentAdminVaultKey, lookupAuthVault)
+import qualified Network.Wai as Wai
 
-currentUser :: (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => user
+currentUser :: (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => user
 currentUser = fromMaybe (error "Application.Helper.View.currentUser: Not logged in") currentUserOrNothing
 
-currentUserId :: forall user userId. (?context :: ControllerContext, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
+currentUserId :: forall user userId. (?request :: Wai.Request, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
 currentUserId = (currentUser @user).id
 
 -- | Returns the current user or 'Nothing'.
 --
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
-currentUserOrNothing :: forall user. (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => Maybe user
-currentUserOrNothing = lookupAuthVault currentUserVaultKey ?context.request
+currentUserOrNothing :: forall user. (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
+currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
 
-currentAdmin :: (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => admin
+currentAdmin :: (?request :: Wai.Request, admin ~ CurrentAdminRecord, Typeable admin) => admin
 currentAdmin = fromMaybe (error "Application.Helper.View.currentAdmin: Not logged in") currentAdminOrNothing
 
 -- | Returns the current admin or 'Nothing'.
 --
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
-currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?context.request
+currentAdminOrNothing :: forall admin. (?request :: Wai.Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request

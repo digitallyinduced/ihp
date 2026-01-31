@@ -7,15 +7,11 @@ module Test.LoginSupport.AuthVaultSpec where
 import IHP.Prelude
 import Test.Hspec
 
-import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
 import Network.Wai.Test (defaultRequest, runSession, request)
 import Network.HTTP.Types.Status (status200)
 import IHP.LoginSupport.Types (CurrentUserRecord, CurrentAdminRecord, currentUserVaultKey, currentAdminVaultKey)
 import IHP.LoginSupport.Middleware (authMiddlewareWith)
-import IHP.Controller.Context
-import IHP.RequestVault (requestBodyVaultKey)
-import Wai.Request.Params.Middleware (RequestBody (..))
 import qualified IHP.LoginSupport.Helper.Controller as Controller
 import qualified IHP.LoginSupport.Helper.View as View
 
@@ -26,16 +22,14 @@ tests = do
             it "populates Controller.currentUserOrNothing when user is authenticated" do
                 let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
                 let app = userMiddleware (Just user) $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         Controller.currentUserOrNothing `shouldBe` Just user
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
 
             it "Controller.currentUserOrNothing returns Nothing when not authenticated" do
                 let app = userMiddleware Nothing $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         (Controller.currentUserOrNothing :: Maybe CurrentUserRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
@@ -43,8 +37,7 @@ tests = do
             it "populates View.currentUserOrNothing when user is authenticated" do
                 let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
                 let app = userMiddleware (Just user) $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         View.currentUserOrNothing `shouldBe` Just user
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
@@ -53,16 +46,14 @@ tests = do
             it "populates Controller.currentAdminOrNothing when admin is authenticated" do
                 let admin = TestAdmin { id = "00000000-0000-0000-0000-000000000002" }
                 let app = adminMiddleware (Just admin) $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         Controller.currentAdminOrNothing `shouldBe` Just admin
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
 
             it "Controller.currentAdminOrNothing returns Nothing when not authenticated" do
                 let app = adminMiddleware Nothing $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         (Controller.currentAdminOrNothing :: Maybe CurrentAdminRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
@@ -73,8 +64,7 @@ tests = do
                 let admin = TestAdmin { id = "00000000-0000-0000-0000-000000000002" }
                 let composed = userMiddleware (Just user) . adminMiddleware (Just admin)
                 let app = composed $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         Controller.currentUserOrNothing `shouldBe` Just user
                         Controller.currentAdminOrNothing `shouldBe` Just admin
                         respond $ Wai.responseLBS status200 [] ""
@@ -83,8 +73,7 @@ tests = do
             it "user middleware does not affect admin lookup" do
                 let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
                 let app = userMiddleware (Just user) $ \req respond -> do
-                        ctx <- createControllerContext req
-                        let ?context = ctx
+                        let ?request = req
                         (Controller.currentAdminOrNothing :: Maybe CurrentAdminRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
@@ -107,11 +96,3 @@ userMiddleware user = authMiddlewareWith currentUserVaultKey (\_ -> pure user)
 -- | Middleware that stores a known admin, using the same code path as the real middleware.
 adminMiddleware :: Maybe TestAdmin -> Wai.Middleware
 adminMiddleware admin = authMiddlewareWith currentAdminVaultKey (\_ -> pure admin)
-
--- | Create a controller context from a WAI request.
-createControllerContext :: Wai.Request -> IO ControllerContext
-createControllerContext req = do
-    let requestBody = FormBody { params = [], files = [] }
-    let requestWithBody = req { Wai.vault = Vault.insert requestBodyVaultKey requestBody (Wai.vault req) }
-    let ?request = requestWithBody
-    newControllerContext
