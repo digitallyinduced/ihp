@@ -395,7 +395,7 @@ class DataSubscription {
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id) !== -1;
         if (isOptimisticallyCreatedAlready) {
             this.onUpdate(newRecord.id, newRecord);
-            this.optimisticCreatedPendingRecordIds.slice(this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id), 1);
+            this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id), 1);
         } else {
             this.records = shouldAppend ? [...this.records, newRecord] : [newRecord, ...this.records];
         }
