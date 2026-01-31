@@ -25,6 +25,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import IHP.Postgres.Point (Point(..))
+import Data.Int (Int64)
 
 data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
 
@@ -227,29 +228,22 @@ transformColumnNamesToFieldNames otherwise = otherwise
 -- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
 type ColumnTypeMap = HashMap.HashMap Text Text
 
--- | Encode a 'DynamicValue' as a Snippet parameter using text encoding.
+-- | Encode a 'DynamicValue' as a typed Snippet parameter using the native Haskell type.
 --
 -- Used for expressions without column context (e.g. bare literals in WHERE clauses).
 -- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
 -- for correctly typed parameters.
 dynamicValueParam :: DynamicValue -> Snippet
+dynamicValueParam (IntValue i) = Snippet.param (fromIntegral i :: Int64)
+dynamicValueParam (DoubleValue d) = Snippet.param d
+dynamicValueParam (TextValue t) = Snippet.param t
+dynamicValueParam (BoolValue b) = Snippet.param b
+dynamicValueParam (UUIDValue u) = Snippet.param u
+dynamicValueParam (DateTimeValue t) = Snippet.param t
 dynamicValueParam (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
+dynamicValueParam (IntervalValue (PGInterval bs)) = Snippet.param (cs bs :: Text)
 dynamicValueParam (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql "]"
 dynamicValueParam Null = Snippet.sql "NULL"
-dynamicValueParam value = Snippet.param (dynamicValueToText value)
-
--- | Convert a 'DynamicValue' to its text representation.
-dynamicValueToText :: DynamicValue -> Text
-dynamicValueToText (IntValue int) = tshow int
-dynamicValueToText (DoubleValue double) = tshow double
-dynamicValueToText (TextValue text) = text
-dynamicValueToText (BoolValue bool) = if bool then "true" else "false"
-dynamicValueToText (UUIDValue uuid) = tshow uuid
-dynamicValueToText (DateTimeValue utcTime) = tshow utcTime
-dynamicValueToText (PointValue point) = tshow point
-dynamicValueToText (IntervalValue interval) = tshow interval
-dynamicValueToText (ArrayValue values) = "{" <> intercalate "," (map dynamicValueToText values) <> "}"
-dynamicValueToText Null = ""
 
 -- | Quote a SQL identifier (table name, column name) to prevent SQL injection
 quoteIdentifier :: Text -> Snippet
