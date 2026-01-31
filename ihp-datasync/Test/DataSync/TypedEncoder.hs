@@ -15,6 +15,7 @@ import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
+import qualified Control.Exception as Exception
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
@@ -57,19 +58,21 @@ tests = do
                 snippetToSql (typedDynamicValueParam (Just "my_enum") (TextValue "active"))
                     `shouldBe` "$1::\"my_enum\""
 
-            it "falls back to untyped encoding when no type info" do
-                snippetToSql (typedDynamicValueParam Nothing (TextValue "hello"))
-                    `shouldBe` "$1"
+            it "errors when no type info is available" do
+                Exception.evaluate (snippetToSql (typedDynamicValueParam Nothing (TextValue "hello")))
+                    `shouldThrow` anyErrorCall
 
             it "encodes Point with SQL syntax regardless of type" do
-                snippetToSql (typedDynamicValueParam Nothing (PointValue (Point 1.0 2.0)))
-                    `shouldBe` "point(1.0,2.0)"
                 snippetToSql (typedDynamicValueParam (Just "point") (PointValue (Point 1.0 2.0)))
                     `shouldBe` "point(1.0,2.0)"
 
-            it "encodes Array with SQL syntax" do
-                snippetToSql (typedDynamicValueParam Nothing (ArrayValue [IntValue 1, IntValue 2]))
+            it "encodes Array with typed element encoding" do
+                snippetToSql (typedDynamicValueParam (Just "_int4") (ArrayValue [IntValue 1, IntValue 2]))
                     `shouldBe` "ARRAY[$1, $2]"
+
+            it "propagates array element type by stripping _ prefix" do
+                snippetToSql (typedDynamicValueParam (Just "_uuid") (ArrayValue [UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b"]))
+                    `shouldBe` "ARRAY[$1]"
 
         describe "typedAesonValueToSnippet" do
             it "encodes JSON null as NULL" do
@@ -93,12 +96,6 @@ tests = do
                 let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]
                 -- When column type is jsonb, the {x,y} object should be preserved as JSON
                 snippetToSql (typedAesonValueToSnippet (Just "jsonb") pointJson)
-                    `shouldBe` "$1"
-
-            it "does not decode {x, y} object as Point when column type is unknown" do
-                let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]
-                -- Without column type info, {x,y} should not be assumed to be a Point
-                snippetToSql (typedAesonValueToSnippet Nothing pointJson)
                     `shouldBe` "$1"
 
             it "encodes string values with typed encoder" do

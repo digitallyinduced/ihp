@@ -11,11 +11,8 @@ import Data.Aeson hiding (Null)
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Encoders as Encoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
@@ -192,31 +189,6 @@ aesonToDynamicValue (Object obj) = TextValue (cs (encode (Object obj))) -- Fallb
 decodeUndecodedJSON :: Decoders.Value UndecodedJSON
 decodeUndecodedJSON = Decoders.custom \_ bytes -> Right (UndecodedJSON bytes)
 
--- | Encode a DynamicValue as a parameter for hasql queries.
--- Converts values to their text representation and uses the unknown encoder,
--- letting PostgreSQL cast the value to the appropriate type.
-instance DefaultParamEncoder DynamicValue where
-    defaultParam = Encoders.nonNullable dynamicValueEncoder
-
--- | Encoder for DynamicValue that converts to text representation.
---
--- Used as a fallback when no column type information is available.
--- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
--- which sends correctly typed parameters.
-dynamicValueEncoder :: Encoders.Value DynamicValue
-dynamicValueEncoder = contramap dynamicValueToText Encoders.text
-    where
-        dynamicValueToText :: DynamicValue -> Text
-        dynamicValueToText (IntValue int) = tshow int
-        dynamicValueToText (DoubleValue double) = tshow double
-        dynamicValueToText (TextValue text) = text
-        dynamicValueToText (BoolValue bool) = if bool then "true" else "false"
-        dynamicValueToText (UUIDValue uuid) = tshow uuid
-        dynamicValueToText (DateTimeValue utcTime) = tshow utcTime
-        dynamicValueToText (PointValue point) = tshow point
-        dynamicValueToText (IntervalValue interval) = tshow interval
-        dynamicValueToText (ArrayValue values) = "{" <> intercalate "," (map dynamicValueToText values) <> "}"
-        dynamicValueToText Null = ""
 
 -- | Returns a list of all id's in a result
 recordIds :: [[Field]] -> [UUID]
@@ -255,16 +227,29 @@ transformColumnNamesToFieldNames otherwise = otherwise
 -- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
 type ColumnTypeMap = HashMap.HashMap Text Text
 
--- | Encode a 'DynamicValue' as a Snippet parameter using the default text encoder.
+-- | Encode a 'DynamicValue' as a Snippet parameter using text encoding.
 --
--- Used as a fallback when no column type information is available.
+-- Used for expressions without column context (e.g. bare literals in WHERE clauses).
 -- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
 -- for correctly typed parameters.
 dynamicValueParam :: DynamicValue -> Snippet
 dynamicValueParam (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
 dynamicValueParam (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql "]"
 dynamicValueParam Null = Snippet.sql "NULL"
-dynamicValueParam value = Snippet.param value
+dynamicValueParam value = Snippet.param (dynamicValueToText value)
+
+-- | Convert a 'DynamicValue' to its text representation.
+dynamicValueToText :: DynamicValue -> Text
+dynamicValueToText (IntValue int) = tshow int
+dynamicValueToText (DoubleValue double) = tshow double
+dynamicValueToText (TextValue text) = text
+dynamicValueToText (BoolValue bool) = if bool then "true" else "false"
+dynamicValueToText (UUIDValue uuid) = tshow uuid
+dynamicValueToText (DateTimeValue utcTime) = tshow utcTime
+dynamicValueToText (PointValue point) = tshow point
+dynamicValueToText (IntervalValue interval) = tshow interval
+dynamicValueToText (ArrayValue values) = "{" <> intercalate "," (map dynamicValueToText values) <> "}"
+dynamicValueToText Null = ""
 
 -- | Quote a SQL identifier (table name, column name) to prevent SQL injection
 quoteIdentifier :: Text -> Snippet

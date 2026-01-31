@@ -16,7 +16,7 @@ module IHP.DataSync.TypedEncoder
 ) where
 
 import IHP.Prelude
-import IHP.DataSync.DynamicQuery (DynamicValue(..), ColumnTypeMap, aesonToDynamicValue, dynamicValueParam, quoteIdentifier)
+import IHP.DataSync.DynamicQuery (DynamicValue(..), ColumnTypeMap, aesonToDynamicValue, quoteIdentifier)
 import IHP.Postgres.Point (Point(..))
 import IHP.Postgres.TimeParser (PGInterval(..))
 import qualified Data.HashMap.Strict as HashMap
@@ -75,20 +75,25 @@ columnTypesStatement = Statement.Statement
 -- | Encode a 'DynamicValue' as a typed Snippet parameter.
 --
 -- When a column type is known (from 'ColumnTypeMap'), uses 'Snippet.encoderAndParam'
--- with the correct typed encoder. Falls back to 'dynamicValueParam' when no type info
--- is available.
+-- with the correct typed encoder. Errors when no type info is available, since
+-- 'makeCachedColumnTypeLookup' should always provide column types.
 typedDynamicValueParam :: Maybe Text -> DynamicValue -> Snippet
 typedDynamicValueParam _ Null = Snippet.sql "NULL"
 typedDynamicValueParam _ (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
-typedDynamicValueParam _ (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam Nothing) values)) <> Snippet.sql "]"
+typedDynamicValueParam pgType (ArrayValue values) =
+    let elemType = case pgType of
+            Just t | "_" `Text.isPrefixOf` t -> Just (Text.drop 1 t)
+            _ -> pgType
+    in Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam elemType) values)) <> Snippet.sql "]"
 typedDynamicValueParam (Just pgType) value = encodeWithType pgType value
-typedDynamicValueParam Nothing value = dynamicValueParam value
+typedDynamicValueParam Nothing value = error ("typedDynamicValueParam: No column type available for value: " <> show value)
 
 -- | Encode a 'DynamicValue' using a specific PostgreSQL type encoder.
 --
 -- Maps PostgreSQL type names to the corresponding hasql encoder and converts
 -- the 'DynamicValue' to the appropriate Haskell type.
 encodeWithType :: Text -> DynamicValue -> Snippet
+encodeWithType _             Null = Snippet.sql "NULL"
 encodeWithType "uuid"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.uuid) (toUUID val)
 encodeWithType "text"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
 encodeWithType "varchar"     val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
