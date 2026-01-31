@@ -3,6 +3,7 @@ import { DataSyncController, DataSubscription } from './ihp-datasync.js';
 function fetchAuthenticated(path, params) {
     const jwt = localStorage.getItem('ihp_jwt');
     if (jwt !== null) {
+        params.headers = params.headers || {};
         params.headers['Authorization'] = 'Bearer ' + jwt;
     } else {
         params.credentials = 'include';
