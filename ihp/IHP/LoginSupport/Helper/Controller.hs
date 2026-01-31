@@ -37,9 +37,9 @@ import IHP.LoginSupport.Types (currentUserVaultKey, currentAdminVaultKey, lookup
 --
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
--- Requires @AuthMiddleware (authMiddleware \@User currentUserVaultKey)@ in Config.hs.
-currentUserOrNothing :: forall user. (?context :: ControllerContext, user ~ CurrentUserRecord, Typeable user) => Maybe user
-currentUserOrNothing = lookupAuthVault currentUserVaultKey ?context.request
+-- Requires @AuthMiddleware (authMiddleware \@User)@ in Config.hs.
+currentUserOrNothing :: forall user. (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
+currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the current user. Redirects to login if not logged in.
@@ -64,9 +64,9 @@ ensureIsUser =
 --
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
--- Requires @AuthMiddleware (authMiddleware \@Admin currentAdminVaultKey)@ in Config.hs.
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
-currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?context.request
+-- Requires @AdminAuthMiddleware (adminAuthMiddleware \@Admin)@ in Config.hs.
+currentAdminOrNothing :: forall admin. (?request :: Wai.Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request
 {-# INLINE currentAdminOrNothing #-}
 
 -- | Returns the current admin. Redirects to login if not logged in.

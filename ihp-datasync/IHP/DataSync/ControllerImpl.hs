@@ -42,6 +42,7 @@ type HandleCustomMessageFn = (DataSyncResponse -> IO ()) -> DataSyncMessage -> I
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ?modelContext :: ModelContext
     , ?request :: Request
     , ?state :: IORef DataSyncController
@@ -107,6 +108,7 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
 buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ?modelContext :: ModelContext
     , ?request :: Request
     , ?state :: IORef DataSyncController
