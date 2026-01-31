@@ -7,6 +7,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder
+import IHP.Postgres.TimeParser (PGInterval(..))
 import IHP.Postgres.Point (Point(..))
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Statement (Statement(..))
@@ -109,3 +110,45 @@ tests = do
             it "encodes boolean values with typed encoder" do
                 snippetToSql (typedAesonValueToSnippet (Just "bool") (Aeson.Bool True))
                     `shouldBe` "$1"
+
+        describe "dynamicValueParam" do
+            it "encodes IntValue as native int parameter" do
+                snippetToSql (dynamicValueParam (IntValue 42))
+                    `shouldBe` "$1"
+
+            it "encodes DoubleValue as native float parameter" do
+                snippetToSql (dynamicValueParam (DoubleValue 3.14))
+                    `shouldBe` "$1"
+
+            it "encodes TextValue as native text parameter" do
+                snippetToSql (dynamicValueParam (TextValue "hello"))
+                    `shouldBe` "$1"
+
+            it "encodes BoolValue as native bool parameter" do
+                snippetToSql (dynamicValueParam (BoolValue True))
+                    `shouldBe` "$1"
+
+            it "encodes UUIDValue as native uuid parameter" do
+                snippetToSql (dynamicValueParam (UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b"))
+                    `shouldBe` "$1"
+
+            it "encodes DateTimeValue as native timestamptz parameter" do
+                let epoch = UTCTime (toEnum 0) 0
+                snippetToSql (dynamicValueParam (DateTimeValue epoch))
+                    `shouldBe` "$1"
+
+            it "encodes PointValue as SQL literal" do
+                snippetToSql (dynamicValueParam (PointValue (Point 1.0 2.0)))
+                    `shouldBe` "point(1.0,2.0)"
+
+            it "encodes IntervalValue as text parameter" do
+                snippetToSql (dynamicValueParam (IntervalValue (PGInterval "1 day")))
+                    `shouldBe` "$1"
+
+            it "encodes ArrayValue with native element parameters" do
+                snippetToSql (dynamicValueParam (ArrayValue [IntValue 1, IntValue 2]))
+                    `shouldBe` "ARRAY[$1, $2]"
+
+            it "encodes Null as SQL NULL" do
+                snippetToSql (dynamicValueParam Null)
+                    `shouldBe` "NULL"

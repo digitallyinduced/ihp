@@ -112,6 +112,9 @@ encodeWithType "numeric"     val = Snippet.encoderAndParam (Encoders.nonNullable
 encodeWithType "jsonb"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) (toJSON val)
 encodeWithType "json"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) (toJSON val)
 encodeWithType "bytea"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bytea) (toByteString val)
+-- Interval uses text+cast because PGInterval can contain years/months/days
+-- which DiffTime (used by Encoders.interval) cannot represent.
+encodeWithType "interval"    val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::interval"
 encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::" <> quoteIdentifier pgType
 
 -- | Encode an Aeson 'Value' as a typed Snippet parameter for INSERT/UPDATE operations.

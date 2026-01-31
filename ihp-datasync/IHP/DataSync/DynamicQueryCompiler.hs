@@ -20,13 +20,10 @@ data Renamer = Renamer
     , columnToField :: Text -> Text
     }
 
-compileQuery :: DynamicSQLQuery -> Snippet
-compileQuery = compileQueryWithRenamer camelCaseRenamer
-
-compileQueryWithRenamer :: Renamer -> DynamicSQLQuery -> Snippet
-compileQueryWithRenamer renamer = compileQueryTyped renamer HashMap.empty
-
--- | Like 'compileQueryWithRenamer', but uses typed parameter encoding when column types are known.
+-- | Compile a 'DynamicSQLQuery' to a SQL 'Snippet' with typed parameter encoding.
+--
+-- Column types must be provided via 'ColumnTypeMap' (from 'makeCachedColumnTypeLookup').
+-- Missing column types in WHERE conditions will error at runtime.
 compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
 compileQueryTyped renamer columnTypes query = compileQueryMappedTyped columnTypes (mapColumnNames renamer.fieldToColumn query)
 
@@ -53,9 +50,6 @@ unmodifiedRenamer =
 renameField :: Renamer -> Field -> Field
 renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
-
-compileQueryMapped :: DynamicSQLQuery -> Snippet
-compileQueryMapped = compileQueryMappedTyped HashMap.empty
 
 compileQueryMappedTyped :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
 compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
@@ -144,26 +138,19 @@ compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { va
         ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
         (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
 -- When comparing a column to a literal or list, look up the column's type for typed encoding.
--- Falls back to dynamicValueParam when the column type is not in the map (e.g. when called
--- via compileQuery without type info).
+-- Errors if the column type is not in the map — callers must provide complete type info.
 compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (LiteralExpression literal)) =
     Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
     where
         colType = HashMap.lookup col types
-        encodeValue = case colType of
-            Just _  -> typedDynamicValueParam colType
-            Nothing -> dynamicValueParam
         rightOperand = case literal of
             Null -> Snippet.sql "NULL"
-            _ -> Snippet.sql "(" <> encodeValue literal <> Snippet.sql ")"
+            _ -> Snippet.sql "(" <> typedDynamicValueParam colType literal <> Snippet.sql ")"
 compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (ListExpression { values })) =
     Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " "
-    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map encodeValue values)) <> Snippet.sql ")"
+    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam colType) values)) <> Snippet.sql ")"
     where
         colType = HashMap.lookup col types
-        encodeValue = case colType of
-            Just _  -> typedDynamicValueParam colType
-            Nothing -> dynamicValueParam
 compileConditionTyped types (InfixOperatorExpression a operator b) =
     Snippet.sql "(" <> compileConditionTyped types a <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
     where

@@ -13,15 +13,37 @@ import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Data.HashMap.Strict as HashMap
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
 snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
     Statement sql _ _ _ -> sql
 
+-- | Column types for the "posts" table used in tests.
+postsTypes :: ColumnTypeMap
+postsTypes = HashMap.fromList
+    [ ("user_id", "uuid")
+    , ("id", "uuid")
+    , ("a", "text")
+    , ("title", "text")
+    , ("ts", "tsvector")
+    , ("group_id", "uuid")
+    ]
+
+-- | Column types for the "products" table used in tests.
+productsTypes :: ColumnTypeMap
+productsTypes = HashMap.fromList
+    [ ("ts", "tsvector")
+    ]
+
+-- | Compile a query with the camelCase renamer and typed encoding.
+compile :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compile = compileQueryTyped camelCaseRenamer
+
 tests = do
     describe "IHP.DataSync.DynamicQueryCompiler" do
-        describe "compileQuery" do
+        describe "compileQueryTyped" do
             it "compile a basic select query" do
                 let query = DynamicSQLQuery
                         { table = "posts"
@@ -33,7 +55,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\""
 
             it "compile a select query with order by" do
@@ -47,7 +69,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" ORDER BY \"title\" DESC"
 
             it "compile a select query with multiple order bys" do
@@ -64,7 +86,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" ORDER BY \"created_at\" DESC, \"title\""
 
             it "compile a basic select query with a where condition" do
@@ -78,7 +100,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1)"
 
             it "compile a basic select query with a where condition and an order by" do
@@ -92,7 +114,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC"
 
             it "compile a basic select query with a limit" do
@@ -106,7 +128,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2"
 
             it "compile a basic select query with an offset" do
@@ -120,7 +142,7 @@ tests = do
                         , offset = Just 50
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2"
 
             it "compile a basic select query with a limit and an offset" do
@@ -134,7 +156,7 @@ tests = do
                         , offset = Just 50
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3"
 
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
@@ -148,7 +170,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NULL"
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
@@ -162,7 +184,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NOT NULL"
 
             it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
@@ -176,7 +198,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"a\") IS NULL"
 
             it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
@@ -190,7 +212,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)"
 
             it "compile queries with TS expressions" do
@@ -204,7 +226,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile productsTypes query) `shouldBe`
                         "SELECT * FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
 
             it "compile a basic select query with distinctOn" do
@@ -218,7 +240,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT DISTINCT ON (\"group_id\") * FROM \"posts\""
 
             it "compile a WHERE IN query" do
@@ -232,7 +254,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE (\"id\") IN ($1, $2)"
 
             it "compile an empty WHERE IN query to FALSE" do
@@ -246,5 +268,5 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compileQuery query) `shouldBe`
+                snippetToSql (compile postsTypes query) `shouldBe`
                         "SELECT * FROM \"posts\" WHERE FALSE"
