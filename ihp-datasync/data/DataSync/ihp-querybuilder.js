@@ -407,12 +407,12 @@ export function recordMatchesQuery(query, record) {
             case 'ColumnExpression': return (expression.field in record) ? record[expression.field] : null;
             case 'InfixOperatorExpression': {
                 switch (expression.op) {
-                    case 'OpEqual': return evaluate(expression.left) == evaluate(expression.right);
+                    case 'OpEqual': return evaluate(expression.left) === evaluate(expression.right);
                     case 'OpGreaterThan': return evaluate(expression.left) > evaluate(expression.right);
                     case 'OpLessThan': return evaluate(expression.left) < evaluate(expression.right);
                     case 'OpGreaterThanOrEqual': return evaluate(expression.left) >= evaluate(expression.right);
                     case 'OpLessThanOrEqual': return evaluate(expression.left) <= evaluate(expression.right);
-                    case 'OpNotEqual': return evaluate(expression.left) != evaluate(expression.right);
+                    case 'OpNotEqual': return evaluate(expression.left) !== evaluate(expression.right);
                     case 'OpAnd': return evaluate(expression.left) && evaluate(expression.right);
                     case 'OpOr': return evaluate(expression.left) || evaluate(expression.right);
                     case 'OpIs': return evaluate(expression.left) == evaluate(expression.right);
