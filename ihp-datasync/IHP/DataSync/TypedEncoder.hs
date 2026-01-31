@@ -18,6 +18,7 @@ module IHP.DataSync.TypedEncoder
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (DynamicValue(..), ColumnTypeMap, aesonToDynamicValue, dynamicValueParam, quoteIdentifier)
 import IHP.Postgres.Point (Point(..))
+import IHP.Postgres.TimeParser (PGInterval(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -116,23 +117,25 @@ typedAesonValueToSnippet :: Maybe Text -> Value -> Snippet
 typedAesonValueToSnippet (Just "jsonb") val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) val
 typedAesonValueToSnippet (Just "json")  val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) val
 typedAesonValueToSnippet _ (Aeson.Null) = Snippet.sql "NULL"
-typedAesonValueToSnippet colType (Object values) =
-    let
-        tryDecodeAsPoint :: Maybe Point
-        tryDecodeAsPoint = do
-                xValue <- Aeson.lookup "x" values
-                yValue <- Aeson.lookup "y" values
-                x <- case xValue of
-                        Aeson.Number number -> pure (Scientific.toRealFloat number)
-                        _ -> Nothing
-                y <- case yValue of
-                        Aeson.Number number -> pure (Scientific.toRealFloat number)
-                        _ -> Nothing
-                pure Point { x, y }
-    in
-        if Aeson.size values == 2
-            then fromMaybe (typedDynamicValueParam colType (aesonToDynamicValue (Object values))) (pointToSnippet <$> tryDecodeAsPoint)
-            else typedDynamicValueParam colType (aesonToDynamicValue (Object values))
+typedAesonValueToSnippet colType (Object values)
+    | colType == Just "point" =
+        let
+            tryDecodeAsPoint :: Maybe Point
+            tryDecodeAsPoint = do
+                    xValue <- Aeson.lookup "x" values
+                    yValue <- Aeson.lookup "y" values
+                    x <- case xValue of
+                            Aeson.Number number -> pure (Scientific.toRealFloat number)
+                            _ -> Nothing
+                    y <- case yValue of
+                            Aeson.Number number -> pure (Scientific.toRealFloat number)
+                            _ -> Nothing
+                    pure Point { x, y }
+        in
+            if Aeson.size values == 2
+                then fromMaybe (typedDynamicValueParam colType (aesonToDynamicValue (Object values))) (pointToSnippet <$> tryDecodeAsPoint)
+                else typedDynamicValueParam colType (aesonToDynamicValue (Object values))
+    | otherwise = typedDynamicValueParam colType (aesonToDynamicValue (Object values))
     where
         pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
 typedAesonValueToSnippet colType value = typedDynamicValueParam colType (aesonToDynamicValue value)
@@ -151,6 +154,9 @@ toText (DoubleValue d) = tshow d
 toText (BoolValue b) = if b then "true" else "false"
 toText (UUIDValue u) = UUID.toText u
 toText (DateTimeValue t) = tshow t
+toText (IntervalValue (PGInterval bs)) = cs bs
+toText (PointValue (Point x y)) = "(" <> tshow x <> "," <> tshow y <> ")"
+toText (ArrayValue vs) = "{" <> mconcat (List.intersperse "," (map toText vs)) <> "}"
 toText v = error ("Cannot convert to Text: " <> show v)
 
 toInt32 :: DynamicValue -> Int32
