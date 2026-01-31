@@ -17,10 +17,6 @@ module IHP.LoginSupport.Helper.Controller
 , CurrentAdminRecord
 , module IHP.AuthSupport.Authentication
 , enableRowLevelSecurityIfLoggedIn
-, currentRoleOrNothing
-, currentRole
-, currentRoleId
-, ensureIsRole
 ) where
 
 import IHP.Prelude
@@ -37,69 +33,69 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Data.Typeable
 
-currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
-currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
-    Just user -> user
-    Nothing -> error ("initAuthentication @" <> show (typeRep (Proxy @user)) <> " has not been called in initContext inside FrontController of this application")
-{-# INLINE currentRoleOrNothing #-}
+-- | Returns the current user or 'Nothing' if not logged in.
+--
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
+--
+-- Requires @AuthMiddleware (authMiddleware \@User)@ in Config.hs.
+currentUserOrNothing :: forall user. (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
+currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
+{-# INLINE currentUserOrNothing #-}
 
-currentRole :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user) => user
-currentRole = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) (currentRoleOrNothing @user)
-{-# INLINE currentRole #-}
-
-currentRoleId :: forall user userId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
-currentRoleId = (currentRole @user).id
-{-# INLINE currentRoleId #-}
-
-ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user) => IO ()
-ensureIsRole =
-    case currentRoleOrNothing @user of
-        Just _ -> pure ()
-        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
-{-# INLINABLE ensureIsRole #-}
-
+-- | Returns the current user. Redirects to login if not logged in.
 currentUser :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
-currentUser = currentRole @user
+currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentUserOrNothing
 {-# INLINABLE currentUser #-}
 
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
-currentUserOrNothing = currentRoleOrNothing @user
-{-# INLINABLE currentUserOrNothing #-}
-
+-- | Returns the ID of the current user. Redirects to login if not logged in.
 currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = currentRoleId @user
+currentUserId = (currentUser @user).id
 {-# INLINABLE currentUserId #-}
 
+-- | Ensures that a user is logged in. Redirects to login page if not.
 ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
-ensureIsUser = ensureIsRole @user
+ensureIsUser =
+    case currentUserOrNothing @user of
+        Just _ -> pure ()
+        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 {-# INLINABLE ensureIsUser #-}
 
+-- | Returns the current admin or 'Nothing' if not logged in.
+--
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
+--
+-- Requires @AdminAuthMiddleware (adminAuthMiddleware \@Admin)@ in Config.hs.
+currentAdminOrNothing :: forall admin. (?request :: Wai.Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request
+{-# INLINE currentAdminOrNothing #-}
+
+-- | Returns the current admin. Redirects to login if not logged in.
 currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
-currentAdmin = currentRole @admin
+currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 {-# INLINABLE currentAdmin #-}
 
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => (Maybe admin)
-currentAdminOrNothing = currentRoleOrNothing @admin
-{-# INLINABLE currentAdminOrNothing #-}
-
+-- | Returns the ID of the current admin. Redirects to login if not logged in.
 currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
-currentAdminId = currentRoleId @admin
+currentAdminId = (currentAdmin @admin).id
 {-# INLINABLE currentAdminId #-}
 
+-- | Ensures that an admin is logged in. Redirects to login page if not.
 ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
-ensureIsAdmin = ensureIsRole @admin
+ensureIsAdmin =
+    case currentAdminOrNothing @admin of
+        Just _ -> pure ()
+        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 {-# INLINABLE ensureIsAdmin #-}
 
 -- | Log's in a user
 --
 -- Examples:
--- 
+--
 -- > action ExampleAction = do
 -- >     user <- query @User |> fetchOne
 -- >     login user
--- >     
+-- >
 -- >     redirectToPath "/"
 --
 login :: forall user id. (?request :: Wai.Request, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
@@ -143,7 +139,6 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 --
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
--- >         initAuthentication @User
 -- >         enableRowLevelSecurityIfLoggedIn
 --
 -- Let's assume we have a policy defined in our Schema.sql that only allows users to see and edit rows in the projects table that have @projects.user_id = current_user_id@:
@@ -159,8 +154,8 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 --
 enableRowLevelSecurityIfLoggedIn ::
     ( ?context :: ControllerContext
+    , ?request :: Wai.Request
     , Typeable CurrentUserRecord
-    , HasNewSessionUrl CurrentUserRecord
     , HasField "id" CurrentUserRecord userId
     , PG.ToField userId
     ) => IO ()

@@ -212,7 +212,6 @@ import IHP.Controller.Context
 
 instance InitControllerContext WebApplication where
     initContext = do
-        initAuthentication @User
         -- ... your other initContext code
 
         putContext userIdLogger

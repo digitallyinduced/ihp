@@ -273,3 +273,4 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.LoginSupport.AuthVaultSpec

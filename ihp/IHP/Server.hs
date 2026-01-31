@@ -152,6 +152,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
     let corsMiddleware = initCorsMiddleware frameworkConfig
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+    let AuthMiddleware authMw = frameworkConfig.authMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
     pure $
@@ -162,6 +163,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . approotMiddleware
         . autoRefreshMiddleware
         . modelContextMiddleware modelContext
+        . authMw
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
         . pgListenerMw

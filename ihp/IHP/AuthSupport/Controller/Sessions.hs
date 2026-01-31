@@ -13,12 +13,11 @@ module IHP.AuthSupport.Controller.Sessions
 where
 
 import IHP.Prelude
-import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
+import IHP.ControllerPrelude
 import IHP.AuthSupport.View.Sessions.New
 import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
-import System.IO.Unsafe (unsafePerformIO)
 import Wai.Request.Params.Middleware (Respond)
 import qualified Network.Wai
 
@@ -38,6 +37,7 @@ newSessionAction :: forall record action.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
+    , record ~ CurrentUserRecord
     ) => IO ()
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
@@ -118,6 +118,8 @@ deleteSessionAction :: forall record action id.
     , Show id
     , HasField "id" record id
     , SessionsControllerConfig record
+    , record ~ CurrentUserRecord
+    , Typeable record
     ) => IO ()
 deleteSessionAction = do
     case currentUserOrNothing @record of
@@ -127,13 +129,6 @@ deleteSessionAction = do
         Nothing -> pure ()
     redirectToPathSeeOther (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
-
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
-currentUserOrNothing =
-    case unsafePerformIO (maybeFromContext @(Maybe user)) of
-        Just user -> user
-        Nothing -> error "currentUserOrNothing: initAuthentication has not been called in initContext inside FrontController of this application"
-{-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
 buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller
