@@ -14,7 +14,6 @@ import GHC.Hs.Expr as Expr
 import GHC.Hs.Extension as Ext
 import GHC.Hs.Pat as Pat
 import GHC.Hs.Lit
-import qualified GHC.Hs.Utils as Utils
 import qualified Data.ByteString as B
 import qualified Language.Haskell.TH.Syntax as TH
 import GHC.Types.SrcLoc
@@ -22,7 +21,9 @@ import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Data.FastString
 import GHC.Utils.Outputable (Outputable, ppr, showSDocUnsafe)
+#if __GLASGOW_HASKELL__ < 912
 import GHC.Types.Basic (Boxity(..))
+#endif
 import GHC.Types.SourceText (il_value, rationalFromFractionalLit)
 import qualified GHC.Unit.Module as Module
 import GHC.Stack
@@ -49,6 +50,9 @@ toLit (HsInteger _ i _) = TH.IntegerL i
 toLit (HsRat _ f _) = TH.FloatPrimL (fl_value f)
 toLit (HsFloatPrim _ f) = TH.FloatPrimL (fl_value f)
 toLit (HsDoublePrim _ f) = TH.DoublePrimL (fl_value f)
+#if __GLASGOW_HASKELL__ >= 912
+toLit (HsMultilineString _ s) = TH.StringL (unpackFS s)
+#endif
 #if __GLASGOW_HASKELL__ >= 910
 toLit (HsInt8Prim _ i) = TH.IntPrimL i
 toLit (HsInt16Prim _ i) = TH.IntPrimL i
