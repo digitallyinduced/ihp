@@ -9,6 +9,7 @@ module IHP.DataSync.RowLevelSecurity
 where
 
 import IHP.ControllerPrelude
+import qualified Network.Wai as Wai
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
@@ -20,10 +21,10 @@ sqlQueryWithRLS ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
     , FromRow result
@@ -37,10 +38,10 @@ sqlExecWithRLS ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
     ) => PG.Query -> parameters -> IO Int64
@@ -53,10 +54,10 @@ wrapStatementWithRLS ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
     ) => PG.Query -> parameters -> (PG.Query, [PG.Action])
