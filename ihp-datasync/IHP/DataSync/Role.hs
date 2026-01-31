@@ -23,20 +23,17 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import qualified Hasql.Session as Session
-import IHP.DataSync.Hasql (runHasql)
+import IHP.DataSync.Hasql (runHasql, runStatement)
 
 doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
-doesRoleExists pool name = do
-    let stmt = Statement.Statement
-            "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1)"
-            (Encoders.param (Encoders.nonNullable Encoders.text))
-            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-            True
-    result <- Hasql.Pool.use pool (Session.statement name stmt)
-    case result of
-        Left err -> throwIO err
-        Right val -> pure val
+doesRoleExists pool name = runStatement pool name doesRoleExistsStatement
+
+doesRoleExistsStatement :: Statement.Statement Text Bool
+doesRoleExistsStatement = Statement.Statement
+    "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1)"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+    True
 
 ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
 ensureAuthenticatedRoleExists pool = do

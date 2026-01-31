@@ -17,10 +17,9 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import qualified Hasql.Session as Session
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
-import IHP.DataSync.Hasql (runHasql)
+import IHP.DataSync.Hasql (runHasql, runStatement)
 
 sqlQueryWithRLS ::
     ( ?context :: ControllerContext
@@ -126,16 +125,14 @@ makeCachedEnsureRLSEnabled pool = do
 -- >>> hasRLSEnabled pool "my_table"
 -- True
 hasRLSEnabled :: Hasql.Pool.Pool -> Text -> IO Bool
-hasRLSEnabled pool table = do
-    let stmt = Statement.Statement
-            "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
-            (Encoders.param (Encoders.nonNullable Encoders.text))
-            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-            True
-    result <- Hasql.Pool.use pool (Session.statement table stmt)
-    case result of
-        Left err -> throwIO err
-        Right val -> pure val
+hasRLSEnabled pool table = runStatement pool table hasRLSEnabledStatement
+
+hasRLSEnabledStatement :: Statement.Statement Text Bool
+hasRLSEnabledStatement = Statement.Statement
+    "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+    True
 
 -- | Can be constructed using 'ensureRLSEnabled'
 --

@@ -22,8 +22,7 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
-import qualified Hasql.Session as Session
-import IHP.DataSync.Hasql (runHasql)
+import IHP.DataSync.Hasql (runHasql, runStatement)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -183,18 +182,17 @@ instance FromJSON Change where
 retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
 retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
-    let stmt = Statement.Statement
-            "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
-            (Encoders.param (Encoders.nonNullable Encoders.uuid))
-            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
-            True
-    result <- Hasql.Pool.use pool (Session.statement largePgNotificationId stmt)
-    payload :: ByteString <- case result of
-        Left err -> throwIO err
-        Right val -> pure val
+    payload <- runStatement pool largePgNotificationId retrieveChangesStatement
     case eitherDecodeStrict' payload of
         Left e -> fail e
         Right changes -> pure changes
+
+retrieveChangesStatement :: Statement.Statement UUID ByteString
+retrieveChangesStatement = Statement.Statement
+    "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
+    (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+    True
 
 $(deriveToJSON defaultOptions 'Change)
 $(deriveToJSON defaultOptions 'InlineChangeSet)
