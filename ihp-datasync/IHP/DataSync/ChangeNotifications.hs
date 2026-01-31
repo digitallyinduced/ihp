@@ -31,17 +31,17 @@ data ChangeSet
     | ExternalChangeSet { largePgNotificationId :: !UUID } -- | The patch is over 8000 bytes, so we have stored it in the @large_pg_notifications@ table
     deriving (Eq, Show)
 
-data Change = Change
-    { col :: !Text
-    , new :: !Value
-    } deriving (Eq, Show)
+data Change
+    = Change { col :: !Text, new :: !Value }
+    | AppendChange { col :: !Text, append :: !Text }
+    deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationFunction :: RLS.TableWithRLS -> PG.Query
 createNotificationFunction table = [i|
     DO $$
     BEGIN
-            CREATE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
+            CREATE OR REPLACE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
                 DECLARE
                     payload TEXT;
                     large_pg_notification_id UUID;
@@ -49,13 +49,23 @@ createNotificationFunction table = [i|
                 BEGIN
                     CASE TG_OP
                     WHEN 'UPDATE' THEN
-                        SELECT coalesce(json_agg(row_to_json(t)), '[]'::json)
-                                FROM (
-                                      SELECT pre.key AS "col", post.value AS "new"
-                                      FROM jsonb_each(to_jsonb(OLD)) AS pre
-                                      CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
-                                      WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
-                                ) t INTO changeset;
+                        SELECT coalesce(json_agg(
+                            CASE
+                                WHEN jsonb_typeof(pre.value) = 'string'
+                                    AND jsonb_typeof(post.value) = 'string'
+                                    AND length(post.value #>> '{}') > length(pre.value #>> '{}')
+                                    AND starts_with(post.value #>> '{}', pre.value #>> '{}')
+                                THEN json_build_object(
+                                    'col', pre.key,
+                                    'append', substring(post.value #>> '{}' from length(pre.value #>> '{}') + 1)
+                                )
+                                ELSE json_build_object('col', pre.key, 'new', post.value)
+                            END
+                        ), '[]'::json)
+                        FROM jsonb_each(to_jsonb(OLD)) AS pre
+                        CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
+                        WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
+                        INTO changeset;
                         payload := json_build_object(
                           'UPDATE', NEW.id::text,
                           'CHANGESET', changeset
@@ -168,8 +178,8 @@ instance FromJSON ChangeSet where
 instance FromJSON Change where
     parseJSON = withObject "Change" $ \values -> do
         col <- values .: "col"
-        new <- values .: "new"
-        pure Change { .. }
+        (Change col <$> values .: "new")
+          <|> (AppendChange col <$> values .: "append")
 -- | The @pg_notify@ function has a payload limit of 8000 bytes. When a record update is larger than the payload size
 -- we store the patch in the @large_pg_notifications@ table and pass over the id to the patch.
 --
@@ -183,6 +193,8 @@ retrieveChanges ExternalChangeSet { largePgNotificationId } = do
         Left e -> fail e
         Right result -> pure result
 
-$(deriveToJSON defaultOptions 'Change)
+instance ToJSON Change where
+    toJSON Change { col, new } = object ["col" .= col, "new" .= new]
+    toJSON AppendChange { col, append } = object ["col" .= col, "append" .= append]
 $(deriveToJSON defaultOptions 'InlineChangeSet)
 $(deriveToJSON defaultOptions 'DidInsert)
