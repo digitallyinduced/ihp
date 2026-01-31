@@ -13,7 +13,6 @@ import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Data.ByteString as BS
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
@@ -79,13 +78,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                -- The exact SQL will include parameter placeholders ($1, etc.)
-                -- We just check that the query compiles without errors and contains expected SQL structure
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "SELECT" `BS.isPrefixOf` t)
-                sqlText `shouldSatisfy` (\t -> "\"posts\"" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "WHERE" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "\"user_id\"" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1)"
 
             it "compile a basic select query with a where condition and an order by" do
                 let query = DynamicSQLQuery
@@ -98,11 +92,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "WHERE" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "ORDER BY" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "\"created_at\"" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "DESC" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC"
 
             it "compile a basic select query with a limit" do
                 let query = DynamicSQLQuery
@@ -115,8 +106,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "LIMIT" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2"
 
             it "compile a basic select query with an offset" do
                 let query = DynamicSQLQuery
@@ -129,8 +120,8 @@ tests = do
                         , offset = Just 50
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "OFFSET" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2"
 
             it "compile a basic select query with a limit and an offset" do
                 let query = DynamicSQLQuery
@@ -143,9 +134,8 @@ tests = do
                         , offset = Just 50
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "LIMIT" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "OFFSET" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3"
 
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
@@ -158,9 +148,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "IS" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "NULL" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NULL"
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
                 let query = DynamicSQLQuery
@@ -173,9 +162,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "IS NOT" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "NULL" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NOT NULL"
 
             it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
@@ -188,9 +176,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "IS" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "NULL" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"a\") IS NULL"
 
             it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
                 let query = DynamicSQLQuery
@@ -203,10 +190,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "OR" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "IS" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "IN" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)"
 
             it "compile queries with TS expressions" do
                 let query = DynamicSQLQuery
@@ -219,10 +204,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "@@" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "to_tsquery" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "ts_rank" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
 
             it "compile a basic select query with distinctOn" do
                 let query = DynamicSQLQuery
@@ -235,9 +218,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "DISTINCT ON" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "\"group_id\"" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT DISTINCT ON (\"group_id\") * FROM \"posts\""
 
             it "compile a WHERE IN query" do
                 let query = DynamicSQLQuery
@@ -250,6 +232,5 @@ tests = do
                         , offset = Nothing
                         }
 
-                let sqlText = snippetToSql (compileQuery query)
-                sqlText `shouldSatisfy` (\t -> "IN" `BS.isInfixOf` t)
-                sqlText `shouldSatisfy` (\t -> "\"id\"" `BS.isInfixOf` t)
+                snippetToSql (compileQuery query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"id\") IN ($1, $2)"

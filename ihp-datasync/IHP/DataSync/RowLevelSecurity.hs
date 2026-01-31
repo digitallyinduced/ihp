@@ -26,6 +26,7 @@ import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import IHP.DataSync.Hasql (runSession)
 
 -- Statements
@@ -117,8 +118,17 @@ wrapStatementWithRLS ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Snippet -> Snippet
-wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenticatedRole) <> "; SET LOCAL rls.ihp_user_id = " <> encodedUserId <> "; " <> snippet <> ";"
+wrapStatementWithRLS snippet = Snippet.sql (cs setLocalStatements) <> snippet <> Snippet.sql ";"
     where
+        -- SET LOCAL doesn't support parameterized values ($1, $2, etc.) in the
+        -- extended query protocol. We must inline the values directly into the SQL
+        -- string with proper escaping.
+        setLocalStatements :: Text
+        setLocalStatements =
+            "SET LOCAL ROLE " <> escapeIdentifier Role.authenticatedRole
+            <> "; SET LOCAL rls.ihp_user_id = " <> escapeLiteral encodedUserIdText
+            <> "; "
+
         maybeUserId = (.id) <$> currentUserOrNothing
 
         -- When the user is not logged in and maybeUserId is Nothing, we cannot
@@ -127,9 +137,18 @@ wrapStatementWithRLS snippet = "SET LOCAL ROLE " <> Snippet.param (Role.authenti
         -- Therefore we map Nothing to an empty string here. The empty string
         -- means "not logged in".
         --
-        encodedUserId = case maybeUserId of
-                Just userId -> Snippet.param (tshow userId)
-                Nothing -> Snippet.param ("" :: Text)
+        encodedUserIdText :: Text
+        encodedUserIdText = case maybeUserId of
+                Just userId -> tshow userId
+                Nothing -> ""
+
+        -- | Escape a SQL identifier with double quotes
+        escapeIdentifier :: Text -> Text
+        escapeIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
+
+        -- | Escape a SQL string literal with single quotes
+        escapeLiteral :: Text -> Text
+        escapeLiteral value = "'" <> Text.replace "'" "''" value <> "'"
 {-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
