@@ -16,7 +16,7 @@ module IHP.DataSync.TypedEncoder
 ) where
 
 import IHP.Prelude
-import IHP.DataSync.DynamicQuery (DynamicValue(..), ColumnTypeMap, aesonToDynamicValue, dynamicValueParam)
+import IHP.DataSync.DynamicQuery (DynamicValue(..), ColumnTypeMap, aesonToDynamicValue, dynamicValueParam, quoteIdentifier)
 import IHP.Postgres.Point (Point(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
@@ -106,7 +106,7 @@ encodeWithType "numeric"     val = Snippet.encoderAndParam (Encoders.nonNullable
 encodeWithType "jsonb"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) (toJSON val)
 encodeWithType "json"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) (toJSON val)
 encodeWithType "bytea"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bytea) (toByteString val)
-encodeWithType _             val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
+encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::" <> quoteIdentifier pgType
 
 -- | Encode an Aeson 'Value' as a typed Snippet parameter for INSERT/UPDATE operations.
 --
