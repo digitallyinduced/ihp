@@ -135,10 +135,19 @@ renderForm user = [hsx|
 
 #### Activating the Session
 
-Open `Web/FrontController.hs`. Add an import for `IHP.LoginSupport.Middleware` and `Web.Controller.Sessions`:
+First, open `Config/Config.hs` and add the authentication middleware. This middleware runs on every request, fetches the user from the database when a session is active, and stores the user in the WAI request vault:
 
 ```haskell
 import IHP.LoginSupport.Middleware
+
+config :: ConfigBuilder
+config = do
+    option $ AuthMiddleware (authMiddleware @User)
+```
+
+Next, open `Web/FrontController.hs`. Add an import for `Web.Controller.Sessions`:
+
+```haskell
 import Web.Controller.Sessions
 ```
 
@@ -153,26 +162,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-At the end of the file, there is a line like:
-
-```haskell
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAutoRefresh
-```
-
-We need to extend this function with a [`initAuthentication @User`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Middleware.html#v:initAuthentication) like this:
-
-```haskell
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAutoRefresh
-        initAuthentication @User
-```
-
-This will fetch the user from the database when a `userId` is given in the session. The fetched user record is saved to the special `?context` variable and is used by all the helper functions like [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser).
+The authenticated user is available via helper functions like [`currentUser`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-Controller.html#v:currentUser) in your controllers and views.
 
 
 ## Trying out the login
@@ -532,6 +522,12 @@ instance Confirmations.ConfirmationsControllerConfig User where
 ## Aside: Admin authentication
 
 If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
+
+To enable both User and Admin authentication, compose the middleware in `Config/Config.hs`:
+
+```haskell
+option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
+```
 
 
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
