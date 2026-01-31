@@ -31,6 +31,7 @@ common shared-properties
             , hasql-pool
             , hasql-dynamic-statements
             , hasql-implicits
+            , hasql-transaction
             , bytestring
             , aeson
             , uuid

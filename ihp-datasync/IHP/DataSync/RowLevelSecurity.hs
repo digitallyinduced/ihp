@@ -6,12 +6,13 @@ module IHP.DataSync.RowLevelSecurity
 , sqlQueryWithRLS
 , sqlExecWithRLS
 , sqlQueryScalarWithRLS
-, wrapStatementWithRLS
 , hasRLSEnabledSession
 , ensureRLSEnabledSession
 , sqlQueryWithRLSSession
 , sqlExecWithRLSSession
 , sqlQueryScalarWithRLSSession
+, setRLSConfigStatement
+, setRLSConfigSession
 )
 where
 
@@ -19,15 +20,17 @@ import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
+import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
+import qualified Hasql.Transaction as Tx
+import qualified Hasql.Transaction.Sessions as Tx
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import IHP.DataSync.Hasql (runSession)
+import Data.Functor.Contravariant (contramap)
 
 -- Statements
 
@@ -36,6 +39,22 @@ hasRLSEnabledStatement = Statement.Statement
     "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+    True
+
+-- | Prepared statement that sets the RLS role and user id using set_config().
+--
+-- Uses @set_config(setting, value, is_local)@ which is a regular SQL function
+-- that supports parameterized values in the extended query protocol, unlike
+-- @SET LOCAL@ which is a utility command that cannot be parameterized.
+--
+-- The third argument @true@ makes the setting local to the current transaction,
+-- equivalent to @SET LOCAL@.
+setRLSConfigStatement :: Statement.Statement (Text, Text) ()
+setRLSConfigStatement = Statement.Statement
+    "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
+    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
+     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
+    Decoders.noResult
     True
 
 -- Sessions
@@ -49,6 +68,23 @@ ensureRLSEnabledSession table = do
     unless rlsEnabled (error "Row level security is required for accessing this table")
     pure (TableWithRLS table)
 
+-- | Set RLS config (role and user id) in the current transaction.
+--
+-- This is a Session-level action for use in user-managed transactions
+-- (e.g. after a manual @BEGIN@).
+setRLSConfigSession ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    ) => Session.Session ()
+setRLSConfigSession = Session.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
+    where
+        encodedUserId = case (.id) <$> currentUserOrNothing of
+            Just userId -> tshow userId
+            Nothing -> ""
+
 sqlQueryWithRLSSession ::
     ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -56,7 +92,14 @@ sqlQueryWithRLSSession ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Snippet -> Decoders.Result [result] -> Session.Session [result]
-sqlQueryWithRLSSession snippet decoder = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) decoder True
+sqlQueryWithRLSSession snippet decoder =
+    Tx.transaction Tx.ReadCommitted Tx.Read $ do
+        Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
+        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+    where
+        encodedUserId = case (.id) <$> currentUserOrNothing of
+            Just userId -> tshow userId
+            Nothing -> ""
 {-# INLINE sqlQueryWithRLSSession #-}
 
 sqlExecWithRLSSession ::
@@ -66,7 +109,14 @@ sqlExecWithRLSSession ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Snippet -> Session.Session ()
-sqlExecWithRLSSession snippet = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) Decoders.noResult True
+sqlExecWithRLSSession snippet =
+    Tx.transaction Tx.ReadCommitted Tx.Write $ do
+        Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
+        Tx.statement () (DynStatement.dynamicallyParameterized snippet Decoders.noResult True)
+    where
+        encodedUserId = case (.id) <$> currentUserOrNothing of
+            Just userId -> tshow userId
+            Nothing -> ""
 {-# INLINE sqlExecWithRLSSession #-}
 
 sqlQueryScalarWithRLSSession ::
@@ -76,7 +126,14 @@ sqlQueryScalarWithRLSSession ::
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Snippet -> Decoders.Result result -> Session.Session result
-sqlQueryScalarWithRLSSession snippet decoder = DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS snippet) decoder True
+sqlQueryScalarWithRLSSession snippet decoder =
+    Tx.transaction Tx.ReadCommitted Tx.Read $ do
+        Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
+        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+    where
+        encodedUserId = case (.id) <$> currentUserOrNothing of
+            Just userId -> tshow userId
+            Nothing -> ""
 {-# INLINE sqlQueryScalarWithRLSSession #-}
 
 -- IO API (thin wrappers)
@@ -110,46 +167,6 @@ sqlQueryScalarWithRLS ::
     ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result result -> IO result
 sqlQueryScalarWithRLS pool snippet decoder = runSession pool (sqlQueryScalarWithRLSSession snippet decoder)
 {-# INLINE sqlQueryScalarWithRLS #-}
-
-wrapStatementWithRLS ::
-    ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    , HasNewSessionUrl CurrentUserRecord
-    , Typeable CurrentUserRecord
-    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Snippet
-wrapStatementWithRLS snippet = Snippet.sql (cs setLocalStatements) <> snippet <> Snippet.sql ";"
-    where
-        -- SET LOCAL doesn't support parameterized values ($1, $2, etc.) in the
-        -- extended query protocol. We must inline the values directly into the SQL
-        -- string with proper escaping.
-        setLocalStatements :: Text
-        setLocalStatements =
-            "SET LOCAL ROLE " <> escapeIdentifier Role.authenticatedRole
-            <> "; SET LOCAL rls.ihp_user_id = " <> escapeLiteral encodedUserIdText
-            <> "; "
-
-        maybeUserId = (.id) <$> currentUserOrNothing
-
-        -- When the user is not logged in and maybeUserId is Nothing, we cannot
-        -- just pass @NULL@ to postgres. The @SET LOCAL@ values can only be strings.
-        --
-        -- Therefore we map Nothing to an empty string here. The empty string
-        -- means "not logged in".
-        --
-        encodedUserIdText :: Text
-        encodedUserIdText = case maybeUserId of
-                Just userId -> tshow userId
-                Nothing -> ""
-
-        -- | Escape a SQL identifier with double quotes
-        escapeIdentifier :: Text -> Text
-        escapeIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
-
-        -- | Escape a SQL string literal with single quotes
-        escapeLiteral :: Text -> Text
-        escapeLiteral value = "'" <> Text.replace "'" "''" value <> "'"
-{-# INLINE wrapStatementWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table
 ensureRLSEnabled :: Hasql.Pool.Pool -> Text -> IO TableWithRLS

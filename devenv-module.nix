@@ -74,6 +74,7 @@ that is defined in flake-module.nix
                         hasql-pool
                         hasql-dynamic-statements
                         hasql-implicits
+                        hasql-transaction
                         wai-app-static
                         wai-util
                         aeson

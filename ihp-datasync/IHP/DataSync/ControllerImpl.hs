@@ -13,6 +13,7 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Pool
 import qualified Hasql.DynamicStatements.Session as DynSession
+import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withPoolConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
@@ -408,7 +409,9 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 withPoolConnection hasqlPool \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
-                    runSessionOnConnection connection (DynSession.dynamicallyParameterizedStatement (wrapStatementWithRLS "BEGIN") Decoders.noResult True)
+                    runSessionOnConnection connection $ do
+                        Session.sql "BEGIN"
+                        setRLSConfigSession
 
                     let transaction = DataSyncTransaction
                             { id = transactionId
@@ -425,17 +428,17 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                     atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
             handleMessage RollbackTransaction { requestId, id } = do
-                DataSyncTransaction { id, close } <- findTransactionById id
+                DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId hasqlPool (Just id) "ROLLBACK"
+                runSessionOnConnection connection (Session.sql "ROLLBACK")
                 MVar.putMVar close ()
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
 
             handleMessage CommitTransaction { requestId, id } = do
-                DataSyncTransaction { id, close } <- findTransactionById id
+                DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId hasqlPool (Just id) "COMMIT"
+                runSessionOnConnection connection (Session.sql "COMMIT")
                 MVar.putMVar close ()
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
@@ -494,8 +497,10 @@ sqlQueryWithRLSAndTransactionId ::
     , ?state :: IORef DataSyncController
     ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> Decoders.Result [result] -> IO [result]
 sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
+    -- RLS role and user id were already set when the transaction was started
     DataSyncTransaction { connection } <- findTransactionById transactionId
-    runSessionOnConnection connection (sqlQueryWithRLSSession snippet decoder)
+    runSessionOnConnection connection
+        (DynSession.dynamicallyParameterizedStatement snippet decoder True)
 sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 
 
@@ -508,8 +513,10 @@ sqlExecWithRLSAndTransactionId ::
     , ?state :: IORef DataSyncController
     ) => Hasql.Pool.Pool -> Maybe UUID -> Snippet -> IO ()
 sqlExecWithRLSAndTransactionId _pool (Just transactionId) snippet = do
+    -- RLS role and user id were already set when the transaction was started
     DataSyncTransaction { connection } <- findTransactionById transactionId
-    runSessionOnConnection connection (sqlExecWithRLSSession snippet)
+    runSessionOnConnection connection
+        (DynSession.dynamicallyParameterizedStatement snippet Decoders.noResult True)
 sqlExecWithRLSAndTransactionId pool Nothing snippet = runSession pool (sqlExecWithRLSSession snippet)
 
 
