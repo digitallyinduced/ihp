@@ -194,7 +194,8 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                                     changes <- ChangeNotifications.retrieveChanges changeSet
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
@@ -203,7 +204,8 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                                     changes <- ChangeNotifications.retrieveChanges (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
@@ -460,10 +462,17 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-changesToValue :: Renamer -> [ChangeNotifications.Change] -> Value
-changesToValue renamer changes = object (map changeToPair changes)
+changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Value, Value)
+changesToValue renamer changes = (object replacePairs, object appendPairs)
     where
-        changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ renamer.columnToField col) .= new
+        replacePairs = mapMaybe toReplacePair changes
+        appendPairs  = mapMaybe toAppendPair changes
+        toReplacePair ChangeNotifications.Change { col, new } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= new
+        toReplacePair _ = Nothing
+        toAppendPair ChangeNotifications.AppendChange { col, append } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= append
+        toAppendPair _ = Nothing
 
 runInModelContextWithTransaction :: (?state :: IORef DataSyncController, ?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
 runInModelContextWithTransaction function (Just transactionId) = do
