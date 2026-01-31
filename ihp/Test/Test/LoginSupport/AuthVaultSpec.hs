@@ -30,7 +30,7 @@ tests = do
                         let ?context = ctx
                         Controller.currentUserOrNothing `shouldBe` Just user
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
             it "Controller.currentUserOrNothing returns Nothing when not authenticated" do
                 let app = userMiddleware Nothing $ \req respond -> do
@@ -38,7 +38,7 @@ tests = do
                         let ?context = ctx
                         (Controller.currentUserOrNothing :: Maybe CurrentUserRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
             it "populates View.currentUserOrNothing when user is authenticated" do
                 let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
@@ -47,7 +47,7 @@ tests = do
                         let ?context = ctx
                         View.currentUserOrNothing `shouldBe` Just user
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
         describe "admin authentication" do
             it "populates Controller.currentAdminOrNothing when admin is authenticated" do
@@ -57,7 +57,7 @@ tests = do
                         let ?context = ctx
                         Controller.currentAdminOrNothing `shouldBe` Just admin
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
             it "Controller.currentAdminOrNothing returns Nothing when not authenticated" do
                 let app = adminMiddleware Nothing $ \req respond -> do
@@ -65,7 +65,7 @@ tests = do
                         let ?context = ctx
                         (Controller.currentAdminOrNothing :: Maybe CurrentAdminRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
         describe "middleware composition" do
             it "supports both user and admin simultaneously" do
@@ -78,7 +78,7 @@ tests = do
                         Controller.currentUserOrNothing `shouldBe` Just user
                         Controller.currentAdminOrNothing `shouldBe` Just admin
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
             it "user middleware does not affect admin lookup" do
                 let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
@@ -87,7 +87,7 @@ tests = do
                         let ?context = ctx
                         (Controller.currentAdminOrNothing :: Maybe CurrentAdminRecord) `shouldBe` Nothing
                         respond $ Wai.responseLBS status200 [] ""
-                flip runSession app $ request defaultRequest >> pure ()
+                runSession (request defaultRequest >> pure ()) app
 
 -- | Mock user type for tests
 data TestUser = TestUser { id :: UUID }
