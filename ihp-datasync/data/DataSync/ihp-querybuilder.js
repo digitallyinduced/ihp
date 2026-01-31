@@ -288,7 +288,7 @@ class QueryBuilder extends ConditionBuildable {
     }
 
     whereTextSearchStartsWith(field, value) {
-        let normalized = value.trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
+        let normalized = String(value ?? '').trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
         if (normalized.length > 0) {
             normalized +=  ':*';
         }
