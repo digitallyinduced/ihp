@@ -14,6 +14,7 @@ module IHP.DataSync.ChangeNotifications
 import IHP.Prelude
 import qualified Hasql.Pool
 import Data.String.Interpolate.IsString (i)
+import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
@@ -124,7 +125,7 @@ createNotificationFunction table = Snippet.sql [i|
 |]
 
     where
-        tableName = table.tableName
+        tableName = Text.replace "\"" "\"\"" table.tableName
 
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName
@@ -168,7 +169,7 @@ makeCachedInstallTableChangeTriggers pool = do
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
-channelName table = "did_change_" <> (cs $ table.tableName)
+channelName table = "did_change_" <> (cs $ Text.replace "\"" "\"\"" table.tableName)
 
 
 instance FromJSON ChangeNotification where

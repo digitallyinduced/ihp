@@ -17,6 +17,7 @@ module IHP.DataSync.Role where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
+import qualified Data.Text as Text
 import qualified Hasql.Pool
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
@@ -94,6 +95,7 @@ ensureAuthenticatedRoleExistsWithRole pool role = runSession pool $ do
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
 authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
 
--- | Quote a SQL identifier (role name, table name, etc.) to prevent SQL injection
+-- | Quote a SQL identifier (role name, table name, etc.) to prevent SQL injection.
+-- Escapes embedded double quotes by doubling them per SQL standard.
 quoteIdentifier :: Text -> ByteString
-quoteIdentifier name = cs ("\"" <> name <> "\"")
+quoteIdentifier name = cs ("\"" <> Text.replace "\"" "\"\"" name <> "\"")
