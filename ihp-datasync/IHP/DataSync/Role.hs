@@ -82,6 +82,15 @@ grantPermissionsSession role = do
 ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
 ensureAuthenticatedRoleExists pool = runSession pool ensureAuthenticatedRoleSession
 
+-- | Like 'ensureAuthenticatedRoleExists', but takes the role name directly
+-- instead of reading it from the framework config. Used by 'initHasqlPoolWithRLS'
+-- at config-build time when 'FrameworkConfig' is not yet available.
+ensureAuthenticatedRoleExistsWithRole :: Hasql.Pool.Pool -> Text -> IO ()
+ensureAuthenticatedRoleExistsWithRole pool role = runSession pool $ do
+    roleExists <- Session.statement role doesRoleExistsStatement
+    unless roleExists (createAuthenticatedRoleSession role)
+    grantPermissionsSession role
+
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
 authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
 
