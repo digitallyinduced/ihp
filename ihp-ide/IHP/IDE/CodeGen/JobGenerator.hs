@@ -40,12 +40,7 @@ buildPlan' config =
         let
             name = config.modelName
             tableName = modelNameToTableName nameWithSuffix
-            nameWithSuffix = if "Job" `isSuffixOf` name
-                then name
-                else name <> "Job" --e.g. "Test" -> "TestJob"
-            nameWithoutSuffix = if "Job" `isSuffixOf` name
-                then Text.replace "Job" "" name
-                else name --e.g. "TestJob" -> "Test""
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "Job" name
 
             job =
                 ""

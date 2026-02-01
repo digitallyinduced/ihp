@@ -2,7 +2,6 @@ module IHP.IDE.CodeGen.MailGenerator (buildPlan, buildPlan', MailConfig (..)) wh
 
 import IHP.Prelude
 import IHP.IDE.CodeGen.Types
-import qualified Data.Text as Text
 import IHP.Postgres.Types
 import Text.Countable (singularize, pluralize)
 
@@ -37,12 +36,7 @@ buildPlan' schema config =
             singularName = config.modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if "Mail" `isSuffixOf` name
-                then name
-                else name <> "Mail" --e.g. "Test" -> "TestMail"
-            nameWithoutSuffix = if "Mail" `isSuffixOf` name
-                then Text.replace "Mail" "" name
-                else name --e.g. "TestMail" -> "Test"
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "Mail" name
 
             indexAction = pluralize singularName <> "Action"
 

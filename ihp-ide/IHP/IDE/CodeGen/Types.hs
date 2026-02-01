@@ -1,6 +1,7 @@
 module IHP.IDE.CodeGen.Types where
 
 import IHP.Prelude
+import qualified Data.Text as Text
 import IHP.Postgres.Types
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 
@@ -85,3 +86,14 @@ loadAppSchema :: IO [Statement]
 loadAppSchema = SchemaDesigner.parseSchemaSql >>= \case
     Left _parserError -> pure []
     Right statements -> pure statements
+
+-- | Ensures a name has the given suffix, returning both the suffixed and unsuffixed versions.
+--
+-- >>> ensureSuffix "View" "EditView"
+-- ("EditView", "Edit")
+-- >>> ensureSuffix "View" "Edit"
+-- ("EditView", "Edit")
+ensureSuffix :: Text -> Text -> (Text, Text)
+ensureSuffix suffix name
+    | suffix `isSuffixOf` name = (name, Text.dropEnd (Text.length suffix) name)
+    | otherwise = (name <> suffix, name)

@@ -1,7 +1,6 @@
 module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..), postgresTypeToFieldHelper) where
 
 import IHP.Prelude
-import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
 import IHP.NameSupport (columnNameToFieldName, columnNameToFieldLabel)
@@ -42,12 +41,7 @@ buildPlan' schema config =
             pluralName = singularName |> lcfirst |> pluralize |> ucfirst -- TODO: `pluralize` Should Support Lower-Cased Words
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if "View" `isSuffixOf` name
-                then name
-                else name <> "View" --e.g. "Test" -> "TestView"
-            nameWithoutSuffix = if "View" `isSuffixOf` name
-                then Text.replace "View" "" name
-                else name --e.g. "TestView" -> "Test"
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "View" name
 
             indexAction = pluralName <> "Action"
             specialCases = [

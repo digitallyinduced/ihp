@@ -46,12 +46,7 @@ generateGenericAction schema config doGenerateView =
             controllerName = config.controllerName
             name = ucfirst $ config.actionName
             singularName = config.modelName
-            nameWithSuffix = if "Action" `isSuffixOf` name
-                    then name
-                    else name <> "Action" -- e.g. TestAction
-            viewName = if "Action" `isSuffixOf` name
-                then Text.dropEnd 6 name
-                else name
+            (nameWithSuffix, viewName) = ensureSuffix "Action" name
             indexAction = pluralize singularName <> "Action"
             specialCases = [
                   (indexAction, indexContent)
