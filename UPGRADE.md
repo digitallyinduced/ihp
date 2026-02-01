@@ -178,6 +178,40 @@ nix build
 nix flake check --impure
 ```
 
+## 14. Authentication moved to WAI middleware
+
+The `initAuthentication` function has been removed and replaced with a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
+
+**Migration steps:**
+
+1. Remove `initAuthentication @User` from your `InitControllerContext` instances:
+
+    ```diff
+    instance InitControllerContext WebApplication where
+        initContext = do
+            setLayout defaultLayout
+            initAutoRefresh
+    -       initAuthentication @User
+    ```
+
+2. Add the `AuthMiddleware` option to your `Config.hs`:
+
+    ```haskell
+    import IHP.LoginSupport.Middleware
+
+    config :: ConfigBuilder
+    config = do
+        option $ AuthMiddleware (authMiddleware @User)
+    ```
+
+3. If you use both User and Admin authentication, compose the middleware:
+
+    ```haskell
+    option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
+    ```
+
+**Removed functions:** `initAuthentication`, `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
 
 # Upgrade to 1.4.0 from 1.3.0
 
