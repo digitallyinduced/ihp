@@ -33,7 +33,7 @@ import qualified Data.UUID.V4 as UUID
 import Control.Monad (forever, unless, void, forM_)
 import GHC.Records (HasField)
 import Data.Maybe (fromMaybe)
-import Control.Exception (SomeException, displayException)
+import Control.Exception (SomeException, displayException, uninterruptibleMask_)
 import Control.Concurrent.Async (Async, async, cancel, uninterruptibleCancel)
 import Data.Function ((&))
 
@@ -247,35 +247,54 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
                 listeningTo <- MVar.readMVar listeningToVar
                 forM_ listeningTo (listenToChannel connection)
 
-                -- This loop reads channels from the 'listenToVar' and then triggers a LISTEN statement on
-                -- the current database connection
-                let listenLoop = forever do
-                        channel <- MVar.takeMVar listenToVar
+                -- We use 'race' to alternate between waiting for notifications and
+                -- processing new LISTEN requests. This avoids a deadlock: both
+                -- 'waitForNotifications' and 'listen' acquire an exclusive lock on
+                -- the underlying libpq connection via 'Connection.use'. If we ran
+                -- them concurrently (as before), 'listen' would block forever
+                -- waiting for 'waitForNotifications' to release the lock.
+                --
+                -- When 'race' cancels 'waitForNotifications', the lock is released,
+                -- allowing 'listenToChannel' to acquire it. Any buffered notifications
+                -- are preserved in the libpq connection and picked up when
+                -- 'waitForNotifications' is restarted.
+                let notifyAndListenLoop = do
+                        result <- Async.race
+                            (HasqlNotifications.waitForNotifications
+                                (\channel payload -> uninterruptibleMask_ do
+                                    -- uninterruptibleMask_ ensures that once waitForNotifications
+                                    -- has dequeued a notification from libpq's buffer, the callback
+                                    -- runs to completion even if race cancels us with an async exception.
+                                    -- Without this, a notification could be lost: dequeued from libpq
+                                    -- but never delivered to the subscription's inChan.
+                                    let notification = Notification { notificationChannel = channel, notificationData = payload }
 
-                        MVar.modifyMVar_ listeningToVar \listeningTo -> do
-                            let alreadyListening = channel `Set.member` listeningTo
+                                    allSubscriptions <- readIORef subscriptions
+                                    let channelSubscriptions = allSubscriptions
+                                            & HashMap.lookup channel
+                                            & fromMaybe []
 
-                            if alreadyListening
-                                then pure listeningTo
-                                else do
-                                    listenToChannel connection channel
-                                    pure (Set.insert channel listeningTo)
+                                    forM_ channelSubscriptions \subscription ->
+                                        Queue.writeChan (subscription.inChan) notification
+                                )
+                                connection
+                            )
+                            (MVar.takeMVar listenToVar)
 
-                Async.withAsync listenLoop \listenLoopAsync -> do
-                    HasqlNotifications.waitForNotifications
-                        (\channel payload -> do
-                            let notification = Notification { notificationChannel = channel, notificationData = payload }
+                        case result of
+                            Left () ->
+                                -- waitForNotifications returned (connection lost) - exit to trigger retry
+                                pure ()
+                            Right newChannel -> do
+                                MVar.modifyMVar_ listeningToVar \currentListeningTo ->
+                                    if newChannel `Set.member` currentListeningTo
+                                        then pure currentListeningTo
+                                        else do
+                                            listenToChannel connection newChannel
+                                            pure (Set.insert newChannel currentListeningTo)
+                                notifyAndListenLoop
 
-                            allSubscriptions <- readIORef subscriptions
-                            let channelSubscriptions = allSubscriptions
-                                    & HashMap.lookup channel
-                                    & fromMaybe []
-
-                            forM_ channelSubscriptions \subscription -> do
-                                let inChan = subscription.inChan
-                                Queue.writeChan inChan notification
-                        )
-                        connection
+                notifyAndListenLoop
 
     -- Initial delay (in microseconds)
     let initialDelay = 500 * 1000

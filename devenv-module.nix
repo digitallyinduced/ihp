@@ -66,6 +66,7 @@ that is defined in flake-module.nix
             # Override checks that need a running PostgreSQL for integration tests
             // {
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
         ;
 
@@ -258,6 +259,7 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-pglistener = pkgs.ghc.ihp-pglistener;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
             wai-flash-messages = pkgs.ghc.wai-flash-messages;
