@@ -3,6 +3,7 @@ import { DataSyncController, DataSubscription } from './ihp-datasync.js';
 function fetchAuthenticated(path, params) {
     const jwt = localStorage.getItem('ihp_jwt');
     if (jwt !== null) {
+        params.headers = params.headers || {};
         params.headers['Authorization'] = 'Bearer ' + jwt;
     } else {
         params.credentials = 'include';
@@ -50,7 +51,7 @@ function infixColumnLiteral(field, op, value) {
         op,
         right: {
             tag: 'LiteralExpression',
-            value: jsValueToDynamicValue(value),
+            value: value,
         },
     }
 }
@@ -223,7 +224,7 @@ class ConditionBuildable {
             op: 'OpIn',
             right: {
                 tag: 'ListExpression',
-                values: values.map(jsValueToDynamicValue),
+                values: values,
             },
         };
         this._addCondition('OpAnd', expression);
@@ -235,7 +236,7 @@ class ConditionBuilder extends ConditionBuildable {
     constructor() {
         super({
             tag: 'LiteralExpression',
-            value: jsValueToDynamicValue(true),
+            value: true,
         })
         this.type = 'ConditionBuilder';
     }
@@ -287,7 +288,7 @@ class QueryBuilder extends ConditionBuildable {
     }
 
     whereTextSearchStartsWith(field, value) {
-        let normalized = value.trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
+        let normalized = String(value ?? '').trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
         if (normalized.length > 0) {
             normalized +=  ':*';
         }
@@ -383,35 +384,18 @@ function query(table, columns) {
     return new QueryBuilder(table, columns);
 }
 
-function jsValueToDynamicValue(value) {
-    if (typeof value === "string") {
-        return { tag: 'TextValue', contents: value };
-    } else if (typeof value === "number") {
-        return { tag: Number.isInteger(value) ? 'IntValue' : 'DoubleValue', contents: value };
-    } else if (typeof value === "boolean") {
-        return { tag: 'BoolValue', contents: value };
-    } else if (value === null || value === undefined) {
-        return { tag: 'Null' };
-    }
-
-    throw new Error('Could no transform JS value to DynamicValue. Supported types: string, number, boolean, null, undefined');
-}
-
 export function recordMatchesQuery(query, record) {
-    function evaluateDynamicValue(value) {
-        return (value.tag === 'Null' ? null : value.contents);
-    }
     function evaluate(expression) {
         switch (expression.tag) {
             case 'ColumnExpression': return (expression.field in record) ? record[expression.field] : null;
             case 'InfixOperatorExpression': {
                 switch (expression.op) {
-                    case 'OpEqual': return evaluate(expression.left) == evaluate(expression.right);
+                    case 'OpEqual': return evaluate(expression.left) === evaluate(expression.right);
                     case 'OpGreaterThan': return evaluate(expression.left) > evaluate(expression.right);
                     case 'OpLessThan': return evaluate(expression.left) < evaluate(expression.right);
                     case 'OpGreaterThanOrEqual': return evaluate(expression.left) >= evaluate(expression.right);
                     case 'OpLessThanOrEqual': return evaluate(expression.left) <= evaluate(expression.right);
-                    case 'OpNotEqual': return evaluate(expression.left) != evaluate(expression.right);
+                    case 'OpNotEqual': return evaluate(expression.left) !== evaluate(expression.right);
                     case 'OpAnd': return evaluate(expression.left) && evaluate(expression.right);
                     case 'OpOr': return evaluate(expression.left) || evaluate(expression.right);
                     case 'OpIs': return evaluate(expression.left) == evaluate(expression.right);
@@ -424,8 +408,8 @@ export function recordMatchesQuery(query, record) {
                     default: throw new Error('Unsupported operator ' + expression.op);
                 }
             }
-            case 'LiteralExpression': return evaluateDynamicValue(expression.value);
-            case 'ListExpression': return expression.values.map(value => evaluateDynamicValue(value));
+            case 'LiteralExpression': return expression.value;
+            case 'ListExpression': return expression.values;
             default: throw new Error('Unsupported expression in evaluate: ' + expression.tag);
         }
     }
