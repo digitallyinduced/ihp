@@ -40,21 +40,21 @@ nix flake update
 direnv reload
 ```
 
-Start the development environment, in a way that logs are saved to a file:
+Start the development environment:
 
 ```bash
-devenv up 2>&1 | tee /tmp/devenv.log
+devenv up
 ```
 
 Then you can use this prompt to copy/paste into your AI agent (e.g., Claude or Codex):
 
 ```
-I ran devenv up 2>&1 | tee /tmp/devenv.log. Keep tailing /tmp/devenv.log and fix compile errors iteratively until the app builds.
+I ran devenv up. Keep tailing .devenv/state/process-compose/process-compose.log and fix compile errors iteratively until the app builds.
   Rules:
 
   - Check the git history at https://github.com/digitallyinduced/ihp to see what has changed.
   - Don’t touch anything under IHP/ (IHP core).
-  - Always tail -n 120 /tmp/devenv.log after each change.
+  - Always tail -n 120 .devenv/state/process-compose/process-compose.log after each change.
   - Fix only the app code (Web/, Application/, Config/, etc.).
   - If a fix requires new deps/config, update project files accordingly (e.g., add p.ihp-mail in flake.nix when IHP.Mail imports fail) and tell me if I need to restart
     devenv up.
