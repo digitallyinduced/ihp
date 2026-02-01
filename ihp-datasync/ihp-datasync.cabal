@@ -62,6 +62,7 @@ common shared-properties
             , stm
             , unordered-containers
             , vault
+            , typerep-map
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
