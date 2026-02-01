@@ -6,10 +6,13 @@ module IHP.LoginSupport.Types
 , CurrentAdminRecord
 , currentUserVaultKey
 , currentAdminVaultKey
+, currentUserIdVaultKey
+, currentAdminIdVaultKey
 , lookupAuthVault
 ) where
 
 import IHP.Prelude
+import Data.UUID (UUID)
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
 import System.IO.Unsafe (unsafePerformIO)
@@ -31,6 +34,18 @@ currentUserVaultKey = unsafePerformIO Vault.newKey
 currentAdminVaultKey :: Vault.Key (Maybe CurrentAdminRecord)
 currentAdminVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE currentAdminVaultKey #-}
+
+-- | Vault key for the current user's UUID.
+-- Used by 'userIdMiddleware' to store just the user ID (no DB fetch).
+currentUserIdVaultKey :: Vault.Key (Maybe UUID)
+currentUserIdVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE currentUserIdVaultKey #-}
+
+-- | Vault key for the current admin's UUID.
+-- Used by 'adminIdMiddleware' to store just the admin ID (no DB fetch).
+currentAdminIdVaultKey :: Vault.Key (Maybe UUID)
+currentAdminIdVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE currentAdminIdVaultKey #-}
 
 -- | Pure lookup of an auth record from the WAI request vault.
 lookupAuthVault :: Vault.Key (Maybe user) -> Wai.Request -> Maybe user
