@@ -41,17 +41,24 @@ data ChangeSet
     | ExternalChangeSet { largePgNotificationId :: !UUID } -- | The patch is over 8000 bytes, so we have stored it in the @large_pg_notifications@ table
     deriving (Eq, Show)
 
-data Change = Change
-    { col :: !Text
-    , new :: !Value
-    } deriving (Eq, Show)
+data Change
+    = Change { col :: !Text, new :: !Value }
+    | AppendChange { col :: !Text, append :: !Text }
+    deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 createNotificationFunction :: RLS.TableWithRLS -> Snippet
 createNotificationFunction table = Snippet.sql [i|
     DO $$
     BEGIN
-            CREATE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
+        -- This inner block handles concurrent installations from multiple
+        -- DataSync subscriptions racing to set up triggers for the same table.
+        -- CREATE OR REPLACE FUNCTION can fail with 'tuple concurrently updated'
+        -- (XX000) when two connections replace the function simultaneously.
+        -- The table creation below must stay OUTSIDE this block so it always
+        -- runs, even when the exception handler swallows a concurrent error.
+        BEGIN
+            CREATE OR REPLACE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
                 DECLARE
                     payload TEXT;
                     large_pg_notification_id UUID;
@@ -59,13 +66,23 @@ createNotificationFunction table = Snippet.sql [i|
                 BEGIN
                     CASE TG_OP
                     WHEN 'UPDATE' THEN
-                        SELECT coalesce(json_agg(row_to_json(t)), '[]'::json)
-                                FROM (
-                                      SELECT pre.key AS "col", post.value AS "new"
-                                      FROM jsonb_each(to_jsonb(OLD)) AS pre
-                                      CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
-                                      WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
-                                ) t INTO changeset;
+                        SELECT coalesce(json_agg(
+                            CASE
+                                WHEN jsonb_typeof(pre.value) = 'string'
+                                    AND jsonb_typeof(post.value) = 'string'
+                                    AND length(post.value #>> '{}') > length(pre.value #>> '{}')
+                                    AND starts_with(post.value #>> '{}', pre.value #>> '{}')
+                                THEN json_build_object(
+                                    'col', pre.key,
+                                    'append', substring(post.value #>> '{}' from length(pre.value #>> '{}') + 1)
+                                )
+                                ELSE json_build_object('col', pre.key, 'new', post.value)
+                            END
+                        ), '[]'::json)
+                        FROM jsonb_each(to_jsonb(OLD)) AS pre
+                        CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
+                        WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
+                        INTO changeset;
                         payload := json_build_object(
                           'UPDATE', NEW.id::text,
                           'CHANGESET', changeset
@@ -100,13 +117,14 @@ createNotificationFunction table = Snippet.sql [i|
             DROP TRIGGER IF EXISTS "#{updateTriggerName}" ON "#{tableName}";
             DROP TRIGGER IF EXISTS "#{deleteTriggerName}" ON "#{tableName}";
 
-
             CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
             CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
             CREATE TRIGGER "#{deleteTriggerName}" AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
         EXCEPTION
-            WHEN duplicate_function THEN
-            null;
+            WHEN duplicate_function THEN null;
+            WHEN duplicate_object THEN null;
+            WHEN SQLSTATE 'XX000' THEN null; -- tuple concurrently updated
+        END;
 
         IF NOT EXISTS (
             SELECT FROM pg_catalog.pg_class c
@@ -161,11 +179,13 @@ makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS 
 makeCachedInstallTableChangeTriggers pool = do
     tables <- newIORef Set.empty
     pure \tableName -> do
-        triggersInstalled <- Set.member tableName <$> readIORef tables
+        shouldInstall <- atomicModifyIORef' tables \set ->
+            if Set.member tableName set
+                then (set, False)
+                else (Set.insert tableName set, True)
 
-        unless triggersInstalled do
+        when shouldInstall do
             installTableChangeTriggers pool tableName
-            modifyIORef' tables (Set.insert tableName)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
@@ -197,8 +217,8 @@ instance FromJSON ChangeSet where
 instance FromJSON Change where
     parseJSON = withObject "Change" $ \values -> do
         col <- values .: "col"
-        new <- values .: "new"
-        pure Change { .. }
+        (Change col <$> values .: "new")
+          <|> (AppendChange col <$> values .: "append")
 -- | The @pg_notify@ function has a payload limit of 8000 bytes. When a record update is larger than the payload size
 -- we store the patch in the @large_pg_notifications@ table and pass over the id to the patch.
 --
@@ -212,6 +232,8 @@ retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
         Left e -> fail e
         Right changes -> pure changes
 
-$(deriveToJSON defaultOptions 'Change)
+instance ToJSON Change where
+    toJSON Change { col, new } = object ["col" .= col, "new" .= new]
+    toJSON AppendChange { col, append } = object ["col" .= col, "append" .= append]
 $(deriveToJSON defaultOptions 'InlineChangeSet)
 $(deriveToJSON defaultOptions 'DidInsert)

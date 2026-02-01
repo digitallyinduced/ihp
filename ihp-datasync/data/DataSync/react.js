@@ -126,6 +126,9 @@ export function useCount(queryBuilder) {
                     controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: response.subscriptionId });
                 }
             })
+            .catch((error) => {
+                console.error('useCount: Failed to create count subscription', error);
+            })
 
         return () => {
             isActive = false;

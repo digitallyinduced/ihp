@@ -141,6 +141,7 @@ test-suite ihp-datasync-hspec
     main-is:             Test/Main.hs
     other-modules: Test.DataSync.DynamicQueryCompiler
                  , Test.DataSync.TypedEncoder
+                 , Test.DataSync.ChangeNotifications
     build-depends: hspec
 
 source-repository head

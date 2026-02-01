@@ -33,7 +33,7 @@ import IHP.RequestVault
 import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
-$(deriveToJSON defaultOptions 'DataSyncResult)
+$(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
 
 type EnsureRLSEnabledFn = Text -> IO TableWithRLS
 type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
@@ -194,7 +194,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                                     changes <- ChangeNotifications.retrieveChanges hasqlPool changeSet
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
@@ -202,7 +203,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                     isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
                                     changes <- ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
@@ -448,10 +450,19 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-changesToValue :: Renamer -> [ChangeNotifications.Change] -> Value
-changesToValue renamer changes = object (map changeToPair changes)
+changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
+changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)
     where
-        changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ renamer.columnToField col) .= new
+        maybeObject [] = Nothing
+        maybeObject pairs = Just (object pairs)
+        replacePairs = mapMaybe toReplacePair changes
+        appendPairs  = mapMaybe toAppendPair changes
+        toReplacePair ChangeNotifications.Change { col, new } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= new
+        toReplacePair _ = Nothing
+        toAppendPair ChangeNotifications.AppendChange { col, append } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= append
+        toAppendPair _ = Nothing
 
 findTransactionById :: (?state :: IORef DataSyncController) => UUID -> IO DataSyncTransaction
 findTransactionById transactionId = do
