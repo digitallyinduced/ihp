@@ -32,7 +32,7 @@ import Control.Monad (void)
 import IHP.RequestVault
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
-$(deriveToJSON defaultOptions 'DataSyncResult)
+$(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
 
 type EnsureRLSEnabledFn = Text -> IO TableWithRLS
 type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
@@ -462,9 +462,11 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Value, Value)
-changesToValue renamer changes = (object replacePairs, object appendPairs)
+changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
+changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)
     where
+        maybeObject [] = Nothing
+        maybeObject pairs = Just (object pairs)
         replacePairs = mapMaybe toReplacePair changes
         appendPairs  = mapMaybe toAppendPair changes
         toReplacePair ChangeNotifications.Change { col, new } =

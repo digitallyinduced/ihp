@@ -35,7 +35,7 @@ data DataSyncResponse
     | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !UUID, count :: !Int }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !UUID }
     | DidInsert { subscriptionId :: !UUID, record :: ![Field] }
-    | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !Value, appendSet :: !Value }
+    | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !(Maybe Value), appendSet :: !(Maybe Value) }
     | DidDelete { subscriptionId :: !UUID, id :: !UUID }
     | DidChangeCount { subscriptionId :: !UUID, count :: !Int }
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'

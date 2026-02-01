@@ -51,8 +51,8 @@ tests = do
                         , AppendChange { col = "body", append = " more text" }
                         ]
                 let (changeSet, appendSet) = changesToValue identityRenamer changes
-                changeSet `shouldBe` object ["title" .= ("New Title" :: Text)]
-                appendSet `shouldBe` object ["body" .= (" more text" :: Text)]
+                changeSet `shouldBe` Just (object ["title" .= ("New Title" :: Text)])
+                appendSet `shouldBe` Just (object ["body" .= (" more text" :: Text)])
 
             it "returns empty appendSet when all changes are regular" do
                 let changes =
@@ -60,16 +60,16 @@ tests = do
                         , Change { col = "body", new = String "Full body" }
                         ]
                 let (changeSet, appendSet) = changesToValue identityRenamer changes
-                changeSet `shouldBe` object ["title" .= ("New Title" :: Text), "body" .= ("Full body" :: Text)]
-                appendSet `shouldBe` object []
+                changeSet `shouldBe` Just (object ["title" .= ("New Title" :: Text), "body" .= ("Full body" :: Text)])
+                appendSet `shouldBe` Nothing
 
             it "returns empty changeSet when all changes are appends" do
                 let changes =
                         [ AppendChange { col = "body", append = " suffix" }
                         ]
                 let (changeSet, appendSet) = changesToValue identityRenamer changes
-                changeSet `shouldBe` object []
-                appendSet `shouldBe` object ["body" .= (" suffix" :: Text)]
+                changeSet `shouldBe` Nothing
+                appendSet `shouldBe` Just (object ["body" .= (" suffix" :: Text)])
 
             it "applies renamer to column names" do
                 let renamer = Renamer { fieldToColumn = Prelude.id, columnToField = \col -> case col of
@@ -81,5 +81,5 @@ tests = do
                         , AppendChange { col = "user_name", append = " Smith" }
                         ]
                 let (changeSet, appendSet) = changesToValue renamer changes
-                changeSet `shouldBe` object ["userName" .= ("Alice" :: Text)]
-                appendSet `shouldBe` object ["userName" .= (" Smith" :: Text)]
+                changeSet `shouldBe` Just (object ["userName" .= ("Alice" :: Text)])
+                appendSet `shouldBe` Just (object ["userName" .= (" Smith" :: Text)])
