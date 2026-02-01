@@ -158,7 +158,7 @@ generateCreateActionBody config =
     <> "        " <> config.modelVariableSingular <> "\n"
     <> "            |> build" <> config.singularName <> "\n"
     <> "            |> ifValid \\case\n"
-    <> "                Left " <> config.modelVariableSingular <> " -> render NewView { .. }\n"
+    <> "                Left " <> config.modelVariableSingular <> " -> render NewView { .. } \n"
     <> "                Right " <> config.modelVariableSingular <> " -> do\n"
     <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> createRecord\n"
     <> "                    setSuccessMessage \"" <> config.model <> " created\"\n"
