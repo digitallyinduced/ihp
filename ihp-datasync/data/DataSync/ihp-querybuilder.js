@@ -3,6 +3,7 @@ import { DataSyncController, DataSubscription } from './ihp-datasync.js';
 function fetchAuthenticated(path, params) {
     const jwt = localStorage.getItem('ihp_jwt');
     if (jwt !== null) {
+        params.headers = params.headers || {};
         params.headers['Authorization'] = 'Bearer ' + jwt;
     } else {
         params.credentials = 'include';
@@ -287,7 +288,7 @@ class QueryBuilder extends ConditionBuildable {
     }
 
     whereTextSearchStartsWith(field, value) {
-        let normalized = value.trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
+        let normalized = String(value ?? '').trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
         if (normalized.length > 0) {
             normalized +=  ':*';
         }
@@ -406,12 +407,12 @@ export function recordMatchesQuery(query, record) {
             case 'ColumnExpression': return (expression.field in record) ? record[expression.field] : null;
             case 'InfixOperatorExpression': {
                 switch (expression.op) {
-                    case 'OpEqual': return evaluate(expression.left) == evaluate(expression.right);
+                    case 'OpEqual': return evaluate(expression.left) === evaluate(expression.right);
                     case 'OpGreaterThan': return evaluate(expression.left) > evaluate(expression.right);
                     case 'OpLessThan': return evaluate(expression.left) < evaluate(expression.right);
                     case 'OpGreaterThanOrEqual': return evaluate(expression.left) >= evaluate(expression.right);
                     case 'OpLessThanOrEqual': return evaluate(expression.left) <= evaluate(expression.right);
-                    case 'OpNotEqual': return evaluate(expression.left) != evaluate(expression.right);
+                    case 'OpNotEqual': return evaluate(expression.left) !== evaluate(expression.right);
                     case 'OpAnd': return evaluate(expression.left) && evaluate(expression.right);
                     case 'OpOr': return evaluate(expression.left) || evaluate(expression.right);
                     case 'OpIs': return evaluate(expression.left) == evaluate(expression.right);
