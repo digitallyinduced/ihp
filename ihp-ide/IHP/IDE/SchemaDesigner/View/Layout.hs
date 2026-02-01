@@ -1,6 +1,7 @@
 module IHP.IDE.SchemaDesigner.View.Layout
 ( schemaDesignerLayout
 , findStatementByName
+, getTableColumns
 , visualNav
 , renderColumnSelector
 , renderColumn
@@ -173,6 +174,10 @@ findStatementByName statementName statements = find pred statements
         pred CreateEnumType { name } | (toUpper name) == (toUpper statementName) = True
         pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
+
+getTableColumns :: Text -> [Statement] -> [Column]
+getTableColumns tableName statements =
+    maybe [] ((.columns) . unsafeGetCreateTable) (findStatementByName tableName statements)
 
 visualNav :: Html
 visualNav = [hsx|
