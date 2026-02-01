@@ -7,6 +7,9 @@
 MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
+PSQL_ARGS = "$$DATABASE_URL"
+PG_DUMP_ARGS = "$$DATABASE_URL"
+
 GHC_EXTENSIONS=
 GHC_EXTENSIONS+= -XGHC2021
 GHC_EXTENSIONS+= -XOverloadedStrings
@@ -96,23 +99,23 @@ run-production: build/bin/RunProdServer build/Generated/Types.hs ## Run Producti
 	build/bin/RunProdServer
 
 postgres: ## Starts the postgresql server
-	@if [ -s build/db/state/postmaster.pid ]; then echo "Postgres is already running."; else echo "Starting postgres"; postgres -D build/db/state -k $$PWD/build/db -c "listen_addresses="; fi
+	@echo "Postgres is managed by devenv. Use 'devenv up' to start all services including postgres."
 
 psql: ## Connects to the running postgresql server
-	@psql -h $$PWD/build/db -d app
+	@psql $(PSQL_ARGS)
 
 db: Application/Schema.sql Application/Fixtures.sql ## Creates a new database with the current Schema and imports Fixtures.sql
-	(echo "drop schema public cascade; create schema public;" | psql -h $${PWD}/build/db -d app) && \
-	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < "$${IHP_LIB}/IHPSchema.sql" && \
-	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < Application/Schema.sql && \
-	psql -v ON_ERROR_STOP=1 -h $${PWD}/build/db -d app < Application/Fixtures.sql
+	(echo "drop schema public cascade; create schema public;" | psql $(PSQL_ARGS)) && \
+	psql -v ON_ERROR_STOP=1 $(PSQL_ARGS) < "$${IHP_LIB}/IHPSchema.sql" && \
+	psql -v ON_ERROR_STOP=1 $(PSQL_ARGS) < Application/Schema.sql && \
+	psql -v ON_ERROR_STOP=1 $(PSQL_ARGS) < Application/Fixtures.sql
 
 dumpdb: dump_db ## Saves the current database state into the Fixtures.sql
 dump_db: ## Saves the current database state into the Fixtures.sql
-	pg_dump -a --inserts --column-inserts --disable-triggers -h $$PWD/build/db app | sed -e '/^--/d' > Application/Fixtures.sql
+	pg_dump -a --inserts --column-inserts --disable-triggers $(PG_DUMP_ARGS) | sed -e '/^--/d' > Application/Fixtures.sql
 
 sql_dump:  ## Saves the current database state, so it can dumped into an SQL file `make sql_dump > dump.sql`
-	@pg_dump --no-owner --no-acl -h $$PWD/build/db app | sed -e '/^--/d'
+	@pg_dump --no-owner --no-acl $(PG_DUMP_ARGS) | sed -e '/^--/d'
 
 build/Generated/Types.hs: Application/Schema.sql ## Rebuilds generated types
 	mkdir -p build/Generated
@@ -133,7 +136,6 @@ build/bin/RunOptimizedProdServer: ## Deprecated: Use 'nix build .#optimized-prod
 clean: ## Resets all build and temporary files
 	rm -rf build/bin
 	rm -rf IHP/IHP/static/node_modules
-	rm -rf build/db
 
 static/prod.js: $(JS_FILES) ## Builds the production js bundle
 	awk -v RS='\0' '{print "(function (window, document, undefined) {"; print; print "\n})(window, document);";}' $(JS_FILES) > $@
