@@ -8,11 +8,41 @@ import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
 import IHP.QueryBuilder hiding (OrderByClause)
-import qualified Database.PostgreSQL.Simple.ToField as PG
+import Hasql.Statement (Statement(..))
+import qualified Hasql.DynamicStatements.Statement as DynStatement
+import qualified Hasql.Decoders as Decoders
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Data.HashMap.Strict as HashMap
+
+-- | Convert a Snippet to its SQL text representation for testing purposes.
+snippetToSql :: Snippet -> ByteString
+snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
+    Statement sql _ _ _ -> sql
+
+-- | Column types for the "posts" table used in tests.
+postsTypes :: ColumnTypeMap
+postsTypes = HashMap.fromList
+    [ ("user_id", "uuid")
+    , ("id", "uuid")
+    , ("a", "text")
+    , ("title", "text")
+    , ("ts", "tsvector")
+    , ("group_id", "uuid")
+    ]
+
+-- | Column types for the "products" table used in tests.
+productsTypes :: ColumnTypeMap
+productsTypes = HashMap.fromList
+    [ ("ts", "tsvector")
+    ]
+
+-- | Compile a query with the camelCase renamer and typed encoding.
+compile :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compile = compileQueryTyped camelCaseRenamer
 
 tests = do
     describe "IHP.DataSync.DynamicQueryCompiler" do
-        describe "compileQuery" do
+        describe "compileQueryTyped" do
             it "compile a basic select query" do
                 let query = DynamicSQLQuery
                         { table = "posts"
@@ -24,10 +54,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\""
 
             it "compile a select query with order by" do
                 let query = DynamicSQLQuery
@@ -40,10 +68,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? ORDER BY ? ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "title", PG.Plain "DESC"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" ORDER BY \"title\" DESC"
 
             it "compile a select query with multiple order bys" do
                 let query = DynamicSQLQuery
@@ -59,10 +85,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? ORDER BY ? ?, ? ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "created_at", PG.Plain "DESC", PG.EscapeIdentifier "title", PG.Plain ""]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" ORDER BY \"created_at\" DESC, \"title\""
 
             it "compile a basic select query with a where condition" do
                 let query = DynamicSQLQuery
@@ -75,10 +99,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) = (?)"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1)"
 
             it "compile a basic select query with a where condition and an order by" do
                 let query = DynamicSQLQuery
@@ -91,10 +113,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) = (?) ORDER BY ? ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.EscapeIdentifier "created_at", PG.Plain "DESC"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC"
 
             it "compile a basic select query with a limit" do
                 let query = DynamicSQLQuery
@@ -107,10 +127,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "50"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2"
 
             it "compile a basic select query with an offset" do
                 let query = DynamicSQLQuery
@@ -123,10 +141,8 @@ tests = do
                         , offset = Just 50
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) = (?) OFFSET ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "50"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2"
 
             it "compile a basic select query with a limit and an offset" do
                 let query = DynamicSQLQuery
@@ -139,10 +155,8 @@ tests = do
                         , offset = Just 50
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) = (?) LIMIT ? OFFSET ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Escape "b8553ce9-6a42-4a68-b5fc-259be3e2acdc", PG.Plain "25", PG.Plain "50"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3"
 
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
@@ -155,10 +169,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IS ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Plain "null"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NULL"
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
                 let query = DynamicSQLQuery
@@ -171,11 +183,9 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IS NOT ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "user_id", PG.Plain "null"]
-                        )
-            
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NOT NULL"
+
             it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
                         { table = "posts"
@@ -187,10 +197,9 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IS ?"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "a", PG.Plain "null"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"a\") IS NULL"
+
             it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
                 let query = DynamicSQLQuery
                         { table = "posts"
@@ -202,10 +211,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE ((?) IN ?) OR ((?) IS ?)"
-                        , [PG.Plain "*", PG.EscapeIdentifier "posts", PG.EscapeIdentifier "a", PG.Many [PG.Plain "(", PG.Escape "test", PG.Plain ")"], PG.EscapeIdentifier "a", PG.Plain "null"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)"
 
             it "compile queries with TS expressions" do
                 let query = DynamicSQLQuery
@@ -218,10 +225,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) @@ (to_tsquery('english', ?)) ORDER BY ts_rank(?, to_tsquery('english', ?))"
-                        , [PG.Plain "*", PG.EscapeIdentifier "products", PG.EscapeIdentifier "ts", PG.Escape "test", PG.EscapeIdentifier "ts", PG.Escape "test"]
-                        )
+                snippetToSql (compile productsTypes query) `shouldBe`
+                        "SELECT * FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
 
             it "compile a basic select query with distinctOn" do
                 let query = DynamicSQLQuery
@@ -234,10 +239,8 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT DISTINCT ON (?) ? FROM ?"
-                        , [PG.EscapeIdentifier "group_id", PG.Plain "*", PG.EscapeIdentifier "posts"]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT DISTINCT ON (\"group_id\") * FROM \"posts\""
 
             it "compile a WHERE IN query" do
                 let query = DynamicSQLQuery
@@ -250,18 +253,19 @@ tests = do
                         , offset = Nothing
                         }
 
-                compileQuery query `shouldBe`
-                        ( "SELECT ? FROM ? WHERE (?) IN ?"
-                        ,
-                            [ PG.Plain "*"
-                            , PG.EscapeIdentifier "posts"
-                            , PG.EscapeIdentifier "id"
-                            , PG.Many
-                                [ PG.Plain "("
-                                , PG.Plain "'a5d7772f-c63f-4444-be69-dd9afd902e9b'"
-                                , PG.Plain ","
-                                , PG.Plain "'bb88d55a-1ed0-44ad-be13-d768f4b3f9ca'"
-                                , PG.Plain ")"
-                                ]
-                            ]
-                        )
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE (\"id\") IN ($1, $2)"
+
+            it "compile an empty WHERE IN query to FALSE" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectAll
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "id") OpIn (ListExpression { values = [] })
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT * FROM \"posts\" WHERE FALSE"

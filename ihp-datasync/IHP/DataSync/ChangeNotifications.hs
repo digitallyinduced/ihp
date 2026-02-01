@@ -7,17 +7,27 @@ module IHP.DataSync.ChangeNotifications
 , installTableChangeTriggers
 , makeCachedInstallTableChangeTriggers
 , retrieveChanges
+, installTableChangeTriggersSession
+, retrieveChangesSession
 ) where
 
 import IHP.Prelude
-import qualified Database.PostgreSQL.Simple as PG
-import IHP.ModelSupport
+import qualified Hasql.Pool
 import Data.String.Interpolate.IsString (i)
+import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Session as DynSession
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -37,8 +47,8 @@ data Change
     deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationFunction :: RLS.TableWithRLS -> PG.Query
-createNotificationFunction table = [i|
+createNotificationFunction :: RLS.TableWithRLS -> Snippet
+createNotificationFunction table = Snippet.sql [i|
     DO $$
     BEGIN
         -- This inner block handles concurrent installations from multiple
@@ -133,21 +143,40 @@ createNotificationFunction table = [i|
 |]
 
     where
-        tableName = table.tableName
+        tableName = Text.replace "\"" "\"\"" table.tableName
 
         functionName = "notify_did_change_" <> tableName
         insertTriggerName = "did_insert_" <> tableName
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
 
-installTableChangeTriggers :: (?modelContext :: ModelContext) => RLS.TableWithRLS -> IO ()
-installTableChangeTriggers tableNameRLS = do
-    withoutQueryLogging -- This spams the log way to much
-        (sqlExec (createNotificationFunction tableNameRLS) ())
+-- Statements
+
+retrieveChangesStatement :: Statement.Statement UUID ByteString
+retrieveChangesStatement = Statement.Statement
+    "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
+    (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+    True
+
+-- Sessions
+
+installTableChangeTriggersSession :: RLS.TableWithRLS -> Session.Session ()
+installTableChangeTriggersSession table =
+    DynSession.dynamicallyParameterizedStatement (createNotificationFunction table) Decoders.noResult True
+
+retrieveChangesSession :: UUID -> Session.Session ByteString
+retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
+
+-- IO API (thin wrappers)
+
+installTableChangeTriggers :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO ()
+installTableChangeTriggers pool tableNameRLS = do
+    runSession pool (installTableChangeTriggersSession tableNameRLS)
     pure ()
 
-makeCachedInstallTableChangeTriggers :: (?modelContext :: ModelContext) => IO (RLS.TableWithRLS -> IO ())
-makeCachedInstallTableChangeTriggers = do
+makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
+makeCachedInstallTableChangeTriggers pool = do
     tables <- newIORef Set.empty
     pure \tableName -> do
         shouldInstall <- atomicModifyIORef' tables \set ->
@@ -156,11 +185,11 @@ makeCachedInstallTableChangeTriggers = do
                 else (Set.insert tableName set, True)
 
         when shouldInstall do
-            installTableChangeTriggers tableName
+            installTableChangeTriggers pool tableName
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
-channelName table = "did_change_" <> (cs $ table.tableName)
+channelName table = "did_change_" <> (cs $ Text.replace "\"" "\"\"" table.tableName)
 
 
 instance FromJSON ChangeNotification where
@@ -195,13 +224,13 @@ instance FromJSON Change where
 --
 -- This function retrieves the patch from the @large_pg_notifications@ table, or directly returns the patch
 -- when it's less than 8000 bytes.
-retrieveChanges :: (?modelContext :: ModelContext) => ChangeSet -> IO [Change]
-retrieveChanges InlineChangeSet { changeSet } = pure changeSet
-retrieveChanges ExternalChangeSet { largePgNotificationId } = do
-    (payload :: ByteString) <- sqlQueryScalar "SELECT payload FROM large_pg_notifications WHERE id = ? LIMIT 1" (PG.Only largePgNotificationId)
+retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
+retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
+retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
+    payload <- runSession pool (retrieveChangesSession largePgNotificationId)
     case eitherDecodeStrict' payload of
         Left e -> fail e
-        Right result -> pure result
+        Right changes -> pure changes
 
 instance ToJSON Change where
     toJSON Change { col, new } = object ["col" .= col, "new" .= new]

@@ -7,22 +7,25 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
+import IHP.DataSync.TypedEncoder (typedDynamicValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.List as List
+import qualified Data.HashMap.Strict as HashMap
+import Data.Int (Int32)
 
 data Renamer = Renamer
     { fieldToColumn :: Text -> Text
     , columnToField :: Text -> Text
     }
 
-compileQuery :: DynamicSQLQuery -> (PG.Query, [PG.Action])
-compileQuery = compileQueryWithRenamer camelCaseRenamer
-
-compileQueryWithRenamer :: Renamer -> DynamicSQLQuery -> (PG.Query, [PG.Action])
-compileQueryWithRenamer renamer query = compileQueryMapped (mapColumnNames renamer.fieldToColumn query)
+-- | Compile a 'DynamicSQLQuery' to a SQL 'Snippet' with typed parameter encoding.
+--
+-- Column types must be provided via 'ColumnTypeMap' (from 'makeCachedColumnTypeLookup').
+-- Missing column types in WHERE conditions will error at runtime.
+compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compileQueryTyped renamer columnTypes query = compileQueryMappedTyped columnTypes (mapColumnNames renamer.fieldToColumn query)
 
 -- | Default renamer used by DataSync.
 --
@@ -35,68 +38,44 @@ camelCaseRenamer =
     , columnToField = columnNameToFieldName
     }
 
--- | Renamer that does not modify the column names
-unmodifiedRenamer :: Renamer
-unmodifiedRenamer =
-    Renamer
-    { fieldToColumn = id
-    , columnToField = id
-    }
-
 -- | When a Field is retrieved from the database, it's all in @snake_case@. This turns it into @camelCase@
 renameField :: Renamer -> Field -> Field
 renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
 
-compileQueryMapped :: DynamicSQLQuery -> (PG.Query, [PG.Action])
-compileQueryMapped DynamicSQLQuery { .. } = (sql, args)
+compileQueryMappedTyped :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
+    Snippet.sql "SELECT"
+    <> distinctOnSnippet
+    <> compileSelectedColumns selectedColumns
+    <> Snippet.sql " FROM "
+    <> quoteIdentifier table
+    <> whereSnippet
+    <> orderBySnippet
+    <> limitSnippet
+    <> offsetSnippet
     where
-        sql = "SELECT" <> distinctOnSql <> "? FROM ?" <> whereSql <> orderBySql <> limitSql <> offsetSql
-        args = distinctOnArgs
-                <> catMaybes
-                    [ Just (compileSelectedColumns selectedColumns)
-                    , Just (PG.toField (PG.Identifier table))
-                    ]
-                <> whereArgs
-                <> orderByArgs
-                <> limitArgs
-                <> offsetArgs
+        distinctOnSnippet = case distinctOnColumn of
+            Just column -> Snippet.sql " DISTINCT ON (" <> quoteIdentifier (cs column) <> Snippet.sql ") "
+            Nothing     -> Snippet.sql " "
 
-        (distinctOnSql, distinctOnArgs) = case distinctOnColumn of
-            Just column -> (" DISTINCT ON (?) ", [PG.toField $ PG.Identifier (cs column)])
-            Nothing     -> (" ", [])
-
-        (orderBySql, orderByArgs) = case orderByClause of
-                [] -> ("", [])
+        orderBySnippet = case orderByClause of
+                [] -> mempty
                 orderByClauses ->
-                    ( PG.Query $ cs $ " ORDER BY " <> (intercalate ", " (map compileOrderByClause orderByClauses))
-                    , orderByClauses
-                        |> map (\case
-                            OrderByClause { orderByColumn, orderByDirection } ->
-                                    [ PG.toField $ PG.Identifier (cs orderByColumn)
-                                    , PG.toField $ if orderByDirection == QueryBuilder.Desc
-                                        then PG.Plain "DESC"
-                                        else PG.Plain ""
-                                    ]
-                            OrderByTSRank { tsvector, tsquery } ->
-                                    [ PG.toField $ PG.Identifier tsvector
-                                    , PG.toField tsquery
-                                    ]
-                        )
-                        |> concat
-                    )
+                    Snippet.sql " ORDER BY "
+                    <> mconcat (List.intersperse (Snippet.sql ", ") (map compileOrderByClauseSnippet orderByClauses))
 
-        (whereSql, whereArgs) = case compileCondition <$> whereCondition of
-            Just (sql, args) -> (" WHERE " <> sql, args)
-            Nothing -> ("", [])
+        whereSnippet = case whereCondition of
+            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnTypes condition
+            Nothing -> mempty
 
-        (limitSql, limitArgs) = case limit of
-                Just limit -> (" LIMIT ?", [PG.toField limit])
-                Nothing -> ("", [])
+        limitSnippet = case limit of
+                Just l  -> Snippet.sql " LIMIT " <> Snippet.param (fromIntegral l :: Int32)
+                Nothing -> mempty
 
-        (offsetSql, offsetArgs) = case offset of
-                Just offset -> (" OFFSET ?", [PG.toField offset])
-                Nothing -> ("", [])
+        offsetSnippet = case offset of
+                Just o  -> Snippet.sql " OFFSET " <> Snippet.param (fromIntegral o :: Int32)
+                Nothing -> mempty
 
 -- | Used to transform column names from @camelCase@ to @snake_case@
 mapColumnNames :: (Text -> Text) -> DynamicSQLQuery -> DynamicSQLQuery
@@ -121,71 +100,78 @@ mapColumnNames rename query =
         mapOrderByClause OrderByClause { orderByColumn, orderByDirection } = OrderByClause { orderByColumn = cs (rename (cs orderByColumn)), orderByDirection }
         mapOrderByClause otherwise = otherwise
 
-compileOrderByClause :: OrderByClause -> Text
-compileOrderByClause OrderByClause {} = "? ?"
-compileOrderByClause OrderByTSRank { tsvector, tsquery } = "ts_rank(?, to_tsquery('english', ?))"
+compileOrderByClauseSnippet :: OrderByClause -> Snippet
+compileOrderByClauseSnippet OrderByClause { orderByColumn, orderByDirection } =
+    quoteIdentifier (cs orderByColumn)
+    <> if orderByDirection == QueryBuilder.Desc
+        then Snippet.sql " DESC"
+        else mempty
+compileOrderByClauseSnippet OrderByTSRank { tsvector, tsquery } =
+    Snippet.sql "ts_rank(" <> quoteIdentifier tsvector <> Snippet.sql ", to_tsquery('english', " <> Snippet.param tsquery <> Snippet.sql "))"
 
-compileSelectedColumns :: SelectedColumns -> PG.Action
-compileSelectedColumns SelectAll = PG.Plain "*"
-compileSelectedColumns (SelectSpecific fields) = PG.Many args
-    where
-        args :: [PG.Action]
-        args = List.intercalate ([PG.Plain ", "]) fieldActions
-        fieldActions :: [[PG.Action]]
-        fieldActions = (map (\field -> [ PG.toField (PG.Identifier field) ]) fields)
+compileSelectedColumns :: SelectedColumns -> Snippet
+compileSelectedColumns SelectAll = Snippet.sql "*"
+compileSelectedColumns (SelectSpecific fields) =
+    mconcat (List.intersperse (Snippet.sql ", ") (map quoteIdentifier fields))
 
--- TODO: validate query against schema
-
-compileCondition :: ConditionExpression -> (PG.Query, [PG.Action])
-compileCondition (ColumnExpression column) = ("?", [PG.toField $ PG.Identifier column])
-compileCondition (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null)) -- Turn 'a = NULL' into 'a IS NULL'
-compileCondition (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileCondition (InfixOperatorExpression a OpIsNot (LiteralExpression Null)) -- Turn 'a <> NULL' into 'a IS NOT NULL'
-compileCondition (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
-    -- Turn 'a IN (NULL)' into 'a IS NULL'
+-- | Compile a condition expression to a SQL snippet, using typed parameter encoding when column types are known.
+--
+-- When a condition compares a column to a literal value, the column's type is looked up
+-- in the 'ColumnTypeMap' and the value is encoded with the matching typed encoder.
+-- This avoids type mismatches like @operator does not exist: uuid = text@ in the
+-- extended query protocol.
+compileConditionTyped :: ColumnTypeMap -> ConditionExpression -> Snippet
+compileConditionTyped _ (ColumnExpression column) = quoteIdentifier column
+compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
+compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Null))
+compileConditionTyped _types (InfixOperatorExpression _a OpIn (ListExpression { values = [] })) = Snippet.sql "FALSE"
+compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
     case partition ((/=) Null) values of
-        ([], nullValues) -> compileCondition (InfixOperatorExpression a OpIs (LiteralExpression Null))
-        (nonNullValues, nullValues) -> compileCondition (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
-compileCondition (InfixOperatorExpression a operator b) = ("(" <> queryA <> ") " <> compileOperator operator <> " " <> rightOperand, paramsA <> paramsB)
+        ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
+        (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
+-- When comparing a column to a literal or list, look up the column's type for typed encoding.
+-- Errors if the column type is not in the map — callers must provide complete type info.
+compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (LiteralExpression literal)) =
+    Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
     where
-        (queryA, paramsA) = compileCondition a
-        (queryB, paramsB) = compileCondition b
-
+        colType = HashMap.lookup col types
+        rightOperand = case literal of
+            Null -> Snippet.sql "NULL"
+            _ -> Snippet.sql "(" <> typedDynamicValueParam colType literal <> Snippet.sql ")"
+compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (ListExpression { values })) =
+    Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " "
+    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam colType) values)) <> Snippet.sql ")"
+    where
+        colType = HashMap.lookup col types
+compileConditionTyped types (InfixOperatorExpression a operator b) =
+    Snippet.sql "(" <> compileConditionTyped types a <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " " <> rightOperand
+    where
         rightOperand = if rightParentheses
-                then "(" <>  queryB <> ")"
-                else queryB
+                then Snippet.sql "(" <> compileConditionTyped types b <> Snippet.sql ")"
+                else compileConditionTyped types b
 
         rightParentheses :: Bool
         rightParentheses =
             case b of
                 LiteralExpression Null -> False
-                ListExpression {} -> False -- The () are inserted already via @PG.In@
+                ListExpression {} -> False
                 _ -> True
-compileCondition (LiteralExpression literal) = ("?", [PG.toField literal])
-compileCondition (CallExpression { functionCall = ToTSQuery { text } }) = ("to_tsquery('english', ?)", [PG.toField text])
-compileCondition (ListExpression { values }) = ("?", [PG.toField (PG.In values)])
+compileConditionTyped _types (LiteralExpression literal) = dynamicValueParam literal
+compileConditionTyped _ (CallExpression { functionCall = ToTSQuery { text } }) = Snippet.sql "to_tsquery('english', " <> Snippet.param text <> Snippet.sql ")"
+compileConditionTyped _types (ListExpression { values }) =
+    Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql ")"
 
-compileOperator :: ConditionOperator -> PG.Query
-compileOperator OpEqual = "="
-compileOperator OpGreaterThan = ">"
-compileOperator OpLessThan = "<"
-compileOperator OpGreaterThanOrEqual = ">="
-compileOperator OpLessThanOrEqual = "<="
-compileOperator OpNotEqual = "<>"
-compileOperator OpAnd = "AND"
-compileOperator OpOr = "OR"
-compileOperator OpIs = "IS"
-compileOperator OpIsNot = "IS NOT"
-compileOperator OpTSMatch = "@@"
-compileOperator OpIn = "IN"
+compileOperator :: ConditionOperator -> Snippet
+compileOperator OpEqual = Snippet.sql "="
+compileOperator OpGreaterThan = Snippet.sql ">"
+compileOperator OpLessThan = Snippet.sql "<"
+compileOperator OpGreaterThanOrEqual = Snippet.sql ">="
+compileOperator OpLessThanOrEqual = Snippet.sql "<="
+compileOperator OpNotEqual = Snippet.sql "<>"
+compileOperator OpAnd = Snippet.sql "AND"
+compileOperator OpOr = Snippet.sql "OR"
+compileOperator OpIs = Snippet.sql "IS"
+compileOperator OpIsNot = Snippet.sql "IS NOT"
+compileOperator OpTSMatch = Snippet.sql "@@"
+compileOperator OpIn = Snippet.sql "IN"
 
-instance PG.ToField DynamicValue where
-    toField (IntValue int) = PG.toField int
-    toField (DoubleValue double) = PG.toField double
-    toField (TextValue text) = PG.toField text
-    toField (BoolValue bool) = PG.toField bool
-    toField (UUIDValue uuid) = PG.toField uuid
-    toField (DateTimeValue utcTime) = PG.toField utcTime
-    toField (PointValue point) = PG.toField point
-    toField (IntervalValue interval) = PG.toField interval
-    toField (ArrayValue values) = PG.toField (PG.PGArray values)
-    toField Null = PG.toField PG.Null
