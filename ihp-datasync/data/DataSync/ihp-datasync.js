@@ -337,7 +337,7 @@ class DataSubscription {
     receiveUpdate(message) {
         const tag = message.tag;
         if (tag === 'DidUpdate') {
-            this.onUpdate(message.id, message.changeSet);
+            this.onUpdate(message.id, message.changeSet, message.appendSet);
         } else if (tag === 'DidInsert') {
             this.onCreate(message.record);
         } else if (tag === 'DidDelete') {
@@ -384,12 +384,18 @@ class DataSubscription {
         await this.createOnServer();
     }
 
-    onUpdate(id, changeSet) {
+    onUpdate(id, changeSet, appendSet) {
         this.records = this.records.map(record => {
             if (record.id === id) {
-                return Object.assign({}, record, changeSet);
+                const updated = Object.assign({}, record, changeSet);
+                if (appendSet) {
+                    for (const [key, value] of Object.entries(appendSet)) {
+                        updated[key] = (typeof updated[key] === 'string' ? updated[key] : '') + value;
+                    }
+                }
+                return updated;
             }
-            
+
             return record;
         });
 
@@ -401,7 +407,7 @@ class DataSubscription {
 
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id) !== -1;
         if (isOptimisticallyCreatedAlready) {
-            this.onUpdate(newRecord.id, newRecord);
+            this.onUpdate(newRecord.id, newRecord, null);
             this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id), 1);
         } else {
             this.records = shouldAppend ? [...this.records, newRecord] : [newRecord, ...this.records];
@@ -720,7 +726,7 @@ function updateRecordOptimistic(table, id, patch) {
             }
 
             // Apply the patch optimistically
-            dataSubscription.onUpdate(id, patch);
+            dataSubscription.onUpdate(id, patch, null);
 
             rollbackOperations.push(() => {
                 const records = dataSubscription.getRecords();
@@ -743,7 +749,7 @@ function updateRecordOptimistic(table, id, patch) {
                     }
                 }
 
-                dataSubscription.onUpdate(id, undoPatch);
+                dataSubscription.onUpdate(id, undoPatch, null);
             })
         }
     }

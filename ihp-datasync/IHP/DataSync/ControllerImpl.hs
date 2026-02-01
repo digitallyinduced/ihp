@@ -32,7 +32,7 @@ import Control.Monad (void)
 import IHP.RequestVault
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
-$(deriveToJSON defaultOptions 'DataSyncResult)
+$(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
 
 type EnsureRLSEnabledFn = Text -> IO TableWithRLS
 type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
@@ -194,7 +194,8 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                                     changes <- ChangeNotifications.retrieveChanges changeSet
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
@@ -203,7 +204,8 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                                     changes <- ChangeNotifications.retrieveChanges (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
                                     if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
+                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                                         else sendJSON DidDelete { subscriptionId, id }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
@@ -460,10 +462,19 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
             handleMessage otherwise = handleCustomMessage sendJSON otherwise
 
-changesToValue :: Renamer -> [ChangeNotifications.Change] -> Value
-changesToValue renamer changes = object (map changeToPair changes)
+changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
+changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)
     where
-        changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ renamer.columnToField col) .= new
+        maybeObject [] = Nothing
+        maybeObject pairs = Just (object pairs)
+        replacePairs = mapMaybe toReplacePair changes
+        appendPairs  = mapMaybe toAppendPair changes
+        toReplacePair ChangeNotifications.Change { col, new } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= new
+        toReplacePair _ = Nothing
+        toAppendPair ChangeNotifications.AppendChange { col, append } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= append
+        toAppendPair _ = Nothing
 
 runInModelContextWithTransaction :: (?state :: IORef DataSyncController, ?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
 runInModelContextWithTransaction function (Just transactionId) = do
