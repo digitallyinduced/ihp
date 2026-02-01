@@ -2,6 +2,7 @@
 module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
+import qualified Network.Wai as Wai
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
@@ -42,6 +43,7 @@ type HandleCustomMessageFn = (DataSyncResponse -> IO ()) -> DataSyncMessage -> I
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
     , PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -108,6 +110,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
 buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
     , PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
@@ -529,11 +532,11 @@ sqlQueryWithRLSAndTransactionId ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
     , FromRow result
@@ -545,11 +548,11 @@ sqlExecWithRLSAndTransactionId ::
     ( ?modelContext :: ModelContext
     , PG.ToRow parameters
     , ?context :: ControllerContext
+    , ?request :: Wai.Request
     , userId ~ Id CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , PG.ToField userId
     , ?state :: IORef DataSyncController
