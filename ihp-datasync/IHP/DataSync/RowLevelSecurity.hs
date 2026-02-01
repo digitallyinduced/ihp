@@ -15,6 +15,8 @@ module IHP.DataSync.RowLevelSecurity
 , sqlQueryScalarWithRLSSession
 , setRLSConfigStatement
 , setRLSConfigSession
+, rlsPolicyColumns
+, makeCachedRLSPolicyColumns
 )
 where
 
@@ -30,6 +32,7 @@ import qualified Hasql.Transaction as Tx
 import qualified Hasql.Transaction.Sessions as Tx
 import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HashMap
 import IHP.DataSync.Hasql (runSession)
 import Data.Functor.Contravariant (contramap)
 
@@ -255,3 +258,37 @@ hasRLSEnabled pool table = runSession pool (hasRLSEnabledSession table)
 --
 -- Useful to carry a proof that the RLS is actually enabled
 newtype TableWithRLS = TableWithRLS { tableName :: Text } deriving (Eq, Ord)
+
+-- | Prepared statement to query which columns a table's RLS policies reference.
+--
+-- Checks both @USING@ (@polqual@) and @WITH CHECK@ (@polwithcheck@) expressions.
+rlsPolicyColumnsStatement :: Statement.Statement Text [Text]
+rlsPolicyColumnsStatement = Statement.Statement
+    "SELECT DISTINCT a.attname::text FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 WHERE c.relname = $1 AND (pg_get_expr(p.polqual, p.polrelid) LIKE '%' || a.attname || '%' OR pg_get_expr(p.polwithcheck, p.polrelid) LIKE '%' || a.attname || '%')"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
+    True
+
+-- | Returns the set of column names referenced in a table's RLS policies.
+--
+-- >>> rlsPolicyColumns pool "messages"
+-- fromList ["user_id"]
+rlsPolicyColumns :: Hasql.Pool.Pool -> Text -> IO (Set.Set Text)
+rlsPolicyColumns pool table = do
+    results <- runSession pool (Session.statement table rlsPolicyColumnsStatement)
+    pure (Set.fromList results)
+
+-- | Returns a cached version of 'rlsPolicyColumns'.
+--
+-- Queries once per table, caches forever for the connection lifetime.
+makeCachedRLSPolicyColumns :: Hasql.Pool.Pool -> IO (Text -> IO (Set.Set Text))
+makeCachedRLSPolicyColumns pool = do
+    cache <- newIORef HashMap.empty
+    pure \tableName -> do
+        cached <- HashMap.lookup tableName <$> readIORef cache
+        case cached of
+            Just columns -> pure columns
+            Nothing -> do
+                columns <- rlsPolicyColumns pool tableName
+                modifyIORef' cache (HashMap.insert tableName columns)
+                pure columns

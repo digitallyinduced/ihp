@@ -103,7 +103,7 @@ describe('Value Transformations and basic use', () => {
 	    })
 
 	    it('undefined/null', () => {
-		expectValueTransformsTo(undefined, undefined)
+		expectValueTransformsTo(undefined, null)
 	    })
 
 	})

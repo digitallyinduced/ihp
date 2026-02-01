@@ -53,7 +53,7 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
-    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
+    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
     sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
@@ -113,12 +113,14 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeMap) -> (DataSyncMessage -> IO ())
-buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = handleMessage
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeMap) -> IO (DataSyncMessage -> IO ())
+buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
+    getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
+    pure (handleMessage getRLSColumns)
     where
             pgListener = ?context.request.pgListener
-            handleMessage :: DataSyncMessage -> IO ()
-            handleMessage DataSyncQuery { query, requestId, transactionId } = do
+            handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
+            handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
 
                 columnTypes <- columnTypeLookup query.table
@@ -129,7 +131,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DataSyncResult { result, requestId }
 
-            handleMessage CreateDataSubscription { query, requestId } = do
+            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled (query.table)
@@ -149,6 +151,15 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let result = map (map (renameField (renamer query.table))) rawResult
 
                 let tableName = query.table
+
+                -- Compute "sensitive columns": the union of columns referenced in the
+                -- WHERE clause and columns referenced in RLS policies. When an UPDATE
+                -- only touches columns outside this set, the record cannot leave the
+                -- result set or change RLS visibility, so we can skip the EXISTS check.
+                rlsCols <- getRLSColumns tableName
+                let whereColumns = maybe Set.empty conditionColumns (query.whereCondition)
+                let whereColumnsDb = Set.map (renamer tableName).fieldToColumn whereColumns
+                let sensitiveColumns = Set.union whereColumnsDb rlsCols
 
                 -- We need to keep track of all the ids of entities we're watching to make
                 -- sure that we only send update notifications to clients that can actually
@@ -184,28 +195,41 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
                             ChangeNotifications.DidUpdate { id, changeSet } -> do
-                                -- Only send the notifcation if the deleted record was part of the initial
-                                -- results set
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
-                                    -- The updated record could not be part of the query result set anymore
-                                    -- E.g. if it's not matched anymore by the WHERE condition after the update
-                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-
                                     changes <- ChangeNotifications.retrieveChanges hasqlPool changeSet
-                                    if isRecordInResultSet
-                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
-                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                                        else sendJSON DidDelete { subscriptionId, id }
+                                    let changedCols = Set.fromList (map (.col) changes)
+                                    let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
+                                    let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                    if affectsFilterOrRLS
+                                        then do
+                                            -- Changed column overlaps with WHERE or RLS — must verify
+                                            isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                            if isRecordInResultSet
+                                                then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                                                else do
+                                                    modifyIORef' watchedRecordIdsRef (Set.delete id)
+                                                    sendJSON DidDelete { subscriptionId, id }
+                                        else
+                                            -- Safe to skip — record can't leave result set or change RLS visibility
+                                            sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                             ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
                                 isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
                                 when isWatchingRecord do
-                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
                                     changes <- ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
-                                    if isRecordInResultSet
-                                        then let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
-                                             in sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                                        else sendJSON DidDelete { subscriptionId, id }
+                                    let changedCols = Set.fromList (map (.col) changes)
+                                    let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
+                                    let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                                    if affectsFilterOrRLS
+                                        then do
+                                            isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool (Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1)") (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                            if isRecordInResultSet
+                                                then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                                                else do
+                                                    modifyIORef' watchedRecordIdsRef (Set.delete id)
+                                                    sendJSON DidDelete { subscriptionId, id }
+                                        else
+                                            sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
@@ -221,7 +245,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     MVar.takeMVar close
 
-            handleMessage CreateCountSubscription { query, requestId } = do
+            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled query.table
@@ -261,7 +285,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     MVar.takeMVar close
 
-            handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
+            handleMessage getRLSColumns DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
                 case HashMap.lookup subscriptionId subscriptions of
                     Just closeSignalMVar -> do
@@ -273,7 +297,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
                     Nothing -> sendJSON DataSyncError { requestId, errorMessage = "Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId }
 
-            handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
+            handleMessage getRLSColumns CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -302,7 +326,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage CreateRecordsMessage { table, records, requestId, transactionId }  = do
+            handleMessage getRLSColumns CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -335,7 +359,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                         pure ()
 
-            handleMessage UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -364,7 +388,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -390,14 +414,14 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage DeleteRecordMessage { table, id, requestId, transactionId } = do
+            handleMessage getRLSColumns DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 sqlExecWithRLSAndTransactionId hasqlPool transactionId (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
 
                 sendJSON DidDeleteRecord { requestId }
 
-            handleMessage DeleteRecordsMessage { table, ids, requestId, transactionId } = do
+            handleMessage getRLSColumns DeleteRecordsMessage { table, ids, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 let idSnippets = map Snippet.param ids
@@ -406,7 +430,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidDeleteRecords { requestId }
 
-            handleMessage StartTransaction { requestId } = do
+            handleMessage getRLSColumns StartTransaction { requestId } = do
                 ensureBelowTransactionLimit
 
                 transactionId <- UUID.nextRandom
@@ -432,7 +456,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
-            handleMessage RollbackTransaction { requestId, id } = do
+            handleMessage getRLSColumns RollbackTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
                 runSessionOnConnection connection (Session.sql "ROLLBACK")
@@ -440,7 +464,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
 
-            handleMessage CommitTransaction { requestId, id } = do
+            handleMessage getRLSColumns CommitTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
                 runSessionOnConnection connection (Session.sql "COMMIT")
@@ -448,7 +472,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
 
-            handleMessage otherwise = handleCustomMessage sendJSON otherwise
+            handleMessage _getRLSColumns otherwise = handleCustomMessage sendJSON otherwise
 
 changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
 changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)

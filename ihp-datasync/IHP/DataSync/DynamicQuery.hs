@@ -26,6 +26,7 @@ import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import IHP.Postgres.Point (Point(..))
 import Data.Int (Int64)
+import qualified Data.Set as Set
 
 data Field = Field { fieldName :: Text, fieldValue :: Value }
 
@@ -180,6 +181,14 @@ dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :
 -- | Quote a SQL identifier (table name, column name) to prevent SQL injection
 quoteIdentifier :: Text -> Snippet
 quoteIdentifier name = Snippet.sql (cs ("\"" <> Text.replace "\"" "\"\"" name <> "\""))
+
+-- | Extracts all column names referenced in a 'ConditionExpression'
+conditionColumns :: ConditionExpression -> Set.Set Text
+conditionColumns (ColumnExpression field) = Set.singleton field
+conditionColumns (InfixOperatorExpression left _ right) = Set.union (conditionColumns left) (conditionColumns right)
+conditionColumns (LiteralExpression _) = Set.empty
+conditionColumns (CallExpression _) = Set.empty
+conditionColumns (ListExpression _) = Set.empty
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)

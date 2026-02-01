@@ -41,6 +41,10 @@ function or(...args) {
     return infixMany('OpOr', args)
 }
 
+function undefinedToNull(value) {
+    return value === undefined ? null : value;
+}
+
 function infixColumnLiteral(field, op, value) {
     return {
         tag: 'InfixOperatorExpression',
@@ -51,7 +55,7 @@ function infixColumnLiteral(field, op, value) {
         op,
         right: {
             tag: 'LiteralExpression',
-            value: value,
+            value: undefinedToNull(value),
         },
     }
 }
@@ -224,7 +228,7 @@ class ConditionBuildable {
             op: 'OpIn',
             right: {
                 tag: 'ListExpression',
-                values: values,
+                values: values.map(undefinedToNull),
             },
         };
         this._addCondition('OpAnd', expression);
