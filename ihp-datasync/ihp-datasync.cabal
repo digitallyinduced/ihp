@@ -139,9 +139,11 @@ test-suite ihp-datasync-hspec
     type:                exitcode-stdio-1.0
     hs-source-dirs:      .
     main-is:             Test/Main.hs
+    ghc-options:         -threaded
     other-modules: Test.DataSync.DynamicQueryCompiler
                  , Test.DataSync.TypedEncoder
                  , Test.DataSync.ChangeNotifications
+                 , Test.DataSync.RLSIntegrationSpec
     build-depends: hspec
 
 source-repository head
