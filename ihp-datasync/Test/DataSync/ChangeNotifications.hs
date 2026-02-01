@@ -7,6 +7,8 @@ import qualified Data.Aeson.Key as Aeson
 import IHP.DataSync.ChangeNotifications (Change(..), ChangeNotification(..))
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
+import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
+import qualified Data.Set as Set
 import qualified Prelude
 
 tests = do
@@ -83,3 +85,56 @@ tests = do
                 let (changeSet, appendSet) = changesToValue renamer changes
                 changeSet `shouldBe` Just (object ["userName" .= ("Alice" :: Text)])
                 appendSet `shouldBe` Just (object ["userName" .= (" Smith" :: Text)])
+
+        describe "conditionColumns" do
+            it "returns a single column for a simple WHERE" do
+                let condition = InfixOperatorExpression
+                        { left = ColumnExpression "conversationId"
+                        , op = OpEqual
+                        , right = LiteralExpression (String "00000000-0000-0000-0000-000000000000")
+                        }
+                conditionColumns condition `shouldBe` Set.fromList ["conversationId"]
+
+            it "returns multiple columns for a compound WHERE with AND" do
+                let condition = InfixOperatorExpression
+                        { left = InfixOperatorExpression
+                            { left = ColumnExpression "conversationId"
+                            , op = OpEqual
+                            , right = LiteralExpression (String "00000000-0000-0000-0000-000000000000")
+                            }
+                        , op = OpAnd
+                        , right = InfixOperatorExpression
+                            { left = ColumnExpression "status"
+                            , op = OpEqual
+                            , right = LiteralExpression (String "active")
+                            }
+                        }
+                conditionColumns condition `shouldBe` Set.fromList ["conversationId", "status"]
+
+            it "extracts columns from nested AND/OR" do
+                let condition = InfixOperatorExpression
+                        { left = InfixOperatorExpression
+                            { left = ColumnExpression "a"
+                            , op = OpEqual
+                            , right = LiteralExpression (Number 1)
+                            }
+                        , op = OpOr
+                        , right = InfixOperatorExpression
+                            { left = ColumnExpression "b"
+                            , op = OpAnd
+                            , right = ColumnExpression "c"
+                            }
+                        }
+                conditionColumns condition `shouldBe` Set.fromList ["a", "b", "c"]
+
+            it "returns empty set for CallExpression" do
+                let condition = CallExpression (ToTSQuery "hello")
+                conditionColumns condition `shouldBe` Set.empty
+
+            it "returns empty set for ListExpression" do
+                let condition = ListExpression [Number 1, Number 2]
+                conditionColumns condition `shouldBe` Set.empty
+
+            it "returns empty set for LiteralExpression" do
+                let condition = LiteralExpression (String "hello")
+                conditionColumns condition `shouldBe` Set.empty
