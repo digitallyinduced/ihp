@@ -3,6 +3,7 @@ module IHP.DataSync.Pool
 , hasqlPoolMiddleware
 , requestHasqlPool
 , initHasqlPoolMiddleware
+, initHasqlPool
 ) where
 
 import IHP.Prelude
@@ -13,6 +14,10 @@ import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import IHP.FrameworkConfig (findOption, configIO)
+import IHP.FrameworkConfig.Types (DatabaseUrl(..), DBPoolMaxConnections(..), CustomMiddleware(..))
+import qualified Control.Monad.Trans.State.Strict as State
+import qualified Data.TMap as TMap
 
 hasqlPoolVaultKey :: Vault.Key Hasql.Pool.Pool
 hasqlPoolVaultKey = unsafePerformIO Vault.newKey
@@ -38,3 +43,23 @@ initHasqlPoolMiddleware databaseUrl poolSize = do
             ]
     pool <- Hasql.Pool.acquire poolConfig
     pure (hasqlPoolMiddleware pool)
+
+-- | Reads 'DatabaseUrl' and 'DBPoolMaxConnections' from the framework config,
+-- creates a hasql connection pool, and composes 'hasqlPoolMiddleware' into the
+-- existing 'CustomMiddleware' stack.
+--
+-- Use this in your @Config.hs@:
+--
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     initHasqlPool
+initHasqlPool :: State.StateT TMap.TMap IO ()
+initHasqlPool = do
+    (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
+    (DBPoolMaxConnections maxConnections) <- findOption @DBPoolMaxConnections
+    middleware <- configIO $ initHasqlPoolMiddleware databaseUrl maxConnections
+    (CustomMiddleware existingMiddleware) <- findOption @CustomMiddleware
+    State.modify (\map -> map
+            |> TMap.delete @CustomMiddleware
+            |> TMap.insert (CustomMiddleware (existingMiddleware . middleware))
+        )
