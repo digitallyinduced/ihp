@@ -105,3 +105,70 @@ ensureSuffix suffix name
 qualifiedModuleName :: Text -> Text -> Text -> Text -> Text
 qualifiedModuleName applicationName category controllerName moduleName =
     applicationName <> "." <> category <> "." <> controllerName <> "." <> moduleName
+
+-- | Configuration for generating standard CRUD action bodies.
+data ActionBodyConfig = ActionBodyConfig
+    { singularName :: Text          -- ^ e.g. "User"
+    , modelVariableSingular :: Text -- ^ e.g. "user"
+    , idFieldName :: Text           -- ^ e.g. "userId"
+    , model :: Text                 -- ^ e.g. "User"
+    , indexAction :: Text           -- ^ redirect target for create/delete, e.g. "UsersAction"
+    }
+
+generateShowActionBody :: ActionBodyConfig -> Text
+generateShowActionBody config =
+    ""
+    <> "    action Show" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+    <> "        render ShowView { .. }\n"
+
+generateNewActionBody :: ActionBodyConfig -> Text
+generateNewActionBody config =
+    ""
+    <> "    action New" <> config.singularName <> "Action = do\n"
+    <> "        let " <> config.modelVariableSingular <> " = newRecord\n"
+    <> "        render NewView { .. }\n"
+
+generateEditActionBody :: ActionBodyConfig -> Text
+generateEditActionBody config =
+    ""
+    <> "    action Edit" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+    <> "        render EditView { .. }\n"
+
+generateUpdateActionBody :: ActionBodyConfig -> Text
+generateUpdateActionBody config =
+    ""
+    <> "    action Update" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+    <> "        " <> config.modelVariableSingular <> "\n"
+    <> "            |> build" <> config.singularName <> "\n"
+    <> "            |> ifValid \\case\n"
+    <> "                Left " <> config.modelVariableSingular <> " -> render EditView { .. }\n"
+    <> "                Right " <> config.modelVariableSingular <> " -> do\n"
+    <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> updateRecord\n"
+    <> "                    setSuccessMessage \"" <> config.model <> " updated\"\n"
+    <> "                    redirectTo Edit" <> config.singularName <> "Action { .. }\n"
+
+generateCreateActionBody :: ActionBodyConfig -> Text
+generateCreateActionBody config =
+    ""
+    <> "    action Create" <> config.singularName <> "Action = do\n"
+    <> "        let " <> config.modelVariableSingular <> " = newRecord @" <> config.model <> "\n"
+    <> "        " <> config.modelVariableSingular <> "\n"
+    <> "            |> build" <> config.singularName <> "\n"
+    <> "            |> ifValid \\case\n"
+    <> "                Left " <> config.modelVariableSingular <> " -> render NewView { .. }\n"
+    <> "                Right " <> config.modelVariableSingular <> " -> do\n"
+    <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> createRecord\n"
+    <> "                    setSuccessMessage \"" <> config.model <> " created\"\n"
+    <> "                    redirectTo " <> config.indexAction <> "\n"
+
+generateDeleteActionBody :: ActionBodyConfig -> Text
+generateDeleteActionBody config =
+    ""
+    <> "    action Delete" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+    <> "        deleteRecord " <> config.modelVariableSingular <> "\n"
+    <> "        setSuccessMessage \"" <> config.model <> " deleted\"\n"
+    <> "        redirectTo " <> config.indexAction <> "\n"

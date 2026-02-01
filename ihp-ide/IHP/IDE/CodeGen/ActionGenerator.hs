@@ -71,63 +71,21 @@ generateGenericAction schema config doGenerateView =
             idFieldName = lcfirst singularName <> "Id"
             idType = "Id " <> singularName
             model = ucfirst singularName
+
+            actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = name <> "Action" }
+
             indexContent =
                 ""
                 <> "    action " <> name <> "Action = do\n"
                 <> "        " <> modelVariablePlural <> " <- query @" <> model <> " |> fetch\n"
                 <> "        render IndexView { .. }\n"
 
-            newContent =
-                ""
-                <> "    action New" <> singularName <> "Action = do\n"
-                <> "        let " <> modelVariableSingular <> " = newRecord\n"
-                <> "        render NewView { .. }\n"
-
-            showContent =
-                ""
-                <> "    action Show" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-                <> "        render ShowView { .. }\n"
-
-            editContent =
-                ""
-                <> "    action Edit" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-                <> "        render EditView { .. }\n"
-
-            updateContent =
-                ""
-                <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-                <> "        " <> modelVariableSingular <> "\n"
-                <> "            |> build" <> singularName <> "\n"
-                <> "            |> ifValid \\case\n"
-                <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
-                <> "                Right " <> modelVariableSingular <> " -> do\n"
-                <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
-                <> "                    setSuccessMessage \"" <> model <> " updated\"\n"
-                <> "                    redirectTo Edit" <> singularName <> "Action { .. }\n"
-
-            createContent =
-                ""
-                <> "    action Create" <> singularName <> "Action = do\n"
-                <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
-                <> "        " <> modelVariableSingular <> "\n"
-                <> "            |> build" <> singularName <> "\n"
-                <> "            |> ifValid \\case\n"
-                <> "                Left " <> modelVariableSingular <> " -> render NewView { .. }\n"
-                <> "                Right " <> modelVariableSingular <> " -> do\n"
-                <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
-                <> "                    setSuccessMessage \"" <> model <> " created\"\n"
-                <> "                    redirectTo " <> name <> "Action\n"
-
-            deleteContent =
-                ""
-                <> "    action Delete" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-                <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-                <> "        deleteRecord " <> modelVariableSingular <> "\n"
-                <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
-                <> "        redirectTo " <> name <> "Action\n"
+            newContent = generateNewActionBody actionBodyConfig
+            showContent = generateShowActionBody actionBodyConfig
+            editContent = generateEditActionBody actionBodyConfig
+            updateContent = generateUpdateActionBody actionBodyConfig
+            createContent = generateCreateActionBody actionBodyConfig
+            deleteContent = generateDeleteActionBody actionBodyConfig
 
             typesContentGeneric =
                    "    | " <> nameWithSuffix

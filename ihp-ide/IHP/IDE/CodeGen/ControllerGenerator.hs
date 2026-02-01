@@ -89,6 +89,8 @@ generateController schema config =
         model = ucfirst singularName
         paginationEnabled = config.paginationEnabled
 
+        actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = pluralName <> "Action" }
+
         indexAction =
             ""
             <> "    action " <> pluralName <> "Action = do\n"
@@ -99,23 +101,9 @@ generateController schema config =
             )
             <> "        render IndexView { .. }\n"
 
-        newAction =
-            ""
-            <> "    action New" <> singularName <> "Action = do\n"
-            <> "        let " <> modelVariableSingular <> " = newRecord\n"
-            <> "        render NewView { .. }\n"
-
-        showAction =
-            ""
-            <> "    action Show" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-            <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        render ShowView { .. }\n"
-
-        editAction =
-            ""
-            <> "    action Edit" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-            <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        render EditView { .. }\n"
+        newAction = generateNewActionBody actionBodyConfig
+        showAction = generateShowActionBody actionBodyConfig
+        editAction = generateEditActionBody actionBodyConfig
 
         modelColumns :: [Column]
         modelColumns = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
@@ -138,39 +126,9 @@ generateController schema config =
                 |> map (uniqueColumnsForTable schema)
                 |> concat
 
-        updateAction =
-            ""
-            <> "    action Update" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-            <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        " <> modelVariableSingular <> "\n"
-            <> "            |> build" <> singularName <> "\n"
-            <> "            |> ifValid \\case\n"
-            <> "                Left " <> modelVariableSingular <> " -> render EditView { .. }\n"
-            <> "                Right " <> modelVariableSingular <> " -> do\n"
-            <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> updateRecord\n"
-            <> "                    setSuccessMessage \"" <> model <> " updated\"\n"
-            <> "                    redirectTo Edit" <> singularName <> "Action { .. }\n"
-
-        createAction =
-            ""
-            <> "    action Create" <> singularName <> "Action = do\n"
-            <> "        let " <> modelVariableSingular <> " = newRecord @"  <> model <> "\n"
-            <> "        " <> modelVariableSingular <> "\n"
-            <> "            |> build" <> singularName <> "\n"
-            <> "            |> ifValid \\case\n"
-            <> "                Left " <> modelVariableSingular <> " -> render NewView { .. } \n"
-            <> "                Right " <> modelVariableSingular <> " -> do\n"
-            <> "                    " <> modelVariableSingular <> " <- " <> modelVariableSingular <> " |> createRecord\n"
-            <> "                    setSuccessMessage \"" <> model <> " created\"\n"
-            <> "                    redirectTo " <> pluralName <> "Action\n"
-
-        deleteAction =
-            ""
-            <> "    action Delete" <> singularName <> "Action { " <> idFieldName <> " } = do\n"
-            <> "        " <> modelVariableSingular <> " <- fetch " <> idFieldName <> "\n"
-            <> "        deleteRecord " <> modelVariableSingular <> "\n"
-            <> "        setSuccessMessage \"" <> model <> " deleted\"\n"
-            <> "        redirectTo " <> pluralName <> "Action\n"
+        updateAction = generateUpdateActionBody actionBodyConfig
+        createAction = generateCreateActionBody actionBodyConfig
+        deleteAction = generateDeleteActionBody actionBodyConfig
 
         fromParams =
             ""
