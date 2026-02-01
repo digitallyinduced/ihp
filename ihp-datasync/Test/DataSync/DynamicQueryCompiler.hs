@@ -13,6 +13,7 @@ import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson as Aeson
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
@@ -92,7 +93,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (Aeson.String "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -106,7 +107,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (Aeson.String "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = [ OrderByClause { orderByColumn = "createdAt", orderByDirection = Desc } ]
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -120,7 +121,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (Aeson.String "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , distinctOnColumn = Nothing
                         , orderByClause = []
                         , limit = Just 50
@@ -134,7 +135,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (Aeson.String "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -148,7 +149,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (TextValue "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression (Aeson.String "b8553ce9-6a42-4a68-b5fc-259be3e2acdc"))
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Just 25
@@ -162,7 +163,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression Null)
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpEqual (LiteralExpression Aeson.Null)
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -176,7 +177,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual (LiteralExpression Null)
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "userId") OpNotEqual (LiteralExpression Aeson.Null)
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -190,7 +191,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Null] })
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Aeson.Null] })
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -204,7 +205,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Null, TextValue "test" ] })
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "a") OpIn (ListExpression { values = [Aeson.Null, Aeson.String "test" ] })
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing
@@ -246,7 +247,7 @@ tests = do
                 let query = DynamicSQLQuery
                         { table = "posts"
                         , selectedColumns = SelectAll
-                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "id") OpIn (ListExpression { values = [UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b", UUIDValue "bb88d55a-1ed0-44ad-be13-d768f4b3f9ca"] })
+                        , whereCondition = Just $ InfixOperatorExpression (ColumnExpression "id") OpIn (ListExpression { values = [Aeson.String "a5d7772f-c63f-4444-be69-dd9afd902e9b", Aeson.String "bb88d55a-1ed0-44ad-be13-d768f4b3f9ca"] })
                         , orderByClause = []
                         , distinctOnColumn = Nothing
                         , limit = Nothing

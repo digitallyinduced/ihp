@@ -23,13 +23,6 @@ const tags = {
 	column: 'ColumnExpression',
 	literal: 'LiteralExpression',
     },
-    value: {
-	'text': 'TextValue',
-	'integer': 'IntValue',
-	'double': 'DoubleValue',
-	'bool': 'BoolValue',
-	'null': 'Null',
-    },
 }
 
 const operators = {
@@ -67,10 +60,7 @@ const expression = {
     literalInt: (value) => {
 	return {
 	    tag: tags.expression.literal,
-	    value: {
-		tag: tags.value.integer,
-		contents: value,
-	    },
+	    value,
 	}
     }
 }
@@ -79,41 +69,41 @@ describe('Value Transformations and basic use', () => {
     const suite = ([fnName, extractor, operator, where]) => {
 	describe(fnName, () => {
 
-	    function expectValueTransformsTo(jsVal, literal) {
+	    function expectValueTransformsTo(jsVal, expectedValue) {
 		const builder = where('column', jsVal)
 		expect(extractor(builder)).toStrictEqual(expression.infixOperator(
 		    expression.column('column'),
 		    operator,
-		    expression.literal(literal),
+		    expression.literal(expectedValue),
 		))
 	    }
 
 	    it('string/text', () => {
-		expectValueTransformsTo('value', { tag: tags.value.text, contents: 'value' })
+		expectValueTransformsTo('value', 'value')
 	    })
 
 	    it('number/integer', () => {
-		expectValueTransformsTo(1, { tag: tags.value.integer, contents: 1 })
+		expectValueTransformsTo(1, 1)
 	    })
 
 	    it('number/double', () => {
-		expectValueTransformsTo(3.141, { tag: tags.value.double, contents: 3.141 })
+		expectValueTransformsTo(3.141, 3.141)
 	    })
 
 	    it('true/bool', () => {
-		expectValueTransformsTo(true, { tag: tags.value.bool, contents: true })
+		expectValueTransformsTo(true, true)
 	    })
 
 	    it('false/bool', () => {
-		expectValueTransformsTo(false, { tag: tags.value.bool, contents: false })
+		expectValueTransformsTo(false, false)
 	    })
 
 	    it('null/null', () => {
-		expectValueTransformsTo(null, { tag: tags.value['null'] })
+		expectValueTransformsTo(null, null)
 	    })
 
 	    it('undefined/null', () => {
-		expectValueTransformsTo(undefined, { tag: tags.value['null'] })
+		expectValueTransformsTo(undefined, undefined)
 	    })
 
 	})
@@ -225,10 +215,7 @@ describe('QueryBuilder', () => {
 	expect(builder.query.whereCondition).toStrictEqual(expression.infixOperator(
 	    expression.column('a'),
 	    operators.notEqual,
-	    expression.literal({
-		tag: tags.value.integer,
-		contents: 1,
-	    })
+	    expression.literal(1)
 	))
     })
 
@@ -240,19 +227,13 @@ describe('QueryBuilder', () => {
 	    expression.infixOperator(
 		expression.column('a'),
 		operators.equal,
-		expression.literal({
-		    tag: tags.value.integer,
-		    contents: 1,
-		}),
+		expression.literal(1),
 	    ),
 	    operators.and,
 	    expression.infixOperator(
 		expression.column('b'),
 		operators.equal,
-		expression.literal({
-		    tag: tags.value.integer,
-		    contents: 2,
-		}),
+		expression.literal(2),
 	    ),
 	))
     })
@@ -265,19 +246,13 @@ describe('QueryBuilder', () => {
 	    expression.infixOperator(
 		expression.column('a'),
 		operators.equal,
-		expression.literal({
-		    tag: tags.value.integer,
-		    contents: 1,
-		}),
+		expression.literal(1),
 	    ),
 	    operators.or,
 	    expression.infixOperator(
 		expression.column('b'),
 		operators.equal,
-		expression.literal({
-		    tag: tags.value.integer,
-		    contents: 2,
-		})
+		expression.literal(2),
 	    ),
 	))
     })

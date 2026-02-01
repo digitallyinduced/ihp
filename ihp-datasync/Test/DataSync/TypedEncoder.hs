@@ -7,14 +7,13 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder
-import IHP.Postgres.TimeParser (PGInterval(..))
-import IHP.Postgres.Point (Point(..))
 import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Vector as Vector
 import qualified Control.Exception as Exception
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
@@ -24,54 +23,55 @@ snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decode
 
 tests = do
     describe "IHP.DataSync.TypedEncoder" do
-        describe "typedDynamicValueParam" do
+        describe "typedValueParam" do
             it "encodes NULL regardless of type" do
-                snippetToSql (typedDynamicValueParam Nothing Null) `shouldBe` "NULL"
-                snippetToSql (typedDynamicValueParam (Just "uuid") Null) `shouldBe` "NULL"
-                snippetToSql (typedDynamicValueParam (Just "text") Null) `shouldBe` "NULL"
+                snippetToSql (typedValueParam Nothing Aeson.Null) `shouldBe` "NULL"
+                snippetToSql (typedValueParam (Just "uuid") Aeson.Null) `shouldBe` "NULL"
+                snippetToSql (typedValueParam (Just "text") Aeson.Null) `shouldBe` "NULL"
 
             it "encodes UUID with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "uuid") (UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b"))
+                snippetToSql (typedValueParam (Just "uuid") (Aeson.String "a5d7772f-c63f-4444-be69-dd9afd902e9b"))
                     `shouldBe` "$1"
 
             it "encodes text with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "text") (TextValue "hello"))
+                snippetToSql (typedValueParam (Just "text") (Aeson.String "hello"))
                     `shouldBe` "$1"
 
             it "encodes int4 with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "int4") (IntValue 42))
+                snippetToSql (typedValueParam (Just "int4") (Aeson.Number 42))
                     `shouldBe` "$1"
 
             it "encodes int8 with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "int8") (IntValue 42))
+                snippetToSql (typedValueParam (Just "int8") (Aeson.Number 42))
                     `shouldBe` "$1"
 
             it "encodes bool with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "bool") (BoolValue True))
+                snippetToSql (typedValueParam (Just "bool") (Aeson.Bool True))
                     `shouldBe` "$1"
 
             it "encodes float8 with typed encoder" do
-                snippetToSql (typedDynamicValueParam (Just "float8") (DoubleValue 3.14))
+                snippetToSql (typedValueParam (Just "float8") (Aeson.Number 3.14))
                     `shouldBe` "$1"
 
             it "encodes custom enum with explicit cast" do
-                snippetToSql (typedDynamicValueParam (Just "my_enum") (TextValue "active"))
+                snippetToSql (typedValueParam (Just "my_enum") (Aeson.String "active"))
                     `shouldBe` "$1::\"my_enum\""
 
             it "errors when no type info is available" do
-                Exception.evaluate (snippetToSql (typedDynamicValueParam Nothing (TextValue "hello")))
+                Exception.evaluate (snippetToSql (typedValueParam Nothing (Aeson.String "hello")))
                     `shouldThrow` anyErrorCall
 
             it "encodes Point with SQL syntax regardless of type" do
-                snippetToSql (typedDynamicValueParam (Just "point") (PointValue (Point 1.0 2.0)))
+                let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]
+                snippetToSql (typedValueParam (Just "point") pointJson)
                     `shouldBe` "point(1.0,2.0)"
 
             it "encodes Array with typed element encoding" do
-                snippetToSql (typedDynamicValueParam (Just "_int4") (ArrayValue [IntValue 1, IntValue 2]))
+                snippetToSql (typedValueParam (Just "_int4") (Aeson.Array (Vector.fromList [Aeson.Number 1, Aeson.Number 2])))
                     `shouldBe` "ARRAY[$1, $2]"
 
             it "propagates array element type by stripping _ prefix" do
-                snippetToSql (typedDynamicValueParam (Just "_uuid") (ArrayValue [UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b"]))
+                snippetToSql (typedValueParam (Just "_uuid") (Aeson.Array (Vector.fromList [Aeson.String "a5d7772f-c63f-4444-be69-dd9afd902e9b"])))
                     `shouldBe` "ARRAY[$1]"
 
         describe "typedAesonValueToSnippet" do
@@ -111,43 +111,26 @@ tests = do
                     `shouldBe` "$1"
 
         describe "dynamicValueParam" do
-            it "encodes IntValue as native int parameter" do
-                snippetToSql (dynamicValueParam (IntValue 42))
+            it "encodes Number (integer) as native int parameter" do
+                snippetToSql (dynamicValueParam (Aeson.Number 42))
                     `shouldBe` "$1"
 
-            it "encodes DoubleValue as native float parameter" do
-                snippetToSql (dynamicValueParam (DoubleValue 3.14))
+            it "encodes Number (double) as native float parameter" do
+                snippetToSql (dynamicValueParam (Aeson.Number 3.14))
                     `shouldBe` "$1"
 
-            it "encodes TextValue as native text parameter" do
-                snippetToSql (dynamicValueParam (TextValue "hello"))
+            it "encodes String as native text parameter" do
+                snippetToSql (dynamicValueParam (Aeson.String "hello"))
                     `shouldBe` "$1"
 
-            it "encodes BoolValue as native bool parameter" do
-                snippetToSql (dynamicValueParam (BoolValue True))
+            it "encodes Bool as native bool parameter" do
+                snippetToSql (dynamicValueParam (Aeson.Bool True))
                     `shouldBe` "$1"
 
-            it "encodes UUIDValue as native uuid parameter" do
-                snippetToSql (dynamicValueParam (UUIDValue "a5d7772f-c63f-4444-be69-dd9afd902e9b"))
-                    `shouldBe` "$1"
-
-            it "encodes DateTimeValue as native timestamptz parameter" do
-                let epoch = UTCTime (toEnum 0) 0
-                snippetToSql (dynamicValueParam (DateTimeValue epoch))
-                    `shouldBe` "$1"
-
-            it "encodes PointValue as SQL literal" do
-                snippetToSql (dynamicValueParam (PointValue (Point 1.0 2.0)))
-                    `shouldBe` "point(1.0,2.0)"
-
-            it "encodes IntervalValue as text parameter" do
-                snippetToSql (dynamicValueParam (IntervalValue (PGInterval "1 day")))
-                    `shouldBe` "$1"
-
-            it "encodes ArrayValue with native element parameters" do
-                snippetToSql (dynamicValueParam (ArrayValue [IntValue 1, IntValue 2]))
+            it "encodes Array with native element parameters" do
+                snippetToSql (dynamicValueParam (Aeson.Array (Vector.fromList [Aeson.Number 1, Aeson.Number 2])))
                     `shouldBe` "ARRAY[$1, $2]"
 
             it "encodes Null as SQL NULL" do
-                snippetToSql (dynamicValueParam Null)
+                snippetToSql (dynamicValueParam Aeson.Null)
                     `shouldBe` "NULL"
