@@ -261,10 +261,16 @@
 #schema-designer-viewer {
     margin-bottom: 0;
     flex-grow: 1;
+    flex-wrap: nowrap;
+    overflow: hidden;
 }
 
 .object-selector, .column-selector {
     min-height: 0 !important;
+}
+
+.object-selector {
+    min-width: 0;
 }
 
 .migration-status-visible .column-selector {
@@ -344,6 +350,7 @@
     position: sticky;
     bottom: 0;
     z-index: 10;
+    width: 100%;
 }
 
 #migration-status-container > .alert {

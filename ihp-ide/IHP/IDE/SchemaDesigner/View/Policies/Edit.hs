@@ -2,9 +2,9 @@ module IHP.IDE.SchemaDesigner.View.Policies.Edit where
 
 import IHP.ViewPrelude
 import IHP.Postgres.Types
-import qualified IHP.Postgres.Compiler as Compiler
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.View.Policies.New (policyFormModal)
 
 data EditPolicyView = EditPolicyView
     { statements :: [Statement]
@@ -23,71 +23,11 @@ instance View EditPolicyView where
         {renderModal modal}
     |]
         where
-            modalContent = [hsx|
-                <form method="POST" action={UpdatePolicyAction} class="edit-policy">
-                    <input type="hidden" name="tableName" value={tableName}/>
-                    <!--
-                        The hidden name field is required as the user could be changing the name and we don't have any other
-                        identifier to refer to the policy besides the name
-                    -->
-                    <input type="hidden" name="name" value={policy.name}/>
-
-                    <!-- These will be filled via JS from the ace editors -->
-                    <input type="hidden" name="using" value={using}/>
-                    <input type="hidden" name="check" value={check}/>
-
-                    <div class="mb-3">
-                        <input
-                            id="nameInput"
-                            name="policyName"
-                            type="text"
-                            class="form-control"
-                            autofocus="autofocus"
-                            value={policy.name}
-                            />
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="using">Visible if:</label>
-                        <textarea
-                            id="using"
-                            name="using"
-                            type="text"
-                            class="form-control sql-expression"
-                            data-autocomplete-suggestions={autocompleteSuggestions}
-                        >{using}</textarea>
-                        <small class="form-text">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="using">Additionally, allow INSERT and UPDATE only if:</label>
-                        <textarea
-                            id="check"
-                            name="check"
-                            type="text"
-                            class="form-control sql-expression"
-                            data-autocomplete-suggestions={autocompleteSuggestions}
-                        >{check}</textarea>
-                        <small class="form-text">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
-                    </div>
-
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">Update Policy</button>
-                    </div>
-                </form>
+            extraHiddenFields = [hsx|
+                <!--
+                    The hidden name field is required as the user could be changing the name and we don't have any other
+                    identifier to refer to the policy besides the name
+                -->
+                <input type="hidden" name="name" value={policy.name}/>
             |]
-            modalFooter = mempty
-            modalCloseUrl = pathTo ShowTableAction { tableName }
-            modalTitle = "Edit Policy"
-            modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
-
-            using = policy.using
-                    |> maybe "" Compiler.compileExpression
-
-            check = policy.check
-                    |> maybe "" Compiler.compileExpression
-
-            autocompleteSuggestions =
-                    columns
-                    |> map (.name)
-                    |> intercalate ","
+            modal = policyFormModal tableName columns policy (pathTo UpdatePolicyAction) extraHiddenFields "Update Policy" "Edit Policy"

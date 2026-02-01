@@ -25,8 +25,7 @@ instance View NewColumnView where
         {renderModal modal}
     |]
         where
-            table = findStatementByName tableName statements
-            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            columns = getTableColumns tableName statements
 
             modalContent = [hsx|
                 {renderFlashMessages}
