@@ -149,7 +149,7 @@ withDataSyncController connStr testUserId action = do
                 else cs ("dbname=" <> connStr)
         logger <- Log.newLogger def { Log.level = Log.Error }
         modelContext <- createModelContext 10 4 actualConnStr logger
-        PGListener.withPGListener modelContext \pgListener -> do
+        PGListener.withPGListener actualConnStr logger \pgListener -> do
             frameworkConfig <- buildFrameworkConfig (pure ())
 
             let v = Vault.empty
