@@ -21,10 +21,25 @@ module IHP.PGListener
 , unsubscribe
 ) where
 
-import IHP.Prelude hiding (init)
-import IHP.Log.Types (Logger)
-import qualified Data.Set as Set
+import Prelude hiding (init, show, error)
+import qualified Prelude
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import qualified Data.Text as Text
+import Data.IORef
+import Data.String.Conversions (cs)
+import Data.UUID (UUID)
 import qualified Data.UUID.V4 as UUID
+import Control.Monad (forever, unless, void, forM_)
+import GHC.Records (HasField)
+import Data.Maybe (fromMaybe)
+import Control.Exception (SomeException, displayException)
+import Control.Concurrent.Async (Async, async, cancel, uninterruptibleCancel)
+import Data.Function ((&))
+
+import IHP.Log.Types (Logger)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Control.Concurrent.MVar (MVar)
 import qualified Control.Concurrent.MVar as MVar
 import Data.HashMap.Strict as HashMap
@@ -40,6 +55,10 @@ import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
 import qualified Hasql.Notifications as HasqlNotifications
+
+-- | Local helper: show as Text
+tshow :: Prelude.Show a => a -> Text
+tshow = Text.pack . Prelude.show
 
 -- | Wrapper to satisfy 'LoggingProvider' constraint for standalone logging
 data LogContext = LogContext { logger :: !Logger }
@@ -58,7 +77,7 @@ type Channel = ByteString
 data Notification = Notification
     { notificationChannel :: !ByteString
     , notificationData :: !ByteString
-    } deriving (Show)
+    } deriving (Prelude.Show)
 
 -- | An event callback receives the notification and can do IO
 type Callback = Notification -> IO ()
@@ -208,7 +227,7 @@ acquireConnection databaseUrl = do
     result <- Hasql.acquire settings
     case result of
         Right connection -> pure connection
-        Left err -> error ("PGListener: Failed to connect to database: " <> show err)
+        Left err -> Prelude.error ("PGListener: Failed to connect to database: " <> Prelude.show err)
 
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
@@ -226,7 +245,7 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
                 -- If listeningTo already contains channels, this means that previously the database connection
                 -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
                 listeningTo <- MVar.readMVar listeningToVar
-                forEach listeningTo (listenToChannel connection)
+                forM_ listeningTo (listenToChannel connection)
 
                 -- This loop reads channels from the 'listenToVar' and then triggers a LISTEN statement on
                 -- the current database connection
@@ -249,10 +268,10 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
 
                             allSubscriptions <- readIORef subscriptions
                             let channelSubscriptions = allSubscriptions
-                                    |> HashMap.lookup channel
-                                    |> fromMaybe []
+                                    & HashMap.lookup channel
+                                    & fromMaybe []
 
-                            forEach channelSubscriptions \subscription -> do
+                            forM_ channelSubscriptions \subscription -> do
                                 let inChan = subscription.inChan
                                 Queue.writeChan inChan notification
                         )
@@ -283,10 +302,10 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
 
 printTimeToNextRetry :: Int -> Text
 printTimeToNextRetry microseconds
-    | microseconds >= 1000000000 =  show (microseconds `div` 1000000000) <> " min"
-    | microseconds >= 1000000 =  show (microseconds `div` 1000000) <> " s"
-    | microseconds >= 1000 = show (microseconds `div` 1000) <> " ms"
-    | otherwise = show microseconds <> " µs"
+    | microseconds >= 1000000000 = tshow (microseconds `div` 1000000000) <> " min"
+    | microseconds >= 1000000 = tshow (microseconds `div` 1000000) <> " s"
+    | microseconds >= 1000 = tshow (microseconds `div` 1000) <> " ms"
+    | otherwise = tshow microseconds <> " µs"
 
 listenToChannel :: Hasql.Connection -> Channel -> IO ()
 listenToChannel connection channel = do

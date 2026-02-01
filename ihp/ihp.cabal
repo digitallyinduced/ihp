@@ -53,8 +53,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
-            , hasql
-            , hasql-notifications
+            , ihp-pglistener
             , wai-app-static
             , wai-util
             , bytestring
@@ -243,8 +242,8 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        , IHP.PGListener
         , IHP.EnvVar
+    reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
 
