@@ -206,6 +206,11 @@
     background-color: #063642;
 }
 
+.column-selector .table {
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: hsla(192, 81%, 26%, 0.25);
+}
+
 .object {
     color: #E5EAEB;
     transition: all 0.1s;
@@ -237,6 +242,10 @@
 
 .column-selector .column td:first-child {
     color:  #fff;
+}
+
+.column-selector a.text-body {
+    color: inherit !important;
 }
 
 .column-selector .column {
