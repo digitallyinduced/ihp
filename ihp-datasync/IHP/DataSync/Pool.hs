@@ -14,10 +14,11 @@ import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Setting as HasqlSetting
 import qualified Hasql.Connection.Setting.Connection as HasqlConnection
-import IHP.FrameworkConfig (findOption, configIO)
+import IHP.FrameworkConfig (findOptionOrNothing, configIO, defaultDatabaseUrl)
 import IHP.FrameworkConfig.Types (DatabaseUrl(..), DBPoolMaxConnections(..), CustomMiddleware(..))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
+import qualified Control.Concurrent as Concurrent
 
 hasqlPoolVaultKey :: Vault.Key Hasql.Pool.Pool
 hasqlPoolVaultKey = unsafePerformIO Vault.newKey
@@ -55,10 +56,16 @@ initHasqlPoolMiddleware databaseUrl poolSize = do
 -- >     initHasqlPool
 initHasqlPool :: State.StateT TMap.TMap IO ()
 initHasqlPool = do
-    (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
-    (DBPoolMaxConnections maxConnections) <- findOption @DBPoolMaxConnections
+    databaseUrl <- findOptionOrNothing @DatabaseUrl >>= \case
+        Just (DatabaseUrl url) -> pure url
+        Nothing -> configIO defaultDatabaseUrl
+    maxConnections <- findOptionOrNothing @DBPoolMaxConnections >>= \case
+        Just (DBPoolMaxConnections n) -> pure n
+        Nothing -> configIO $ max 20 <$> Concurrent.getNumCapabilities
     middleware <- configIO $ initHasqlPoolMiddleware databaseUrl maxConnections
-    (CustomMiddleware existingMiddleware) <- findOption @CustomMiddleware
+    existingMiddleware <- findOptionOrNothing @CustomMiddleware >>= \case
+        Just (CustomMiddleware mw) -> pure mw
+        Nothing -> pure id
     State.modify (\map -> map
             |> TMap.delete @CustomMiddleware
             |> TMap.insert (CustomMiddleware (existingMiddleware . middleware))
