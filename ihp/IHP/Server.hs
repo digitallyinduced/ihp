@@ -54,7 +54,7 @@ run configBuilder = do
     withFrameworkConfig configBuilder \frameworkConfig -> do
         IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
             withInitalizers frameworkConfig modelContext do
-                PGListener.withPGListener modelContext \pgListener -> do
+                PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener -> do
                     let ?modelContext = modelContext
 
                     middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)

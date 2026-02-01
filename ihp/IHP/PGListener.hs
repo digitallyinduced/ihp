@@ -10,6 +10,7 @@ postgres channels, without manually dealing with connection management.
 module IHP.PGListener
 ( Channel
 , Callback
+, Notification (..)
 , Subscription (..)
 , PGListener (..)
 , init
@@ -21,11 +22,8 @@ module IHP.PGListener
 ) where
 
 import IHP.Prelude hiding (init)
-import IHP.ModelSupport
+import IHP.Log.Types (Logger)
 import qualified Data.Set as Set
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.Notification as PG
 import qualified Data.UUID.V4 as UUID
 import Control.Concurrent.MVar (MVar)
 import qualified Control.Concurrent.MVar as MVar
@@ -38,6 +36,14 @@ import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
 
+import qualified Hasql.Connection as Hasql
+import qualified Hasql.Connection.Setting as HasqlSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Notifications as HasqlNotifications
+
+-- | Wrapper to satisfy 'LoggingProvider' constraint for standalone logging
+data LogContext = LogContext { logger :: !Logger }
+
 -- TODO: How to deal with timeout of the connection?
 
 -- | The channel is like the event name
@@ -48,14 +54,20 @@ import qualified Control.Concurrent
 --
 type Channel = ByteString
 
--- | An event callback receives the postgres notification object and can do IO
-type Callback = PG.Notification -> IO ()
+-- | A notification received from postgres
+data Notification = Notification
+    { notificationChannel :: !ByteString
+    , notificationData :: !ByteString
+    } deriving (Show)
+
+-- | An event callback receives the notification and can do IO
+type Callback = Notification -> IO ()
 
 -- | Returned by a call to 'subscribe'
 data Subscription = Subscription
     { id :: !UUID
     , reader :: !(Async ())
-    , inChan :: !(Queue.InChan PG.Notification)
+    , inChan :: !(Queue.InChan Notification)
     , channel :: !Channel
     }
 
@@ -63,7 +75,8 @@ data Subscription = Subscription
 --
 -- Use 'init' to create a new object and 'stop' to deallocate it.
 data PGListener = PGListener
-    { modelContext :: !ModelContext
+    { logger :: !Logger
+    , databaseUrl :: !ByteString
     , listeningTo :: !(MVar (Set Channel))
     , listenTo :: !(MVar Channel)
     , subscriptions :: !(IORef (HashMap Channel [Subscription]))
@@ -72,23 +85,21 @@ data PGListener = PGListener
 
 -- | Creates a new 'PGListener' object
 --
--- > let modelContext = ..
--- > pgListener <- PGListener.init modelContext
+-- > pgListener <- PGListener.init databaseUrl logger
 --
--- This will start a new async listening for postgres notifications. This will take one connection
--- from the database pool and keep it blocked until 'stop' is called.
+-- This will start a new async listening for postgres notifications. This will open a dedicated
+-- database connection and keep it blocked until 'stop' is called.
 --
-init :: ModelContext -> IO PGListener
-init modelContext = do
+init :: ByteString -> Logger -> IO PGListener
+init databaseUrl logger = do
     listeningTo <- MVar.newMVar Set.empty
     subscriptions <- newIORef HashMap.empty
     listenTo <- MVar.newEmptyMVar
 
-    let ?modelContext = modelContext
-    notifyLoopAsync <- async (notifyLoop listeningTo listenTo subscriptions)
-    pure PGListener { modelContext, listeningTo, subscriptions, listenTo, notifyLoopAsync }
+    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions)
+    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync }
 
--- | Stops the database listener async and puts the database connection used back into the database pool
+-- | Stops the database listener async and releases the database connection
 --
 -- > PGListener.stop pgListener
 --
@@ -96,9 +107,9 @@ stop :: PGListener -> IO ()
 stop PGListener { notifyLoopAsync } = do
     cancel notifyLoopAsync
 
-withPGListener :: ModelContext -> (PGListener -> IO a) -> IO a
-withPGListener modelContext =
-    Exception.bracket (init modelContext) stop
+withPGListener :: ByteString -> Logger -> (PGListener -> IO a) -> IO a
+withPGListener databaseUrl logger =
+    Exception.bracket (init databaseUrl logger) stop
 
 -- | After you subscribed to a channel, the provided callback will be called whenever there's a new
 -- notification on the channel.
@@ -108,7 +119,7 @@ withPGListener modelContext =
 -- > let callback notification = do
 -- >         let payload :: Text = cs (notification.notificationData)
 -- >         putStrLn ("Received notification: " <> payload)
--- > 
+-- >
 -- > subscription <- pgListener |> PGListener.subscribe "my_channel" callback
 --
 -- The @callback@ function will now be called whenever @NOTIFY "my_channel", "my payload"@ is executed on the postgres server.
@@ -126,7 +137,7 @@ subscribe channel callback pgListener = do
     -- A naive implementation might be just kicking of an async for each message. But in that case
     -- the messages might be delivered to the final consumer out of order.
     (inChan, outChan) <- Queue.newChan
-    
+
     let
         -- We need to log any exception, otherwise there might be silent errors
         logException :: SomeException -> IO ()
@@ -149,7 +160,7 @@ subscribe channel callback pgListener = do
 -- >
 -- > let callback (jsonObject :: Aeson.Value) = do
 -- >         putStrLn ("Received notification: " <> tshow jsonObject)
--- > 
+-- >
 -- > subscription <- pgListener |> PGListener.subscribeJSON "my_json_channel" callback
 --
 -- The @callback@ function will now be called whenever @NOTIFY "my_json_channel", "{\"hello\":\"world\"}"@ is executed on the postgres server.
@@ -177,7 +188,7 @@ unsubscribe subscription@(Subscription { .. }) pgListener = do
         deleteById = List.deleteBy (\a b -> a.id == b.id) subscription
     modifyIORef' (pgListener.subscriptions) (HashMap.adjust deleteById channel)
     uninterruptibleCancel reader
-    pure ()     
+    pure ()
 
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel
 listenToChannelIfNeeded :: Channel -> PGListener -> IO ()
@@ -187,53 +198,65 @@ listenToChannelIfNeeded channel pgListener = do
 
     unless alreadyListening do
         MVar.putMVar (pgListener.listenTo) channel
-            
 
-            
+
+
+-- | Acquires a dedicated hasql connection from the given database URL.
+acquireConnection :: ByteString -> IO Hasql.Connection
+acquireConnection databaseUrl = do
+    let settings = [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+    result <- Hasql.acquire settings
+    case result of
+        Right connection -> pure connection
+        Left err -> error ("PGListener: Failed to connect to database: " <> show err)
 
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
 -- Todo: What happens when the connection dies?
-notifyLoop :: (?modelContext :: ModelContext) => MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
-notifyLoop listeningToVar listenToVar subscriptions = do
-    -- Wait until the first LISTEN is requested before taking a database connection from the pool
+notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
+notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
+    -- Wait until the first LISTEN is requested before opening a database connection
     MVar.readMVar listenToVar
 
     let innerLoop = do
-            withDatabaseConnection \databaseConnection -> do
+            connection <- acquireConnection databaseUrl
+            let cleanup = Hasql.release connection
 
+            flip Exception.finally cleanup do
                 -- If listeningTo already contains channels, this means that previously the database connection
                 -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
                 listeningTo <- MVar.readMVar listeningToVar
-                forEach listeningTo (listenToChannel databaseConnection)
+                forEach listeningTo (listenToChannel connection)
 
                 -- This loop reads channels from the 'listenToVar' and then triggers a LISTEN statement on
-                -- the current database connections
+                -- the current database connection
                 let listenLoop = forever do
                         channel <- MVar.takeMVar listenToVar
-                        
+
                         MVar.modifyMVar_ listeningToVar \listeningTo -> do
                             let alreadyListening = channel `Set.member` listeningTo
 
                             if alreadyListening
                                 then pure listeningTo
                                 else do
-                                    listenToChannel databaseConnection channel
+                                    listenToChannel connection channel
                                     pure (Set.insert channel listeningTo)
 
                 Async.withAsync listenLoop \listenLoopAsync -> do
-                    forever do
-                        notification <- PG.getNotification databaseConnection
-                        let channel = notification.notificationChannel
+                    HasqlNotifications.waitForNotifications
+                        (\channel payload -> do
+                            let notification = Notification { notificationChannel = channel, notificationData = payload }
 
-                        allSubscriptions <- readIORef subscriptions
-                        let channelSubscriptions = allSubscriptions
-                                |> HashMap.lookup channel
-                                |> fromMaybe []
+                            allSubscriptions <- readIORef subscriptions
+                            let channelSubscriptions = allSubscriptions
+                                    |> HashMap.lookup channel
+                                    |> fromMaybe []
 
-                        forEach channelSubscriptions \subscription -> do
-                            let inChan = subscription.inChan
-                            Queue.writeChan inChan notification
+                            forEach channelSubscriptions \subscription -> do
+                                let inChan = subscription.inChan
+                                Queue.writeChan inChan notification
+                        )
+                        connection
 
     -- Initial delay (in microseconds)
     let initialDelay = 500 * 1000
@@ -244,17 +267,17 @@ notifyLoop listeningToVar listenToVar subscriptions = do
             result <- Exception.tryAny innerLoop
             case result of
                 Left error -> do
-                    let ?context = ?modelContext -- Log onto the modelContext logger
+                    let ?context = LogContext logger
                     if isFirstError then do
                         Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
-                        retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries 
+                        retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries
                     else do
                         let increasedDelay = delay * 2 -- Double current delay
                         let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
                         Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
                         Control.Concurrent.threadDelay delay -- Sleep for the current delay
                         retryLoop nextDelay False -- Retry with longer interval
-                Right _ -> 
+                Right _ ->
                     retryLoop initialDelay True -- If all went well, re-run with no sleeping and reset current delay to the initial value
     retryLoop initialDelay True
 
@@ -265,10 +288,9 @@ printTimeToNextRetry microseconds
     | microseconds >= 1000 = show (microseconds `div` 1000) <> " ms"
     | otherwise = show microseconds <> " µs"
 
-listenToChannel :: PG.Connection -> Channel -> IO ()
-listenToChannel databaseConnection channel = do
-    PG.execute databaseConnection "LISTEN ?" [PG.Identifier (cs channel)]
-    pure ()
+listenToChannel :: Hasql.Connection -> Channel -> IO ()
+listenToChannel connection channel = do
+    HasqlNotifications.listen connection (HasqlNotifications.toPgIdentifier (cs channel))
 
 logError :: PGListener -> Text -> IO ()
-logError pgListener message = let ?context = pgListener.modelContext in Log.error message
+logError pgListener message = let ?context = LogContext pgListener.logger in Log.error message

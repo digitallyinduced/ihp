@@ -43,7 +43,7 @@ dedicatedProcessMainLoop jobWorkers = do
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
     -- run independent of the system being very busy.
-    PGListener.withPGListener ?modelContext \pgListener -> do
+    PGListener.withPGListener ?context.databaseUrl ?context.logger \pgListener -> do
         stopSignal <- Concurrent.newEmptyMVar
 
         runResourceT do
