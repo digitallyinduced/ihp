@@ -4,6 +4,7 @@ import IHP.ViewPrelude
 import IHP.Postgres.Types
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.SchemaDesigner.View.Layout
+import IHP.IDE.SchemaDesigner.View.Columns.NewForeignKey (foreignKeyFormModal)
 
 data EditForeignKeyView = EditForeignKeyView
     { statements :: [Statement]
@@ -26,60 +27,13 @@ instance View EditForeignKeyView where
     |]
         where
             columns = getTableColumns tableName statements
-
-            modalContent = [hsx|
-                <form method="POST" action={UpdateForeignKeyAction}>
-                    <input type="hidden" name="tableName" value={tableName}/>
-                    <input type="hidden" name="columnName" value={columnName}/>
-
-                    <div class="mb-3 row">
-                        <label class="col-sm-2 col-form-label">Reference Table:</label>
-                        <div class="col-sm-10">
-                            <select name="referenceTable" class="form-control select2" autofocus="autofocus">
-                                {forEach tableNames renderTableNameSelector}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="mb-3 row">
-                        <label class="col-sm-2 col-form-label">Name:</label>
-                        <div class="col-sm-10">
-                            <input name="constraintName" type="text" class="form-control" value={constraintName}/>
-                        </div>
-                    </div>
-
-                    <div class="mb-3 row">
-                        <label class="col-sm-2 col-form-label">On Delete:</label>
-                        <div class="col-sm-10">
-                            <select name="onDelete" class="form-control select2">
-                                {onDeleteSelector "NoAction"}
-                                {onDeleteSelector "Restrict"}
-                                {onDeleteSelector "SetNull"}
-                                {onDeleteSelector "SetDefault"}
-                                {onDeleteSelector "Cascade"}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">Edit Constraint</button>
-                    </div>
-                </form>
-                {select2}
-            |]
-                where
-                    renderTableNameSelector tableName = if tableName == referenceTable
-                        then preEscapedToHtml [plain|<option selected>#{tableName}</option>|]
-                        else preEscapedToHtml [plain|<option>#{tableName}</option>|]
-                    onDeleteSelector option = if option == onDelete
-                        then preEscapedToHtml [plain|<option selected>#{option}</option>|]
-                        else preEscapedToHtml [plain|<option>#{option}</option>|]
-                    select2 = preEscapedToHtml [plain|
-                        <script>
-                            $('.select2').select2();
-                        </script>
-                    |]
-            modalFooter = mempty 
-            modalCloseUrl = pathTo ShowTableAction { tableName }
-            modalTitle = "Edit Foreign Key Constraint"
-            modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
+            modal = foreignKeyFormModal
+                (pathTo UpdateForeignKeyAction)
+                tableName
+                columnName
+                tableNames
+                constraintName
+                (Just referenceTable)
+                onDelete
+                "Edit Constraint"
+                "Edit Foreign Key Constraint"
