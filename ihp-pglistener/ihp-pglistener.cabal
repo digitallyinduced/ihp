@@ -1,0 +1,49 @@
+cabal-version:       2.2
+name:                ihp-pglistener
+version:             1.4.0
+synopsis:            PostgreSQL LISTEN/NOTIFY channel manager for IHP
+description:         Manages PostgreSQL LISTEN/NOTIFY subscriptions over a single shared connection
+                     with automatic reconnection and exponential backoff.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, Database, IHP
+
+common shared-properties
+    default-language: GHC2021
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , bytestring
+        , text
+        , string-conversions
+        , aeson
+        , uuid
+        , async
+        , hasql
+        , hasql-notifications
+        , unagi-chan
+        , safe-exceptions
+        , containers
+        , unordered-containers
+        , hashable
+        , ihp-log
+    default-extensions:
+        OverloadedStrings
+        , ImplicitParams
+        , DataKinds
+        , RecordWildCards
+        , OverloadedRecordDot
+        , DuplicateRecordFields
+        , BlockArguments
+        , LambdaCase
+    ghc-options: -Werror=incomplete-patterns
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.PGListener

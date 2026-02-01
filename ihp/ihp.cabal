@@ -53,6 +53,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , ihp-pglistener
             , wai-app-static
             , wai-util
             , bytestring
@@ -241,13 +242,13 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        , IHP.PGListener
         , IHP.EnvVar
         -- IHP PRO
         , IHP.AuthSupport.Types
         , IHP.AuthSupport.View.PasswordResets.New
         , IHP.AuthSupport.View.PasswordResets.Show
 
+    reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
 

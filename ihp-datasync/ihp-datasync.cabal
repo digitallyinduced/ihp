@@ -144,7 +144,10 @@ test-suite ihp-datasync-hspec
                  , Test.DataSync.TypedEncoder
                  , Test.DataSync.ChangeNotifications
                  , Test.DataSync.RLSIntegrationSpec
+                 , Test.DataSync.DataSyncIntegrationSpec
     build-depends: hspec
+                 , resource-pool
+                 , postgresql-simple
 
 source-repository head
     type:     git

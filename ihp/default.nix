@@ -6,6 +6,7 @@
 , haskell-src-exts, haskell-src-meta, hspec, http-client
 , http-client-tls, http-media, http-types, ihp-context, ihp-hsx
 , ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead
+, ihp-pglistener
 , ihp-postgresql-simple-extra, inflections, interpolate, ip, lens
 , lib, mime-types, minio-hs, mono-traversable, mtl
 , neat-interpolation, network, network-uri, parser-combinators
@@ -29,9 +30,11 @@ mkDerivation {
     blaze-markup bytestring case-insensitive cereal cereal-text
     classy-prelude clientsession conduit-extra containers cookie
     countable-inflections data-default deepseq directory fast-logger
-    filepath ghc-prim hashable haskell-src-exts haskell-src-meta hspec
+    filepath ghc-prim hashable
+    haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
+    ihp-pglistener
     ihp-postgresql-simple-extra inflections interpolate ip lens
     mime-types minio-hs mono-traversable mtl neat-interpolation network
     network-uri parser-combinators postgresql-simple process
@@ -49,9 +52,11 @@ mkDerivation {
     blaze-markup bytestring case-insensitive cereal cereal-text
     classy-prelude clientsession conduit-extra containers cookie
     countable-inflections data-default deepseq directory fast-logger
-    filepath ghc-prim hashable haskell-src-exts haskell-src-meta hspec
+    filepath ghc-prim hashable
+    haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
+    ihp-pglistener
     ihp-postgresql-simple-extra inflections interpolate ip lens
     mime-types minio-hs mono-traversable mtl neat-interpolation network
     network-uri parser-combinators postgresql-simple process

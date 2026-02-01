@@ -275,7 +275,9 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         newCount :: Int <- sqlQueryScalarWithRLS hasqlPool countSnippet countDecoder
                         lastCount <- readIORef countRef
 
-                        when (newCount /= count) (sendJSON DidChangeCount { subscriptionId, count = newCount })
+                        when (newCount /= lastCount) do
+                            writeIORef countRef newCount
+                            sendJSON DidChangeCount { subscriptionId, count = newCount }
 
                 let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
