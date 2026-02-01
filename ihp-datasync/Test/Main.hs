@@ -6,6 +6,7 @@ import qualified Test.DataSync.DynamicQueryCompiler
 import qualified Test.DataSync.TypedEncoder
 import qualified Test.DataSync.ChangeNotifications
 import qualified Test.DataSync.RLSIntegrationSpec
+import qualified Test.DataSync.DataSyncIntegrationSpec
 
 main :: IO ()
 main = hspec do
@@ -13,3 +14,4 @@ main = hspec do
     Test.DataSync.TypedEncoder.tests
     Test.DataSync.ChangeNotifications.tests
     Test.DataSync.RLSIntegrationSpec.tests
+    Test.DataSync.DataSyncIntegrationSpec.tests
