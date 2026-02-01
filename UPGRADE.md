@@ -2,14 +2,134 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# UNRELEASED
+# Upgrade to 1.5.0 from 1.4.0
 
-## Internal packages extracted from `ihp`
+## 1. Switch IHP version
+
+- **IHP Basic**
+
+    Open `flake.nix` and change the git commit in line 3 to the following:
+
+    ```diff
+    -        ihp.url = "github:digitallyinduced/ihp/v1.4";
+    +        ihp.url = "github:digitallyinduced/ihp/v1.5";
+    ```
+
+- **IHP Pro & IHP Business**
+
+    Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.5 URL into your `flake.nix`.
+
+## 2. Remake Env
+
+Run the following commands:
+
+```bash
+nix flake update ihp
+direnv reload
+```
+
+Now you can start your project as usual with `devenv up`.
+
+## 3. Bootstrap 5 Migration
+
+IHP 1.5 upgrades the bundled frontend dependencies:
+
+- **Bootstrap** 5.2.1 → 5.3.8
+- **jQuery** 3.6.0 → 4.0.0
+- **Select2** 4.0.13 → 4.1.0-rc.0
+
+IHP's built-in CSS framework (form helpers, pagination, etc.) has been updated automatically. However, if your views use Bootstrap CSS classes or data attributes directly in HSX, you may need to update them.
+
+### CSS Class Renames
+
+If you use any of these Bootstrap 4-era classes in your HSX views, rename them:
+
+| Old (Bootstrap 4) | New (Bootstrap 5) |
+|--------------------|-------------------|
+| `ml-*`, `mr-*` | `ms-*`, `me-*` |
+| `pl-*`, `pr-*` | `ps-*`, `pe-*` |
+| `ml-auto` | `ms-auto` |
+| `sr-only` | `visually-hidden` |
+| `text-right` | `text-end` |
+| `float-right` | `float-end` |
+| `font-weight-bold` | `fw-bold` |
+| `no-gutters` | `g-0` |
+| `badge-*` | `text-bg-*` |
+| `form-group` | `mb-3` |
+| `form-row` | `row` |
+| `custom-select` | `form-select` |
+| `custom-control` | `form-check` |
+| `custom-control-input` | `form-check-input` |
+| `custom-control-label` | `form-check-label` |
+| `custom-control custom-switch` | `form-check form-switch` |
+| `dropdown-menu-right` | `dropdown-menu-end` |
+
+### Data Attribute Renames
+
+Bootstrap 5 namespaces its data attributes with `bs`:
+
+| Old | New |
+|-----|-----|
+| `data-toggle` | `data-bs-toggle` |
+| `data-placement` | `data-bs-placement` |
+| `data-html` | `data-bs-html` |
+| `data-dismiss` | `data-bs-dismiss` |
+| `data-target` | `data-bs-target` |
+
+### Structure Changes
+
+- **`input-group-append`** wrappers have been removed. In Bootstrap 5, children of `input-group` are direct children without a wrapper div.
+- **`form-text text-muted`** can be simplified to just `form-text` (Bootstrap 5's `form-text` already implies muted styling).
+- **Modal close button**: The `.close` class is now `.btn-close`.
+
+### jQuery 4.0.0
+
+jQuery 4.0.0 drops support for some deprecated APIs. If you use jQuery directly, review the [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/). Old jQuery versions are still included in `ihp-static` for backwards compatibility during migration.
+
+## 4. `addStyle` Removed
+
+The `addStyle` function has been removed. Replace usage with inline `<style>` tags in your HSX:
+
+```diff
+-addStyle "body { background: red; }"
++[hsx|<style>body { background: red; }</style>|]
+```
+
+## 5. `toSlug` Now Uses `slugger` Package
+
+The `toSlug` function now uses the `slugger` package instead of IHP's custom implementation. The behavior is mostly compatible, but edge cases (special characters, Unicode handling) may differ slightly. If you depend on exact slug output, test your slugs after upgrading.
+
+## 6. `?request` Implicit Parameter
+
+A new `?request :: Request` implicit parameter is now available alongside `?context`. This provides direct access to the WAI `Request` object.
+
+If you have custom view rendering functions or middleware that manually constructs the implicit parameter environment, you may need to add `?request` to the implicit parameter constraints. Most applications using standard IHP patterns are unaffected.
+
+## 7. `RequestContext` Removed
+
+The `RequestContext` type has been removed and replaced with WAI request vault storage and a `?respond` implicit parameter. The `ActionType` is now also stored in the WAI request vault.
+
+This is an internal change. Most applications are unaffected unless you directly imported or pattern-matched on `RequestContext`.
+
+## 8. `Fixtures.sql` Now Optional
+
+`Application/Fixtures.sql` is no longer required to exist. If your project doesn't use fixtures, you can safely delete this file.
+
+## 9. Internal Packages Extracted from `ihp`
 
 Several internal modules have been extracted into separate packages. This should not affect most applications as they are re-exported through the standard preludes. However, if you import these modules directly, you may need to add the corresponding package to your dependencies:
 
 | Module | New Package |
 |--------|-------------|
+| `IHP.Mail` | `ihp-mail` |
+| `IHP.SchemaCompiler` | `ihp-schema-compiler` |
+| `IHP.IDE.SchemaDesigner.Parser` | `ihp-postgres-parser` |
+| `IHP.Controller.Param` (request params) | `wai-request-params` |
+| `IHP.FlashMessages.*` | `wai-flash-messages` |
+| `IHP.Assets` | `wai-asset-path` |
+| `IHP.FileStorage.Preprocessor.ImageMagick` | `ihp-imagemagick` |
+| `IHP.Job.Dashboard.*` | `ihp-job-dashboard` |
+| `IHP.DataSync.*` | `ihp-datasync` |
 | `IHP.ControllerContext` | `ihp-context` |
 | `IHP.PageHead.*` | `ihp-pagehead` |
 | `IHP.Log.*` | `ihp-log` |
@@ -17,19 +137,47 @@ Several internal modules have been extracted into separate packages. This should
 
 Most applications don't need to change anything as these are still re-exported from `ihp`.
 
-## `IHP.Welcome.Controller` moved to separate `ihp-welcome` package
+### `IHP.Welcome.Controller` Moved to `ihp-welcome`
 
-The welcome page controller has been moved to its own package `ihp-welcome`. If your project uses `IHP.Welcome.Controller` and `WelcomeAction`, you need to add the package to `flake.nix`:
+The welcome page controller has been moved to its own package `ihp-welcome`. If your project uses `IHP.Welcome.Controller` and `WelcomeAction`, add the package to `flake.nix`:
 
 ```diff
                      haskellPackages = p: with p; [
                          # Haskell dependencies go here
                          p.ihp
-+                        ihp-welcome
++                        p.ihp-welcome
                          cabal-install
 ```
 
-Most production applications don't use the welcome controller and can safely ignore this change. The welcome controller is typically only used in new projects as initial boilerplate.
+Most production applications don't use the welcome controller and can safely ignore this change.
+
+## 10. OsPath Migration
+
+IHP internally now uses `OsPath` instead of `FilePath` for file system operations. This is an internal change and most applications are unaffected. If you use IHP internal file APIs directly (e.g., code generator types), you may need to update `FilePath` references to `OsPath`.
+
+## 11. `Generated.ActualTypes` Split
+
+The generated `Types.hs` / `Generated.ActualTypes` module is now split into per-table modules for parallel compilation. This is transparent to application code — all types are still re-exported from the same locations. This change improves compile times for projects with many database tables.
+
+## 12. `compileRelationSupport` Flag
+
+A new `compileRelationSupport` flag has been added to the schema compiler. Setting it to `False` disables generation of relation type machinery (`Include`, `fetch` relations, etc.), which can significantly speed up compilation for large schemas where you don't use `fetch` relations. To use this, add `relationSupport = false;` to the `ihp` section of your `flake.nix`.
+
+## 13. Deprecated Makefile Targets
+
+Several Makefile targets (`build/bin/RunUnoptimizedProdServer`, etc.) have been deprecated. Use `nix build` instead:
+
+```bash
+# Instead of: make build/bin/RunUnoptimizedProdServer
+nix build
+
+# Instead of: make build/bin/RunOptimizedProdServer
+nix build
+
+# Run tests
+nix flake check --impure
+```
+
 
 # Upgrade to 1.4.0 from 1.3.0
 
