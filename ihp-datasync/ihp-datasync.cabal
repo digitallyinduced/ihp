@@ -140,6 +140,7 @@ test-suite ihp-datasync-hspec
     hs-source-dirs:      .
     main-is:             Test/Main.hs
     other-modules: Test.DataSync.DynamicQueryCompiler
+                 , Test.DataSync.TypedEncoder
     build-depends: hspec
 
 source-repository head

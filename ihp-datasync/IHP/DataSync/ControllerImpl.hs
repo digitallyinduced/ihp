@@ -24,14 +24,11 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
-import GHC.Conc (getNumCapabilities, ThreadId, myThreadId, atomically)
-import qualified Data.HashSet as HashSet
+import GHC.Conc (ThreadId, myThreadId, atomically)
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
-import Control.Monad (void)
 import IHP.RequestVault
 import qualified Data.List as List
 

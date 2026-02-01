@@ -9,7 +9,6 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder
 import IHP.Postgres.TimeParser (PGInterval(..))
 import IHP.Postgres.Point (Point(..))
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders

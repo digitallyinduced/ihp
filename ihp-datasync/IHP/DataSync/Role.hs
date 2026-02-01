@@ -79,11 +79,6 @@ grantPermissionsSession role = do
     -- Also grant access to all tables created in the future
     exec ("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO " <> quoteIdentifier role)
 
--- IO API (thin wrappers)
-
-doesRoleExists :: Hasql.Pool.Pool -> Text -> IO Bool
-doesRoleExists pool name = runSession pool (Session.statement name doesRoleExistsStatement)
-
 ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
 ensureAuthenticatedRoleExists pool = runSession pool ensureAuthenticatedRoleSession
 

@@ -8,7 +8,6 @@ import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
 import IHP.QueryBuilder hiding (OrderByClause)
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
 import qualified Hasql.Decoders as Decoders

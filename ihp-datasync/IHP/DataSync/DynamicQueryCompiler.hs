@@ -38,14 +38,6 @@ camelCaseRenamer =
     , columnToField = columnNameToFieldName
     }
 
--- | Renamer that does not modify the column names
-unmodifiedRenamer :: Renamer
-unmodifiedRenamer =
-    Renamer
-    { fieldToColumn = id
-    , columnToField = id
-    }
-
 -- | When a Field is retrieved from the database, it's all in @snake_case@. This turns it into @camelCase@
 renameField :: Renamer -> Field -> Field
 renameField renamer field =
