@@ -63,7 +63,7 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Unmigrated Changes</strong></div>
                     Your app database is not in sync with the Schema
                 </div>
@@ -82,7 +82,7 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Pending Changes</strong></div>
                     You have migrations that haven't been run yet
                 </div>
