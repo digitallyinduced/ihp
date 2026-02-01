@@ -235,7 +235,7 @@ generateController schema config =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ControllerConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
+    qualifiedModuleName config.applicationName "View" config.controllerName viewName
 
 pathToModuleName :: Text -> Text
 pathToModuleName moduleName = Text.replace "." "/" moduleName

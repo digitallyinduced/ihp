@@ -24,9 +24,9 @@ buildPlan mailName applicationName controllerName' =
             pure $ Right $ buildPlan' schema viewConfig
 
 -- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
-qualifiedViewModuleName :: MailConfig -> Text -> Text
-qualifiedViewModuleName config mailName =
-    config.applicationName <> ".Mail." <> config.controllerName <> "." <> ucfirst mailName
+qualifiedMailModuleName :: MailConfig -> Text -> Text
+qualifiedMailModuleName config mailName =
+    qualifiedModuleName config.applicationName "Mail" config.controllerName (ucfirst mailName)
 
 buildPlan' :: [Statement] -> MailConfig -> [GeneratorAction]
 buildPlan' schema config =
@@ -48,7 +48,7 @@ buildPlan' schema config =
 
             mail =
                 ""
-                <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
+                <> "module " <> qualifiedMailModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> config.applicationName <> ".View.Prelude\n"
                 <> "import IHP.MailPrelude\n"
                 <> "\n"
@@ -64,5 +64,5 @@ buildPlan' schema config =
         in
             [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Mail/" <> controllerName) }
             , CreateFile { filePath = textToOsPath (config.applicationName <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = mail }
-            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedMailModuleName config nameWithoutSuffix }
             ]

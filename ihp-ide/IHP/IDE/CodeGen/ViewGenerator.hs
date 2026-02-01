@@ -30,7 +30,7 @@ buildPlan viewName' applicationName controllerName' =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
+    qualifiedModuleName config.applicationName "View" config.controllerName viewName
 
 buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
 buildPlan' schema config =

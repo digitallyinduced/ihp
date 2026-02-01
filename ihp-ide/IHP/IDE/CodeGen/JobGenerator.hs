@@ -27,7 +27,7 @@ buildPlan jobName applicationName = do
                     }
             pure $ Right $ buildPlan' jobConfig
 
--- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
+-- E.g. qualifiedJobModuleName config == "Web.Job.CreateContainer"
 qualifiedJobModuleName :: JobConfig -> Text
 qualifiedJobModuleName config =
     config.applicationName <> ".Job." <> unqualifiedJobModuleName config

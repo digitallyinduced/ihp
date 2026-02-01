@@ -97,3 +97,11 @@ ensureSuffix :: Text -> Text -> (Text, Text)
 ensureSuffix suffix name
     | suffix `isSuffixOf` name = (name, Text.dropEnd (Text.length suffix) name)
     | otherwise = (name <> suffix, name)
+
+-- | Build a qualified Haskell module name from application, category, controller, and module name.
+--
+-- >>> qualifiedModuleName "Web" "View" "Users" "Edit"
+-- "Web.View.Users.Edit"
+qualifiedModuleName :: Text -> Text -> Text -> Text -> Text
+qualifiedModuleName applicationName category controllerName moduleName =
+    applicationName <> "." <> category <> "." <> controllerName <> "." <> moduleName
