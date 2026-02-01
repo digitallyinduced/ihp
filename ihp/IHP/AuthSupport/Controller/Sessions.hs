@@ -68,7 +68,7 @@ createSessionAction :: forall record action.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
-    , Show (PrimaryKey (GetTableName record))
+    , PrimaryKey (GetTableName record) ~ UUID
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
     ) => IO ()

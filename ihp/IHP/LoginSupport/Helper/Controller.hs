@@ -4,11 +4,13 @@ module IHP.LoginSupport.Helper.Controller
 ( currentUser
 , currentUserOrNothing
 , currentUserId
+, currentUserIdOrNothing
 , ensureIsUser
 , HasNewSessionUrl
 , currentAdmin
 , currentAdminOrNothing
 , currentAdminId
+, currentAdminIdOrNothing
 , ensureIsAdmin
 , login
 , sessionKey
@@ -33,6 +35,7 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Data.UUID as UUID
 
 -- | Returns the current user or 'Nothing' if not logged in.
 --
@@ -61,6 +64,15 @@ ensureIsUser =
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 {-# INLINABLE ensureIsUser #-}
 
+-- | Returns the current user's UUID or 'Nothing' if not logged in.
+--
+-- This only requires 'userIdMiddleware', no database query is needed.
+--
+-- > userId <- currentUserIdOrNothing
+currentUserIdOrNothing :: (?request :: Wai.Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentUserRecord)
+currentUserIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentUserIdVaultKey ?request
+{-# INLINE currentUserIdOrNothing #-}
+
 -- | Returns the current admin or 'Nothing' if not logged in.
 --
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
@@ -80,6 +92,13 @@ currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request
 currentAdminId = (currentAdmin @admin).id
 {-# INLINABLE currentAdminId #-}
 
+-- | Returns the current admin's UUID or 'Nothing' if not logged in.
+--
+-- This only requires 'adminIdMiddleware', no database query is needed.
+currentAdminIdOrNothing :: (?request :: Wai.Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentAdminRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentAdminRecord)
+currentAdminIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentAdminIdVaultKey ?request
+{-# INLINE currentAdminIdOrNothing #-}
+
 -- | Ensures that an admin is logged in. Redirects to login page if not.
 ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Wai.Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin =
@@ -88,7 +107,9 @@ ensureIsAdmin =
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 {-# INLINABLE ensureIsAdmin #-}
 
--- | Log's in a user
+-- | Log in a user
+--
+-- Stores the user's UUID in the session as raw ASCII bytes (36 bytes).
 --
 -- Examples:
 --
@@ -98,11 +119,16 @@ ensureIsAdmin =
 -- >
 -- >     redirectToPath "/"
 --
-login :: forall user id. (?request :: Wai.Request, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
-login user = Session.setSession (sessionKey @user) (tshow (user.id))
+login :: forall user.
+    ( ?request :: Wai.Request
+    , KnownSymbol (ModelSupport.GetModelName user)
+    , HasField "id" user (ModelSupport.Id user)
+    , ModelSupport.PrimaryKey (ModelSupport.GetTableName user) ~ UUID
+    ) => user -> IO ()
+login user = sessionInsert (sessionKey @user) (UUID.toASCIIBytes (ModelSupport.unpackId user.id))
 {-# INLINABLE login #-}
 
--- | Log's out a user
+-- | Log out a user
 --
 -- Example:
 --
@@ -113,7 +139,7 @@ login user = Session.setSession (sessionKey @user) (tshow (user.id))
 -- >     redirectToPath "/"
 --
 logout :: forall user. (?request :: Wai.Request, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
-logout user = Session.setSession (sessionKey @user) ("" :: Text)
+logout user = deleteSession (sessionKey @user)
 {-# INLINABLE logout #-}
 
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
@@ -155,15 +181,13 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 enableRowLevelSecurityIfLoggedIn ::
     ( ?context :: ControllerContext
     , ?request :: Wai.Request
-    , Typeable CurrentUserRecord
-    , HasField "id" CurrentUserRecord userId
-    , PG.ToField userId
+    , ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
-    case currentUserOrNothing of
-        Just user -> do
+    case currentUserIdOrNothing of
+        Just userId -> do
             let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
-            let rlsUserId = PG.toField user.id
-            let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
+            let rlsUserId = PG.toField userId
+            let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }
             putContext rlsContext
         Nothing -> pure ()
