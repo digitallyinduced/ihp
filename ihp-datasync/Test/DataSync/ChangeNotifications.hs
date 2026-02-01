@@ -7,7 +7,7 @@ import qualified Data.Aeson.Key as Aeson
 import IHP.DataSync.ChangeNotifications (Change(..), ChangeNotification(..))
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
-import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), DynamicValue(..), FunctionCall(..), conditionColumns)
+import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
 import qualified Data.Set as Set
 import qualified Prelude
 
@@ -91,7 +91,7 @@ tests = do
                 let condition = InfixOperatorExpression
                         { left = ColumnExpression "conversationId"
                         , op = OpEqual
-                        , right = LiteralExpression (UUIDValue (Prelude.read "00000000-0000-0000-0000-000000000000"))
+                        , right = LiteralExpression (String "00000000-0000-0000-0000-000000000000")
                         }
                 conditionColumns condition `shouldBe` Set.fromList ["conversationId"]
 
@@ -100,13 +100,13 @@ tests = do
                         { left = InfixOperatorExpression
                             { left = ColumnExpression "conversationId"
                             , op = OpEqual
-                            , right = LiteralExpression (UUIDValue (Prelude.read "00000000-0000-0000-0000-000000000000"))
+                            , right = LiteralExpression (String "00000000-0000-0000-0000-000000000000")
                             }
                         , op = OpAnd
                         , right = InfixOperatorExpression
                             { left = ColumnExpression "status"
                             , op = OpEqual
-                            , right = LiteralExpression (TextValue "active")
+                            , right = LiteralExpression (String "active")
                             }
                         }
                 conditionColumns condition `shouldBe` Set.fromList ["conversationId", "status"]
@@ -116,7 +116,7 @@ tests = do
                         { left = InfixOperatorExpression
                             { left = ColumnExpression "a"
                             , op = OpEqual
-                            , right = LiteralExpression (IntValue 1)
+                            , right = LiteralExpression (Number 1)
                             }
                         , op = OpOr
                         , right = InfixOperatorExpression
@@ -132,9 +132,9 @@ tests = do
                 conditionColumns condition `shouldBe` Set.empty
 
             it "returns empty set for ListExpression" do
-                let condition = ListExpression [IntValue 1, IntValue 2]
+                let condition = ListExpression [Number 1, Number 2]
                 conditionColumns condition `shouldBe` Set.empty
 
             it "returns empty set for LiteralExpression" do
-                let condition = LiteralExpression (TextValue "hello")
+                let condition = LiteralExpression (String "hello")
                 conditionColumns condition `shouldBe` Set.empty
