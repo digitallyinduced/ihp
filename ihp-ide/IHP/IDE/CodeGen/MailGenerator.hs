@@ -3,7 +3,6 @@ module IHP.IDE.CodeGen.MailGenerator (buildPlan, buildPlan', MailConfig (..)) wh
 import IHP.Prelude
 import IHP.IDE.CodeGen.Types
 import qualified Data.Text as Text
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import Text.Countable (singularize, pluralize)
 
@@ -19,9 +18,7 @@ buildPlan mailName applicationName controllerName' =
     if (null mailName || null controllerName')
         then pure $ Left "Neither mail name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewConfig = MailConfig { .. }

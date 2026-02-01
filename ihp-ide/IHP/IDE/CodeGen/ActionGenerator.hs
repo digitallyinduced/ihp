@@ -3,7 +3,6 @@ module IHP.IDE.CodeGen.ActionGenerator (buildPlan) where
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
 import Text.Countable (pluralize)
@@ -20,9 +19,7 @@ buildPlan actionName applicationName controllerName doGenerateView=
     if (null actionName || null controllerName)
         then pure $ Left "Neither action name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let actionConfig = ActionConfig {controllerName, applicationName, modelName, actionName }
             let actionPlan = generateGenericAction schema actionConfig doGenerateView
             if doGenerateView

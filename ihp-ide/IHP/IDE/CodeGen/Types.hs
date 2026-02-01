@@ -2,6 +2,7 @@ module IHP.IDE.CodeGen.Types where
 
 import IHP.Prelude
 import IHP.Postgres.Types
+import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 
 data GeneratorAction
     = CreateFile { filePath :: OsPath, fileContent :: Text }
@@ -79,3 +80,8 @@ uniqueColumnsForTable schema tableName = inlineUnique <> topLevelUnique
             | AddConstraint { tableName = tbl, constraint = UniqueConstraint { columnNames = [col] } } <- schema
             , tbl == tableName
             ]
+
+loadAppSchema :: IO [Statement]
+loadAppSchema = SchemaDesigner.parseSchemaSql >>= \case
+    Left _parserError -> pure []
+    Right statements -> pure statements

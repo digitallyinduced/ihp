@@ -6,7 +6,6 @@ import IHP.NameSupport
 import IHP.HaskellSupport
 import qualified Data.Text as Text
 import qualified Data.Char as Char
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
@@ -14,9 +13,7 @@ import Text.Countable (singularize, pluralize)
 
 buildPlan :: Text -> Text -> Bool -> IO (Either Text [GeneratorAction])
 buildPlan rawControllerName applicationName paginationEnabled = do
-    schema <- SchemaDesigner.parseSchemaSql >>= \case
-        Left parserError -> pure []
-        Right statements -> pure statements
+    schema <- loadAppSchema
     let controllerName = tableNameToControllerName rawControllerName
     let modelName = tableNameToModelName rawControllerName
     pure $ Right $ buildPlan' schema applicationName controllerName modelName paginationEnabled

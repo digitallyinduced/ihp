@@ -3,7 +3,6 @@ module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..), po
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import IHP.NameSupport (columnNameToFieldName, columnNameToFieldLabel)
 import Text.Countable (singularize, pluralize)
@@ -21,9 +20,7 @@ buildPlan viewName' applicationName controllerName' =
     if (null viewName' || null controllerName')
         then pure $ Left "Neither view name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewName = tableNameToViewName viewName'
