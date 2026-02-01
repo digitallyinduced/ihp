@@ -7,13 +7,14 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (typedDynamicValueParam)
+import IHP.DataSync.TypedEncoder (typedValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.List as List
 import qualified Data.HashMap.Strict as HashMap
 import Data.Int (Int32)
+import qualified Data.Aeson as Aeson
 
 data Renamer = Renamer
     { fieldToColumn :: Text -> Text
@@ -122,13 +123,13 @@ compileSelectedColumns (SelectSpecific fields) =
 -- extended query protocol.
 compileConditionTyped :: ColumnTypeMap -> ConditionExpression -> Snippet
 compileConditionTyped _ (ColumnExpression column) = quoteIdentifier column
-compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
-compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Null))
+compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpression Aeson.Null)) = compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null))
+compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Aeson.Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Aeson.Null))
 compileConditionTyped _types (InfixOperatorExpression _a OpIn (ListExpression { values = [] })) = Snippet.sql "FALSE"
-compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Null `List.elem` values) =
-    case partition ((/=) Null) values of
-        ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Null))
-        (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Null)))
+compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Aeson.Null `List.elem` values) =
+    case partition ((/=) Aeson.Null) values of
+        ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null))
+        (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null)))
 -- When comparing a column to a literal or list, look up the column's type for typed encoding.
 -- Errors if the column type is not in the map — callers must provide complete type info.
 compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (LiteralExpression literal)) =
@@ -136,11 +137,11 @@ compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) oper
     where
         colType = HashMap.lookup col types
         rightOperand = case literal of
-            Null -> Snippet.sql "NULL"
-            _ -> Snippet.sql "(" <> typedDynamicValueParam colType literal <> Snippet.sql ")"
+            Aeson.Null -> Snippet.sql "NULL"
+            _ -> Snippet.sql "(" <> typedValueParam colType literal <> Snippet.sql ")"
 compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (ListExpression { values })) =
     Snippet.sql "(" <> quoteIdentifier col <> Snippet.sql ") " <> compileOperator operator <> Snippet.sql " "
-    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedDynamicValueParam colType) values)) <> Snippet.sql ")"
+    <> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") (map (typedValueParam colType) values)) <> Snippet.sql ")"
     where
         colType = HashMap.lookup col types
 compileConditionTyped types (InfixOperatorExpression a operator b) =
@@ -153,7 +154,7 @@ compileConditionTyped types (InfixOperatorExpression a operator b) =
         rightParentheses :: Bool
         rightParentheses =
             case b of
-                LiteralExpression Null -> False
+                LiteralExpression Aeson.Null -> False
                 ListExpression {} -> False
                 _ -> True
 compileConditionTyped _types (LiteralExpression literal) = dynamicValueParam literal
@@ -174,4 +175,3 @@ compileOperator OpIs = Snippet.sql "IS"
 compileOperator OpIsNot = Snippet.sql "IS NOT"
 compileOperator OpTSMatch = Snippet.sql "@@"
 compileOperator OpIn = Snippet.sql "IN"
-

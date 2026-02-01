@@ -6,8 +6,8 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.DataSync.DynamicQuery where
 
-import IHP.ControllerPrelude hiding (OrderByClause, Null)
-import Data.Aeson hiding (Null)
+import IHP.ControllerPrelude hiding (OrderByClause)
+import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
@@ -27,20 +27,7 @@ import qualified Data.HashMap.Strict as HashMap
 import IHP.Postgres.Point (Point(..))
 import Data.Int (Int64)
 
-data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
-
-data DynamicValue
-    = IntValue !Int
-    | DoubleValue !Double
-    | TextValue !Text
-    | BoolValue !Bool
-    | UUIDValue !UUID
-    | DateTimeValue !UTCTime
-    | PointValue !Point
-    | IntervalValue !PGInterval
-    | ArrayValue ![DynamicValue]
-    | Null
-    deriving (Show, Eq)
+data Field = Field { fieldName :: Text, fieldValue :: Value }
 
 newtype UndecodedJSON = UndecodedJSON ByteString
     deriving (Show, Eq)
@@ -76,9 +63,9 @@ data ConditionExpression
         , op :: !ConditionOperator
         , right :: !ConditionExpression
         }
-    | LiteralExpression { value :: !DynamicValue }
+    | LiteralExpression { value :: !Value }
     | CallExpression { functionCall :: !FunctionCall }
-    | ListExpression { values :: ![DynamicValue] }
+    | ListExpression { values :: ![Value] }
     deriving (Show, Eq)
 
 data FunctionCall
@@ -111,22 +98,10 @@ instance FromJSON ByteString where
     parseJSON invalid = fail $ cs ("Expected String for ByteString, got: " <> tshow invalid)
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
-    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
+    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= fieldValue) fields)
     toEncoding fields = pairs $ foldl' (<>) mempty encodedFields
         where
-            encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
-
-instance ToJSON DynamicValue where
-    toJSON (IntValue value) = toJSON value
-    toJSON (DoubleValue value) = toJSON value
-    toJSON (TextValue value) = toJSON value
-    toJSON (BoolValue value) = toJSON value
-    toJSON (UUIDValue value) = toJSON value
-    toJSON (DateTimeValue value) = toJSON value
-    toJSON (PointValue value) = toJSON value
-    toJSON (IntervalValue value) = toJSON value
-    toJSON (ArrayValue value) = toJSON value
-    toJSON Null = toJSON Aeson.Null
+            encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= fieldValue) fields)
 
 -- | Wraps a SQL query snippet so that each row is returned as a JSON object.
 --
@@ -166,26 +141,9 @@ jsonToFields (Object obj) = Right $ map toField (Aeson.toList obj)
     where
         toField (key, value) = Field
             { fieldName = Aeson.toText key
-            , fieldValue = aesonToDynamicValue value
+            , fieldValue = value
             }
 jsonToFields other = Left (cs ("Expected JSON object but got: " <> show other))
-
--- | Converts an Aeson Value to a DynamicValue
-aesonToDynamicValue :: Value -> DynamicValue
-aesonToDynamicValue Aeson.Null = Null
-aesonToDynamicValue (Bool b) = BoolValue b
-aesonToDynamicValue (String t) =
-    -- Try to parse as UUID first (since postgres UUID columns come back as strings in JSON)
-    case UUID.fromText t of
-        Just uuid -> UUIDValue uuid
-        Nothing -> TextValue t
-aesonToDynamicValue (Number n) =
-    case Scientific.floatingOrInteger n of
-        Left (d :: Double) -> DoubleValue d
-        Right (i :: Integer) -> IntValue (fromIntegral i)
-aesonToDynamicValue (Array arr) = ArrayValue (map aesonToDynamicValue (Vector.toList arr))
-aesonToDynamicValue (Object obj) = TextValue (cs (encode (Object obj))) -- Fallback for nested objects (e.g. JSONB columns)
-
 
 
 -- | Returns a list of all id's in a result
@@ -195,30 +153,29 @@ recordIds result = result
         |> filter (\Field { fieldName } -> fieldName == "id")
         |> map (.fieldValue)
         |> mapMaybe \case
-            UUIDValue uuid -> Just uuid
-            otherwise      -> Nothing
+            Aeson.String text -> UUID.fromText text
+            otherwise         -> Nothing
 
 
 
 -- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
 type ColumnTypeMap = HashMap.HashMap Text Text
 
--- | Encode a 'DynamicValue' as a typed Snippet parameter using the native Haskell type.
+-- | Encode an Aeson 'Value' as a Snippet parameter using native Haskell types.
 --
 -- Used for expressions without column context (e.g. bare literals in WHERE clauses).
--- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedDynamicValueParam'
+-- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedValueParam'
 -- for correctly typed parameters.
-dynamicValueParam :: DynamicValue -> Snippet
-dynamicValueParam (IntValue i) = Snippet.param (fromIntegral i :: Int64)
-dynamicValueParam (DoubleValue d) = Snippet.param d
-dynamicValueParam (TextValue t) = Snippet.param t
-dynamicValueParam (BoolValue b) = Snippet.param b
-dynamicValueParam (UUIDValue u) = Snippet.param u
-dynamicValueParam (DateTimeValue t) = Snippet.param t
-dynamicValueParam (PointValue (Point x y)) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
-dynamicValueParam (IntervalValue (PGInterval bs)) = Snippet.param (cs bs :: Text)
-dynamicValueParam (ArrayValue values) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam values)) <> Snippet.sql "]"
-dynamicValueParam Null = Snippet.sql "NULL"
+dynamicValueParam :: Value -> Snippet
+dynamicValueParam Aeson.Null = Snippet.sql "NULL"
+dynamicValueParam (Aeson.Bool b) = Snippet.param b
+dynamicValueParam (Aeson.String t) = Snippet.param t
+dynamicValueParam (Aeson.Number n) =
+    case Scientific.floatingOrInteger n of
+        Left (d :: Double) -> Snippet.param d
+        Right (i :: Integer) -> Snippet.param (fromIntegral i :: Int64)
+dynamicValueParam (Aeson.Array arr) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
+dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :: Text)
 
 -- | Quote a SQL identifier (table name, column name) to prevent SQL injection
 quoteIdentifier :: Text -> Snippet
@@ -228,7 +185,6 @@ $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)
 $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
-$(deriveFromJSON defaultOptions ''DynamicValue)
 $(deriveFromJSON defaultOptions ''ConditionExpression)
 
 instance FromJSON DynamicSQLQuery where
