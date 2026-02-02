@@ -2,8 +2,6 @@ module IHP.IDE.CodeGen.MailGenerator (buildPlan, buildPlan', MailConfig (..)) wh
 
 import IHP.Prelude
 import IHP.IDE.CodeGen.Types
-import qualified Data.Text as Text
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import Text.Countable (singularize, pluralize)
 
@@ -19,18 +17,16 @@ buildPlan mailName applicationName controllerName' =
     if (null mailName || null controllerName')
         then pure $ Left "Neither mail name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewConfig = MailConfig { .. }
             pure $ Right $ buildPlan' schema viewConfig
 
 -- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
-qualifiedViewModuleName :: MailConfig -> Text -> Text
-qualifiedViewModuleName config mailName =
-    config.applicationName <> ".Mail." <> config.controllerName <> "." <> ucfirst mailName
+qualifiedMailModuleName :: MailConfig -> Text -> Text
+qualifiedMailModuleName config mailName =
+    qualifiedModuleName config.applicationName "Mail" config.controllerName (ucfirst mailName)
 
 buildPlan' :: [Statement] -> MailConfig -> [GeneratorAction]
 buildPlan' schema config =
@@ -40,12 +36,7 @@ buildPlan' schema config =
             singularName = config.modelName
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if "Mail" `isSuffixOf` name
-                then name
-                else name <> "Mail" --e.g. "Test" -> "TestMail"
-            nameWithoutSuffix = if "Mail" `isSuffixOf` name
-                then Text.replace "Mail" "" name
-                else name --e.g. "TestMail" -> "Test"
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "Mail" name
 
             indexAction = pluralize singularName <> "Action"
 
@@ -57,7 +48,7 @@ buildPlan' schema config =
 
             mail =
                 ""
-                <> "module " <> qualifiedViewModuleName config nameWithoutSuffix <> " where\n"
+                <> "module " <> qualifiedMailModuleName config nameWithoutSuffix <> " where\n"
                 <> "import " <> config.applicationName <> ".View.Prelude\n"
                 <> "import IHP.MailPrelude\n"
                 <> "\n"
@@ -73,5 +64,5 @@ buildPlan' schema config =
         in
             [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Mail/" <> controllerName) }
             , CreateFile { filePath = textToOsPath (config.applicationName <> "/Mail/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = mail }
-            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedMailModuleName config nameWithoutSuffix }
             ]

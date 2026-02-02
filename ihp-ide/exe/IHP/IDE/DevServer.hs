@@ -249,18 +249,30 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
             processResult inputHandle outputHandle errorHandle processHandle result
 
+-- | Read lines from a handle, accumulating output and classifying each line.
+--
+-- Races against @stopVar@ being filled — when the MVar is readable, reading stops.
+readHandleLines
+    :: MVar a                   -- ^ Race against this (stop when filled)
+    -> MVar ByteString.Builder  -- ^ Output accumulator
+    -> Handle                   -- ^ Handle to read from
+    -> (ByteString -> IO ())    -- ^ Log callback
+    -> (ByteString -> IO ())    -- ^ Line classifier/action
+    -> IO ()
+readHandleLines stopVar outputVar handle logLine onMatch = race_ (readMVar stopVar) $ forever do
+    line <- ByteString.hGetLine handle
+    modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
+    logLine line
+    onMatch line
+
 withLoadedApp :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine -> IO ()) -> ((Either LByteString LByteString) -> IO a) -> IO a
 withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     resultVar :: MVar Bool <- newEmptyMVar
-    let readHandle handle logLine = race_ (readMVar resultVar) $ forever do
-            line <- ByteString.hGetLine handle
-            modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
-            logLine line
-            case line of
-                line | "Failed," `isInfixOf` line -> putMVar resultVar False
-                line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
-                _ -> pure ()
+    let onMatch line = case line of
+            line | "Failed," `isInfixOf` line -> putMVar resultVar False
+            line | "modules loaded." `isInfixOf` line -> putMVar resultVar True
+            _ -> pure ()
 
     let main = do
             sendGhciCommands inputHandle initGHCICommands
@@ -277,8 +289,8 @@ withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
 
     (result, _, _) <- runConcurrently $ (,,)
         <$> Concurrently main
-        <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
-        <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
+        <*> Concurrently (readHandleLines resultVar outputVar outputHandle (\line -> logLine (StandardOutput line)) onMatch)
+        <*> Concurrently (readHandleLines resultVar outputVar errorHandle (\line -> logLine (ErrorOutput line)) onMatch)
 
     pure result
 
@@ -287,16 +299,9 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
     serverStopped :: MVar () <- newEmptyMVar
-    let readHandle handle logLine = race_
-                (readMVar serverStopped)
-                (forever do
-                    line <- ByteString.hGetLine handle
-                    modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
-                    logLine line
-                    case line of
-                        line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
-                        _ -> pure ()
-                )
+    let onMatch line = case line of
+            line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
+            _ -> pure ()
 
     let startApp = do
             -- Pass the socket file descriptor to the app so it can accept connections
@@ -329,8 +334,8 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
 
     (result, _, _) <- runConcurrently $ (,,)
         <$> Concurrently (Exception.bracket_ startApp stopApp waitForServerStart)
-        <*> Concurrently (readHandle outputHandle (\line -> logLine (StandardOutput line)))
-        <*> Concurrently (readHandle errorHandle (\line -> logLine (ErrorOutput line)))
+        <*> Concurrently (readHandleLines serverStopped outputVar outputHandle (\line -> logLine (StandardOutput line)) onMatch)
+        <*> Concurrently (readHandleLines serverStopped outputVar errorHandle (\line -> logLine (ErrorOutput line)) onMatch)
 
     pure result
 
@@ -338,21 +343,14 @@ refresh :: (?context :: Context) => Handle -> Handle -> Handle -> (OutputLine ->
 refresh inputHandle outputHandle errorHandle logOutput = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     resultVar :: MVar Bool <- newEmptyMVar
-    let readHandle handle logLine = race_
-                (readMVar resultVar)
-                (forever do
-                    line <- ByteString.hGetLine handle
-                    modifyMVar_ outputVar (\builder -> pure (builder <> "\n" <> ByteString.byteString line))
-                    logLine line
-                    case line of
-                        line | "Failed," `isInfixOf` line -> putMVar resultVar False
-                        -- Match both "modules loaded." (initial) and "modules reloaded." (after :r)
-                        line | "modules loaded." `isInfixOf` line || "modules reloaded." `isInfixOf` line -> putMVar resultVar True
-                        line | "cannot find object file for module" `isInfixOf` line -> do
-                            -- https://gitlab.haskell.org/ghc/ghc/-/issues/11596
-                            sendGhciCommand inputHandle ":l"
-                        _ -> pure ()
-                )
+    let onMatch line = case line of
+            line | "Failed," `isInfixOf` line -> putMVar resultVar False
+            -- Match both "modules loaded." (initial) and "modules reloaded." (after :r)
+            line | "modules loaded." `isInfixOf` line || "modules reloaded." `isInfixOf` line -> putMVar resultVar True
+            line | "cannot find object file for module" `isInfixOf` line -> do
+                -- https://gitlab.haskell.org/ghc/ghc/-/issues/11596
+                sendGhciCommand inputHandle ":l"
+            _ -> pure ()
 
     let main = do
             sendGhciCommand inputHandle ":r"
@@ -366,8 +364,8 @@ refresh inputHandle outputHandle errorHandle logOutput = do
 
     (result, _, _) <- runConcurrently $ (,,)
         <$> Concurrently main
-        <*> Concurrently (readHandle outputHandle (\line -> logOutput (StandardOutput line)))
-        <*> Concurrently (readHandle errorHandle (\line -> logOutput (ErrorOutput line)))
+        <*> Concurrently (readHandleLines resultVar outputVar outputHandle (\line -> logOutput (StandardOutput line)) onMatch)
+        <*> Concurrently (readHandleLines resultVar outputVar errorHandle (\line -> logOutput (ErrorOutput line)) onMatch)
 
     pure result
 

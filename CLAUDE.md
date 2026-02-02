@@ -15,7 +15,13 @@ cd /path/to/ihp
 direnv allow
 ```
 
+Alternatively, use `nix develop` directly to enter a dev shell. You can also use `direnv exec .` to get a cached nix develop environment.
+
 ## Running Tests
+
+Prefer `ghci` for quick type checking and iteration — full nix builds (`nix flake check`) are slow. Use ghci interactively or via `echo ... | ghci` one-liners for fast feedback.
+
+**When using ghci, keep in mind that it expects input on stdin. If you don't provide any, ghci will never return.** The `echo ... | ghci` pattern handles this correctly by piping input.
 
 **IHP IDE Tests** (from the repo root):
 ```bash

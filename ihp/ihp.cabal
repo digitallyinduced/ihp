@@ -53,6 +53,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , ihp-pglistener
             , wai-app-static
             , wai-util
             , bytestring
@@ -150,6 +151,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns
 
 library
     import: shared-properties
@@ -240,8 +242,8 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        , IHP.PGListener
         , IHP.EnvVar
+    reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
 
@@ -272,3 +274,4 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.MockingSpec

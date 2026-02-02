@@ -203,11 +203,16 @@ class DataSyncController {
             clearTimeout(this.reconnectTimeout);
         }
         this.reconnectTimeout = setTimeout(async () => {
-            console.log('Trying to reconnect DataSync ...');
-            await this.startConnection();
+            try {
+                console.log('Trying to reconnect DataSync ...');
+                await this.startConnection();
 
-            for (const listener of this.eventListeners.reconnect) {
-                listener();
+                for (const listener of this.eventListeners.reconnect) {
+                    listener();
+                }
+            } catch (error) {
+                console.error('DataSync reconnection failed:', error);
+                this.retryToReconnect();
             }
         }, 1000);
     }
@@ -332,7 +337,7 @@ class DataSubscription {
     receiveUpdate(message) {
         const tag = message.tag;
         if (tag === 'DidUpdate') {
-            this.onUpdate(message.id, message.changeSet);
+            this.onUpdate(message.id, message.changeSet, message.appendSet);
         } else if (tag === 'DidInsert') {
             this.onCreate(message.record);
         } else if (tag === 'DidDelete') {
@@ -348,8 +353,7 @@ class DataSubscription {
         // We cannot close the DataSubscription when the subscriptionId is not assigned
         if (!this.isClosed && !this.isConnected) {
             await this.createOnServerPromise;
-            this.close();
-            return;
+            return this.close();
         }
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
@@ -363,7 +367,10 @@ class DataSubscription {
         dataSyncController.removeEventListener('message', this.onMessage);
         dataSyncController.removeEventListener('close', this.onDataSyncClosed);
         dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect);
-        dataSyncController.dataSubscriptions.splice(dataSyncController.dataSubscriptions.indexOf(this), 1);
+        const index = dataSyncController.dataSubscriptions.indexOf(this);
+        if (index !== -1) {
+            dataSyncController.dataSubscriptions.splice(index, 1);
+        }
 
         this.isConnected = false;
     }
@@ -377,12 +384,18 @@ class DataSubscription {
         await this.createOnServer();
     }
 
-    onUpdate(id, changeSet) {
+    onUpdate(id, changeSet, appendSet) {
         this.records = this.records.map(record => {
             if (record.id === id) {
-                return Object.assign({}, record, changeSet);
+                const updated = Object.assign({}, record, changeSet);
+                if (appendSet) {
+                    for (const [key, value] of Object.entries(appendSet)) {
+                        updated[key] = (typeof updated[key] === 'string' ? updated[key] : '') + value;
+                    }
+                }
+                return updated;
             }
-            
+
             return record;
         });
 
@@ -394,8 +407,8 @@ class DataSubscription {
 
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id) !== -1;
         if (isOptimisticallyCreatedAlready) {
-            this.onUpdate(newRecord.id, newRecord);
-            this.optimisticCreatedPendingRecordIds.slice(this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id), 1);
+            this.onUpdate(newRecord.id, newRecord, null);
+            this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id), 1);
         } else {
             this.records = shouldAppend ? [...this.records, newRecord] : [newRecord, ...this.records];
         }
@@ -425,7 +438,10 @@ class DataSubscription {
         this.subscribers.push(callback);
 
         return () => {
-            this.subscribers.splice(this.subscribers.indexOf(callback), 1);
+            const index = this.subscribers.indexOf(callback);
+            if (index !== -1) {
+                this.subscribers.splice(index, 1);
+            }
 
             // We delay the close as react could be re-rendering a component
             // we garbage collect this connecetion once it's clearly not used anymore
@@ -656,8 +672,7 @@ function randomUUID() {
             s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
         }
         s[14] = "4";  // bits 12-15 of the time_hi_and_version field to 0010
-        // @ts-expect-error 
-        s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1);  // bits 6-7 of the clock_seq_hi_and_reserved to 01
+        s[19] = hexDigits.substr((parseInt(s[19], 16) & 0x3) | 0x8, 1);  // bits 6-7 of the clock_seq_hi_and_reserved to 01
         s[8] = s[13] = s[18] = s[23] = "-";
 
         var uuid = s.join("");
@@ -680,7 +695,10 @@ function undoCreateOptimisticRecord(table, record) {
 
 function markCreateOptimisticRecordFinished(record) {
     const dataSyncController = DataSyncController.getInstance();
-    dataSyncController.optimisticCreatedPendingRecordIds.splice(dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id), 1);
+    const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id);
+    if (index !== -1) {
+        dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
+    }
 }
 
 function updateRecordOptimistic(table, id, patch) {
@@ -708,7 +726,7 @@ function updateRecordOptimistic(table, id, patch) {
             }
 
             // Apply the patch optimistically
-            dataSubscription.onUpdate(id, patch);
+            dataSubscription.onUpdate(id, patch, null);
 
             rollbackOperations.push(() => {
                 const records = dataSubscription.getRecords();
@@ -731,7 +749,7 @@ function updateRecordOptimistic(table, id, patch) {
                     }
                 }
 
-                dataSubscription.onUpdate(id, undoPatch);
+                dataSubscription.onUpdate(id, undoPatch, null);
             })
         }
     }

@@ -30,12 +30,14 @@ instance CanRoute ApiController where
                     PATCH  -> pure UpdateRecordAction { table, id }
                     GET    -> pure ShowRecordAction { table, id }
                     DELETE -> pure DeleteRecordAction { table, id }
+                    _      -> error "updateOrDeleteRecordAction: unsupported method"
 
             listRecordsAction table = do
                 endOfInput
                 method <- getMethod
                 case method of
                     GET -> pure ListRecordsAction { table }
+                    _   -> error "listRecordsAction: unsupported method"
 
             crud = do
                 table <- parseText
@@ -47,4 +49,6 @@ instance HasPath ApiController where
     pathTo CreateRecordAction { table } = "/api/" <> table
     pathTo UpdateRecordAction { table, id } = "/api/" <> table <> "/" <> tshow id
     pathTo DeleteRecordAction { table, id } = "/api/" <> table <> "/" <> tshow id
+    pathTo ShowRecordAction { table, id } = "/api/" <> table <> "/" <> tshow id
+    pathTo ListRecordsAction { table } = "/api/" <> table
     pathTo GraphQLQueryAction = "/api/graphql"

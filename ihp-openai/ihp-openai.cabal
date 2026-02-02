@@ -53,6 +53,7 @@ library
         -Winaccessible-code
         -Wmissed-specialisations
         -fexpose-all-unfoldings
+        -Werror=incomplete-patterns
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI

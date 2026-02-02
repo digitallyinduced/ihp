@@ -17,12 +17,11 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Text as T
 import qualified Data.ByteString.Builder
+import Control.Exception (bracket)
 
 instance Controller DataController where
     action ShowDatabaseAction = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        PG.close connection
+        tableNames <- withAppDb fetchTableNames
         case headMay tableNames of
             Just tableName -> jumpToAction ShowTableRowsAction { tableName }
             Nothing -> render ShowDatabaseView { .. }
@@ -30,13 +29,13 @@ instance Controller DataController where
     action ShowTableRowsAction { tableName } = do
         let page :: Int = paramOrDefault @Int 1 "page"
         let pageSize :: Int = paramOrDefault @Int 20 "rows"
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        rows :: [[DynamicField]] <- fetchRowsPage connection tableName page pageSize
-        tableCols <- fetchTableCols connection tableName
-        totalRows <- tableLength connection tableName
-        PG.close connection
+        (tableNames, primaryKeyFields, rows :: [[DynamicField]], tableCols, totalRows) <- withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            primaryKeyFields <- tablePrimaryKeyFields connection tableName
+            rows <- fetchRowsPage connection tableName page pageSize
+            tableCols <- fetchTableCols connection tableName
+            totalRows <- tableLength connection tableName
+            pure (tableNames, primaryKeyFields, rows, tableCols, totalRows)
         render ShowTableRowsView { .. }
 
     action NewQueryAction = do
@@ -45,143 +44,125 @@ instance Controller DataController where
         render ShowQueryView { .. }
 
     action QueryAction = do
-        connection <- connectToAppDb
         let queryText = param @Text "query"
         when (isEmpty queryText) do
             redirectTo NewQueryAction
 
         let query = fromString $ cs queryText
 
-        queryResult :: Maybe (Either PG.SqlError SqlConsoleResult) <- Just <$> if isQuery queryText then
-                (Right . SelectQueryResult <$> PG.query_ connection query) `catch` (pure . Left)
-            else
-                (Right . InsertOrUpdateResult <$> PG.execute_ connection query) `catch` (pure . Left)
+        queryResult :: Maybe (Either PG.SqlError SqlConsoleResult) <- withAppDb \connection ->
+            Just <$> if isQuery queryText then
+                    (Right . SelectQueryResult <$> PG.query_ connection query) `catch` (pure . Left)
+                else
+                    (Right . InsertOrUpdateResult <$> PG.execute_ connection query) `catch` (pure . Left)
 
-        PG.close connection
         render ShowQueryView { .. }
 
     action DeleteEntryAction { primaryKey, tableName } = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        let primaryKeyValues = T.splitOn "---" primaryKey
-        let query = "DELETE FROM " <> tableName <> " WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
-        PG.execute connection (PG.Query . cs $! query) primaryKeyValues
-        PG.close connection
+        withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            primaryKeyFields <- tablePrimaryKeyFields connection tableName
+            let primaryKeyValues = T.splitOn "---" primaryKey
+            let query = "DELETE FROM " <> tableName <> " WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
+            PG.execute connection (PG.Query . cs $! query) primaryKeyValues
         redirectTo ShowTableRowsAction { .. }
 
     action NewRowAction { tableName } = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-
-        rows :: [[DynamicField]] <- fetchRows connection tableName
-
-        tableCols <- fetchTableCols connection tableName
-
-        PG.close connection
+        (tableNames, rows :: [[DynamicField]], tableCols) <- withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            rows <- fetchRows connection tableName
+            tableCols <- fetchTableCols connection tableName
+            pure (tableNames, rows, tableCols)
         render NewRowView { .. }
 
     action CreateRowAction = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
         let tableName = param "tableName"
-        tableCols <- fetchTableCols connection tableName
-        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
-        let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (map (const "?") values) <> ")"
-        PG.execute connection (PG.Query . cs $! query) values
-        PG.close connection
+        withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            tableCols <- fetchTableCols connection tableName
+            let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
+            let query = "INSERT INTO " <> tableName <> " VALUES (" <> intercalate "," (map (const "?") values) <> ")"
+            PG.execute connection (PG.Query . cs $! query) values
         redirectTo ShowTableRowsAction { .. }
 
     action EditRowAction { tableName, targetPrimaryKey } = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
-
-        rows :: [[DynamicField]] <- fetchRows connection tableName
-
-        tableCols <- fetchTableCols connection tableName
-        let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
-        values <- fetchRow connection (cs tableName) targetPrimaryKeyValues
-        let (Just rowValues) = head values
-        PG.close connection
+        (tableNames, primaryKeyFields, rows :: [[DynamicField]], tableCols, rowValues) <- withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            primaryKeyFields <- tablePrimaryKeyFields connection tableName
+            rows <- fetchRows connection tableName
+            tableCols <- fetchTableCols connection tableName
+            let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
+            values <- fetchRow connection (cs tableName) targetPrimaryKeyValues
+            let (Just rowValues) = head values
+            pure (tableNames, primaryKeyFields, rows, tableCols, rowValues)
         render EditRowView { .. }
 
     action UpdateRowAction = do
         let tableName = param "tableName"
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        tableCols <- fetchTableCols connection tableName
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
+        withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            tableCols <- fetchTableCols connection tableName
+            primaryKeyFields <- tablePrimaryKeyFields connection tableName
 
-        let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
-        let columns :: [Text] = map (\col -> cs (col.columnName)) tableCols
-        let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
+            let values :: [PG.Action] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
+            let columns :: [Text] = map (\col -> cs (col.columnName)) tableCols
+            let primaryKeyValues = map (\pkey -> "'" <> (param @Text (cs pkey <> "-pk")) <> "'") primaryKeyFields
 
-        let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns (map (const "?") values))) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
-        PG.execute connection (PG.Query . cs $! query) values
-        PG.close connection
+            let query = "UPDATE " <> tableName <> " SET " <> intercalate ", " (updateValues (zip columns (map (const "?") values))) <> " WHERE " <> intercalate " AND " (updateValues (zip primaryKeyFields primaryKeyValues))
+            PG.execute connection (PG.Query . cs $! query) values
         redirectTo ShowTableRowsAction { .. }
 
     action EditRowValueAction { tableName, targetName, id } = do
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-
-        rows :: [[DynamicField]] <- fetchRows connection tableName
-
+        (tableNames, rows :: [[DynamicField]]) <- withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            rows <- fetchRows connection tableName
+            pure (tableNames, rows)
         let targetId = cs id
-        PG.close connection
         render EditValueView { .. }
 
     action ToggleBooleanFieldAction { tableName, targetName, targetPrimaryKey } = do
         let id :: String = cs (param @Text "id")
         let tableName = param "tableName"
-        connection <- connectToAppDb
-        tableNames <- fetchTableNames connection
-        tableCols <- fetchTableCols connection tableName
-        primaryKeyFields <- tablePrimaryKeyFields connection tableName
-        let targetPrimaryKeyValues = PG.Escape . cs <$> T.splitOn "---" targetPrimaryKey
-        let query = PG.Query . cs $! "UPDATE ? SET ? = NOT ? WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
-        let params = [PG.toField $ PG.Identifier tableName, PG.toField $ PG.Identifier targetName, PG.toField $ PG.Identifier targetName] <> targetPrimaryKeyValues
-        PG.execute connection query params
-        PG.close connection
+        withAppDb \connection -> do
+            tableNames <- fetchTableNames connection
+            tableCols <- fetchTableCols connection tableName
+            primaryKeyFields <- tablePrimaryKeyFields connection tableName
+            let targetPrimaryKeyValues = PG.Escape . cs <$> T.splitOn "---" targetPrimaryKey
+            let query = PG.Query . cs $! "UPDATE ? SET ? = NOT ? WHERE " <> intercalate " AND " ((<> " = ?") <$> primaryKeyFields)
+            let params = [PG.toField $ PG.Identifier tableName, PG.toField $ PG.Identifier targetName, PG.toField $ PG.Identifier targetName] <> targetPrimaryKeyValues
+            PG.execute connection query params
         redirectTo ShowTableRowsAction { .. }
 
     action UpdateValueAction = do
         let id :: String = cs (param @Text "id")
         let tableName = param "tableName"
-        connection <- connectToAppDb
         let targetCol = param "targetName"
         let targetValue = param "targetValue"
         let query = "UPDATE " <> tableName <> " SET " <> targetCol <> " = '" <> targetValue <> "' WHERE id = '" <> cs id <> "'"
-        PG.execute_ connection (PG.Query . cs $! query)
-        PG.close connection
+        withAppDb \connection ->
+            PG.execute_ connection (PG.Query . cs $! query)
         redirectTo ShowTableRowsAction { .. }
 
     action DeleteTableRowsAction { tableName } = do
-        connection <- connectToAppDb
         let query = "TRUNCATE TABLE " <> tableName
-        PG.execute_ connection (PG.Query . cs $! query)
-        PG.close connection
+        withAppDb \connection ->
+            PG.execute_ connection (PG.Query . cs $! query)
         redirectTo ShowTableRowsAction { .. }
 
     action AutocompleteForeignKeyColumnAction { tableName, columnName, term } = do
-        connection <- connectToAppDb
-        rows :: Maybe [[DynamicField]] <- do
+        rows :: Maybe [[DynamicField]] <- withAppDb \connection -> do
             foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
 
             case foreignKeyInfo of
                 Just (foreignTable, foreignColumn) -> Just <$> fetchRowsPage connection foreignTable 1 50
                 Nothing -> pure Nothing
 
-        PG.close connection
-
         case rows of
             Just rows -> renderJson rows
             Nothing -> renderNotFound
 
     action ShowForeignKeyHoverCardAction { tableName, id, columnName } = do
-        connection <- connectToAppDb
-        hovercardData <- do
+        hovercardData <- withAppDb \connection -> do
             [Only (foreignId :: UUID)] <- PG.query connection "SELECT ? FROM ? WHERE id = ?" (PG.Identifier columnName, PG.Identifier tableName, id)
 
             foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
@@ -191,7 +172,6 @@ instance Controller DataController where
                     [record] <- PG.query connection "SELECT * FROM ? WHERE ? = ? LIMIT 1" (PG.Identifier foreignTable, PG.Identifier foreignColumn, foreignId)
                     pure $ Just (record, foreignTable)
                 Nothing -> pure Nothing
-        PG.close connection
 
         case hovercardData of
             Just (record, foreignTableName) -> render ShowForeignKeyHoverCardView { record, foreignTableName }
@@ -199,6 +179,9 @@ instance Controller DataController where
 
 connectToAppDb :: (?context :: ControllerContext) => IO PG.Connection
 connectToAppDb = PG.connectPostgreSQL ?context.frameworkConfig.databaseUrl
+
+withAppDb :: (?context :: ControllerContext) => (PG.Connection -> IO a) -> IO a
+withAppDb = bracket connectToAppDb PG.close
 
 fetchTableNames :: PG.Connection -> IO [Text]
 fetchTableNames connection = do

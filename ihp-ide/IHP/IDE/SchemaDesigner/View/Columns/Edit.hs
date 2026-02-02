@@ -26,7 +26,7 @@ instance View EditColumnView where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            columns = getTableColumns tableName statements
             primaryKeyColumns = maybe [] (primaryKeyColumnNames . (.primaryKeyConstraint) . unsafeGetCreateTable) table
 
             isArrayType (PArray _) = True

@@ -8,30 +8,27 @@ module IHP.DataSync.DynamicQuery where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
 import Data.Aeson
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
+import qualified Data.Scientific as Scientific
+import qualified Data.UUID as UUID
+import qualified Data.Vector as Vector
+import qualified Data.List as List
+import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as HashMap
+import IHP.Postgres.Point (Point(..))
+import Data.Int (Int64)
+import qualified Data.Set as Set
 
-data Field = Field { fieldName :: Text, fieldValue :: DynamicValue }
-
-data DynamicValue
-    = IntValue !Int
-    | DoubleValue !Double
-    | TextValue !Text
-    | BoolValue !Bool
-    | UUIDValue !UUID
-    | DateTimeValue !UTCTime
-    | PointValue !Point
-    | IntervalValue !PGInterval
-    | ArrayValue ![DynamicValue]
-    | Null
-    deriving (Show, Eq)
+data Field = Field { fieldName :: Text, fieldValue :: Value }
 
 newtype UndecodedJSON = UndecodedJSON ByteString
     deriving (Show, Eq)
@@ -67,9 +64,9 @@ data ConditionExpression
         , op :: !ConditionOperator
         , right :: !ConditionExpression
         }
-    | LiteralExpression { value :: !DynamicValue }
+    | LiteralExpression { value :: !Value }
     | CallExpression { functionCall :: !FunctionCall }
-    | ListExpression { values :: ![DynamicValue] }
+    | ListExpression { values :: ![Value] }
     deriving (Show, Eq)
 
 data FunctionCall
@@ -99,59 +96,56 @@ data SelectedColumns
 
 instance FromJSON ByteString where
     parseJSON (String v) = pure $ cs v
-
-instance FromJSON PG.Action where
-    parseJSON (String v) = pure (PG.Escape (cs v))
+    parseJSON invalid = fail $ cs ("Expected String for ByteString, got: " <> tshow invalid)
 
 instance {-# OVERLAPS #-} ToJSON [Field] where
-    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
+    toJSON fields = object (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= fieldValue) fields)
     toEncoding fields = pairs $ foldl' (<>) mempty encodedFields
         where
-            encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= (toJSON fieldValue)) fields)
+            encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= fieldValue) fields)
 
-instance ToJSON DynamicValue where
-    toJSON (IntValue value) = toJSON value
-    toJSON (DoubleValue value) = toJSON value
-    toJSON (TextValue value) = toJSON value
-    toJSON (BoolValue value) = toJSON value
-    toJSON (UUIDValue value) = toJSON value
-    toJSON (DateTimeValue value) = toJSON value
-    toJSON (PointValue value) = toJSON value
-    toJSON (IntervalValue value) = toJSON value
-    toJSON (ArrayValue value) = toJSON value
-    toJSON IHP.DataSync.DynamicQuery.Null = toJSON Data.Aeson.Null
+-- | Wraps a SQL query snippet so that each row is returned as a JSON object.
+--
+-- This is needed because hasql decoders are positional and don't provide column name metadata.
+-- By wrapping with @row_to_json@, we get column names in the JSON keys, which we can then
+-- decode into @[Field]@.
+--
+-- Uses a CTE (Common Table Expression) which works for both SELECT queries
+-- and DML statements (INSERT, UPDATE, DELETE) with RETURNING:
+--
+-- @
+-- WITH _ihp_dynamic_result AS (...original query...) SELECT row_to_json(t) FROM _ihp_dynamic_result AS t
+-- @
+wrapDynamicQuery :: Snippet -> Snippet
+wrapDynamicQuery innerQuery =
+    Snippet.sql "WITH _ihp_dynamic_result AS (" <> innerQuery <> Snippet.sql ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
 
-instance PG.FromField Field where
-    fromField field fieldValue' = do
-            fieldValue <- PG.fromField field fieldValue'
-            pure Field { .. }
-        where
-            fieldName = (PG.name field)
-                |> fmap cs
-                |> fromMaybe ""
+-- | Decoder for dynamic query results wrapped with 'wrapDynamicQuery'.
+--
+-- Each row comes back as a single JSON column (from @row_to_json@), which is then
+-- parsed into a list of @Field@ values.
+dynamicRowDecoder :: Decoders.Result [[Field]]
+dynamicRowDecoder = Decoders.rowList dynamicRowJsonDecoder
 
-instance PG.FromField DynamicValue where
-    fromField field fieldValue' = fieldValue
-        where
-            fieldValue =
-                    (IntValue <$> PG.fromField field fieldValue')
-                <|> (TextValue <$> PG.fromField field fieldValue')
-                <|> (BoolValue <$> PG.fromField field fieldValue')
-                <|> (UUIDValue <$> PG.fromField field fieldValue')
-                <|> (DoubleValue <$> PG.fromField field fieldValue')
-                <|> (DateTimeValue <$> PG.fromField field fieldValue')
-                <|> (PointValue <$> PG.fromField field fieldValue')
-                <|> (IntervalValue <$> PG.fromField field fieldValue')
-                <|> (ArrayValue <$> PG.fromField field fieldValue')
-                <|> (PG.fromField @PG.Null field fieldValue' >> pure IHP.DataSync.DynamicQuery.Null)
-                <|> fromFieldCustomEnum field fieldValue'
+-- | Decodes a single row from a @row_to_json@ wrapped query.
+-- The row consists of a single JSONB column containing the original row as a JSON object.
+dynamicRowJsonDecoder :: Decoders.Row [Field]
+dynamicRowJsonDecoder = do
+    jsonValue <- Decoders.column (Decoders.nonNullable Decoders.jsonb)
+    case jsonToFields jsonValue of
+        Right fields -> pure fields
+        Left err -> error ("dynamicRowJsonDecoder: Failed to decode JSON row: " <> cs err)
 
-            fromFieldCustomEnum field (Just value) = pure (TextValue (cs value))
-            fromFieldCustomEnum field Nothing      = pure IHP.DataSync.DynamicQuery.Null
+-- | Converts a JSON object (from @row_to_json@) into a list of Fields
+jsonToFields :: Value -> Either String [Field]
+jsonToFields (Object obj) = Right $ map toField (Aeson.toList obj)
+    where
+        toField (key, value) = Field
+            { fieldName = Aeson.toText key
+            , fieldValue = value
+            }
+jsonToFields other = Left (cs ("Expected JSON object but got: " <> show other))
 
-instance PG.FromField UndecodedJSON where
-    fromField field (Just value) = pure (UndecodedJSON value)
-    fromField field Nothing = pure (UndecodedJSON "null")
 
 -- | Returns a list of all id's in a result
 recordIds :: [[Field]] -> [UUID]
@@ -160,40 +154,46 @@ recordIds result = result
         |> filter (\Field { fieldName } -> fieldName == "id")
         |> map (.fieldValue)
         |> mapMaybe \case
-            UUIDValue uuid -> Just uuid
-            otherwise      -> Nothing
+            Aeson.String text -> UUID.fromText text
+            otherwise         -> Nothing
 
 
 
--- Here you can add functions which are available in all your controllers
+-- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
+type ColumnTypeMap = HashMap.HashMap Text Text
 
--- | Transforms the keys of a JSON object from field name to column name
+-- | Encode an Aeson 'Value' as a Snippet parameter using native Haskell types.
 --
--- >>> transformColumnNamesToFieldNames [json|{"isCompleted": true}|]
--- [json|{"is_completed": true}|]
-transformColumnNamesToFieldNames :: Value -> Value
-transformColumnNamesToFieldNames (Object hashMap) =
-        hashMap
-        |> Aeson.toList
-        |> map (\(key, value) -> (applyKey columnNameToFieldName key, value))
-        |> Aeson.fromList
-        |> Object
-    where
-        applyKey function key =
-            key
-                |> Aeson.toText
-                |> function
-                |> Aeson.fromText
+-- Used for expressions without column context (e.g. bare literals in WHERE clauses).
+-- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedValueParam'
+-- for correctly typed parameters.
+dynamicValueParam :: Value -> Snippet
+dynamicValueParam Aeson.Null = Snippet.sql "NULL"
+dynamicValueParam (Aeson.Bool b) = Snippet.param b
+dynamicValueParam (Aeson.String t) = Snippet.param t
+dynamicValueParam (Aeson.Number n) =
+    case Scientific.floatingOrInteger n of
+        Left (d :: Double) -> Snippet.param d
+        Right (i :: Integer) -> Snippet.param (fromIntegral i :: Int64)
+dynamicValueParam (Aeson.Array arr) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
+dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :: Text)
 
+-- | Quote a SQL identifier (table name, column name) to prevent SQL injection
+quoteIdentifier :: Text -> Snippet
+quoteIdentifier name = Snippet.sql (cs ("\"" <> Text.replace "\"" "\"\"" name <> "\""))
+
+-- | Extracts all column names referenced in a 'ConditionExpression'
+conditionColumns :: ConditionExpression -> Set.Set Text
+conditionColumns (ColumnExpression field) = Set.singleton field
+conditionColumns (InfixOperatorExpression left _ right) = Set.union (conditionColumns left) (conditionColumns right)
+conditionColumns (LiteralExpression _) = Set.empty
+conditionColumns (CallExpression _) = Set.empty
+conditionColumns (ListExpression _) = Set.empty
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrCondition)
-$(deriveFromJSON defaultOptions 'QueryBuilder.Join)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)
-$(deriveFromJSON defaultOptions 'QueryBuilder.OrderByClause)
 $(deriveFromJSON defaultOptions 'SelectAll)
 $(deriveFromJSON defaultOptions ''ConditionOperator)
-$(deriveFromJSON defaultOptions ''DynamicValue)
 $(deriveFromJSON defaultOptions ''ConditionExpression)
 
 instance FromJSON DynamicSQLQuery where

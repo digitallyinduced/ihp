@@ -69,6 +69,7 @@ common common-flags
         -fdicts-strict
         -fexpose-all-unfoldings
         -optc-O3
+        -Werror=incomplete-patterns
 
 common common-depends
     build-depends:

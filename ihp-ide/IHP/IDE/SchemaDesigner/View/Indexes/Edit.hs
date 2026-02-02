@@ -27,10 +27,7 @@ instance View EditIndexView where
                     CreateIndex { indexName = name } | name == indexName -> True
                     otherwise -> False
 
-            table :: Maybe Statement
-            table = findStatementByName tableName statements
-
-            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            columns = getTableColumns tableName statements
 
             indexColumns = index.columns
                     |> map SqlCompiler.compileIndexColumn

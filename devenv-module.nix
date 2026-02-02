@@ -16,6 +16,26 @@ that is defined in flake-module.nix
                                 sys = lib.head dirs;
                             in
                                 "${shareRoot}/${sys}/${package.name}";
+
+                    # Wrap a package's check phase with a temporary PostgreSQL server
+                    withTestPostgres = pkg: pkg.overrideAttrs (old: {
+                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql ];
+                        preCheck = ''
+                            ${old.preCheck or ""}
+                            export PGDATA="$TMPDIR/pgdata"
+                            export PGHOST="$TMPDIR/pghost"
+                            mkdir -p "$PGHOST"
+                            initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                            echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                            echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                            pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+                            export DATABASE_URL="postgresql:///postgres?host=$PGHOST"
+                        '';
+                        postCheck = ''
+                            pg_ctl -D "$PGDATA" stop || true
+                            ${old.postCheck or ""}
+                        '';
+                    });
     in
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
@@ -42,6 +62,12 @@ that is defined in flake-module.nix
                         && n != "default"
                         && n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
                     ) inputs.ihp-boilerplate.packages.${system}))
+
+            # Override checks that need a running PostgreSQL for integration tests
+            // {
+                ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
+            }
         ;
 
         devenv.shells.default = {
@@ -70,6 +96,13 @@ that is defined in flake-module.nix
                         inflections
                         text
                         postgresql-simple
+                        hasql
+                        hasql-notifications
+                        hasql-pool
+                        ihp-pglistener
+                        hasql-dynamic-statements
+                        hasql-implicits
+                        hasql-transaction
                         wai-app-static
                         wai-util
                         aeson
@@ -226,6 +259,7 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-pglistener = pkgs.ghc.ihp-pglistener;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
             wai-flash-messages = pkgs.ghc.wai-flash-messages;

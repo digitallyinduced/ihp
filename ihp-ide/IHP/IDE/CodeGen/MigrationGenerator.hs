@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-|
 Module: IHP.IDE.CodeGen.MigrationGenerator
 Description: Generates database migration sql files

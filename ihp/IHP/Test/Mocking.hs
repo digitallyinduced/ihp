@@ -105,7 +105,8 @@ callActionWithParams controller params = do
     requestBody <- newIORef (HTTP.renderSimpleQuery False params)
     let readBody = atomicModifyIORef requestBody (\body -> ("", body))
     let baseRequest = ?request
-            { Wai.requestBody = readBody
+            { Wai.requestMethod = "POST"
+            , Wai.requestBody = readBody
             , Wai.requestHeaders = (HTTP.hContentType, "application/x-www-form-urlencoded") : filter ((/= HTTP.hContentType) . fst) (Wai.requestHeaders ?request)
             }
 

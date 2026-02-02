@@ -1,6 +1,7 @@
 module IHP.IDE.SchemaDesigner.View.Layout
 ( schemaDesignerLayout
 , findStatementByName
+, getTableColumns
 , visualNav
 , renderColumnSelector
 , renderColumn
@@ -63,7 +64,7 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Unmigrated Changes</strong></div>
                     Your app database is not in sync with the Schema
                 </div>
@@ -82,7 +83,7 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Pending Changes</strong></div>
                     You have migrations that haven't been run yet
                 </div>
@@ -173,6 +174,10 @@ findStatementByName statementName statements = find pred statements
         pred CreateEnumType { name } | (toUpper name) == (toUpper statementName) = True
         pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
+
+getTableColumns :: Text -> [Statement] -> [Column]
+getTableColumns tableName statements =
+    maybe [] ((.columns) . unsafeGetCreateTable) (findStatementByName tableName statements)
 
 visualNav :: Html
 visualNav = [hsx|
@@ -684,6 +689,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject UnknownStatement {} id = mempty
         renderObject EnableRowLevelSecurity {} id = mempty
         renderObject CreatePolicy {} id = mempty
+        renderObject _ id = mempty
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True
