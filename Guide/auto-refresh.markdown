@@ -66,6 +66,72 @@ action MyAction = do -- <-- We don't enable auto refresh at the action start in 
         render MyView { expensiveModels, cheap }
 ```
 
+### Fine-grained Auto Refresh (experimental)
+
+If you want row-level filtering, you can decide on refreshes based on row JSON:
+
+```haskell
+action ShowProjectAction { projectId } =
+    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
+        project <- fetch projectId
+        render ShowView { .. }
+  where
+    shouldRefresh ShowProjectAction { projectId } changes =
+        let projectChanges = changesForTable "projects" changes
+            isTarget change = rowField @"id" change == Just projectId
+        in pure (any isTarget projectChanges)
+```
+
+This uses row-level notifications and provides helpers like `changesForTable`, `rowField`, `rowFieldNew`, and `rowFieldOld`.
+For updates and deletes the payload includes both the old and the new row data, so you can decide based on what changed.
+
+If you want to access JSON fields by column name directly, use `rowFieldByColumnName "user_id"`.
+
+### Filtering by ids or foreign keys
+
+The change set includes full row JSON for each change,
+so you can filter directly on any column without extra SQL.
+
+Example: refresh when any changed project belongs to the current user.
+
+```haskell
+action ProjectsAction { userId } =
+    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
+        projects <- query @Project |> filterWhere (#userId, userId) |> fetch
+        render ProjectsView { .. }
+  where
+    shouldRefresh ProjectsAction { userId } changes =
+        let changedProjects = changesForTable "projects" changes
+            belongsToUser change = rowField @"userId" change == Just userId
+        in pure (any belongsToUser changedProjects)
+```
+
+Example: multiple table tracking with mixed checks.
+
+```haskell
+action DashboardAction { projectId, userId } =
+    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
+        project <- fetch projectId
+        tasks <- query @Task |> filterWhere (#projectId, projectId) |> fetch
+        comments <- query @Comment |> filterWhere (#projectId, projectId) |> fetch
+        render DashboardView { .. }
+  where
+    shouldRefresh DashboardAction { projectId, userId } changes =
+        let projectMatches = any (\change -> rowField @"id" change == Just projectId) (changesForTable "projects" changes)
+            taskMatches = any (\change -> rowField @"projectId" change == Just projectId) (changesForTable "tasks" changes)
+            commentMatches = any (\change -> rowField @"projectId" change == Just projectId) (changesForTable "comments" changes)
+        in pure (projectMatches || taskMatches || commentMatches)
+```
+
+Deletes are passed to `shouldRefresh` like any other change, so you can decide when to re-render.
+
+If you want to check across all tables without filtering by table name:
+
+```haskell
+shouldRefresh MyAction { userId } changes =
+    pure (anyChangeWithField @"userId" userId changes)
+```
+
 ### Custom SQL Queries with Auto Refresh
 
 Auto Refresh automatically tracks all tables your action is using by hooking itself into the Query Builder and `fetch` functions.
@@ -92,3 +158,4 @@ action StatsAction = autoRefresh do
 ```
 
 The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.
+
