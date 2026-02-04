@@ -174,14 +174,23 @@ buildNotFoundMessage typeRep customFields =
     -- Handles both qualified (IHP.AutoRefresh.Types.AutoRefreshState) and unqualified (AutoRefreshState) names
     findHint :: String -> [(String, String)] -> Maybe String
     findHint target list =
-        let matchesType key = target == key || isQualifiedMatch key target
-            -- Check if the target ends with ".key" (qualified name match)
-            isQualifiedMatch key target =
-                let suffix = key
-                    len = length suffix
-                    targetLen = length target
-                in targetLen > len &&
-                   drop (targetLen - len) target == suffix &&
-                   target !! (targetLen - len - 1) == '.'
-        in fmap snd $ find (matchesType . fst) list
+        fmap snd $ find (matchesType . fst) list
+      where
+        matchesType typeName = target == typeName || isQualifiedMatch typeName target
+
+    -- Check if the target ends with ".typeName" (qualified name match)
+    -- E.g., "IHP.AutoRefresh.Types.AutoRefreshState" matches "AutoRefreshState"
+    isQualifiedMatch :: String -> String -> Bool
+    isQualifiedMatch unqualifiedName target =
+        let targetLen = length target
+            nameLen = length unqualifiedName
+            -- Check if target is longer than the name plus one (for the dot)
+            hasRoom = targetLen > nameLen
+            -- Get the suffix (should match unqualifiedName)
+            suffix = drop (targetLen - nameLen) target
+            -- Get the character before the suffix (should be a dot)
+            charBeforeSuffix = if hasRoom && targetLen > nameLen then target !! (targetLen - nameLen - 1) else ' '
+        in hasRoom &&
+           suffix == unqualifiedName &&
+           charBeforeSuffix == '.'
 {-# INLINABLE buildNotFoundMessage #-}
