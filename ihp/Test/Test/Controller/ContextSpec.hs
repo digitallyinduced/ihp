@@ -85,10 +85,13 @@ tests = do
 
                 (fromFrozenContext @Text) `shouldBe` "hello"
 
-            it "should provide helpful error message for AutoRefreshState" do
+            it "should provide helpful error message for known types" do
                 context <- newControllerContext
                 let ?context = context
 
+                -- Test that error message includes helpful hint for unknown types
                 (fromContext @Int) `shouldThrow` (\e -> case e of
-                    ErrorCall msg -> "Unable to find" `isPrefixOf` msg
+                    ErrorCall msg -> 
+                        "Unable to find" `isPrefixOf` msg && 
+                        not ("Hint:" `isInfixOf` msg)  -- Int is not a known type, so no hint
                     _ -> False)

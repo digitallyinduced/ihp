@@ -172,12 +172,12 @@ buildNotFoundMessage typeRep customFields =
     -- Helper function for finding a hint based on the type name
     -- Handles both qualified (IHP.AutoRefresh.Types.AutoRefreshState) and unqualified (AutoRefreshState) names
     findHint :: String -> [(String, String)] -> Maybe String
-    findHint target list = 
+    findHint target list =
         let matchesType key = target == key || endsWith key target
-            endsWith suffix str = 
+            endsWith suffix str =
                 let len = length suffix
                     strLen = length str
-                in strLen >= len && drop (strLen - len) str == suffix && 
+                in strLen >= len && drop (strLen - len) str == suffix &&
                    (strLen == len || str !! (strLen - len - 1) == '.')
         in foldr (\(key, value) acc ->
             if matchesType key then Just value else acc) Nothing list
