@@ -14,7 +14,7 @@ import Network.Wai.Test (defaultRequest)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestBodyVaultKey)
 import Network.Wai (Request, vault)
-import Data.List (isPrefixOf, isInfixOf)
+import qualified Data.List as List
 
 tests = do
     let requestBody = FormBody [] []
@@ -50,7 +50,7 @@ tests = do
                 let ?context = context
 
                 (fromContext @Text) `shouldThrow` (\e -> case e of
-                    ErrorCall msg -> "Unable to find Text in controller context:" `isPrefixOf` msg
+                    ErrorCall msg -> "Unable to find Text in controller context:" `List.isPrefixOf` msg
                     _ -> False)
 
             it "return a stored value if frozen" do
@@ -93,6 +93,6 @@ tests = do
                 -- Test that error message does not include a hint for unknown types
                 (fromContext @Int) `shouldThrow` (\e -> case e of
                     ErrorCall msg ->
-                        "Unable to find" `isPrefixOf` msg &&
-                        not ("Hint:" `isInfixOf` msg)  -- Int is not a known type, so no hint
+                        "Unable to find" `List.isPrefixOf` msg &&
+                        not ("Hint:" `List.isInfixOf` msg)  -- Int is not a known type, so no hint
                     _ -> False)
