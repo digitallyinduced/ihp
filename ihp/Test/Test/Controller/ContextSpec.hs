@@ -14,6 +14,7 @@ import Network.Wai.Test (defaultRequest)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestBodyVaultKey)
 import Network.Wai (Request, vault)
+import Data.List (isPrefixOf, isInfixOf)
 
 tests = do
     let requestBody = FormBody [] []
