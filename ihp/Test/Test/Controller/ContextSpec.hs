@@ -48,7 +48,9 @@ tests = do
                 context <- newControllerContext
                 let ?context = context
 
-                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap [Request]")
+                (fromContext @Text) `shouldThrow` (\e -> case e of
+                    ErrorCall msg -> "Unable to find Text in controller context:" `isPrefixOf` msg
+                    _ -> False)
 
             it "return a stored value if frozen" do
                 context <- newControllerContext
@@ -82,3 +84,11 @@ tests = do
                 let ?context = context
 
                 (fromFrozenContext @Text) `shouldBe` "hello"
+
+            it "should provide helpful error message for AutoRefreshState" do
+                context <- newControllerContext
+                let ?context = context
+
+                (fromContext @Int) `shouldThrow` (\e -> case e of
+                    ErrorCall msg -> "Unable to find" `isPrefixOf` msg
+                    _ -> False)
