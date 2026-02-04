@@ -28,7 +28,6 @@ import Data.IORef
 import qualified Data.TMap as TypeMap
 import qualified Data.Typeable as Typeable
 import Data.Typeable (Typeable)
-import Data.List (find)
 
 -- | A container storing useful data along the request lifecycle, such as the request, the current user, set current view layout, flash messages, ...
 --
@@ -157,7 +156,7 @@ buildNotFoundMessage :: Typeable.TypeRep -> TypeMap.TMap -> String
 buildNotFoundMessage typeRep customFields =
     let typeName = show typeRep
         baseMessage = "Unable to find " <> typeName <> " in controller context: " <> show customFields
-        helpMessage = case findHint typeName knownTypes of
+        helpMessage = case lookup typeName knownTypes of
             Just hint -> "\n\nHint: " <> hint
             Nothing -> ""
     in baseMessage <> helpMessage
@@ -169,27 +168,4 @@ buildNotFoundMessage typeRep customFields =
         , ("Maybe Admin", "Ensure you have called 'initAuthentication @Admin' in your 'initContext' function in FrontController.hs")
         , ("PageTitle", "Use 'setTitle' to set the page title (imported from IHP.PageHead.ControllerFunctions)")
         ]
-
-    -- Helper function for finding a hint based on the type name
-    -- Handles both qualified (IHP.AutoRefresh.Types.AutoRefreshState) and unqualified (AutoRefreshState) names
-    findHint :: String -> [(String, String)] -> Maybe String
-    findHint target list =
-        fmap snd $ find (matchesType . fst) list
-      where
-        matchesType typeName = target == typeName || isQualifiedMatch typeName target
-
-    -- Check if the target ends with ".typeName" (qualified name match)
-    -- E.g., "IHP.AutoRefresh.Types.AutoRefreshState" matches "AutoRefreshState"
-    isQualifiedMatch :: String -> String -> Bool
-    isQualifiedMatch unqualifiedName target =
-        let targetLen = length target
-            nameLen = length unqualifiedName
-        in if targetLen <= nameLen
-           then False
-           else
-               let suffix = drop (targetLen - nameLen) target
-                   prefix = take (targetLen - nameLen) target
-               in suffix == unqualifiedName &&
-                  not (null prefix) &&
-                  last prefix == '.'
 {-# INLINABLE buildNotFoundMessage #-}
