@@ -4,6 +4,49 @@
 
 ```
 
+## Setup
+
+Auto Refresh is enabled by default in new IHP applications. If you've disabled it or are setting it up manually, you need these three components:
+
+### 1. Initialize Auto Refresh in FrontController
+
+In your `Web/FrontController.hs`, add `initAutoRefresh` to the `InitControllerContext` instance:
+
+```haskell
+instance InitControllerContext WebApplication where
+    initContext = do
+        setLayout defaultLayout
+        initAutoRefresh  -- Add this line
+```
+
+### 2. Add Meta Tag to Layout
+
+In your `Web/View/Layout.hs`, add `{autoRefreshMeta}` inside the `<head>` section:
+
+```haskell
+metaTags :: Html
+metaTags = [hsx|
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    {autoRefreshMeta}
+|]
+```
+
+### 3. Include Required JavaScript
+
+In your `Web/View/Layout.hs`, ensure these scripts are included (order matters - morphdom must come before ihp-auto-refresh):
+
+```haskell
+scripts :: Html
+scripts = [hsx|
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/ihp-auto-refresh.js"}></script>
+        <!-- ... other scripts ... -->
+    |]
+```
+
+Once these three components are in place, you can use `autoRefresh` on your actions.
+
 ## Introduction
 
 Auto Refresh offers a way to re-render views of your application when the underlying data changes. This is useful when you want your views to always reflect the live database state. Auto Refresh can be an easy replacement for manually polling for changes using AJAX.
