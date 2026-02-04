@@ -28,6 +28,7 @@ import Data.IORef
 import qualified Data.TMap as TypeMap
 import qualified Data.Typeable as Typeable
 import Data.Typeable (Typeable)
+import Data.List (find)
 
 -- | A container storing useful data along the request lifecycle, such as the request, the current user, set current view layout, flash messages, ...
 --
@@ -173,12 +174,14 @@ buildNotFoundMessage typeRep customFields =
     -- Handles both qualified (IHP.AutoRefresh.Types.AutoRefreshState) and unqualified (AutoRefreshState) names
     findHint :: String -> [(String, String)] -> Maybe String
     findHint target list =
-        let matchesType key = target == key || endsWith key target
-            endsWith suffix str =
-                let len = length suffix
-                    strLen = length str
-                in strLen >= len && drop (strLen - len) str == suffix &&
-                   (strLen == len || str !! (strLen - len - 1) == '.')
-        in foldr (\(key, value) acc ->
-            if matchesType key then Just value else acc) Nothing list
+        let matchesType key = target == key || isQualifiedMatch key target
+            -- Check if the target ends with ".key" (qualified name match)
+            isQualifiedMatch key target =
+                let suffix = key
+                    len = length suffix
+                    targetLen = length target
+                in targetLen > len &&
+                   drop (targetLen - len) target == suffix &&
+                   target !! (targetLen - len - 1) == '.'
+        in fmap snd $ find (matchesType . fst) list
 {-# INLINABLE buildNotFoundMessage #-}

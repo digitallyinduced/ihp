@@ -89,9 +89,9 @@ tests = do
                 context <- newControllerContext
                 let ?context = context
 
-                -- Test that error message includes helpful hint for unknown types
+                -- Test that error message does not include a hint for unknown types
                 (fromContext @Int) `shouldThrow` (\e -> case e of
-                    ErrorCall msg -> 
-                        "Unable to find" `isPrefixOf` msg && 
+                    ErrorCall msg ->
+                        "Unable to find" `isPrefixOf` msg &&
                         not ("Hint:" `isInfixOf` msg)  -- Int is not a known type, so no hint
                     _ -> False)
