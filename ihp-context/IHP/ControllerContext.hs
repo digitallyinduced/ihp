@@ -184,13 +184,13 @@ buildNotFoundMessage typeRep customFields =
     isQualifiedMatch unqualifiedName target =
         let targetLen = length target
             nameLen = length unqualifiedName
-            -- Check if target is longer than the name plus one (for the dot)
-            hasRoom = targetLen > nameLen
-            -- Get the suffix (should match unqualifiedName)
+            targetLongerThanName = targetLen > nameLen
             suffix = drop (targetLen - nameLen) target
-            -- Get the character before the suffix (should be a dot)
-            charBeforeSuffix = if hasRoom && targetLen > nameLen then target !! (targetLen - nameLen - 1) else ' '
-        in hasRoom &&
+            -- Get the character before the suffix using drop/take pattern
+            prefixEndChar = if targetLongerThanName
+                           then last (take (targetLen - nameLen) target)
+                           else '\0'
+        in targetLongerThanName &&
            suffix == unqualifiedName &&
-           charBeforeSuffix == '.'
+           prefixEndChar == '.'
 {-# INLINABLE buildNotFoundMessage #-}
