@@ -223,9 +223,9 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
                             -- Catch any exceptions from withRunningApp (e.g., startup timeout)
                             -- so we can return to the status server gracefully
                             result <- Exception.tryAny $ withoutStatusServer do
-                                withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput do
-                                    -- App is running, wait for next file change
-                                    takeMVar reloadGhciVar
+                                withRunningApp ?context.portConfig.appPort inputHandle outputHandle errorHandle processHandle receiveAppOutput \appCrashed -> do
+                                    -- App is running, wait for next file change or app crash
+                                    race_ (takeMVar reloadGhciVar) (takeMVar appCrashed)
                             case result of
                                 Left ex -> do
                                     -- App startup failed, wait for a reload signal before trying again
@@ -294,13 +294,15 @@ withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
 
     pure result
 
-withRunningApp :: (?context :: Context) => Socket.PortNumber -> Handle -> Handle -> Handle -> Process.ProcessHandle -> (OutputLine -> IO ()) -> (IO a) -> IO a
+withRunningApp :: (?context :: Context) => Socket.PortNumber -> Handle -> Handle -> Handle -> Process.ProcessHandle -> (OutputLine -> IO ()) -> (MVar () -> IO a) -> IO a
 withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
     serverStopped :: MVar () <- newEmptyMVar
+    appCrashed :: MVar () <- newEmptyMVar
     let onMatch line = case line of
             line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
+            line | "[[IHP_APP_CRASHED]]" `isInfixOf` line -> void $ tryPutMVar appCrashed ()
             _ -> pure ()
 
     let startApp = do
@@ -311,7 +313,7 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
             socketFd <- Socket.unsafeFdSocket ?context.appSocket
             sendGhciCommand inputHandle $ "System.Environment.setEnv \"IHP_SOCKET_FD\" \"" <> cs (show socketFd) <> "\""
             sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
-            sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e)))"
+            sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e) >> IHP.Prelude.putStrLn \"[[IHP_APP_CRASHED]]\"))"
     let stopApp = do
             sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
             sendGhciCommand inputHandle "ClassyPrelude.cancel app"
@@ -326,7 +328,7 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
             -- If the app crashes during startup, "Server started" will never be printed
             maybeStarted <- timeout (60 * 1000000) (takeMVar serverStarted)
             case maybeStarted of
-                Just () -> callback
+                Just () -> callback appCrashed
                 Nothing -> do
                     logLine (ErrorOutput "App startup timed out after 60 seconds. Check for runtime errors above.")
                     -- Throw exception to trigger bracket cleanup and return to status server
