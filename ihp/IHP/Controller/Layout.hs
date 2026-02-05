@@ -34,13 +34,6 @@ viewLayoutMiddleware app request respond = do
     let request' = request { vault = Vault.insert viewLayoutVaultKey ref (vault request) }
     app request' respond
 
--- | Get the IORef from the request vault
-getViewLayoutRef :: Request -> IORef ViewLayout
-getViewLayoutRef request =
-    case Vault.lookup viewLayoutVaultKey (vault request) of
-        Just ref -> ref
-        Nothing -> error "viewLayoutMiddleware not installed"
-
 -- | Set the layout to be used when rendering views.
 --
 -- Example:
@@ -50,9 +43,15 @@ getViewLayoutRef request =
 -- >         setLayout defaultLayout
 --
 setLayout :: (?context :: ControllerContext) => ((?context :: ControllerContext, ?request :: Request) => Layout) -> IO ()
-setLayout layout = writeIORef (getViewLayoutRef ?context.request) (ViewLayout layout)
+setLayout layout =
+    case Vault.lookup viewLayoutVaultKey (vault ?context.request) of
+        Just ref -> writeIORef ref (ViewLayout layout)
+        Nothing -> error "viewLayoutMiddleware not installed. Add it to your middleware stack in Server.hs"
 {-# INLINE setLayout #-}
 
 -- | Get the current layout. Returns the identity layout if none was set.
 getLayout :: (?request :: Request) => IO ViewLayout
-getLayout = readIORef (getViewLayoutRef ?request)
+getLayout =
+    case Vault.lookup viewLayoutVaultKey (vault ?request) of
+        Just ref -> readIORef ref
+        Nothing -> error "viewLayoutMiddleware not installed. Add it to your middleware stack in Server.hs"

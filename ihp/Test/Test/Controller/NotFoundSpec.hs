@@ -30,6 +30,7 @@ import Unsafe.Coerce
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
+import IHP.Controller.Layout (viewLayoutMiddleware)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -71,7 +72,7 @@ config = do
     option (AppPort 8000)
 
 application :: Application
-application = Server.application handleNotFound (\app -> app)
+application = viewLayoutMiddleware $ Server.application handleNotFound (\app -> app)
 
 assertNotFound :: SResponse -> IO ()
 assertNotFound response = do
