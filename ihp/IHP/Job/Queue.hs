@@ -21,6 +21,7 @@ import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
 import qualified IHP.Log as Log
 import Control.Monad.Trans.Resource
+import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -39,6 +40,7 @@ fetchNextJob :: forall job.
     , job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
+    , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , Table job

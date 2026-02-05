@@ -3,6 +3,7 @@
 , cereal, cereal-text, classy-prelude, clientsession, conduit-extra
 , containers, cookie, countable-inflections, data-default, deepseq
 , directory, fast-logger, filepath, ghc-prim, hashable
+, hasql, hasql-pool, hasql-dynamic-statements
 , haskell-src-exts, haskell-src-meta, hspec, http-client
 , http-client-tls, http-media, http-types, ihp-context, ihp-hsx
 , ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead
@@ -30,7 +31,7 @@ mkDerivation {
     blaze-markup bytestring case-insensitive cereal cereal-text
     classy-prelude clientsession conduit-extra containers cookie
     countable-inflections data-default deepseq directory fast-logger
-    filepath ghc-prim hashable
+    filepath ghc-prim hashable hasql hasql-pool hasql-dynamic-statements
     haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
@@ -52,7 +53,7 @@ mkDerivation {
     blaze-markup bytestring case-insensitive cereal cereal-text
     classy-prelude clientsession conduit-extra containers cookie
     countable-inflections data-default deepseq directory fast-logger
-    filepath ghc-prim hashable
+    filepath ghc-prim hashable hasql hasql-pool hasql-dynamic-statements
     haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead

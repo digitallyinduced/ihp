@@ -55,6 +55,16 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
+import qualified Hasql.Pool as HasqlPool
+import qualified Hasql.Pool.Config as HasqlPoolConfig
+import qualified Hasql.Connection.Setting as HasqlConnectionSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnectionConfig
+import qualified Hasql.Session as Hasql
+import qualified Hasql.Statement as Hasql
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.DynamicStatements.Statement as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
 import IHP.Postgres.Point
 import IHP.Postgres.Interval ()
 import IHP.Postgres.Polygon
@@ -69,11 +79,13 @@ import GHC.Stack
 import qualified Numeric
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Builder as Builder
+import Data.ByteString.Builder (toLazyByteString)
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { connectionPool = error "Not connected"
+    , hasqlPool = Nothing
     , transactionConnection = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
@@ -88,11 +100,46 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
     let rowLevelSecurity = Nothing
+    let hasqlPool = Nothing -- Hasql pool is optional, can be enabled via createModelContextWithHasql
+    pure ModelContext { .. }
+
+-- | Creates a ModelContext with hasql pool enabled for better fetch performance
+--
+-- The hasql pool uses prepared statements which can provide significant performance
+-- improvements for read queries. Write operations (create, update, delete) still use
+-- postgresql-simple.
+--
+-- __Example:__
+--
+-- > modelContext <- createModelContextWithHasql 10 10 databaseUrl logger
+createModelContextWithHasql :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
+createModelContextWithHasql idleTime maxConnections databaseUrl logger = do
+    -- Create postgresql-simple pool
+    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
+    connectionPool <- Pool.newPool poolConfig
+
+    -- Create hasql pool using the same connection string
+    let hasqlPoolConfig = HasqlPoolConfig.settings
+            [ HasqlPoolConfig.size (fromIntegral maxConnections)
+            , HasqlPoolConfig.idlenessTimeout (realToFrac idleTime)
+            , HasqlPoolConfig.staticConnectionSettings
+                [ HasqlConnectionSetting.connection (HasqlConnectionConfig.string (cs databaseUrl))
+                ]
+            ]
+    hasqlPoolInstance <- HasqlPool.acquire hasqlPoolConfig
+
+    let trackTableReadCallback = Nothing
+    let transactionConnection = Nothing
+    let rowLevelSecurity = Nothing
+    let hasqlPool = Just hasqlPoolInstance
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
-releaseModelContext modelContext =
+releaseModelContext modelContext = do
     Pool.destroyAllResources modelContext.connectionPool
+    case modelContext.hasqlPool of
+        Just pool -> HasqlPool.release pool
+        Nothing -> pure ()
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -339,6 +386,53 @@ withDatabaseConnection block =
         Just transactionConnection -> block transactionConnection
         Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
+
+-- | Runs a query using the hasql pool with prepared statements
+--
+-- This function executes a query using hasql's prepared statement mechanism,
+-- which provides better performance than postgresql-simple for repeated queries.
+--
+-- When RLS is enabled, the query is wrapped in a transaction that sets the role
+-- and user ID appropriately.
+--
+-- __Example:__
+--
+-- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
+--
+sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
+sqlQueryHasql pool snippet decoder = do
+    let session = case ?modelContext.rowLevelSecurity of
+            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                -- Execute in a transaction with RLS context set
+                Hasql.statement () $ Snippet.dynamicallyParameterized
+                    (rlsSetupSnippet rlsAuthenticatedRole rlsUserId <> snippet)
+                    decoder
+                    True  -- prepared
+            Nothing ->
+                -- Execute directly without RLS setup
+                Hasql.statement () $ Snippet.dynamicallyParameterized snippet decoder True
+    result <- HasqlPool.use pool session
+    case result of
+        Left err -> throwIO (HasqlError err)
+        Right a -> pure a
+    where
+        rlsSetupSnippet role userId =
+            Snippet.sql "SET LOCAL ROLE " <> Snippet.param role <> Snippet.sql "; " <>
+            Snippet.sql "SET LOCAL rls.ihp_user_id = " <> actionToSnippet userId <> Snippet.sql "; "
+
+        actionToSnippet :: PG.Action -> Snippet.Snippet
+        actionToSnippet (PG.Plain builder) = Snippet.sql (cs (toLazyByteString builder))
+        actionToSnippet (PG.Escape bs) = Snippet.param (cs bs :: Text)
+        actionToSnippet (PG.EscapeByteA bs) = Snippet.param bs
+        actionToSnippet (PG.EscapeIdentifier bs) = Snippet.sql ("\"" <> cs bs <> "\"")
+        actionToSnippet (PG.Many actions) = mconcat (map actionToSnippet actions)
+{-# INLINABLE sqlQueryHasql #-}
+
+-- | Exception type for hasql errors
+data HasqlError = HasqlError HasqlPool.UsageError
+    deriving (Show)
+
+instance Exception HasqlError
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --

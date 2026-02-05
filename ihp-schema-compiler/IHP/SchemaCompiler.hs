@@ -136,6 +136,7 @@ tableModuleBody :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => C
 tableModuleBody options table = Text.unlines
     [ compileInputValueInstance table
     , compileFromRowInstance table
+    , compileFromRowHasqlInstance table
     , compileGetModelName table
     , compileCreate table
     , compileUpdate table
@@ -336,6 +337,7 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
+    import IHP.Hasql.FromRow (FromRowHasql(..), HasqlColumn(..))
 |]
 
 
@@ -833,6 +835,60 @@ instance FromRow #{modelName} where
         --            case relatedForeignKeyField of
         --                Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
         --                otherwise -> toBinding modelName attributes
+
+-- | Generates a FromRowHasql instance for hasql-based queries
+--
+-- This is parallel to 'compileFromRowInstance' but generates code for the
+-- hasql decoder instead of postgresql-simple's FromRow.
+compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|
+instance FromRowHasql #{modelName} where
+    hasqlRowDecoder = do
+#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
+        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
+        pure theRecord
+
+|]
+    where
+        modelName = qualifiedConstructorNameFromTableName name
+        columnNames = map (columnNameToFieldName . (.name)) columns
+        columnBinding columnName = columnName <> " <- hasqlColumn"
+
+        referencing = columnsReferencingTable table.name
+
+        compileField (fieldName, _)
+            | isColumn fieldName = fieldName
+            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
+            | otherwise = "def"
+
+        isColumn name = name `elem` columnNames
+        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
+
+        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+            where
+                primaryKeyField :: Text
+                primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
+                actualPrimaryKeyField :: Text
+                actualPrimaryKeyField = case primaryKeyColumns table of
+                        [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
+                        [pk] -> columnNameToFieldName pk.name
+                        pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs name <> "' which has more than one column as its primary key."
+
+                (Just refTable) = let (Schema statements) = ?schema in
+                        statements
+                        |> find \case
+                                StatementCreateTable CreateTable { name } -> name == refTableName
+                                otherwise -> False
+
+                refColumn :: Column
+                refColumn = refTable
+                        |> \case StatementCreateTable CreateTable { columns } -> columns
+                                 _ -> error "refColumn: expected StatementCreateTable"
+                        |> find (\col -> col.name == refFieldName)
+                        |> \case
+                            Just refColumn -> refColumn
+                            Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
 compileBuild :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =

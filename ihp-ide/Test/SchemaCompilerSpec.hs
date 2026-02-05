@@ -278,6 +278,15 @@ tests = do
                             pure theRecord
 
 
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = do
+                            id <- hasqlColumn
+                            ids <- hasqlColumn
+                            electricityUnitPrice <- hasqlColumn
+                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
                     type instance GetModelName (User' ) = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -345,6 +354,14 @@ tests = do
                         fromRow = do
                             id <- field
                             ts <- field
+                            let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = do
+                            id <- hasqlColumn
+                            ts <- hasqlColumn
                             let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -461,6 +478,13 @@ tests = do
                     instance FromRow Generated.ActualTypes.LandingPage where
                         fromRow = do
                             id <- field
+                            let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.LandingPage where
+                        hasqlRowDecoder = do
+                            id <- hasqlColumn
                             let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
@@ -732,6 +756,15 @@ tests = do
                             id <- field
                             title <- field
                             userId <- field
+                            let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.Post where
+                        hasqlRowDecoder = do
+                            id <- hasqlColumn
+                            title <- hasqlColumn
+                            userId <- hasqlColumn
                             let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 

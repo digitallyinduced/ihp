@@ -131,6 +131,9 @@ common shared-properties
             , slugger
             , ihp-imagemagick
             , wai-request-params
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -203,6 +206,7 @@ library
         , IHP.QueryBuilder.Join
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
+        , IHP.QueryBuilder.HasqlCompiler
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
@@ -243,6 +247,7 @@ library
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
         , IHP.EnvVar
+        , IHP.Hasql.FromRow
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
