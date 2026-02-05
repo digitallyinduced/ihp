@@ -22,7 +22,7 @@ import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
@@ -113,7 +113,7 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeMap) -> IO (DataSyncMessage -> IO ())
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
 buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
     pure (handleMessage getRLSColumns)
@@ -305,7 +305,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
                         )
 
                 let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map (quoteIdentifier . fst) pairs)
@@ -338,7 +338,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                         zip fieldNames columns
                                         |> map (\(fieldName, col) ->
                                             let val = fromMaybe Aeson.Null (HashMap.lookup fieldName object)
-                                            in typedAesonValueToSnippet (HashMap.lookup col columnTypes) val
+                                            in typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val
                                         )
                                     )
 
@@ -363,7 +363,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
                         )
 
                 let setCalls = keyValues
@@ -389,7 +389,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
                         )
 
                 let setCalls = keyValues

@@ -12,7 +12,7 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.List as List
@@ -46,7 +46,7 @@ instance (
                         |> Aeson.toList
                         |> map (\(key, val) ->
                             let col = fieldNameToColumnName (Aeson.toText key)
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
                         )
 
                 let columns = map fst pairs
@@ -87,7 +87,7 @@ instance (
                                                     |> map (\col ->
                                                         let fieldName = columnNameToFieldName col
                                                             val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
-                                                        in typedAesonValueToSnippet (HashMap.lookup col columnTypes) val
+                                                        in typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val
                                                     )
                                                 )
 
@@ -119,7 +119,7 @@ instance (
                 |> Aeson.toList
                 |> map (\(key, val) ->
                     let col = fieldNameToColumnName (Aeson.toText key)
-                    in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                    in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
                 )
 
         let setCalls = keyValues

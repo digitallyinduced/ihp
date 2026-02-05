@@ -7,7 +7,7 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (typedValueParam)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), typedValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
@@ -23,16 +23,16 @@ data Renamer = Renamer
 
 -- | Compile a 'DynamicSQLQuery' to a SQL 'Snippet' with typed parameter encoding.
 --
--- Column types must be provided via 'ColumnTypeMap' (from 'makeCachedColumnTypeLookup').
+-- Column types must be provided via 'ColumnTypeInfo' (from 'makeCachedColumnTypeLookup').
 -- Missing column types in WHERE conditions will error at runtime.
 --
 -- This function:
 -- 1. Converts field names from camelCase to snake_case for the query
 -- 2. Generates SQL column aliases so results come back with camelCase names
--- 3. For 'SelectAll', expands to all columns from 'ColumnTypeMap' with aliases
-compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryTyped renamer columnTypes query =
-    compileQueryMappedTyped renamer columnTypes (mapColumnNames renamer.fieldToColumn query)
+-- 3. For 'SelectAll', expands to all columns from 'ColumnTypeInfo' in database schema order
+compileQueryTyped :: Renamer -> ColumnTypeInfo -> DynamicSQLQuery -> Snippet
+compileQueryTyped renamer columnInfo query =
+    compileQueryMappedTyped renamer columnInfo (mapColumnNames renamer.fieldToColumn query)
 
 -- | Default renamer used by DataSync.
 --
@@ -50,11 +50,11 @@ renameField :: Renamer -> Field -> Field
 renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
 
-compileQueryMappedTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryMappedTyped renamer columnTypes DynamicSQLQuery { .. } =
+compileQueryMappedTyped :: Renamer -> ColumnTypeInfo -> DynamicSQLQuery -> Snippet
+compileQueryMappedTyped renamer columnInfo DynamicSQLQuery { .. } =
     Snippet.sql "SELECT"
     <> distinctOnSnippet
-    <> compileSelectedColumns renamer columnTypes selectedColumns
+    <> compileSelectedColumns renamer columnInfo selectedColumns
     <> Snippet.sql " FROM "
     <> quoteIdentifier table
     <> whereSnippet
@@ -73,7 +73,7 @@ compileQueryMappedTyped renamer columnTypes DynamicSQLQuery { .. } =
                     <> mconcat (List.intersperse (Snippet.sql ", ") (map compileOrderByClauseSnippet orderByClauses))
 
         whereSnippet = case whereCondition of
-            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnTypes condition
+            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnInfo.typeMap condition
             Nothing -> mempty
 
         limitSnippet = case limit of
@@ -122,12 +122,12 @@ compileOrderByClauseSnippet OrderByTSRank { tsvector, tsquery } =
 -- For example, if the column is @user_id@ but the client expects @userId@, this will
 -- generate @"user_id" AS "userId"@ instead of just @"user_id"@.
 --
--- For 'SelectAll', expands to all columns from the 'ColumnTypeMap' with appropriate aliases.
--- Columns are sorted with @id@ first, then alphabetically for deterministic output.
-compileSelectedColumns :: Renamer -> ColumnTypeMap -> SelectedColumns -> Snippet
-compileSelectedColumns renamer columnTypes SelectAll =
-    compileSelectedColumns renamer columnTypes (SelectSpecific (sortColumnsIdFirst (HashMap.keys columnTypes)))
-compileSelectedColumns renamer _columnTypes (SelectSpecific columns) =
+-- For 'SelectAll', expands to all columns from 'ColumnTypeInfo' in the order they
+-- were defined in the database schema (from @pg_attribute.attnum@).
+compileSelectedColumns :: Renamer -> ColumnTypeInfo -> SelectedColumns -> Snippet
+compileSelectedColumns renamer columnInfo SelectAll =
+    compileSelectedColumns renamer columnInfo (SelectSpecific columnInfo.orderedColumns)
+compileSelectedColumns renamer _columnInfo (SelectSpecific columns) =
     mconcat (List.intersperse (Snippet.sql ", ") (map compileColumn columns))
     where
         compileColumn col =
@@ -136,24 +136,13 @@ compileSelectedColumns renamer _columnTypes (SelectSpecific columns) =
                 then quoteIdentifier col
                 else quoteIdentifier col <> Snippet.sql " AS " <> quoteIdentifier alias
 
--- | Sort columns with @id@ first, then alphabetically.
---
--- This provides deterministic ordering that matches common database conventions
--- where @id@ is typically the first column in a table.
-sortColumnsIdFirst :: [Text] -> [Text]
-sortColumnsIdFirst columns = List.sortBy compareColumns columns
-    where
-        compareColumns "id" _ = LT
-        compareColumns _ "id" = GT
-        compareColumns a b = compare a b
-
 -- | Compile a SQL @RETURNING@ clause with aliased columns.
 --
 -- For INSERT/UPDATE/DELETE statements that return data, this generates
 -- @RETURNING "col_a" AS "colA", "col_b" AS "colB", ...@ with proper camelCase aliases.
-compileReturningClause :: Renamer -> ColumnTypeMap -> Snippet
-compileReturningClause renamer columnTypes =
-    Snippet.sql " RETURNING " <> compileSelectedColumns renamer columnTypes SelectAll
+compileReturningClause :: Renamer -> ColumnTypeInfo -> Snippet
+compileReturningClause renamer columnInfo =
+    Snippet.sql " RETURNING " <> compileSelectedColumns renamer columnInfo SelectAll
 
 -- | Compile a condition expression to a SQL snippet, using typed parameter encoding when column types are known.
 --

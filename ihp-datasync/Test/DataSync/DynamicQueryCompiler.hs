@@ -7,6 +7,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..))
 import IHP.QueryBuilder hiding (OrderByClause)
 import Hasql.Statement (Statement(..))
 import qualified Hasql.DynamicStatements.Statement as DynStatement
@@ -21,30 +22,35 @@ snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decode
     Statement sql _ _ _ -> sql
 
 -- | Column types for the "posts" table used in tests.
-postsTypes :: ColumnTypeMap
-postsTypes = HashMap.fromList
-    [ ("user_id", "uuid")
-    , ("id", "uuid")
-    , ("a", "text")
-    , ("title", "text")
-    , ("ts", "tsvector")
-    , ("group_id", "uuid")
-    ]
+-- Simulates database column order: id first, then other columns in schema definition order.
+postsTypes :: ColumnTypeInfo
+postsTypes = ColumnTypeInfo
+    { typeMap = HashMap.fromList
+        [ ("user_id", "uuid")
+        , ("id", "uuid")
+        , ("a", "text")
+        , ("title", "text")
+        , ("ts", "tsvector")
+        , ("group_id", "uuid")
+        ]
+    , orderedColumns = ["id", "user_id", "title", "a", "ts", "group_id"]
+    }
 
 -- | Column types for the "products" table used in tests.
-productsTypes :: ColumnTypeMap
-productsTypes = HashMap.fromList
-    [ ("ts", "tsvector")
-    ]
+productsTypes :: ColumnTypeInfo
+productsTypes = ColumnTypeInfo
+    { typeMap = HashMap.fromList [("ts", "tsvector")]
+    , orderedColumns = ["ts"]
+    }
 
 -- | Compile a query with the camelCase renamer and typed encoding.
-compile :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compile :: ColumnTypeInfo -> DynamicSQLQuery -> Snippet
 compile = compileQueryTyped camelCaseRenamer
 
 -- | Expected SELECT clause for postsTypes when using SelectAll
--- Columns are sorted with id first, then alphabetically, with camelCase aliases
+-- Columns appear in database schema order (from orderedColumns), with camelCase aliases
 postsSelectAll :: ByteString
-postsSelectAll = "\"id\", \"a\", \"group_id\" AS \"groupId\", \"title\", \"ts\", \"user_id\" AS \"userId\""
+postsSelectAll = "\"id\", \"user_id\" AS \"userId\", \"title\", \"a\", \"ts\", \"group_id\" AS \"groupId\""
 
 tests = do
     describe "IHP.DataSync.DynamicQueryCompiler" do

@@ -10,13 +10,14 @@ that occur in the extended query protocol when sending text-typed parameters for
 -}
 module IHP.DataSync.TypedEncoder
 ( ColumnTypeMap
+, ColumnTypeInfo(..)
 , makeCachedColumnTypeLookup
 , typedValueParam
 , typedAesonValueToSnippet
 ) where
 
 import IHP.Prelude
-import IHP.DataSync.DynamicQuery (ColumnTypeMap, quoteIdentifier)
+import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
 import IHP.Postgres.Point (Point(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
@@ -43,8 +44,11 @@ import qualified Data.Vector as Vector
 -- | Creates a cached lookup function that queries column types from @pg_attribute@/@pg_type@
 -- and caches the result per table name.
 --
+-- Returns 'ColumnTypeInfo' which includes both a type map for O(1) lookups and
+-- an ordered column list matching the database schema order (from @attnum@).
+--
 -- Follows the same caching pattern as 'makeCachedEnsureRLSEnabled'.
-makeCachedColumnTypeLookup :: Hasql.Pool.Pool -> IO (Text -> IO ColumnTypeMap)
+makeCachedColumnTypeLookup :: Hasql.Pool.Pool -> IO (Text -> IO ColumnTypeInfo)
 makeCachedColumnTypeLookup pool = do
     cache <- newIORef HashMap.empty
     pure \tableName -> do
@@ -60,13 +64,18 @@ makeCachedColumnTypeLookup pool = do
 --
 -- Uses @pg_attribute@ joined with @pg_type@ to get clean type names.
 -- Filters out dropped columns and system columns (@attnum > 0@).
-columnTypesStatement :: Statement.Statement Text ColumnTypeMap
+-- Results are ordered by @attnum@ to preserve the database schema column order.
+columnTypesStatement :: Statement.Statement Text ColumnTypeInfo
 columnTypesStatement = Statement.Statement
-    "SELECT a.attname::text, t.typname::text FROM pg_attribute a JOIN pg_type t ON a.atttypid = t.oid WHERE a.attrelid = quote_ident($1)::regclass AND a.attnum > 0 AND NOT a.attisdropped"
+    "SELECT a.attname::text, t.typname::text FROM pg_attribute a JOIN pg_type t ON a.atttypid = t.oid WHERE a.attrelid = quote_ident($1)::regclass AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
     (Encoders.param (Encoders.nonNullable Encoders.text))
-    (HashMap.fromList <$> Decoders.rowList columnTypeDecoder)
+    (buildColumnTypeInfo <$> Decoders.rowList columnTypeDecoder)
     True
   where
+    buildColumnTypeInfo rows = ColumnTypeInfo
+        { typeMap = HashMap.fromList rows
+        , orderedColumns = map fst rows
+        }
     columnTypeDecoder = do
         colName <- Decoders.column (Decoders.nonNullable Decoders.text)
         typName <- Decoders.column (Decoders.nonNullable Decoders.text)
