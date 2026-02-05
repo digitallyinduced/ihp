@@ -213,3 +213,15 @@ tests = do
                     runOnce "table1" (modifyIORef' counter (+ 1))
                     count3 <- readIORef counter
                     count3 `shouldBe` 2
+
+            it "should handle concurrent calls safely" do
+                PGListener.withPGListener "" logger \pgListener -> do
+                    counter <- newIORef (0 :: Int)
+                    runOnce <- PGListener.runOncePerConnection pgListener
+
+                    -- Run 100 concurrent calls for the same key
+                    Async.replicateConcurrently_ 100 $
+                        runOnce "table1" (modifyIORef' counter (+ 1))
+
+                    count <- readIORef counter
+                    count `shouldBe` 1  -- Should only run once despite concurrency

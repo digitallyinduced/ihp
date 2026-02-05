@@ -360,20 +360,19 @@ listenToChannel connection channel = do
 -- > runOnce "users" (sqlExec createUsersTrigger ())  -- No-op (cached)
 runOncePerConnection :: (Ord key) => PGListener -> IO (key -> IO () -> IO ())
 runOncePerConnection pgListener = do
-    cache <- newIORef Set.empty
-    lastEpoch <- newIORef 0
+    initialEpoch <- readIORef pgListener.connectionEpoch
+    -- MVar holds (lastKnownEpoch, cachedKeys)
+    -- Using MVar ensures atomic check-and-update for thread safety
+    cacheVar <- MVar.newMVar (initialEpoch, Set.empty)
     pure \key action -> do
         currentEpoch <- readIORef pgListener.connectionEpoch
-        storedEpoch <- readIORef lastEpoch
-        when (currentEpoch /= storedEpoch) do
-            writeIORef cache Set.empty
-            writeIORef lastEpoch currentEpoch
-
-        shouldRun <- atomicModifyIORef' cache \set ->
-            if Set.member key set
-                then (set, False)
-                else (Set.insert key set, True)
-
+        shouldRun <- MVar.modifyMVar cacheVar \(storedEpoch, cache) -> do
+            let cache' = if currentEpoch /= storedEpoch
+                         then Set.empty  -- Clear on epoch change
+                         else cache
+            if Set.member key cache'
+                then pure ((currentEpoch, cache'), False)
+                else pure ((currentEpoch, Set.insert key cache'), True)
         when shouldRun action
 
 logError :: PGListener -> Text -> IO ()
