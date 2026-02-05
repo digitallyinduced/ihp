@@ -392,40 +392,20 @@ withDatabaseConnection block =
 -- This function executes a query using hasql's prepared statement mechanism,
 -- which provides better performance than postgresql-simple for repeated queries.
 --
--- When RLS is enabled, the query is wrapped in a transaction that sets the role
--- and user ID appropriately.
+-- Note: This function does not support RLS. When RLS is enabled, the fetch functions
+-- automatically fall back to postgresql-simple instead of using hasql.
 --
 -- __Example:__
 --
 -- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
 --
-sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
+sqlQueryHasql :: HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
 sqlQueryHasql pool snippet decoder = do
-    let session = case ?modelContext.rowLevelSecurity of
-            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
-                -- Execute in a transaction with RLS context set
-                Hasql.statement () $ Snippet.dynamicallyParameterized
-                    (rlsSetupSnippet rlsAuthenticatedRole rlsUserId <> snippet)
-                    decoder
-                    True  -- prepared
-            Nothing ->
-                -- Execute directly without RLS setup
-                Hasql.statement () $ Snippet.dynamicallyParameterized snippet decoder True
+    let session = Hasql.statement () $ Snippet.dynamicallyParameterized snippet decoder True
     result <- HasqlPool.use pool session
     case result of
         Left err -> throwIO (HasqlError err)
         Right a -> pure a
-    where
-        rlsSetupSnippet role userId =
-            Snippet.sql "SET LOCAL ROLE " <> Snippet.param role <> Snippet.sql "; " <>
-            Snippet.sql "SET LOCAL rls.ihp_user_id = " <> actionToSnippet userId <> Snippet.sql "; "
-
-        actionToSnippet :: PG.Action -> Snippet.Snippet
-        actionToSnippet (PG.Plain builder) = Snippet.sql (cs (toLazyByteString builder))
-        actionToSnippet (PG.Escape bs) = Snippet.param (cs bs :: Text)
-        actionToSnippet (PG.EscapeByteA bs) = Snippet.param bs
-        actionToSnippet (PG.EscapeIdentifier bs) = Snippet.sql ("\"" <> cs bs <> "\"")
-        actionToSnippet (PG.Many actions) = mconcat (map actionToSnippet actions)
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Exception type for hasql errors

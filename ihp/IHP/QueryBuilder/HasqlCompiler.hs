@@ -14,7 +14,6 @@ Snippet values instead of (ByteString, [Action]) tuples.
 -}
 module IHP.QueryBuilder.HasqlCompiler
 ( toSnippet
-, toSnippetWithRLS
 , buildSnippet
 ) where
 
@@ -22,46 +21,19 @@ import IHP.Prelude
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.QueryBuilder.Types
-import IHP.ModelSupport.Types (RowLevelSecurityContext(..))
 import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
-import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.List as List
-import qualified Database.PostgreSQL.Simple.ToField as PG
 
 -- | Compile a QueryBuilder to a Hasql Snippet
 --
 -- This is the hasql equivalent of 'toSQL' from IHP.QueryBuilder.Compiler.
+-- Note: When RLS is enabled, the fetch functions fall back to postgresql-simple
+-- instead of using hasql, so this function doesn't need to handle RLS.
 toSnippet :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet
 toSnippet queryBuilderProvider = buildSnippet (buildQuery queryBuilderProvider)
 {-# INLINE toSnippet #-}
-
--- | Compile a QueryBuilder to a Hasql Snippet with RLS context
---
--- When RLS is enabled, this wraps the query with SET LOCAL statements.
-toSnippetWithRLS :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => Maybe RowLevelSecurityContext -> queryBuilderProvider table -> Snippet
-toSnippetWithRLS Nothing queryBuilderProvider = toSnippet queryBuilderProvider
-toSnippetWithRLS (Just rlsContext) queryBuilderProvider =
-    rlsSetupSnippet rlsContext <> toSnippet queryBuilderProvider
-{-# INLINE toSnippetWithRLS #-}
-
--- | Generate the RLS setup SQL as a Snippet
-rlsSetupSnippet :: RowLevelSecurityContext -> Snippet
-rlsSetupSnippet RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } =
-    Snippet.sql "SET LOCAL ROLE " <> Snippet.param rlsAuthenticatedRole <> Snippet.sql "; " <>
-    Snippet.sql "SET LOCAL rls.ihp_user_id = " <> actionToSnippet rlsUserId <> Snippet.sql "; "
-{-# INLINE rlsSetupSnippet #-}
-
--- | Convert a postgresql-simple Action to a Snippet
---
--- This is used to convert the RLS user ID action to a snippet.
-actionToSnippet :: PG.Action -> Snippet
-actionToSnippet (PG.Plain builder) = Snippet.sql (cs (toLazyByteString builder))
-actionToSnippet (PG.Escape bs) = Snippet.param (cs bs :: Text)
-actionToSnippet (PG.EscapeByteA bs) = Snippet.param bs
-actionToSnippet (PG.EscapeIdentifier bs) = Snippet.sql ("\"" <> cs bs <> "\"")
-actionToSnippet (PG.Many actions) = mconcat (map actionToSnippet actions)
 
 -- | Build a Snippet from a compiled SQLQuery
 buildSnippet :: SQLQuery -> Snippet

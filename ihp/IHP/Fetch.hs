@@ -114,15 +114,15 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
 commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     trackTableRead (tableNameByteString @model)
-    -- Use hasql when available and not in a transaction
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
-        (Nothing, Just pool) -> do
-            -- Use hasql (not in transaction, pool available)
+    -- Use hasql when available, not in a transaction, and RLS is disabled
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
+        (Nothing, Just pool, Nothing) -> do
+            -- Use hasql (not in transaction, pool available, no RLS)
             let snippet = toSnippet queryBuilder
             let decoder = Decoders.rowList (hasqlRowDecoder @model)
             sqlQueryHasql pool snippet decoder
         _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool)
+            -- Use pg-simple (in transaction OR no hasql pool OR RLS enabled)
             let !(theQuery, theParameters) = queryBuilder |> toSQL
             sqlQuery (Query $ cs theQuery) theParameters
 
@@ -130,16 +130,16 @@ commonFetch !queryBuilder = do
 commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     trackTableRead (tableNameByteString @model)
-    -- Use hasql when available and not in a transaction
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
-        (Nothing, Just pool) -> do
-            -- Use hasql (not in transaction, pool available)
+    -- Use hasql when available, not in a transaction, and RLS is disabled
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
+        (Nothing, Just pool, Nothing) -> do
+            -- Use hasql (not in transaction, pool available, no RLS)
             let limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
             let snippet = buildSnippet limitedQuery
             let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
             sqlQueryHasql pool snippet decoder
         _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool)
+            -- Use pg-simple (in transaction OR no hasql pool OR RLS enabled)
             let !(theQuery, theParameters) = queryBuilder
                     |> buildQuery
                     |> setJust #limitClause "LIMIT 1"
