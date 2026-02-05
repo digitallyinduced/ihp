@@ -94,31 +94,11 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
-    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
-    connectionPool <- Pool.newPool poolConfig
-
-    let trackTableReadCallback = Nothing
-    let transactionConnection = Nothing
-    let rowLevelSecurity = Nothing
-    let hasqlPool = Nothing -- Hasql pool is optional, can be enabled via createModelContextWithHasql
-    pure ModelContext { .. }
-
--- | Creates a ModelContext with hasql pool enabled for better fetch performance
---
--- The hasql pool uses prepared statements which can provide significant performance
--- improvements for read queries. Write operations (create, update, delete) still use
--- postgresql-simple.
---
--- __Example:__
---
--- > modelContext <- createModelContextWithHasql 10 10 databaseUrl logger
-createModelContextWithHasql :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
-createModelContextWithHasql idleTime maxConnections databaseUrl logger = do
     -- Create postgresql-simple pool
     let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
     connectionPool <- Pool.newPool poolConfig
 
-    -- Create hasql pool using the same connection string
+    -- Create hasql pool for better fetch performance with prepared statements
     let hasqlPoolConfig = HasqlPoolConfig.settings
             [ HasqlPoolConfig.size (fromIntegral maxConnections)
             , HasqlPoolConfig.idlenessTimeout (realToFrac idleTime)
