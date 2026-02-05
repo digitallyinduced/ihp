@@ -32,7 +32,7 @@ module IHP.QueryBuilder.Types
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml

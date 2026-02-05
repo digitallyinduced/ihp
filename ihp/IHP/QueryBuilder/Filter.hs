@@ -46,7 +46,6 @@ import IHP.ModelSupport
 import IHP.ModelSupport.Types (Id'(..))
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (negateFilterOperator)
-import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text.Encoding as Text
 import Data.Text (toLower)
 import Hasql.DynamicStatements.Snippet (Snippet)
