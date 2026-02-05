@@ -279,12 +279,11 @@ tests = do
 
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = do
-                            id <- hasqlColumn
-                            ids <- hasqlColumn
-                            electricityUnitPrice <- hasqlColumn
-                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                            <*> pure def
 
 
                     type instance GetModelName (User' ) = "User"
@@ -359,11 +358,10 @@ tests = do
 
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = do
-                            id <- hasqlColumn
-                            ts <- hasqlColumn
-                            let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
+                            <*> pure def
 
 
                     type instance GetModelName (User' ) = "User"
@@ -483,10 +481,11 @@ tests = do
 
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
-                        hasqlRowDecoder = do
-                            id <- hasqlColumn
-                            let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = Generated.ActualTypes.LandingPage
+                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> pure def
+                            <*> pure def
+                            <*> pure def
 
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
@@ -761,12 +760,11 @@ tests = do
 
 
                     instance FromRowHasql Generated.ActualTypes.Post where
-                        hasqlRowDecoder = do
-                            id <- hasqlColumn
-                            title <- hasqlColumn
-                            userId <- hasqlColumn
-                            let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = Generated.ActualTypes.Post
+                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                            <*> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> pure def
 
 
                     type instance GetModelName (Post' ) = "Post"

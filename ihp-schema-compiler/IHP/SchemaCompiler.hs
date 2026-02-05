@@ -311,6 +311,7 @@ defaultImports = [trimming|
     import CorePrelude hiding (id)
     import Data.Time.Clock
     import Data.Time.LocalTime
+    import Data.Time.Format (parseTimeOrError, defaultTimeLocale)
     import qualified Data.Time.Calendar
     import qualified Data.List as List
     import qualified Data.ByteString as ByteString
@@ -337,7 +338,8 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..), HasqlColumn(..))
+    import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText, parseTSVectorText)
+    import qualified Hasql.Decoders as Decoders
 |]
 
 
@@ -840,32 +842,37 @@ instance FromRow #{modelName} where
 --
 -- This is parallel to 'compileFromRowInstance' but generates code for the
 -- hasql decoder instead of postgresql-simple's FromRow.
+-- Uses idiomatic hasql applicative style with explicit inline decoders.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|
 instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = do
-#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
-        pure theRecord
-
+    hasqlRowDecoder = #{modelName}
+#{indent . indent . unlines $ zipWith (<>) (firstOp : repeat nextOp) decoderExprs}
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
-        columnNames = map (columnNameToFieldName . (.name)) columns
-        columnBinding columnName = columnName <> " <- hasqlColumn"
+        firstOp = "<$> "
+        nextOp = "<*> "
+
+        -- Generate decoder expressions for all data fields
+        decoderExprs = map compileFieldDecoder (dataFields table)
 
         referencing = columnsReferencingTable table.name
+        columnNames = map (columnNameToFieldName . (.name)) columns
 
-        compileField (fieldName, _)
-            | isColumn fieldName = fieldName
+        compileFieldDecoder :: (Text, Text) -> Text
+        compileFieldDecoder (fieldName, _)
+            | Just col <- findColumn fieldName = hasqlColumnDecoder col
             | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
-            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
-            | otherwise = "def"
+            | fieldName == "meta" = "pure def"  -- meta field gets default, originalDatabaseRecord set later
+            | otherwise = "pure def"
 
-        isColumn name = name `elem` columnNames
+        findColumn :: Text -> Maybe Column
+        findColumn fieldName = find (\col -> columnNameToFieldName col.name == fieldName) columns
+
         isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
 
-        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
                 primaryKeyField :: Text
                 primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
@@ -889,6 +896,56 @@ instance FromRowHasql #{modelName} where
                         |> \case
                             Just refColumn -> refColumn
                             Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
+
+-- | Generate a hasql decoder expression for a column based on its PostgresType and nullability
+-- | Generate a hasql decoder expression for a column based on its PostgresType and nullability
+-- Note: Generated columns are treated as nullable in the Haskell type (even if notNull=True)
+-- because they're not included in INSERT statements and are computed by the database.
+hasqlColumnDecoder :: Column -> Text
+hasqlColumnDecoder Column { columnType, notNull, generator } =
+    "Decoders.column (" <> nullability <> " " <> decoder <> ")"
+    where
+        -- Match the logic in haskellType: if not notNull OR has a generator, treat as nullable
+        isNullable = not notNull || isJust generator
+        nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
+        decoder = hasqlValueDecoder columnType
+
+-- | Map a PostgresType to its hasql value decoder expression
+hasqlValueDecoder :: PostgresType -> Text
+hasqlValueDecoder = \case
+    PUUID -> "Decoders.uuid"
+    PText -> "Decoders.text"
+    PSmallInt -> "(fromIntegral <$> Decoders.int2)"
+    PInt -> "(fromIntegral <$> Decoders.int4)"
+    PBigInt -> "(fromIntegral <$> Decoders.int8)"
+    PSerial -> "(fromIntegral <$> Decoders.int4)"
+    PBigserial -> "(fromIntegral <$> Decoders.int8)"
+    PBoolean -> "Decoders.bool"
+    PReal -> "Decoders.float4"
+    PDouble -> "Decoders.float8"
+    PTimestampWithTimezone -> "Decoders.timestamptz"
+    PTimestamp -> "Decoders.timestamp"
+    PDate -> "Decoders.date"
+    PTime -> "Decoders.time"
+    (PNumeric _ _) -> "Decoders.numeric"
+    PJSONB -> "Decoders.jsonb"
+    PBinary -> "(Binary <$> Decoders.bytea)"
+    (PVaryingN _) -> "Decoders.text"
+    (PCharacterN _) -> "Decoders.text"
+    (PInterval _) -> "(Decoders.refine (\\t -> Right (parseTimeOrError True defaultTimeLocale \"%H:%M:%S\" (cs t))) Decoders.text)"
+    PPoint -> "(Decoders.refine parsePointText Decoders.bytea)"
+    PPolygon -> "(Decoders.refine parsePolygonText Decoders.bytea)"
+    PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
+    PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
+    PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
+    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum t)) Decoders.text)"
+    PSingleChar -> "Decoders.char"
+    PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
+    PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
+
+-- | For array elements, we need to specify nullability (assuming non-nullable elements)
+hasqlArrayElementDecoder :: PostgresType -> Text
+hasqlArrayElementDecoder innerType = "Decoders.nonNullable " <> hasqlValueDecoder innerType
 
 compileBuild :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileBuild table@(CreateTable { name, columns }) =
