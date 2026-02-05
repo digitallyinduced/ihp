@@ -144,6 +144,37 @@ compileReturningClause :: Renamer -> ColumnTypeInfo -> Snippet
 compileReturningClause renamer columnInfo =
     Snippet.sql " RETURNING " <> compileSelectedColumns renamer columnInfo SelectAll
 
+-- | Build an INSERT statement with RETURNING clause.
+compileInsert :: Text -> [Text] -> [Snippet] -> Renamer -> ColumnTypeInfo -> Snippet
+compileInsert table columns values renamer columnTypes =
+    Snippet.sql "INSERT INTO " <> quoteIdentifier table
+    <> Snippet.sql " (" <> columnSnippet <> Snippet.sql ") VALUES ("
+    <> valueSnippet <> Snippet.sql ")"
+    <> compileReturningClause renamer columnTypes
+  where
+    columnSnippet = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+    valueSnippet = mconcat $ List.intersperse (Snippet.sql ", ") values
+
+-- | Build an INSERT statement for multiple rows with RETURNING clause.
+compileInsertMany :: Text -> [Text] -> [[Snippet]] -> Renamer -> ColumnTypeInfo -> Snippet
+compileInsertMany table columns valueRows renamer columnTypes =
+    Snippet.sql "INSERT INTO " <> quoteIdentifier table
+    <> Snippet.sql " (" <> columnSnippet <> Snippet.sql ") VALUES "
+    <> valuesSnippet
+    <> compileReturningClause renamer columnTypes
+  where
+    columnSnippet = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+    valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") valueRows
+    valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
+
+-- | Build an UPDATE statement with RETURNING clause.
+compileUpdate :: Text -> Snippet -> Snippet -> Renamer -> ColumnTypeInfo -> Snippet
+compileUpdate table setSnippet whereSnippet renamer columnTypes =
+    Snippet.sql "UPDATE " <> quoteIdentifier table
+    <> Snippet.sql " SET " <> setSnippet
+    <> Snippet.sql " WHERE " <> whereSnippet
+    <> compileReturningClause renamer columnTypes
+
 -- | Compile a condition expression to a SQL snippet, using typed parameter encoding when column types are known.
 --
 -- When a condition compares a column to a literal value, the column's type is looked up

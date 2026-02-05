@@ -12,7 +12,7 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.List as List
@@ -46,16 +46,13 @@ instance (
                         |> Aeson.toList
                         |> map (\(key, val) ->
                             let col = fieldNameToColumnName (Aeson.toText key)
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
+                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
                         )
 
                 let columns = map fst pairs
                 let values = map snd pairs
 
-                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") values
-
-                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ")" <> compileReturningClause camelCaseRenamer columnTypes
+                let snippet = compileInsert table columns values camelCaseRenamer columnTypes
 
                 result :: Either SomeException [[Field]] <- Exception.try do
                     sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
@@ -87,15 +84,11 @@ instance (
                                                     |> map (\col ->
                                                         let fieldName = columnNameToFieldName col
                                                             val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
-                                                        in typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val
+                                                        in typedAesonValueToSnippet (lookupColumnType columnTypes col) val
                                                     )
                                                 )
 
-                                    let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                                    let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
-                                    let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
-
-                                    let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> compileReturningClause camelCaseRenamer columnTypes
+                                    let snippet = compileInsertMany table columns values camelCaseRenamer columnTypes
 
                                     result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
                                     renderJson result
@@ -119,13 +112,14 @@ instance (
                 |> Aeson.toList
                 |> map (\(key, val) ->
                     let col = fieldNameToColumnName (Aeson.toText key)
-                    in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes.typeMap) val)
+                    in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
                 )
 
         let setCalls = keyValues
                 |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
         let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
-        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> compileReturningClause camelCaseRenamer columnTypes
+        let whereSnippet = Snippet.sql "id = " <> Snippet.param id
+        let snippet = compileUpdate table setSnippet whereSnippet camelCaseRenamer columnTypes
 
         result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 

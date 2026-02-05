@@ -14,6 +14,7 @@ module IHP.DataSync.TypedEncoder
 , makeCachedColumnTypeLookup
 , typedValueParam
 , typedAesonValueToSnippet
+, lookupColumnType
 ) where
 
 import IHP.Prelude
@@ -150,6 +151,10 @@ encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable
 -- Delegates directly to 'typedValueParam'.
 typedAesonValueToSnippet :: Maybe Text -> Value -> Snippet
 typedAesonValueToSnippet = typedValueParam
+
+-- | Look up a column's type from ColumnTypeInfo.
+lookupColumnType :: ColumnTypeInfo -> Text -> Maybe Text
+lookupColumnType info col = HashMap.lookup col info.typeMap
 
 -- Conversion helpers (from Aeson Value to Haskell types)
 
