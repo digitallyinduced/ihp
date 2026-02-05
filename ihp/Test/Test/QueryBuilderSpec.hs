@@ -11,7 +11,6 @@ import IHP.ModelSupport
 import qualified Database.PostgreSQL.Simple.ToField as ToField
 import Database.PostgreSQL.Simple.ToField (Action (..), ToField (toField))
 import qualified Data.ByteString.Builder as ByteString
-import Data.Int (Int64)
 
 data Post = Post
         { id :: UUID
@@ -111,7 +110,7 @@ instance Table User where
 data FavoriteTitle = FavoriteTitle
     {
         title :: Text,
-        likes :: Int64
+        likes :: Int
     }
 
 type instance GetTableName FavoriteTitle = "favorite_title"
@@ -338,56 +337,56 @@ tests = do
         describe "filterWhereGreaterThan" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereGreaterThan (#likes, 100 :: Int64)
+                        |> filterWhereGreaterThan (#likes, 100 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes > ?", [Plain "<param>"])
 
         describe "filterWhereLarger" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereLarger (#likes, 100 :: Int64)
+                        |> filterWhereLarger (#likes, 100 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes > ?", [Plain "<param>"])
 
         describe "filterWhereGreaterThanOrEqualTo" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereGreaterThanOrEqualTo (#likes, 80 :: Int64)
+                        |> filterWhereGreaterThanOrEqualTo (#likes, 80 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= ?", [Plain "<param>"])
 
         describe "filterWhereAtLeast" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereAtLeast (#likes, 80 :: Int64)
+                        |> filterWhereAtLeast (#likes, 80 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= ?", [Plain "<param>"])
 
         describe "filterWhereLessThan" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereLessThan (#likes, 50 :: Int64)
+                        |> filterWhereLessThan (#likes, 50 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < ?", [Plain "<param>"])
 
         describe "filterWhereSmaller" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereSmaller (#likes, 50 :: Int64)
+                        |> filterWhereSmaller (#likes, 50 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < ?", [Plain "<param>"])
 
         describe "filterWhereLessThanOrEqualTo" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereLessThanOrEqualTo (#likes, 60 :: Int64)
+                        |> filterWhereLessThanOrEqualTo (#likes, 60 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= ?", [Plain "<param>"])
 
         describe "filterWhereAtMost" do
             it "should produce a SQL with a WHERE condition" do
                 let theQuery = query @FavoriteTitle
-                        |> filterWhereAtMost (#likes, 60 :: Int64)
+                        |> filterWhereAtMost (#likes, 60 :: Int)
 
                 (toSQL theQuery) `shouldBe` ("SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= ?", [Plain "<param>"])
 

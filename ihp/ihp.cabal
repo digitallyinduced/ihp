@@ -249,6 +249,7 @@ library
         , IHP.Pagination.Helpers
         , IHP.EnvVar
         , IHP.Hasql.FromRow
+        , IHP.Hasql.Encoder
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
