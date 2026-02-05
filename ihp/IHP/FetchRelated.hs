@@ -12,6 +12,7 @@ module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRe
 
 import IHP.Prelude
 import qualified Database.PostgreSQL.Simple as PG
+import Database.PostgreSQL.Simple.ToField (ToField)
 import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName, Table)
 import IHP.QueryBuilder
 import IHP.Fetch
@@ -75,6 +76,7 @@ instance (
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , ToField (PrimaryKey tableName)
         , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
@@ -127,6 +129,7 @@ instance (
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , ToField (PrimaryKey tableName)
         , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
     collectionFetchRelatedOrNothing :: forall model relatedField. (

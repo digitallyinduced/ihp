@@ -142,7 +142,7 @@ data QueryBuilder (table :: Symbol) =
     NewQueryBuilder { selectFrom :: !ByteString, columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
+    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
     | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
@@ -150,7 +150,10 @@ data QueryBuilder (table :: Symbol) =
     | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
 
 -- | Represents a WHERE condition
-data Condition = VarCondition !ByteString !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+-- Stores templates for both backends: pg-simple template (with IN/NOT IN), hasql template (with = ANY/<> ALL)
+-- Also stores both Action (for postgresql-simple) and Snippet (for hasql)
+data Condition = VarCondition !ByteString !ByteString !Action !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+--                             ^pgTemplate ^hasqlTemplate
 
 -- | Snippet doesn't have Eq/Show instances, so we provide approximate ones for QueryBuilder
 instance Eq Snippet where

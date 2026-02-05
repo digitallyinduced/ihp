@@ -82,13 +82,12 @@ whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet cond
 
 -- | Convert a Condition to a Snippet
 --
--- Since Condition now stores Snippet directly, we just need to substitute
--- the ? placeholder with the snippet parameter.
+-- Uses the hasql-specific template (with = ANY/<> ALL for IN/NOT IN).
 conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (VarCondition template snippet) =
-    -- VarCondition contains a template like "id = ?" and a snippet parameter
-    -- We need to substitute the ? with the actual parameter
-    substituteSnippet template snippet
+conditionToSnippet (VarCondition _ hasqlTemplate _ snippet) =
+    -- VarCondition stores hasql template (e.g., "id = ANY(?)") and a snippet parameter
+    -- We substitute the ? with the actual parameter
+    substituteSnippet hasqlTemplate snippet
 conditionToSnippet (OrCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
 conditionToSnippet (AndCondition a b) =
