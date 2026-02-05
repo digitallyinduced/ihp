@@ -334,7 +334,7 @@ defaultImports = [trimming|
     import Database.PostgreSQL.Simple.Types (Query (Query), Binary ( .. ))
     import qualified Database.PostgreSQL.Simple.Types
     import IHP.Job.Types
-    import IHP.Job.Queue ()
+    import IHP.Job.Queue (textToEnumJobStatus)
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific

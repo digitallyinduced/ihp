@@ -262,6 +262,16 @@ instance InputValue JobStatus where
 instance IHP.Controller.Param.ParamReader JobStatus where
     readParameter = IHP.Controller.Param.enumParamReader
 
+-- | Parses a Text value to a JobStatus. Used by hasql decoders.
+textToEnumJobStatus :: Text -> Maybe JobStatus
+textToEnumJobStatus "job_status_not_started" = Just JobStatusNotStarted
+textToEnumJobStatus "job_status_running" = Just JobStatusRunning
+textToEnumJobStatus "job_status_failed" = Just JobStatusFailed
+textToEnumJobStatus "job_status_timed_out" = Just JobStatusTimedOut
+textToEnumJobStatus "job_status_succeeded" = Just JobStatusSucceeded
+textToEnumJobStatus "job_status_retry" = Just JobStatusRetry
+textToEnumJobStatus _ = Nothing
+
 retryQuery :: BackoffStrategy -> ByteString
 retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"
 retryQuery ExponentialBackoff {} = "updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count)"
