@@ -59,6 +59,14 @@ instance PrimaryKey table ~ UUID => DefaultParamEncoder (Id' table) where
 instance PrimaryKey table ~ UUID => DefaultParamEncoder [Id' table] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
 
+-- | Encode 'Maybe (Id' table)' for nullable foreign keys
+instance PrimaryKey table ~ UUID => DefaultParamEncoder (Maybe (Id' table)) where
+    defaultParam = Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+
+-- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys
+instance PrimaryKey table ~ UUID => DefaultParamEncoder [Maybe (Id' table)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+
 -- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
 -- Used for composite primary keys with two UUID columns
 instance DefaultParamEncoder (UUID, UUID) where
