@@ -49,6 +49,7 @@ ihpFlake:
                         p.text
                         p.hlint
                         p.ihp
+                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
                     ];
                 };
 
