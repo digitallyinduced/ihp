@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-|
 Module: IHP.Hasql.Encoder
@@ -21,6 +22,8 @@ import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import Data.Functor.Contravariant (contramap)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
+import Data.UUID (UUID)
 
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
@@ -45,3 +48,8 @@ instance DefaultParamEncoder [Maybe Int] where
 -- | Encode 'Vector Int' as PostgreSQL int8[] (bigint array)
 instance DefaultParamEncoder (Vector Int) where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8)
+
+-- | Encode 'Id' table' for tables with UUID primary keys
+-- This covers the common case in IHP where most tables use UUID as the primary key.
+instance PrimaryKey table ~ UUID => DefaultParamEncoder (Id' table) where
+    defaultParam = Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)

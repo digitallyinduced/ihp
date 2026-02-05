@@ -205,6 +205,14 @@ tests = do
                             pure theRecord
 
 
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                            <*> pure def
+
+
                     type instance GetModelName (User' ) = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -280,7 +288,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.ActualTypes.User
-                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
                             <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
                             <*> Decoders.column (Decoders.nonNullable Decoders.float8)
                             <*> pure def
@@ -359,7 +367,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.ActualTypes.User
-                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
                             <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
                             <*> pure def
 
@@ -482,7 +490,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
                         hasqlRowDecoder = Generated.ActualTypes.LandingPage
-                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
                             <*> pure def
                             <*> pure def
                             <*> pure def
@@ -761,9 +769,9 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.Post where
                         hasqlRowDecoder = Generated.ActualTypes.Post
-                            <$> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
                             <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                            <*> Decoders.column (Decoders.nonNullable Decoders.uuid)
+                            <*> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
                             <*> pure def
 
 

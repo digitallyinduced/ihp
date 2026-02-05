@@ -844,10 +844,10 @@ instance FromRow #{modelName} where
 -- hasql decoder instead of postgresql-simple's FromRow.
 -- Uses idiomatic hasql applicative style with explicit inline decoders.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|
-instance FromRowHasql #{modelName} where
+compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
     hasqlRowDecoder = #{modelName}
-#{indent . indent . unlines $ zipWith (<>) (firstOp : repeat nextOp) decoderExprs}
+#{unsafeInit . indent . indent . unlines $ zipWith (<>) (firstOp : repeat nextOp) decoderExprs}
+
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
@@ -862,7 +862,7 @@ instance FromRowHasql #{modelName} where
 
         compileFieldDecoder :: (Text, Text) -> Text
         compileFieldDecoder (fieldName, _)
-            | Just col <- findColumn fieldName = hasqlColumnDecoder col
+            | Just col <- findColumn fieldName = hasqlColumnDecoder table col
             | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
             | fieldName == "meta" = "pure def"  -- meta field gets default, originalDatabaseRecord set later
             | otherwise = "pure def"
@@ -898,17 +898,24 @@ instance FromRowHasql #{modelName} where
                             Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
 -- | Generate a hasql decoder expression for a column based on its PostgresType and nullability
--- | Generate a hasql decoder expression for a column based on its PostgresType and nullability
 -- Note: Generated columns are treated as nullable in the Haskell type (even if notNull=True)
 -- because they're not included in INSERT statements and are computed by the database.
-hasqlColumnDecoder :: Column -> Text
-hasqlColumnDecoder Column { columnType, notNull, generator } =
+-- Primary key and foreign key columns are wrapped with Id.
+hasqlColumnDecoder :: (?schema :: Schema) => CreateTable -> Column -> Text
+hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } =
     "Decoders.column (" <> nullability <> " " <> decoder <> ")"
     where
         -- Match the logic in haskellType: if not notNull OR has a generator, treat as nullable
         isNullable = not notNull || isJust generator
         nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
-        decoder = hasqlValueDecoder columnType
+
+        -- Check if this column should be wrapped with Id
+        isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
+        isForeignKey = isJust (findForeignKeyConstraint table column)
+        needsIdWrapper = isPrimaryKey || isForeignKey
+
+        baseDecoder = hasqlValueDecoder columnType
+        decoder = if needsIdWrapper then "(Id <$> " <> baseDecoder <> ")" else baseDecoder
 
 -- | Map a PostgresType to its hasql value decoder expression
 hasqlValueDecoder :: PostgresType -> Text
