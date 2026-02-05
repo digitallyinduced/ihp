@@ -22,6 +22,9 @@ import qualified IHP.PGListener as PGListener
 import qualified IHP.Log as Log
 import Control.Monad.Trans.Resource
 import IHP.Hasql.FromRow (FromRowHasql)
+import qualified Hasql.Encoders as Encoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import Data.Functor.Contravariant (contramap)
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -271,6 +274,10 @@ textToEnumJobStatus "job_status_timed_out" = Just JobStatusTimedOut
 textToEnumJobStatus "job_status_succeeded" = Just JobStatusSucceeded
 textToEnumJobStatus "job_status_retry" = Just JobStatusRetry
 textToEnumJobStatus _ = Nothing
+
+-- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
+instance DefaultParamEncoder JobStatus where
+    defaultParam = Encoders.nonNullable (contramap inputValue Encoders.text)
 
 retryQuery :: BackoffStrategy -> ByteString
 retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"

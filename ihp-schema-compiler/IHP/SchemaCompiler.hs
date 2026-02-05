@@ -340,6 +340,9 @@ defaultImports = [trimming|
     import Data.Scientific
     import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText, parseTSVectorText)
     import qualified Hasql.Decoders as Decoders
+    import qualified Hasql.Encoders
+    import qualified Hasql.Implicits.Encoders
+    import qualified Data.Functor.Contravariant
 |]
 
 
@@ -591,6 +594,9 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "textToEnum" <> modelName <> " :: Text -> Maybe " <> modelName <> "\n"
         <> unlines (map compileTextToEnumCase values)
         <> "textToEnum" <> modelName <> " _ = Nothing\n"
+        -- DefaultParamEncoder for hasql queries
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values

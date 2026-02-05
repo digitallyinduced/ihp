@@ -46,6 +46,8 @@ tests = do
                     textToEnumMood "sad" = Just Sad
                     textToEnumMood "very sad" = Just VerySad
                     textToEnumMood _ = Nothing
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -113,6 +115,8 @@ tests = do
                     textToEnumProvince "PrinceEdwardIsland" = Just Princeedwardisland
                     textToEnumProvince "NewfoundlandAndLabrador" = Just Newfoundlandandlabrador
                     textToEnumProvince _ = Nothing
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -139,6 +143,8 @@ tests = do
                     textToEnumPropertyType "APARTMENT" = Just PropertyTypeApartment
                     textToEnumPropertyType "HOUSE" = Just House
                     textToEnumPropertyType _ = Nothing
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
