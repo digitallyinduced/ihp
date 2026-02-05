@@ -74,6 +74,7 @@ library
         , ip
         , scientific
         , string-conversions
+        , hasql
     exposed-modules:
 CABAL_EOF
 
@@ -116,7 +117,7 @@ CABAL_EOF
     # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
     # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
     modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions }: mkDerivation {
+        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions, hasql }: mkDerivation {
             pname = "${appName}-models";
             version = "0.1.0";
             src = modelsPackageSrc;
@@ -135,6 +136,7 @@ CABAL_EOF
                 ip
                 scientific
                 string-conversions
+                hasql
             ];
             license = pkgs.lib.licenses.free;
         }) {}
