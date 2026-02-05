@@ -325,14 +325,14 @@ tests = do
                 let theQuery = query @Post
                         |> filterWherePast #createdAt
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain ""])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "<= NOW()"])
 
         describe "filterWhereFuture" do
             it "should produce a SQL with the correct WHERE condition" do
                 let theQuery = query @Post
                         |> filterWhereFuture #createdAt
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain ""])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "> NOW()"])
 
         describe "filterWhereGreaterThan" do
             it "should produce a SQL with a WHERE condition" do
@@ -396,7 +396,7 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereSql (#createdAt, "< current_timestamp - interval '1 day'")
 
-                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain ""])
+                (toSQL theQuery) `shouldBe` ("SELECT posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id FROM posts WHERE posts.created_at  ?", [Plain "< current_timestamp - interval '1 day'"])
 
         describe "filterWhereCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
