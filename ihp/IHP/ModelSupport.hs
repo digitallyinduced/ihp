@@ -379,13 +379,26 @@ withDatabaseConnection block =
 --
 -- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
 --
-sqlQueryHasql :: HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
+sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
 sqlQueryHasql pool snippet decoder = do
-    let session = Hasql.statement () $ Snippet.dynamicallyParameterized snippet decoder True
-    result <- HasqlPool.use pool session
-    case result of
-        Left err -> throwIO (HasqlError err)
-        Right a -> pure a
+    let ?context = ?modelContext
+    let currentLogLevel = ?modelContext.logger.level
+    let statement = Snippet.dynamicallyParameterized snippet decoder True
+    let runQuery = do
+            let session = Hasql.statement () statement
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right a -> pure a
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            runQuery `finally` do
+                end <- getCurrentTime
+                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let Hasql.Statement sqlText _ _ _ = statement
+                Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+        else runQuery
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Exception type for hasql errors
