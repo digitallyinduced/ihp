@@ -17,6 +17,8 @@ module IHP.Hasql.FromRow
 , parsePointText
 , parsePolygonText
 , parseTSVectorText
+-- Re-export Hasql.Decoders for generated Types.hs (so apps don't need hasql as direct dependency)
+, module Decoders
 ) where
 
 import IHP.Prelude
