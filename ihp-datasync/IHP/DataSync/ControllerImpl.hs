@@ -22,7 +22,7 @@ import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
@@ -113,7 +113,7 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeMap) -> IO (DataSyncMessage -> IO ())
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
 buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
     pure (handleMessage getRLSColumns)
@@ -126,8 +126,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 columnTypes <- columnTypeLookup query.table
                 let theSnippet = compileQueryTyped (renamer query.table) columnTypes query
 
-                rawResult :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery theSnippet) dynamicRowDecoder
-                let result = map (map (renameField (renamer query.table))) rawResult
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery theSnippet) dynamicRowDecoder
 
                 sendJSON DataSyncResult { result, requestId }
 
@@ -147,8 +146,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 columnTypes <- columnTypeLookup query.table
                 let theSnippet = compileQueryTyped (renamer query.table) columnTypes query
 
-                rawResult :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
-                let result = map (map (renameField (renamer query.table))) rawResult
+                result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
 
                 let tableName = query.table
 
@@ -164,7 +162,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 -- We need to keep track of all the ids of entities we're watching to make
                 -- sure that we only send update notifications to clients that can actually
                 -- access the record (e.g. if a RLS policy denies access)
-                let watchedRecordIds = recordIds rawResult
+                let watchedRecordIds = recordIds result
 
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
@@ -186,12 +184,11 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT * FROM (" <> theSnippet <> Snippet.sql ") AS records WHERE records.id = " <> Snippet.param id <> Snippet.sql " LIMIT 1")) dynamicRowDecoder
 
                                 case headMay newRecord of
-                                    Just rawRecord -> do
+                                    Just record -> do
                                         -- Add the new record to 'watchedRecordIdsRef'
                                         -- Otherwise the updates and deletes will not be dispatched to the client
                                         modifyIORef' watchedRecordIdsRef (Set.insert id)
 
-                                        let record = map (renameField (renamer tableName)) rawRecord
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
                             ChangeNotifications.DidUpdate { id, changeSet } -> do
@@ -308,22 +305,18 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
                         )
 
-                let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map (quoteIdentifier . fst) pairs)
-                let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map snd pairs)
-
-                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
+                let columns = map fst pairs
+                let values = map snd pairs
+                let snippet = compileInsert table columns values (renamer table) columnTypes
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
-                    [rawRecord] ->
-                        let
-                            record = map (renameField (renamer table)) rawRecord
-                        in
-                            sendJSON DidCreateRecord { requestId, record }
+                    [record] ->
+                        sendJSON DidCreateRecord { requestId, record }
                     otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Unexpected result in CreateRecordMessage handler" }
 
                 pure ()
@@ -344,18 +337,13 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                         zip fieldNames columns
                                         |> map (\(fieldName, col) ->
                                             let val = fromMaybe Aeson.Null (HashMap.lookup fieldName object)
-                                            in typedAesonValueToSnippet (HashMap.lookup col columnTypes) val
+                                            in typedAesonValueToSnippet (lookupColumnType columnTypes col) val
                                         )
                                     )
 
-                        let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
-                        let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
-                        let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
+                        let snippet = compileInsertMany table columns values (renamer table) columnTypes
 
-                        let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
-
-                        rawRecords :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
-                        let records = map (map (renameField (renamer table))) rawRecords
+                        records :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                         sendJSON DidCreateRecords { requestId, records }
 
@@ -370,22 +358,20 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
                         )
 
                 let setCalls = keyValues
                         |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
                 let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
-                let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
+                let whereSnippet = Snippet.sql "id = " <> Snippet.param id
+                let snippet = compileUpdate table setSnippet whereSnippet (renamer table) columnTypes
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 case result of
-                    [rawRecord] ->
-                        let
-                            record = map (renameField (renamer table)) rawRecord
-                        in
-                            sendJSON DidUpdateRecord { requestId, record }
+                    [record] ->
+                        sendJSON DidUpdateRecord { requestId, record }
                     otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation." }
 
                 pure ()
@@ -399,7 +385,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         |> HashMap.toList
                         |> map (\(fieldName, val) ->
                             let col = (renamer table).fieldToColumn fieldName
-                            in (col, typedAesonValueToSnippet (HashMap.lookup col columnTypes) val)
+                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
                         )
 
                 let setCalls = keyValues
@@ -407,10 +393,10 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
                 let idSnippets = map Snippet.param ids
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") idSnippets
-                let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id IN (" <> inList <> Snippet.sql ") RETURNING *"
+                let whereSnippet = Snippet.sql "id IN (" <> inList <> Snippet.sql ")"
+                let snippet = compileUpdate table setSnippet whereSnippet (renamer table) columnTypes
 
-                rawRecords <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
-                let records = map (map (renameField (renamer table))) rawRecords
+                records <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId (wrapDynamicQuery snippet) dynamicRowDecoder
 
                 sendJSON DidUpdateRecords { requestId, records }
 
