@@ -40,6 +40,12 @@ tests = do
                         inputValue VerySad = "very sad" :: Text
                     instance DeepSeq.NFData Mood where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumMood :: Text -> Maybe Mood
+                    textToEnumMood "happy" = Just Happy
+                    textToEnumMood "very happy" = Just VeryHappy
+                    textToEnumMood "sad" = Just Sad
+                    textToEnumMood "very sad" = Just VerySad
+                    textToEnumMood _ = Nothing
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -95,6 +101,18 @@ tests = do
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
                     instance DeepSeq.NFData Province where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumProvince :: Text -> Maybe Province
+                    textToEnumProvince "Alberta" = Just Alberta
+                    textToEnumProvince "BritishColumbia" = Just Britishcolumbia
+                    textToEnumProvince "Saskatchewan" = Just Saskatchewan
+                    textToEnumProvince "Manitoba" = Just Manitoba
+                    textToEnumProvince "Ontario" = Just Ontario
+                    textToEnumProvince "Quebec" = Just Quebec
+                    textToEnumProvince "NovaScotia" = Just Novascotia
+                    textToEnumProvince "NewBrunswick" = Just Newbrunswick
+                    textToEnumProvince "PrinceEdwardIsland" = Just Princeedwardisland
+                    textToEnumProvince "NewfoundlandAndLabrador" = Just Newfoundlandandlabrador
+                    textToEnumProvince _ = Nothing
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -117,6 +135,10 @@ tests = do
                         inputValue House = "HOUSE" :: Text
                     instance DeepSeq.NFData PropertyType where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumPropertyType :: Text -> Maybe PropertyType
+                    textToEnumPropertyType "APARTMENT" = Just PropertyTypeApartment
+                    textToEnumPropertyType "HOUSE" = Just House
+                    textToEnumPropertyType _ = Nothing
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
