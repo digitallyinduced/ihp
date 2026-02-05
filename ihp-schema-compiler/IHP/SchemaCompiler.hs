@@ -370,6 +370,9 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Data.String.Conversions
             import qualified Data.Text.Encoding
             import qualified Control.DeepSeq as DeepSeq
+            import qualified Hasql.Encoders
+            import qualified Hasql.Implicits.Encoders
+            import qualified Data.Functor.Contravariant
         |]
 
 compilePrimaryKeysModule :: (?compilerOptions :: CompilerOptions) => Schema -> Text
