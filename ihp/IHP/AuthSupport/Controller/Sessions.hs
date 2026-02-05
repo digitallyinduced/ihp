@@ -21,6 +21,7 @@ import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
 import Wai.Request.Params.Middleware (Respond)
 import qualified Network.Wai
+import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Displays the login form.
 --
@@ -71,6 +72,7 @@ createSessionAction :: forall record action.
     , Show (PrimaryKey (GetTableName record))
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
+    , FromRowHasql record
     ) => IO ()
 createSessionAction = do
     usersQueryBuilder
@@ -156,6 +158,7 @@ class ( Typeable record
     , HasNewSessionUrl record
     , KnownSymbol (GetTableName record)
     , FromRow record
+    , FromRowHasql record
     ) => SessionsControllerConfig record where
 
     -- | Your home page, where the user is redirect after login, by default it's @/@

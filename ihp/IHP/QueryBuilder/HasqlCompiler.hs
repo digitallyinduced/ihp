@@ -15,11 +15,15 @@ Snippet values instead of (ByteString, [Action]) tuples.
 module IHP.QueryBuilder.HasqlCompiler
 ( toSnippet
 , buildSnippet
+, snippetToSQL
 ) where
 
 import IHP.Prelude
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Statement as DynStatement
+import Hasql.Statement (Statement(..))
+import qualified Hasql.Decoders as Decoders
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.ByteString as BS
@@ -111,3 +115,11 @@ orderBySnippet clauses = Snippet.sql " ORDER BY " <> mconcat (List.intersperse (
         orderByClauseToSnippet OrderByClause { orderByColumn, orderByDirection } =
             Snippet.sql orderByColumn <> (if orderByDirection == Desc then Snippet.sql " DESC" else mempty)
 {-# INLINE orderBySnippet #-}
+
+-- | Extract the SQL ByteString from a Snippet (for testing purposes)
+--
+-- This converts a Snippet to a Statement and extracts the SQL text.
+-- Useful for verifying the hasql compilation path in tests.
+snippetToSQL :: Snippet -> ByteString
+snippetToSQL snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
+    Statement sql _ _ _ -> sql
