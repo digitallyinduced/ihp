@@ -221,24 +221,21 @@ tests = do
                             |> filterWhereIdIn theValues
 
                     (toSQL theQuery) `shouldBe` ("SELECT weird_tags.tag_iden, weird_tags.tag_text FROM weird_tags WHERE weird_tags.tag_iden IN ?", [Many [Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")"]])
-            -- Composite key tests are disabled because hasql doesn't have DefaultParamEncoder
-            -- instances for tuple types like (UUID, UUID). Composite key support with filterWhereIdIn
-            -- requires custom instances or a different approach.
-            -- describe "with composite keys" do
-            --     it "should produce a SQL with a WHERE condition" do
-            --         let theValues :: [Id CompositeTagging] = [Id ("b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"), Id ("8e2ef0ef-f680-4fcf-837d-7e3171385621", "95096f81-8ca6-407f-a263-cbc33546a828")]
-            --         let theQuery = query @CompositeTagging
-            --                 |> filterWhereIdIn theValues
-            --
-            --         (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "'8e2ef0ef-f680-4fcf-837d-7e3171385621'", Plain ",", Plain "'95096f81-8ca6-407f-a263-cbc33546a828'", Plain ")"], Plain ")"]])
-            --
-            --     describe "with empty values" do
-            --         it "should produce a SQL with a WHERE condition" do
-            --             let theValues :: [Id CompositeTagging] = []
-            --             let theQuery = query @CompositeTagging
-            --                     |> filterWhereIdIn theValues
-            --
-            --             (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Plain "(null)"])
+            describe "with composite keys" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id CompositeTagging] = [Id ("b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"), Id ("8e2ef0ef-f680-4fcf-837d-7e3171385621", "95096f81-8ca6-407f-a263-cbc33546a828")]
+                    let theQuery = query @CompositeTagging
+                            |> filterWhereIdIn theValues
+
+                    (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Many [Plain "(", Many [ Plain "(", Plain "'b80e37a8-41d4-4731-b050-a716879ef1d1'", Plain ",", Plain "'629b7ee0-3675-4b02-ba3e-cdbd7b513553'", Plain ")" ], Plain ",", Many [ Plain "(", Plain "'8e2ef0ef-f680-4fcf-837d-7e3171385621'", Plain ",", Plain "'95096f81-8ca6-407f-a263-cbc33546a828'", Plain ")"], Plain ")"]])
+
+                describe "with empty values" do
+                    it "should produce a SQL with a WHERE condition" do
+                        let theValues :: [Id CompositeTagging] = []
+                        let theQuery = query @CompositeTagging
+                                |> filterWhereIdIn theValues
+
+                        (toSQL theQuery) `shouldBe` ("SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) IN ?", [Plain "(null)"])
 
 
         describe "filterWhereInJoinedTable" do

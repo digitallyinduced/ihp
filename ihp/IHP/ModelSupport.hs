@@ -213,6 +213,12 @@ instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
     toField = toField . unpackId
 
+-- | ToField instance for composite primary keys (tuples of two Id' types)
+-- Used by filterWhereIdIn for tables with composite primary keys
+instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
+    {-# INLINE toField #-}
+    toField (a, b) = PG.Many [PG.Plain "(", toField a, PG.Plain ",", toField b, PG.Plain ")"]
+
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . unpackId

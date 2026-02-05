@@ -19,7 +19,7 @@ import Prelude
 import Data.Int (Int64)
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
+import Data.Functor.Contravariant (contramap, (>$<))
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
@@ -53,3 +53,36 @@ instance DefaultParamEncoder (Vector Int) where
 -- This covers the common case in IHP where most tables use UUID as the primary key.
 instance PrimaryKey table ~ UUID => DefaultParamEncoder (Id' table) where
     defaultParam = Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+
+-- | Encode list of 'Id' table' for tables with UUID primary keys
+-- Used by filterWhereIdIn for simple primary keys
+instance PrimaryKey table ~ UUID => DefaultParamEncoder [Id' table] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+
+-- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
+-- Used for composite primary keys with two UUID columns
+instance DefaultParamEncoder (UUID, UUID) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite $
+        (fst >$< Encoders.field (Encoders.nonNullable Encoders.uuid)) <>
+        (snd >$< Encoders.field (Encoders.nonNullable Encoders.uuid))
+
+-- | Encode '[(UUID, UUID)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with composite primary keys of two UUIDs
+instance DefaultParamEncoder [(UUID, UUID)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite $
+        (fst >$< Encoders.field (Encoders.nonNullable Encoders.uuid)) <>
+        (snd >$< Encoders.field (Encoders.nonNullable Encoders.uuid))
+
+-- | Encode '(Id' a, Id' b)' as PostgreSQL composite/record type
+-- Used for composite primary keys with two Id columns (where both resolve to UUID)
+instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder (Id' a, Id' b) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite $
+        ((\(Id uuid) -> uuid) . fst >$< Encoders.field (Encoders.nonNullable Encoders.uuid)) <>
+        ((\(Id uuid) -> uuid) . snd >$< Encoders.field (Encoders.nonNullable Encoders.uuid))
+
+-- | Encode '[(Id' a, Id' b)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with composite primary keys of two Id columns
+instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder [(Id' a, Id' b)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite $
+        ((\(Id uuid) -> uuid) . fst >$< Encoders.field (Encoders.nonNullable Encoders.uuid)) <>
+        ((\(Id uuid) -> uuid) . snd >$< Encoders.field (Encoders.nonNullable Encoders.uuid))
