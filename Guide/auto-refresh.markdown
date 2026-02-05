@@ -68,6 +68,24 @@ action MyAction = do -- <-- We don't enable auto refresh at the action start in 
 
 ### Fine-grained Auto Refresh (experimental)
 
+By default `autoRefresh` works on the table level: **any** `INSERT`, `UPDATE` or `DELETE` on a tracked table will wake the
+auto refresh session and trigger a server-side re-render.
+
+This is great for simple pages, but it can become expensive when:
+
+- You have many concurrent auto refresh sessions (many open tabs / users)
+- You track a high-churn table (e.g. background jobs, logs, metrics, audit events)
+- Only a small subset of rows can actually affect the rendered HTML (e.g. scoped by `projectId`, `userId`, foreign keys, etc.)
+
+In those cases you can use `autoRefreshWith` and decide, based on the changed rows, whether the page should re-render.
+This can significantly reduce unnecessary re-renders and make auto refresh scale better under write-heavy workloads.
+
+`autoRefreshWith` uses row-level notifications and provides helpers like `changesForTable`, `rowFieldNew`, and
+`rowFieldOld`. For updates and deletes the payload includes both the old and the new row data, so you can decide based on
+what changed.
+
+The change information is only used on the server to decide whether to re-render. It is **not** sent to the browser.
+
 If you want row-level filtering, you can decide on refreshes based on row JSON:
 
 ```haskell
@@ -76,14 +94,11 @@ action ShowProjectAction { projectId } =
         project <- fetch projectId
         render ShowView { .. }
   where
-    shouldRefresh ShowProjectAction { projectId } changes =
+    shouldRefresh changes =
         let projectChanges = changesForTable "projects" changes
-            isTarget change = rowField @"id" change == Just projectId
+            isTarget change = rowFieldNew @"id" change == Just projectId || rowFieldOld @"id" change == Just projectId
         in pure (any isTarget projectChanges)
 ```
-
-This uses row-level notifications and provides helpers like `changesForTable`, `rowField`, `rowFieldNew`, and `rowFieldOld`.
-For updates and deletes the payload includes both the old and the new row data, so you can decide based on what changed.
 
 If you want to access JSON fields by column name directly, use `rowFieldByColumnName "user_id"`.
 
@@ -100,9 +115,9 @@ action ProjectsAction { userId } =
         projects <- query @Project |> filterWhere (#userId, userId) |> fetch
         render ProjectsView { .. }
   where
-    shouldRefresh ProjectsAction { userId } changes =
+    shouldRefresh changes =
         let changedProjects = changesForTable "projects" changes
-            belongsToUser change = rowField @"userId" change == Just userId
+            belongsToUser change = rowFieldNew @"userId" change == Just userId || rowFieldOld @"userId" change == Just userId
         in pure (any belongsToUser changedProjects)
 ```
 
@@ -116,10 +131,10 @@ action DashboardAction { projectId, userId } =
         comments <- query @Comment |> filterWhere (#projectId, projectId) |> fetch
         render DashboardView { .. }
   where
-    shouldRefresh DashboardAction { projectId, userId } changes =
-        let projectMatches = any (\change -> rowField @"id" change == Just projectId) (changesForTable "projects" changes)
-            taskMatches = any (\change -> rowField @"projectId" change == Just projectId) (changesForTable "tasks" changes)
-            commentMatches = any (\change -> rowField @"projectId" change == Just projectId) (changesForTable "comments" changes)
+    shouldRefresh changes =
+        let projectMatches = any (\change -> rowFieldNew @"id" change == Just projectId || rowFieldOld @"id" change == Just projectId) (changesForTable "projects" changes)
+            taskMatches = any (\change -> rowFieldNew @"projectId" change == Just projectId || rowFieldOld @"projectId" change == Just projectId) (changesForTable "tasks" changes)
+            commentMatches = any (\change -> rowFieldNew @"projectId" change == Just projectId || rowFieldOld @"projectId" change == Just projectId) (changesForTable "comments" changes)
         in pure (projectMatches || taskMatches || commentMatches)
 ```
 
@@ -128,9 +143,16 @@ Deletes are passed to `shouldRefresh` like any other change, so you can decide w
 If you want to check across all tables without filtering by table name:
 
 ```haskell
-shouldRefresh MyAction { userId } changes =
-    pure (anyChangeWithField @"userId" userId changes)
+action MyAction { userId } =
+    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
+        -- ...
+        render MyView { .. }
+  where
+    shouldRefresh changes =
+        pure (anyChangeWithField @"userId" userId changes)
 ```
+
+Tip: Keep `shouldRefresh` fast and avoid extra SQL queries inside it whenever possible.
 
 ### Custom SQL Queries with Auto Refresh
 
@@ -158,4 +180,3 @@ action StatsAction = autoRefresh do
 ```
 
 The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.
-

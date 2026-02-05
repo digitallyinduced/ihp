@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeApplications #-}
 {-|
 Module: IHP.AutoRefresh
 Description: Provides automatically diff-based refreshing views after page load
@@ -7,41 +7,42 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.AutoRefresh where
 
-import qualified Control.Concurrent.MVar          as MVar
-import qualified Control.Exception                as Exception
-import           Control.Monad                    (void)
-import qualified Data.Aeson                       as Aeson
-import qualified Data.Binary.Builder              as ByteString
-import qualified Data.ByteString.Char8            as B8
-import qualified Data.List.NonEmpty               as NonEmpty
-import qualified Data.Set                         as Set
-import           Data.String.Interpolate.IsString
-import qualified Data.Text                        as Text
-import qualified Data.UUID                        as UUID
-import qualified Data.UUID.V4                     as UUID
-import qualified Data.Vault.Lazy                  as Vault
+import Control.Monad (void)
+import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Exception as Exception
+import qualified Data.Aeson as Aeson
+import qualified Data.Binary.Builder as ByteString
+import qualified Data.Set as Set
+import Data.String.Interpolate.IsString
+import qualified Data.Text as Text
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+import qualified Data.Vault.Lazy as Vault
 import qualified Database.PostgreSQL.Simple.Types as PG
-import           IHP.AutoRefresh.Types
-import           IHP.Controller.Context
-import           IHP.Controller.Response
-import           IHP.Controller.Session
-import           IHP.ControllerSupport
-import qualified IHP.Log                          as Log
-import           IHP.ModelSupport
-import qualified IHP.PGListener                   as PGListener
-import           IHP.Prelude
-import           IHP.WebSocket
-import           Network.Wai
-import qualified Network.Wai.Internal             as Wai
-import           System.IO.Unsafe                 (unsafePerformIO)
-import qualified System.Timeout                   as Timeout
+import IHP.AutoRefresh.Types
+import IHP.Controller.Context
+import IHP.Controller.Response
+import IHP.Controller.Session
+import IHP.ControllerSupport
+import IHP.ModelSupport
+import qualified IHP.PGListener as PGListener
+import IHP.Prelude
+import IHP.WebSocket
+import Network.Wai
+import qualified Network.Wai.Internal as Wai
+import System.IO.Unsafe (unsafePerformIO)
 
 initAutoRefresh :: (?context :: ControllerContext) => IO ()
 initAutoRefresh = do
     putContext AutoRefreshDisabled
 
+-- | Options for fine-grained auto refresh via 'autoRefreshWith'.
+--
+-- The callback should be fast and ideally avoid additional SQL queries. It runs on the server and decides whether a
+-- received batch of row changes should trigger a re-render.
 data AutoRefreshOptions = AutoRefreshOptions
     { shouldRefresh :: AutoRefreshChangeSet -> IO Bool
+    -- ^ Return @True@ to re-render for the given batch of changes
     }
 
 autoRefresh :: (
@@ -54,13 +55,16 @@ autoRefresh :: (
 autoRefresh runAction =
     autoRefreshInternal AutoRefreshStatementConfig runAction
 
+-- | Like 'autoRefresh', but lets you decide (based on the changed rows) whether a refresh should re-render the page.
+--
+-- This is useful for pages that track high-churn tables but only care about a subset of rows (e.g. based on foreign keys
+-- or current user id).
 autoRefreshWith :: forall action. (
     ?theAction :: action
     , Controller action
     , ?modelContext :: ModelContext
     , ?context :: ControllerContext
     , ?request :: Request
-    , ?respond :: Respond
     ) => AutoRefreshOptions -> ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefreshWith options runAction =
     autoRefreshInternal (AutoRefreshRowConfig options) runAction
@@ -163,10 +167,10 @@ buildSession config id renderView tables lastResponse lastPing = do
         AutoRefreshStatementConfig ->
             pure AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
         AutoRefreshRowConfig options -> do
-            pendingChanges <- newIORef mempty
+            pendingChanges <- newIORef (Just mempty)
             pure AutoRefreshSessionWithChanges { id, renderView, event, tables, lastResponse, lastPing, pendingChanges, shouldRefresh = options.shouldRefresh }
 
-registerTriggers :: AutoRefreshConfig -> IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerTriggers :: (?modelContext :: ModelContext) => AutoRefreshConfig -> IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerTriggers config touchedTables autoRefreshServer = case config of
     AutoRefreshStatementConfig -> registerNotificationTrigger touchedTables autoRefreshServer
     AutoRefreshRowConfig {} -> registerRowNotificationTrigger touchedTables autoRefreshServer
@@ -192,8 +196,6 @@ instance WSApp AutoRefreshWSApp where
                         Wai.ResponseBuilder status headers builder -> do
                             let html = ByteString.toLazyByteString builder
 
-                            Log.info ("AutoRefresh: inner = " <> show (status, headers, builder) <> " END")
-
                             when (html /= lastResponse session) do
                                 sendTextData html
                                 updateSession autoRefreshServer sessionId (\currentSession -> currentSession { lastResponse = html })
@@ -215,9 +217,12 @@ instance WSApp AutoRefreshWSApp where
                     AutoRefreshSessionWithChanges { event, pendingChanges, shouldRefresh } ->
                         async $ forever do
                             MVar.takeMVar event
-                            changes <- atomicModifyIORef' pendingChanges (\current -> (mempty, current))
-                            shouldRender <- shouldRefresh changes
-                            when shouldRender onRender
+                            pending <- atomicModifyIORef' pendingChanges (\current -> (Just mempty, current))
+                            case pending of
+                                Nothing -> onRender
+                                Just changes -> do
+                                    shouldRender <- shouldRefresh changes
+                                    when shouldRender onRender
                             pure ()
 
                 pure ()
@@ -258,14 +263,14 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
             void (sqlExec createTriggerSql ())
 
         pgListener |> PGListener.subscribe (channelName table) \_notification -> do
-                sessions <- (.sessions) <$> readIORef autoRefreshServer
-                sessions
-                    |> mapMaybe (\session -> case session of
-                        AutoRefreshSession { tables, event } | table `Set.member` tables -> Just event
-                        AutoRefreshSession {} -> Nothing
-                        AutoRefreshSessionWithChanges {} -> Nothing)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
-                pure ())
+            sessions <- (.sessions) <$> readIORef autoRefreshServer
+            sessions
+                |> mapMaybe (\session -> case session of
+                    AutoRefreshSession { tables, event } | table `Set.member` tables -> Just event
+                    AutoRefreshSession {} -> Nothing
+                    AutoRefreshSessionWithChanges {} -> Nothing)
+                |> mapM (\event -> MVar.tryPutMVar event ())
+            pure ())
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
 
@@ -280,36 +285,33 @@ registerRowNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
     subscriptionBatches <- subscriptionRequired |> mapM (\table -> do
-        primaryKeyColumns <- fetchPrimaryKeyColumns table
-        case NonEmpty.nonEmpty primaryKeyColumns of
-            Nothing -> do
-                -- Row-level updates need a stable identifier to de-duplicate and coalesce changes.
-                -- We skip tables without primary keys to avoid emitting ambiguous notifications.
-                let ?context = ?modelContext
-                Log.warn ("AutoRefresh: skipping row trigger for table without primary key: " <> cs table)
-                pure []
-            Just columns -> do
-                let createTriggerSql = notificationRowTrigger table (NonEmpty.toList columns)
+        let createTriggerSql = notificationRowTrigger table
 
-                withRowLevelSecurityDisabled do
-                    void (sqlExec createTriggerSql ())
+        withRowLevelSecurityDisabled do
+            void (sqlExec createTriggerSql ())
 
-                subscription <- pgListener |> PGListener.subscribeJSON (rowChannelName table) \payload -> do
-                    resolvedPayload <- resolveAutoRefreshPayload payload
-                    sessions <- (.sessions) <$> readIORef autoRefreshServer
-                    sessions |> mapM_ (handleRowChange table resolvedPayload)
-                    pure ()
+        subscription <- pgListener |> PGListener.subscribeJSON (rowChannelName table) \payload -> do
+            resolvedPayload <- resolveAutoRefreshPayload payload
+            sessions <- (.sessions) <$> readIORef autoRefreshServer
+            sessions |> mapM_ (handleRowChange table resolvedPayload)
+            pure ()
 
-                pure [subscription])
+        pure [subscription])
 
     let subscriptions = concat subscriptionBatches
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
     where
-        handleRowChange table payload session = case session of
+        handleRowChange table resolvedPayload session = case session of
             AutoRefreshSessionWithChanges { tables, pendingChanges, event }
                 | table `Set.member` tables -> do
-                    modifyIORef' pendingChanges (insertRowChangeFromPayload table payload)
+                    case resolvedPayload of
+                        Nothing ->
+                            writeIORef pendingChanges Nothing
+                        Just payload ->
+                            modifyIORef' pendingChanges (\pending -> case pending of
+                                Nothing -> Nothing
+                                Just current -> Just (insertRowChangeFromPayload table payload current))
                     _ <- MVar.tryPutMVar event ()
                     pure ()
             AutoRefreshSessionWithChanges {} -> pure ()
@@ -392,8 +394,8 @@ notificationTrigger tableName = PG.Query [i|
         updateTriggerName = "ar_did_update_" <> tableName
         deleteTriggerName = "ar_did_delete_" <> tableName
 
-notificationRowTrigger :: ByteString -> [ByteString] -> PG.Query
-notificationRowTrigger tableName primaryKeyColumns = PG.Query [i|
+notificationRowTrigger :: ByteString -> PG.Query
+notificationRowTrigger tableName = PG.Query [i|
         BEGIN;
             -- Store oversized payloads in a shared table so pg_notify stays within 8KB.
             CREATE UNLOGGED TABLE IF NOT EXISTS public.large_pg_notifications (
@@ -404,30 +406,27 @@ notificationRowTrigger tableName primaryKeyColumns = PG.Query [i|
             CREATE INDEX IF NOT EXISTS large_pg_notifications_created_at_index ON public.large_pg_notifications (created_at);
             CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
                 DECLARE
-                    row_id jsonb;
                     payload TEXT;
                     large_pg_notification_id UUID;
                 BEGIN
                     IF (TG_OP = 'DELETE') THEN
-                        row_id := #{oldRowIdExpression};
-                        payload := jsonb_build_object('op', lower(TG_OP), 'id', row_id, 'old', to_jsonb(OLD))::text;
+                        payload := jsonb_build_object('op', lower(TG_OP), 'old', to_jsonb(OLD))::text;
                         IF octet_length(payload) > 7800 THEN
                             INSERT INTO public.large_pg_notifications (payload) VALUES (payload) RETURNING id INTO large_pg_notification_id;
-                            payload := jsonb_build_object('op', lower(TG_OP), 'id', row_id, 'payloadId', large_pg_notification_id::text)::text;
+                            payload := jsonb_build_object('op', lower(TG_OP), 'payloadId', large_pg_notification_id::text)::text;
                             DELETE FROM public.large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';
                         END IF;
                         PERFORM pg_notify('#{rowChannelName tableName}', payload);
                         RETURN OLD;
                     ELSE
-                        row_id := #{newRowIdExpression};
                         IF (TG_OP = 'UPDATE') THEN
-                            payload := jsonb_build_object('op', lower(TG_OP), 'id', row_id, 'old', to_jsonb(OLD), 'new', to_jsonb(NEW))::text;
+                            payload := jsonb_build_object('op', lower(TG_OP), 'old', to_jsonb(OLD), 'new', to_jsonb(NEW))::text;
                         ELSE
-                            payload := jsonb_build_object('op', lower(TG_OP), 'id', row_id, 'new', to_jsonb(NEW))::text;
+                            payload := jsonb_build_object('op', lower(TG_OP), 'new', to_jsonb(NEW))::text;
                         END IF;
                         IF octet_length(payload) > 7800 THEN
                             INSERT INTO public.large_pg_notifications (payload) VALUES (payload) RETURNING id INTO large_pg_notification_id;
-                            payload := jsonb_build_object('op', lower(TG_OP), 'id', row_id, 'payloadId', large_pg_notification_id::text)::text;
+                            payload := jsonb_build_object('op', lower(TG_OP), 'payloadId', large_pg_notification_id::text)::text;
                             DELETE FROM public.large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';
                         END IF;
                         PERFORM pg_notify('#{rowChannelName tableName}', payload);
@@ -451,38 +450,26 @@ notificationRowTrigger tableName primaryKeyColumns = PG.Query [i|
         insertTriggerName = "ar_did_insert_row_" <> tableName
         updateTriggerName = "ar_did_update_row_" <> tableName
         deleteTriggerName = "ar_did_delete_row_" <> tableName
-        newRowIdExpression = rowIdExpression "NEW" primaryKeyColumns
-        oldRowIdExpression = rowIdExpression "OLD" primaryKeyColumns
 
-rowIdExpression :: ByteString -> [ByteString] -> ByteString
-rowIdExpression recordAlias primaryKeyColumns =
-    case primaryKeyColumns of
-        [] -> error "notificationRowTrigger: No primary keys found"
-        [column] -> "to_jsonb(" <> qualifiedColumn column <> ")"
-        columns -> "jsonb_build_object(" <> B8.intercalate ", " (concatMap keyValuePair columns) <> ")"
-    where
-        -- Use key/value pairs for composite primary keys so ids remain stable even if
-        -- column order changes between migrations.
-        qualifiedColumn column = recordAlias <> ".\"" <> column <> "\""
-        keyValuePair column = ["'" <> column <> "'", qualifiedColumn column]
-
-fetchPrimaryKeyColumns :: (?modelContext :: ModelContext) => ByteString -> IO [ByteString]
-fetchPrimaryKeyColumns tableName = do
-    let query = "SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indrelid = ?::regclass AND i.indisprimary ORDER BY array_position(i.indkey, a.attnum)"
-    rows <- (sqlQuery (PG.Query query) (PG.Only (cs tableName :: Text)) :: IO [PG.Only Text])
-    pure (map (cs . (\(PG.Only name) -> name)) rows)
-
-resolveAutoRefreshPayload :: (?modelContext :: ModelContext) => AutoRefreshRowChangePayload -> IO AutoRefreshRowChangePayload
+-- | Internal: When the PostgreSQL trigger had to store the full JSON payload in @large_pg_notifications@
+-- (because @pg_notify@ payloads are limited to ~8KB), this loads the full row json so the change set passed
+-- to 'IHP.AutoRefresh.AutoRefreshOptions.shouldRefresh' still contains @old@/@new@.
+--
+-- Returns 'Nothing' when the payload cannot be loaded or decoded. In that case auto refresh will force a refresh
+-- instead of calling the user-provided 'shouldRefresh'.
+resolveAutoRefreshPayload :: (?modelContext :: ModelContext) => AutoRefreshRowChangePayload -> IO (Maybe AutoRefreshRowChangePayload)
 resolveAutoRefreshPayload payload = case payload.payloadLargePayloadId of
-    Nothing        -> pure payload
+    Nothing        -> pure (Just payload)
     Just payloadId -> fetchAutoRefreshPayload payloadId
 
-fetchAutoRefreshPayload :: (?modelContext :: ModelContext) => UUID.UUID -> IO AutoRefreshRowChangePayload
+fetchAutoRefreshPayload :: (?modelContext :: ModelContext) => UUID.UUID -> IO (Maybe AutoRefreshRowChangePayload)
 fetchAutoRefreshPayload payloadId = do
-    (payload :: ByteString) <- sqlQueryScalar "SELECT payload FROM public.large_pg_notifications WHERE id = ? LIMIT 1" (PG.Only payloadId)
-    case Aeson.eitherDecodeStrict' payload of
-        Left errorMessage -> error ("AutoRefresh: Unable to decode payload: " <> cs errorMessage)
-        Right result -> pure result
+    payloadResult <- Exception.try (sqlQueryScalar "SELECT payload FROM public.large_pg_notifications WHERE id = ? LIMIT 1" (PG.Only payloadId) :: IO ByteString)
+    case payloadResult of
+        Left (_ :: Exception.SomeException) -> pure Nothing
+        Right payload -> case Aeson.eitherDecodeStrict' payload of
+            Left _ -> pure Nothing
+            Right result -> pure (Just result)
 
 autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
 autoRefreshVaultKey = unsafePerformIO Vault.newKey
@@ -500,4 +487,3 @@ autoRefreshServerFromRequest request =
     case Vault.lookup autoRefreshVaultKey request.vault of
         Just server -> server
         Nothing -> error "AutoRefresh middleware not initialized. Please make sure you have added the AutoRefresh middleware to your application."
-

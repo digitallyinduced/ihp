@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeApplications #-}
 {-|
 Module: IHP.AutoRefresh.Types
 Description: Types & Data Structures for IHP AutoRefresh
@@ -8,18 +8,19 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.AutoRefresh.Types where
 
-import           Control.Concurrent.MVar       (MVar)
-import qualified Data.Aeson                    as Aeson
-import qualified Data.Aeson.KeyMap             as AesonKeyMap
-import qualified Data.Aeson.Types              as AesonTypes
-import           Data.Semigroup                (Semigroup (..))
-import           Data.Set                      (Set)
-import qualified Data.UUID                     as UUID
-import qualified IHP.PGListener                as PGListener
-import           IHP.Prelude
-import           Network.Wai                   (Request)
-import           Wai.Request.Params.Middleware (Respond)
+import Control.Concurrent.MVar (MVar)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
+import qualified Data.Aeson.Types as AesonTypes
+import Data.Semigroup (Semigroup (..))
+import Data.Set (Set)
+import qualified Data.UUID as UUID
+import qualified IHP.PGListener as PGListener
+import IHP.Prelude
+import Network.Wai (Request)
+import Wai.Request.Params.Middleware (Respond)
 
+-- | A database operation that can trigger an auto refresh re-render.
 data AutoRefreshOperation
     = AutoRefreshInsert
     | AutoRefreshUpdate
@@ -34,14 +35,24 @@ instance Aeson.FromJSON AutoRefreshOperation where
             "delete" -> pure AutoRefreshDelete
             _        -> fail ("Unknown operation: " <> cs operation)
 
+-- | Describes a single row change received by 'IHP.AutoRefresh.autoRefreshWith'.
+--
+-- For updates and deletes the old and new row json values are available.
 data AutoRefreshRowChange = AutoRefreshRowChange
     { table     :: !ByteString
+    -- ^ Table name as used in SQL (e.g. @"projects"@)
     , operation :: !AutoRefreshOperation
-    , row       :: !Aeson.Value
+    -- ^ Whether this change was caused by an insert, update or delete
     , oldRow    :: !(Maybe Aeson.Value)
+    -- ^ Full row json before the change (only present for updates and deletes)
     , newRow    :: !(Maybe Aeson.Value)
+    -- ^ Full row json after the change (only present for inserts and updates)
     } deriving (Eq, Show)
 
+-- | A batch of row changes.
+--
+-- The 'AutoRefreshChangeSet' is passed to 'IHP.AutoRefresh.AutoRefreshOptions.shouldRefresh' and contains all changes
+-- accumulated since the last refresh tick.
 newtype AutoRefreshChangeSet = AutoRefreshChangeSet
     { changes :: [AutoRefreshRowChange]
     } deriving (Eq, Show)
@@ -52,9 +63,14 @@ instance Semigroup AutoRefreshChangeSet where
 instance Monoid AutoRefreshChangeSet where
     mempty = AutoRefreshChangeSet []
 
+-- | Internal: raw payload sent by the PostgreSQL trigger.
+--
+-- For oversized payloads the trigger stores the full JSON in @large_pg_notifications@ and sends only a @payloadId@.
+-- The auto refresh server resolves these @payloadId@s via a database lookup before building the
+-- 'AutoRefreshChangeSet', so 'IHP.AutoRefresh.AutoRefreshOptions.shouldRefresh' normally receives the full
+-- row json in @old@/@new@ (if payload resolution fails, auto refresh falls back to forcing a refresh).
 data AutoRefreshRowChangePayload = AutoRefreshRowChangePayload
     { payloadOperation      :: !AutoRefreshOperation
-    , payloadRowId          :: !Aeson.Value
     , payloadOldRow         :: !(Maybe Aeson.Value)
     , payloadNewRow         :: !(Maybe Aeson.Value)
     , payloadLargePayloadId :: !(Maybe UUID.UUID)
@@ -64,7 +80,6 @@ instance Aeson.FromJSON AutoRefreshRowChangePayload where
     parseJSON = Aeson.withObject "AutoRefreshRowChangePayload" \object ->
         AutoRefreshRowChangePayload
             <$> object Aeson..: "op"
-            <*> object Aeson..: "id"
             <*> object Aeson..:? "old"
             <*> object Aeson..:? "new"
             <*> do
@@ -78,42 +93,46 @@ instance Aeson.FromJSON AutoRefreshRowChangePayload where
                 Just uuid -> pure uuid
                 Nothing   -> fail "Invalid UUID for payloadId"
 
-insertRowChange :: ByteString -> AutoRefreshRowChangePayload -> Aeson.Value -> AutoRefreshChangeSet -> AutoRefreshChangeSet
-insertRowChange tableName AutoRefreshRowChangePayload { payloadOperation, payloadOldRow, payloadNewRow } row (AutoRefreshChangeSet existing) =
-    AutoRefreshChangeSet (AutoRefreshRowChange { table = tableName, operation = payloadOperation, row, oldRow = payloadOldRow, newRow = payloadNewRow } : existing)
+-- | Internal: Inserts a row change into the change set.
+insertRowChange :: ByteString -> AutoRefreshRowChangePayload -> AutoRefreshChangeSet -> AutoRefreshChangeSet
+insertRowChange tableName AutoRefreshRowChangePayload { payloadOperation, payloadOldRow, payloadNewRow } (AutoRefreshChangeSet existing) =
+    AutoRefreshChangeSet (AutoRefreshRowChange { table = tableName, operation = payloadOperation, oldRow = payloadOldRow, newRow = payloadNewRow } : existing)
 
+-- | Internal: Inserts a row change into the change set, using either the new row or the old row json.
 insertRowChangeFromPayload :: ByteString -> AutoRefreshRowChangePayload -> AutoRefreshChangeSet -> AutoRefreshChangeSet
 insertRowChangeFromPayload tableName payload changeSet =
-    insertRowChange tableName payload rowValue changeSet
-    where
-        -- When the payload omits full row data (e.g. large payloads), we still keep the
-        -- row id so change coalescing can key off the primary key.
-        rowValue = fromMaybe (payloadRowId payload) (payloadNewRow payload <|> payloadOldRow payload)
+    insertRowChange tableName payload changeSet
 
+-- | Returns all changes related to a given table.
 changesForTable :: ByteString -> AutoRefreshChangeSet -> [AutoRefreshRowChange]
 changesForTable tableName = filter (\change -> change.table == tableName) . (.changes)
 
-rowsForTable :: ByteString -> AutoRefreshChangeSet -> [Aeson.Value]
-rowsForTable tableName = map (.row) . changesForTable tableName
-
+-- | Returns @True@ when at least one row change happened on the given table.
 anyChangeOnTable :: ByteString -> AutoRefreshChangeSet -> Bool
 anyChangeOnTable tableName = not . null . changesForTable tableName
 
+-- | Checks if any changed row (across all tables) contains the given field with the expected value.
+--
+-- The field name is treated as a Haskell record field name and converted to snake_case to match SQL column names:
+--
+-- > anyChangeWithField @"userId" userId changes
 anyChangeWithField :: forall field value. (KnownSymbol field, Aeson.FromJSON value, Eq value) => value -> AutoRefreshChangeSet -> Bool
 anyChangeWithField value (AutoRefreshChangeSet existing) =
-    any (\change -> rowField @field change == Just value) existing
+    any (\change -> rowFieldNew @field change == Just value || rowFieldOld @field change == Just value) existing
 
-rowField :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => AutoRefreshRowChange -> Maybe value
-rowField change = rowFieldByColumnName (fieldNameToColumnName (symbolToText @field)) rowValue
-    where
-        rowValue = fromMaybe change.row (change.newRow <|> change.oldRow)
-
+-- | Reads a field from the new row data (after the update).
 rowFieldNew :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => AutoRefreshRowChange -> Maybe value
 rowFieldNew change = change.newRow >>= rowFieldByColumnName (fieldNameToColumnName (symbolToText @field))
 
+-- | Reads a field from the old row data (before the update).
 rowFieldOld :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => AutoRefreshRowChange -> Maybe value
 rowFieldOld change = change.oldRow >>= rowFieldByColumnName (fieldNameToColumnName (symbolToText @field))
 
+-- | Reads a field by the SQL column name from a json value.
+--
+-- Use this when the column name differs from IHP's default snake_case mapping:
+--
+-- > rowFieldByColumnName "user_id" row
 rowFieldByColumnName :: forall value. (Aeson.FromJSON value) => Text -> Aeson.Value -> Maybe value
 rowFieldByColumnName columnName = \case
     Aeson.Object object -> do
@@ -121,47 +140,50 @@ rowFieldByColumnName columnName = \case
         AesonTypes.parseMaybe Aeson.parseJSON value
     _ -> Nothing
 
+-- | Internal state stored in the controller context, used to decide whether to render the auto refresh websocket meta tag.
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 
 data AutoRefreshSession = AutoRefreshSession
-        { id           :: !UUID
+        { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
-        , renderView   :: !(Request -> Respond -> IO ())
+        , renderView :: !(Request -> Respond -> IO ())
         -- | MVar that is filled whenever some table changed
-        , event        :: !(MVar ())
+        , event :: !(MVar ())
         -- | All tables this auto refresh session watches
-        , tables       :: !(Set ByteString)
+        , tables :: !(Set ByteString)
         -- | The last rendered html of this action. Initially this is the result of the initial page rendering
         , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
-        , lastPing     :: !UTCTime
+        , lastPing :: !UTCTime
         }
     | AutoRefreshSessionWithChanges
-        { id             :: !UUID
+        { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
-        , renderView     :: !(Request -> Respond -> IO ())
+        , renderView :: !(Request -> Respond -> IO ())
         -- | MVar that is filled whenever some table changed
-        , event          :: !(MVar ())
+        , event :: !(MVar ())
         -- | All tables this auto refresh session watches
-        , tables         :: !(Set ByteString)
+        , tables :: !(Set ByteString)
         -- | The last rendered html of this action. Initially this is the result of the initial page rendering
-        , lastResponse   :: !LByteString
+        , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
-        , lastPing       :: !UTCTime
-        -- | Pending changes coalesced since the last refresh
-        , pendingChanges :: !(IORef AutoRefreshChangeSet)
+        , lastPing :: !UTCTime
+        -- | Pending changes accumulated since the last refresh tick
+        --
+        -- When set to 'Nothing' the next refresh tick will always re-render (used as a fallback when a change payload
+        -- could not be resolved from @large_pg_notifications@).
+        , pendingChanges :: !(IORef (Maybe AutoRefreshChangeSet))
         -- | Decide if a refresh should run for the accumulated changes
-        , shouldRefresh  :: !(AutoRefreshChangeSet -> IO Bool)
+        , shouldRefresh :: !(AutoRefreshChangeSet -> IO Bool)
         }
 
 data AutoRefreshServer = AutoRefreshServer
-        { subscriptions       :: [PGListener.Subscription]
-        , sessions            :: ![AutoRefreshSession]
-        , subscribedTables    :: !(Set ByteString)
+        { subscriptions :: [PGListener.Subscription]
+        , sessions :: ![AutoRefreshSession]
+        , subscribedTables :: !(Set ByteString)
         , subscribedRowTables :: !(Set ByteString)
-        , pgListener          :: PGListener.PGListener
+        , pgListener :: PGListener.PGListener
         }
 
 newAutoRefreshServer :: PGListener.PGListener -> AutoRefreshServer
 newAutoRefreshServer pgListener = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty, subscribedRowTables = mempty, pgListener }
-

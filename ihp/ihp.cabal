@@ -218,6 +218,7 @@ library
         , IHP.AuthSupport.View.Sessions.New
         , IHP.AuthSupport.Controller.Sessions
         , IHP.AutoRefresh
+        , IHP.AutoRefresh.ChangeSet
         , IHP.AutoRefresh.Types
         , IHP.AutoRefresh.View
         , IHP.WebSocket
@@ -273,3 +274,4 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.AutoRefreshSpec
