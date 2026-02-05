@@ -11,12 +11,12 @@ See https://ihp.digitallyinduced.com/Guide/relationships.html for some examples.
 module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName, Table)
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Hasql.FromRow (FromRowHasql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 
 -- | This class provides the collectionFetchRelated function
 --
@@ -70,12 +70,12 @@ class CollectionFetchRelatedOrNothing relatedFieldValue relatedModel where
 -- > SELECT * FROM companies WHERE id IN (?)
 instance (
         Eq (PrimaryKey tableName)
-        , ToField (PrimaryKey tableName)
         , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -123,11 +123,11 @@ instance (
 -- > SELECT * FROM companies WHERE id IN (?)
 instance (
         Eq (PrimaryKey tableName)
-        , ToField (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
     collectionFetchRelatedOrNothing :: forall model relatedField. (
             ?modelContext :: ModelContext,

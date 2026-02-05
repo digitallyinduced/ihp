@@ -109,25 +109,28 @@ whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet cond
 {-# INLINE whereSnippet #-}
 
 -- | Convert a Condition to a Snippet
+--
+-- Since Condition now stores Snippet directly, we just need to substitute
+-- the ? placeholder with the snippet parameter.
 conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (VarCondition template action) =
-    -- VarCondition contains a template like "id = ?" and an action
+conditionToSnippet (VarCondition template snippet) =
+    -- VarCondition contains a template like "id = ?" and a snippet parameter
     -- We need to substitute the ? with the actual parameter
-    substituteAction template action
+    substituteSnippet template snippet
 conditionToSnippet (OrCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
 conditionToSnippet (AndCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") AND (" <> conditionToSnippet b <> Snippet.sql ")"
 {-# INLINE conditionToSnippet #-}
 
--- | Substitute a ? placeholder in a template with the action value
-substituteAction :: ByteString -> PG.Action -> Snippet
-substituteAction template action =
+-- | Substitute a ? placeholder in a template with the snippet parameter
+substituteSnippet :: ByteString -> Snippet -> Snippet
+substituteSnippet template snippet =
     let (before, after) = BS8.break (== '?') template
     in if BS.null after
-        then Snippet.sql template  -- No ? found, just use the template
-        else Snippet.sql before <> actionToSnippet action <> Snippet.sql (BS.drop 1 after)
-{-# INLINE substituteAction #-}
+        then Snippet.sql template  -- No ? found, just use the template (e.g., for raw SQL conditions)
+        else Snippet.sql before <> snippet <> Snippet.sql (BS.drop 1 after)
+{-# INLINE substituteSnippet #-}
 
 -- | Convert ORDER BY clause to Snippet
 orderBySnippet :: [OrderByClause] -> Snippet

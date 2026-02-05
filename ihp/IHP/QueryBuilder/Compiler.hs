@@ -18,21 +18,26 @@ module IHP.QueryBuilder.Compiler
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import qualified Data.List as List
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import Hasql.DynamicStatements.Snippet (Snippet)
 
 
 -- | Compiles a 'FilterOperator' to its SQL representation
+--
+-- For InOp and NotInOp, we use = ANY(?) and <> ALL(?) with array parameters
+-- instead of the traditional IN (?, ?, ?) syntax. This works with hasql's
+-- array parameter encoding.
 compileOperator :: FilterOperator -> ByteString
 compileOperator EqOp = "="
 compileOperator NotEqOp = "!="
-compileOperator InOp = "IN"
-compileOperator NotInOp = "NOT IN"
+compileOperator InOp = "= ANY"  -- Uses array parameter: column = ANY(?)
+compileOperator NotInOp = "<> ALL"  -- Uses array parameter: column <> ALL(?)
 compileOperator IsOp = "IS"
 compileOperator IsNotOp = "IS NOT"
 compileOperator (LikeOp CaseSensitive) = "LIKE"
@@ -117,11 +122,18 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
             |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
     buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value), applyLeft, applyRight } =
                 let
-                    applyFn fn value = case fn of
-                            Just fn -> fn <> "(" <> value <> ")"
-                            Nothing -> value
+                    applyFn fn val = case fn of
+                            Just fn' -> fn' <> "(" <> val <> ")"
+                            Nothing -> val
 
-                    condition = VarCondition (applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> applyFn applyRight "?") value
+                    -- For IN/NOT IN operators using = ANY(?)/= ALL(?), we need parentheses around the parameter
+                    -- because the array parameter goes inside ANY()/ALL()
+                    paramPlaceholder = case operator of
+                        InOp -> "(?)"     -- column = ANY(?)
+                        NotInOp -> "(?)"  -- column <> ALL(?)
+                        _ -> applyFn applyRight "?"
+
+                    condition = VarCondition (applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> paramPlaceholder) value
                 in
                     queryBuilder
                         |> buildQueryHelper
@@ -213,10 +225,19 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                 columnParts = map (\column -> selectFromB <> Builder.char8 '.' <> Builder.byteString column) columns
             in mconcat $ List.intersperse (Builder.byteString ", ") (indexParts <> columnParts)
 
+        -- For backward compatibility with postgresql-simple error reporting,
+        -- we represent Snippet parameters as placeholder Actions.
+        -- The actual values are encoded inside the Snippet for hasql execution.
         !theParams =
             case whereCondition sqlQuery of
-                Just condition -> compileConditionArgs condition
+                Just condition -> map snippetToPlaceholderAction (compileConditionArgs condition)
                 Nothing -> mempty
+
+        -- Convert a Snippet to a placeholder Action for error messages.
+        -- The actual parameter value is inside the Snippet; we just need
+        -- something displayable for RecordNotFoundException.
+        snippetToPlaceholderAction :: Snippet -> Action
+        snippetToPlaceholderAction _ = Plain (Builder.byteString "<param>")
 
         whereConditions' = case whereCondition sqlQuery of
                 Just condition -> Just $ "WHERE " <> compileConditionQuery condition
@@ -241,7 +262,7 @@ compileConditionQuery (OrCondition a b) =  "(" <> compileConditionQuery a <> ") 
 compileConditionQuery (AndCondition a b) =  "(" <> compileConditionQuery a <> ") AND (" <> compileConditionQuery b <> ")"
 
 {-# INLINE compileConditionArgs #-}
-compileConditionArgs :: Condition -> [Action]
-compileConditionArgs (VarCondition _ arg) = [arg]
+compileConditionArgs :: Condition -> [Snippet]
+compileConditionArgs (VarCondition _ snippet) = [snippet]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b

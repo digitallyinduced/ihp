@@ -5,12 +5,12 @@ module IHP.ValidationSupport.ValidateIsUnique
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.ValidationSupport.Types
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Hasql.FromRow (FromRowHasql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 
 -- | Validates that e.g. an email (or another field) is unique across all users before inserting.
 --
@@ -38,7 +38,7 @@ validateIsUnique :: forall field model savedModel fieldValue modelId savedModelI
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
+        , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
@@ -80,7 +80,7 @@ validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue mode
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
+        , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
@@ -104,7 +104,7 @@ validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId sa
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
+        , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
@@ -150,7 +150,7 @@ withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId sav
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
+        , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag

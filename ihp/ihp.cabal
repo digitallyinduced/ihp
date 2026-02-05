@@ -134,6 +134,7 @@ common shared-properties
             , hasql
             , hasql-pool
             , hasql-dynamic-statements
+            , hasql-implicits
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

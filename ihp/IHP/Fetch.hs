@@ -38,6 +38,7 @@ import IHP.QueryBuilder
 import IHP.Hasql.FromRow
 import IHP.QueryBuilder.HasqlCompiler (toSnippet, buildSnippet)
 import qualified Hasql.Decoders as Decoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -209,15 +210,15 @@ genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, PG.Fro
 genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table) => [Id model] -> IO [model]
+genericFetchIds :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIdIn ids |> fetch
 
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table) => [Id model] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIdIn ids |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table) => [Id model] -> IO model
+genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIdIn ids |> fetchOne
 
 {-# INLINE findBy #-}
@@ -252,7 +253,7 @@ instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPr
     fetchOne (Just a) = genericFetchIdOne a
     fetchOne Nothing = error "Fetchable (Maybe Id): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
 
-instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, GetTableName model ~ table) => Fetchable [Id' table] model where
+instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey table]) => Fetchable [Id' table] model where
     type FetchResult [Id' table] model = [model]
     {-# INLINE fetch #-}
     fetch = genericFetchIds
