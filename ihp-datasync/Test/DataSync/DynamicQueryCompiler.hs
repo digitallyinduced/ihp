@@ -41,6 +41,11 @@ productsTypes = HashMap.fromList
 compile :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
 compile = compileQueryTyped camelCaseRenamer
 
+-- | Expected SELECT clause for postsTypes when using SelectAll
+-- Columns are sorted with id first, then alphabetically, with camelCase aliases
+postsSelectAll :: ByteString
+postsSelectAll = "\"id\", \"a\", \"group_id\" AS \"groupId\", \"title\", \"ts\", \"user_id\" AS \"userId\""
+
 tests = do
     describe "IHP.DataSync.DynamicQueryCompiler" do
         describe "compileQueryTyped" do
@@ -55,8 +60,9 @@ tests = do
                         , offset = Nothing
                         }
 
+                -- SelectAll expands to all columns with appropriate camelCase aliases (id first, then alphabetically)
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\""
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\"")
 
             it "compile a select query with order by" do
                 let query = DynamicSQLQuery
@@ -70,7 +76,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" ORDER BY \"title\" DESC"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" ORDER BY \"title\" DESC")
 
             it "compile a select query with multiple order bys" do
                 let query = DynamicSQLQuery
@@ -87,7 +93,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" ORDER BY \"created_at\" DESC, \"title\""
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" ORDER BY \"created_at\" DESC, \"title\"")
 
             it "compile a basic select query with a where condition" do
                 let query = DynamicSQLQuery
@@ -101,7 +107,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1)"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1)")
 
             it "compile a basic select query with a where condition and an order by" do
                 let query = DynamicSQLQuery
@@ -115,7 +121,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC")
 
             it "compile a basic select query with a limit" do
                 let query = DynamicSQLQuery
@@ -129,7 +135,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2")
 
             it "compile a basic select query with an offset" do
                 let query = DynamicSQLQuery
@@ -143,7 +149,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2")
 
             it "compile a basic select query with a limit and an offset" do
                 let query = DynamicSQLQuery
@@ -157,7 +163,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3")
 
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
@@ -171,7 +177,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NULL"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") IS NULL")
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
                 let query = DynamicSQLQuery
@@ -185,7 +191,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"user_id\") IS NOT NULL"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") IS NOT NULL")
 
             it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
                 let query = DynamicSQLQuery
@@ -199,7 +205,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"a\") IS NULL"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"a\") IS NULL")
 
             it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
                 let query = DynamicSQLQuery
@@ -213,7 +219,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)")
 
             it "compile queries with TS expressions" do
                 let query = DynamicSQLQuery
@@ -226,8 +232,9 @@ tests = do
                         , offset = Nothing
                         }
 
+                -- productsTypes only has "ts" column (no rename needed since it's already snake_case = camelCase)
                 snippetToSql (compile productsTypes query) `shouldBe`
-                        "SELECT * FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
+                        "SELECT \"ts\" FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
 
             it "compile a basic select query with distinctOn" do
                 let query = DynamicSQLQuery
@@ -241,7 +248,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT DISTINCT ON (\"group_id\") * FROM \"posts\""
+                        ("SELECT DISTINCT ON (\"group_id\") " <> postsSelectAll <> " FROM \"posts\"")
 
             it "compile a WHERE IN query" do
                 let query = DynamicSQLQuery
@@ -255,7 +262,7 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE (\"id\") IN ($1, $2)"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"id\") IN ($1, $2)")
 
             it "compile an empty WHERE IN query to FALSE" do
                 let query = DynamicSQLQuery
@@ -269,4 +276,19 @@ tests = do
                         }
 
                 snippetToSql (compile postsTypes query) `shouldBe`
-                        "SELECT * FROM \"posts\" WHERE FALSE"
+                        ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE FALSE")
+
+            it "compile SelectSpecific with camelCase to snake_case aliases" do
+                let query = DynamicSQLQuery
+                        { table = "posts"
+                        , selectedColumns = SelectSpecific ["userId", "title"]
+                        , whereCondition = Nothing
+                        , orderByClause = []
+                        , distinctOnColumn = Nothing
+                        , limit = Nothing
+                        , offset = Nothing
+                        }
+
+                -- SelectSpecific columns get renamed to snake_case and aliased back to camelCase
+                snippetToSql (compile postsTypes query) `shouldBe`
+                        "SELECT \"user_id\" AS \"userId\", \"title\" FROM \"posts\""

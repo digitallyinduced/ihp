@@ -55,7 +55,7 @@ instance (
                 let columnSnippets = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
                 let valueSnippets = mconcat $ List.intersperse (Snippet.sql ", ") values
 
-                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ") RETURNING *"
+                let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES (" <> valueSnippets <> Snippet.sql ")" <> compileReturningClause camelCaseRenamer columnTypes
 
                 result :: Either SomeException [[Field]] <- Exception.try do
                     sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
@@ -95,7 +95,7 @@ instance (
                                     let valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") values
                                     let valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
 
-                                    let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> Snippet.sql " RETURNING *"
+                                    let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier table <> Snippet.sql " (" <> columnSnippets <> Snippet.sql ") VALUES " <> valuesSnippet <> compileReturningClause camelCaseRenamer columnTypes
 
                                     result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
                                     renderJson result
@@ -125,7 +125,7 @@ instance (
         let setCalls = keyValues
                 |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
         let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
-        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql " RETURNING *"
+        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier table <> Snippet.sql " SET " <> setSnippet <> Snippet.sql " WHERE id = " <> Snippet.param id <> compileReturningClause camelCaseRenamer columnTypes
 
         result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
 
@@ -145,7 +145,10 @@ instance (
         let hasqlPool = requestHasqlPool ?context.request
         ensureRLSEnabled hasqlPool table
 
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+        let selectColumns = compileSelectedColumns camelCaseRenamer columnTypes SelectAll
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT " <> selectColumns <> Snippet.sql " FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
 
         renderJson (head result)
 

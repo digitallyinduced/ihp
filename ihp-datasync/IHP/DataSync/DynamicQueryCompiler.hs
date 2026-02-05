@@ -25,8 +25,14 @@ data Renamer = Renamer
 --
 -- Column types must be provided via 'ColumnTypeMap' (from 'makeCachedColumnTypeLookup').
 -- Missing column types in WHERE conditions will error at runtime.
+--
+-- This function:
+-- 1. Converts field names from camelCase to snake_case for the query
+-- 2. Generates SQL column aliases so results come back with camelCase names
+-- 3. For 'SelectAll', expands to all columns from 'ColumnTypeMap' with aliases
 compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryTyped renamer columnTypes query = compileQueryMappedTyped columnTypes (mapColumnNames renamer.fieldToColumn query)
+compileQueryTyped renamer columnTypes query =
+    compileQueryMappedTyped renamer columnTypes (mapColumnNames renamer.fieldToColumn query)
 
 -- | Default renamer used by DataSync.
 --
@@ -44,11 +50,11 @@ renameField :: Renamer -> Field -> Field
 renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
 
-compileQueryMappedTyped :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
+compileQueryMappedTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
+compileQueryMappedTyped renamer columnTypes DynamicSQLQuery { .. } =
     Snippet.sql "SELECT"
     <> distinctOnSnippet
-    <> compileSelectedColumns selectedColumns
+    <> compileSelectedColumns renamer columnTypes selectedColumns
     <> Snippet.sql " FROM "
     <> quoteIdentifier table
     <> whereSnippet
@@ -110,10 +116,44 @@ compileOrderByClauseSnippet OrderByClause { orderByColumn, orderByDirection } =
 compileOrderByClauseSnippet OrderByTSRank { tsvector, tsquery } =
     Snippet.sql "ts_rank(" <> quoteIdentifier tsvector <> Snippet.sql ", to_tsquery('english', " <> Snippet.param tsquery <> Snippet.sql "))"
 
-compileSelectedColumns :: SelectedColumns -> Snippet
-compileSelectedColumns SelectAll = Snippet.sql "*"
-compileSelectedColumns (SelectSpecific fields) =
-    mconcat (List.intersperse (Snippet.sql ", ") (map quoteIdentifier fields))
+-- | Compile selected columns, generating SQL aliases when the camelCase field name
+-- differs from the snake_case column name.
+--
+-- For example, if the column is @user_id@ but the client expects @userId@, this will
+-- generate @"user_id" AS "userId"@ instead of just @"user_id"@.
+--
+-- For 'SelectAll', expands to all columns from the 'ColumnTypeMap' with appropriate aliases.
+-- Columns are sorted with @id@ first, then alphabetically for deterministic output.
+compileSelectedColumns :: Renamer -> ColumnTypeMap -> SelectedColumns -> Snippet
+compileSelectedColumns renamer columnTypes SelectAll =
+    compileSelectedColumns renamer columnTypes (SelectSpecific (sortColumnsIdFirst (HashMap.keys columnTypes)))
+compileSelectedColumns renamer _columnTypes (SelectSpecific columns) =
+    mconcat (List.intersperse (Snippet.sql ", ") (map compileColumn columns))
+    where
+        compileColumn col =
+            let alias = renamer.columnToField col
+            in if alias == col
+                then quoteIdentifier col
+                else quoteIdentifier col <> Snippet.sql " AS " <> quoteIdentifier alias
+
+-- | Sort columns with @id@ first, then alphabetically.
+--
+-- This provides deterministic ordering that matches common database conventions
+-- where @id@ is typically the first column in a table.
+sortColumnsIdFirst :: [Text] -> [Text]
+sortColumnsIdFirst columns = List.sortBy compareColumns columns
+    where
+        compareColumns "id" _ = LT
+        compareColumns _ "id" = GT
+        compareColumns a b = compare a b
+
+-- | Compile a SQL @RETURNING@ clause with aliased columns.
+--
+-- For INSERT/UPDATE/DELETE statements that return data, this generates
+-- @RETURNING "col_a" AS "colA", "col_b" AS "colB", ...@ with proper camelCase aliases.
+compileReturningClause :: Renamer -> ColumnTypeMap -> Snippet
+compileReturningClause renamer columnTypes =
+    Snippet.sql " RETURNING " <> compileSelectedColumns renamer columnTypes SelectAll
 
 -- | Compile a condition expression to a SQL snippet, using typed parameter encoding when column types are known.
 --
