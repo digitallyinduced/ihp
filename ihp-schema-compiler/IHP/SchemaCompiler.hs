@@ -587,6 +587,10 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values))
         <> "instance DeepSeq.NFData " <> modelName <> " where" <> " rnf a = seq a ()" <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
+        -- textToEnum function for hasql decoder
+        <> "textToEnum" <> modelName <> " :: Text -> Maybe " <> modelName <> "\n"
+        <> unlines (map compileTextToEnumCase values)
+        <> "textToEnum" <> modelName <> " _ = Nothing\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
@@ -599,6 +603,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> enumValueToConstructorName value
         compileToFieldInstanceForValue value = "toField " <> enumValueToConstructorName value <> " = toField (" <> tshow value <> " :: Text)"
         compileInputValue value = "inputValue " <> enumValueToConstructorName value <> " = " <> tshow value <> " :: Text"
+        compileTextToEnumCase value = "textToEnum" <> modelName <> " " <> tshow value <> " = Just " <> enumValueToConstructorName value
 
         -- Let's say we have a schema like this:
         --
@@ -936,7 +941,7 @@ hasqlValueDecoder = \case
     PTime -> "Decoders.time"
     (PNumeric _ _) -> "Decoders.numeric"
     PJSONB -> "Decoders.jsonb"
-    PBinary -> "(Binary <$> Decoders.bytea)"
+    PBinary -> "(Database.PostgreSQL.Simple.Types.Binary <$> Decoders.bytea)"
     (PVaryingN _) -> "Decoders.text"
     (PCharacterN _) -> "Decoders.text"
     (PInterval _) -> "(Decoders.refine (\\t -> Right (parseTimeOrError True defaultTimeLocale \"%H:%M:%S\" (cs t))) Decoders.text)"
@@ -945,7 +950,7 @@ hasqlValueDecoder = \case
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
     PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
-    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum t)) Decoders.text)"
+    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum" <> tableNameToModelName typeName <> " t)) Decoders.text)"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
