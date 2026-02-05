@@ -339,7 +339,7 @@ defaultImports = [trimming|
     import qualified Data.Dynamic
     import Data.Scientific
     import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText, parseTSVectorText)
-    import qualified IHP.Hasql.FromRow as Decoders
+    import qualified Hasql.Decoders as Decoders
 |]
 
 
