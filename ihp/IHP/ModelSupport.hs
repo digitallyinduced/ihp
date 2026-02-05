@@ -74,6 +74,7 @@ import IHP.Postgres.TimeParser
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
+import IHP.EnvVar
 import Data.Scientific
 import GHC.Stack
 import qualified Numeric
@@ -99,13 +100,18 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     connectionPool <- Pool.newPool poolConfig
 
     -- Create hasql pool for better fetch performance with prepared statements
-    let hasqlPoolConfig = HasqlPoolConfig.settings
-            [ HasqlPoolConfig.size (fromIntegral maxConnections)
-            , HasqlPoolConfig.idlenessTimeout (realToFrac idleTime)
-            , HasqlPoolConfig.staticConnectionSettings
+    -- HASQL_POOL_SIZE: pool size (default: 3). Set to 1 for consistent prepared statement caching.
+    -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
+    hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
+    hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
+    let hasqlPoolSettings =
+            [ HasqlPoolConfig.staticConnectionSettings
                 [ HasqlConnectionSetting.connection (HasqlConnectionConfig.string (cs databaseUrl))
                 ]
             ]
+            <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
+    let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
     hasqlPoolInstance <- HasqlPool.acquire hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
