@@ -18,7 +18,6 @@ import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
-import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
@@ -28,6 +27,7 @@ import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
+import qualified IHP.PGListener as PGListener
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -175,17 +175,12 @@ installTableChangeTriggers pool tableNameRLS = do
     runSession pool (installTableChangeTriggersSession tableNameRLS)
     pure ()
 
-makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
-makeCachedInstallTableChangeTriggers pool = do
-    tables <- newIORef Set.empty
-    pure \tableName -> do
-        shouldInstall <- atomicModifyIORef' tables \set ->
-            if Set.member tableName set
-                then (set, False)
-                else (Set.insert tableName set, True)
-
-        when shouldInstall do
-            installTableChangeTriggers pool tableName
+-- | Creates a memoized trigger installer that automatically clears its cache when the database reconnects.
+-- This ensures triggers are recreated after `make db` drops and recreates the database.
+makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> PGListener.PGListener -> IO (RLS.TableWithRLS -> IO ())
+makeCachedInstallTableChangeTriggers pool pgListener = do
+    runOnce <- PGListener.runOncePerConnection pgListener
+    pure \tableName -> runOnce tableName (installTableChangeTriggers pool tableName)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString

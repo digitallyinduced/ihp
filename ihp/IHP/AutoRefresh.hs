@@ -164,29 +164,19 @@ instance WSApp AutoRefreshWSApp where
 registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
+    server <- readIORef autoRefreshServer
 
-    let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
-    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
-
-    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-    subscriptions <-  subscriptionRequired |> mapM (\table -> do
+    forM_ touchedTables \table -> do
         let createTriggerSql = notificationTrigger table
-
         -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
-        withRowLevelSecurityDisabled do
-            sqlExec createTriggerSql ()
+        let installTriggerSQL = withRowLevelSecurityDisabled do
+                _ <- sqlExec createTriggerSql ()
+                pure ()
 
-        pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                sessions <- (.sessions) <$> readIORef autoRefreshServer
-                sessions
-                    |> filter (\session -> table `Set.member` session.tables)
-                    |> map (\session -> session.event)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
-                pure ())
-    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
-    pure ()
+        -- installTableTrigger handles memoization and automatically clears the cache
+        -- when the database reconnects (e.g., after `make db`)
+        server.installTableTrigger table installTriggerSQL
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]
@@ -268,9 +258,30 @@ autoRefreshVaultKey = unsafePerformIO Vault.newKey
 
 initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
 initAutoRefreshMiddleware pgListener = do
-    autoRefreshServer <- newIORef (newAutoRefreshServer pgListener)
+    autoRefreshServerRef <- newIORef (undefined :: AutoRefreshServer)
+
+    -- Create a memoized trigger installer that automatically clears its cache when the database reconnects
+    -- This ensures triggers are recreated after `make db` drops and recreates the database
+    runOnce <- PGListener.runOncePerConnection pgListener
+
+    let installTableTrigger table installTriggerSQL = runOnce table do
+            -- Install the SQL trigger in the database
+            installTriggerSQL
+
+            -- Subscribe to PGListener for this table's change notifications
+            server <- readIORef autoRefreshServerRef
+            subscription <- server.pgListener |> PGListener.subscribe (channelName table) \notification -> do
+                sessions <- (.sessions) <$> readIORef autoRefreshServerRef
+                sessions
+                    |> filter (\session -> table `Set.member` session.tables)
+                    |> map (\session -> session.event)
+                    |> mapM (\event -> MVar.tryPutMVar event ())
+                pure ()
+            modifyIORef' autoRefreshServerRef (\s -> s { subscriptions = s.subscriptions <> [subscription] })
+
+    writeIORef autoRefreshServerRef AutoRefreshServer { subscriptions = [], sessions = [], pgListener, installTableTrigger }
     pure \app request respond -> do
-        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer request.vault }
+        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServerRef request.vault }
         app request' respond
 
 autoRefreshServerFromRequest :: Request -> IORef AutoRefreshServer
