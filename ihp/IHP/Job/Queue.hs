@@ -91,7 +91,7 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
     let tableNameBS = cs tableName
     liftIO do
         pool <- getHasqlPool
-        withoutQueryLogging (runSessionHasql pool (HasqlSession.script (cs (createNotificationTriggerSQL tableNameBS))))
+        withoutQueryLogging (runSessionHasql pool (mapM_ HasqlSession.script (createNotificationTriggerStatements tableNameBS)))
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
@@ -137,18 +137,25 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
 
     fst <$> allocate (Async.async handler) Async.cancel
 
-createNotificationTriggerSQL :: ByteString -> ByteString
-createNotificationTriggerSQL tableName = ""
-        <> "BEGIN;\n"
-        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
-        <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
-        <> "    RETURN new;"
-        <> "END;\n"
-        <> "$$ language plpgsql;"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "COMMIT;"
+-- | Returns individual SQL statements to create the notification trigger.
+-- Split into separate statements because hasql 1.10's 'script' expects
+-- exactly one result per call (multi-statement scripts cause
+-- "Got too many results in script" errors).
+createNotificationTriggerStatements :: ByteString -> [Text]
+createNotificationTriggerStatements tableName =
+        [ "BEGIN"
+        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+            <> "BEGIN\n"
+            <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+            <> "    RETURN new;"
+            <> "END;\n"
+            <> "$$ language plpgsql"
+        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , "COMMIT"
+        ]
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName
