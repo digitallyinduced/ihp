@@ -59,7 +59,7 @@ setRLSConfigStatement = Statement.preparable
      <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
     -- set_config returns a row with text columns; read and discard them
     -- (Decoders.noResult errors in hasql 1.10 when rows are present)
-    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) $> ()))
+    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
 
 -- Sessions
 
