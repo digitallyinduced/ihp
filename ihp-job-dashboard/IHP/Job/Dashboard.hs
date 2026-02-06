@@ -48,6 +48,7 @@ import Network.HTTP.Types.Method (methodPost)
 import IHP.Job.Dashboard.Types
 import IHP.Job.Dashboard.View
 import IHP.Job.Dashboard.Auth
+import IHP.Hasql.FromRow (FromRowHasql)
 import IHP.Job.Dashboard.Utils
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
@@ -58,6 +59,7 @@ import IHP.Job.Dashboard.Utils
 class ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
+    , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , PG.ToField (PrimaryKey (GetTableName job))

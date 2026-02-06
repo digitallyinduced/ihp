@@ -56,6 +56,7 @@ import Database.PostgreSQL.Simple.Types (Query)
 import Database.PostgreSQL.Simple.ToField (Action)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Pool as Pool
+import qualified Hasql.Pool as Hasql
 import GHC.TypeLits
 import GHC.Types
 import Data.Data
@@ -66,6 +67,7 @@ import IHP.Log.Types (Logger)
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
+    , hasqlPool :: Maybe Hasql.Pool -- ^ Optional hasql pool for prepared statement-based fetch queries (better performance)
     , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
     -- | Logs all queries to this logger at log level info
     , logger :: Logger

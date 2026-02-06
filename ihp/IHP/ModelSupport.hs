@@ -55,6 +55,16 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Data.Pool as Pool
+import qualified Hasql.Pool as HasqlPool
+import qualified Hasql.Pool.Config as HasqlPoolConfig
+import qualified Hasql.Connection.Setting as HasqlConnectionSetting
+import qualified Hasql.Connection.Setting.Connection as HasqlConnectionConfig
+import qualified Hasql.Session as Hasql
+import qualified Hasql.Statement as Hasql
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.DynamicStatements.Statement as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
 import IHP.Postgres.Point
 import IHP.Postgres.Interval ()
 import IHP.Postgres.Polygon
@@ -64,16 +74,19 @@ import IHP.Postgres.TimeParser
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
+import IHP.EnvVar
 import Data.Scientific
 import GHC.Stack
 import qualified Numeric
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Builder as Builder
+import Data.ByteString.Builder (toLazyByteString)
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { connectionPool = error "Not connected"
+    , hasqlPool = Nothing
     , transactionConnection = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
@@ -82,17 +95,37 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
+    -- Create postgresql-simple pool
     let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
     connectionPool <- Pool.newPool poolConfig
+
+    -- Create hasql pool for better fetch performance with prepared statements
+    -- HASQL_POOL_SIZE: pool size (default: 3). Set to 1 for consistent prepared statement caching.
+    -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
+    hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
+    hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
+    let hasqlPoolSettings =
+            [ HasqlPoolConfig.staticConnectionSettings
+                [ HasqlConnectionSetting.connection (HasqlConnectionConfig.string (cs databaseUrl))
+                ]
+            ]
+            <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
+    let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
+    hasqlPoolInstance <- HasqlPool.acquire hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
     let rowLevelSecurity = Nothing
+    let hasqlPool = Just hasqlPoolInstance
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
-releaseModelContext modelContext =
+releaseModelContext modelContext = do
     Pool.destroyAllResources modelContext.connectionPool
+    case modelContext.hasqlPool of
+        Just pool -> HasqlPool.release pool
+        Nothing -> pure ()
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -179,6 +212,12 @@ instance FromField (PrimaryKey model) => FromField (Id' model) where
 instance ToField (PrimaryKey model) => ToField (Id' model) where
     {-# INLINE toField #-}
     toField = toField . unpackId
+
+-- | ToField instance for composite primary keys (tuples of two Id' types)
+-- Used by filterWhereIdIn for tables with composite primary keys
+instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
+    {-# INLINE toField #-}
+    toField (a, b) = PG.Many [PG.Plain "(", toField a, PG.Plain ",", toField b, PG.Plain ")"]
 
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
@@ -339,6 +378,46 @@ withDatabaseConnection block =
         Just transactionConnection -> block transactionConnection
         Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
+
+-- | Runs a query using the hasql pool with prepared statements
+--
+-- This function executes a query using hasql's prepared statement mechanism,
+-- which provides better performance than postgresql-simple for repeated queries.
+--
+-- Note: This function does not support RLS. When RLS is enabled, the fetch functions
+-- automatically fall back to postgresql-simple instead of using hasql.
+--
+-- __Example:__
+--
+-- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
+--
+sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
+sqlQueryHasql pool snippet decoder = do
+    let ?context = ?modelContext
+    let currentLogLevel = ?modelContext.logger.level
+    let statement = Snippet.dynamicallyParameterized snippet decoder True
+    let runQuery = do
+            let session = Hasql.statement () statement
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right a -> pure a
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            runQuery `finally` do
+                end <- getCurrentTime
+                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let Hasql.Statement sqlText _ _ _ = statement
+                Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+        else runQuery
+{-# INLINABLE sqlQueryHasql #-}
+
+-- | Exception type for hasql errors
+data HasqlError = HasqlError HasqlPool.UsageError
+    deriving (Show)
+
+instance Exception HasqlError
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
