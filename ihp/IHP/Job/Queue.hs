@@ -20,7 +20,7 @@ import Control.Monad.Trans.Resource
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
+
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
@@ -304,7 +304,7 @@ textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
 
 -- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
 instance DefaultParamEncoder JobStatus where
-    defaultParam = Encoders.nonNullable (contramap inputValue Encoders.text)
+    defaultParam = Encoders.nonNullable (Encoders.enum inputValue)
 
 getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
 getHasqlPool = case ?modelContext.hasqlPool of
