@@ -32,7 +32,9 @@ Database name: `app`.
 
 Once you have created your project, the first step is to define a database schema. The database schema is a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP.
+In a new project, this file will be empty.
+
+If you are using PostgreSQL 18 or newer, you can set the environment variable `IHP_POSTGRES_VERSION=18` to use the native `uuidv7()` function as the default for new tables and jobs instead of `uuid_generate_v4()`. UUIDv7 provides time-ordered UUIDs that are better for database indexing.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 

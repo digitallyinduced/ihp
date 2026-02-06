@@ -259,6 +259,7 @@ library
         , IHP.AuthSupport.Types
         , IHP.AuthSupport.View.PasswordResets.New
         , IHP.AuthSupport.View.PasswordResets.Show
+        , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
