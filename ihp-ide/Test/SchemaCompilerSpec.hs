@@ -195,7 +195,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User'
+                    type User = User' 
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
@@ -277,7 +277,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User'
+                    type User = User' 
 
                     type instance GetTableName (User' ) = "users"
                     type instance GetModelByTableName "users" = User
