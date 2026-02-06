@@ -244,7 +244,7 @@ tests = do
 
                     createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
                     createManyUserHasql models pool = do
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
+                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
                     createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
@@ -376,7 +376,7 @@ tests = do
 
                     createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
                     createManyUserHasql models pool = do
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
+                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
                     createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
@@ -505,7 +505,7 @@ tests = do
 
                     createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
                     createManyUserHasql models pool = do
-                        let snippet = Snippet.sql "INSERT INTO users (id) VALUES " <> mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ")") models <> Snippet.sql " RETURNING id, ts"
+                        let snippet = Snippet.sql "INSERT INTO users (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ts"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
                     createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
@@ -670,7 +670,7 @@ tests = do
 
                     createManyLandingPageHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> HasqlPool.Pool -> IO [Generated.ActualTypes.LandingPage]
                     createManyLandingPageHasql models pool = do
-                        let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES " <> mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")") models <> Snippet.sql " RETURNING id"
+                        let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
 
                     createManyLandingPagePgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
@@ -978,7 +978,7 @@ tests = do
 
                     createManyPostHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> HasqlPool.Pool -> IO [Generated.ActualTypes.Post]
                     createManyPostHasql models pool = do
-                        let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES " <> mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")") models <> Snippet.sql " RETURNING id, title, user_id"
+                        let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, title, user_id"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.Post))
 
                     createManyPostPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
