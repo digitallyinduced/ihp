@@ -505,7 +505,7 @@ tests = do
                     instance FromRow Generated.ActualTypes.LandingPage where
                         fromRow = do
                             id <- field
-                            let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
 

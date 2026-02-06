@@ -782,16 +782,18 @@ instance FromRow #{modelName} where
         columnBinding columnName = columnName <> " <- field"
 
         referencing = columnsReferencingTable table.name
+        -- Pair each referencing column with its generated field name for proper matching
+        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
-            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
         isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
         isColumn name = name `elem` columnNames
-        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
+        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
         compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
@@ -876,15 +878,17 @@ instance FromRowHasql #{modelName} where
         columnBinding columnName = columnName <> " <- " <> hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
 
         referencing = columnsReferencingTable table.name
+        -- Pair each referencing column with its generated field name for proper matching
+        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
-            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
         isColumn name = name `elem` columnNames
-        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
+        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
         compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
