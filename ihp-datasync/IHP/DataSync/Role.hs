@@ -28,11 +28,10 @@ import IHP.DataSync.Hasql (runSession)
 -- Statements
 
 doesRoleExistsStatement :: Statement.Statement Text Bool
-doesRoleExistsStatement = Statement.Statement
+doesRoleExistsStatement = Statement.preparable
     "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1)"
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-    True
 
 -- Sessions
 
@@ -47,11 +46,10 @@ createAuthenticatedRoleSession :: Text -> Session.Session ()
 createAuthenticatedRoleSession role = do
     -- The role is only going to be used from 'SET ROLE ..' calls
     -- Therefore we can disallow direct connection with NOLOGIN
-    Session.statement () (Statement.Statement
+    Session.statement () (Statement.unpreparable
         ("CREATE ROLE " <> quoteIdentifier role <> " NOLOGIN")
         Encoders.noParams
-        Decoders.noResult
-        False)
+        Decoders.noResult)
 
 grantPermissionsSession :: Text -> Session.Session ()
 grantPermissionsSession role = do
@@ -69,7 +67,7 @@ grantPermissionsSession role = do
     --         No:  Reject access.
     --         Yes: Check column privileges.
 
-    let exec sql = Session.statement () (Statement.Statement sql Encoders.noParams Decoders.noResult False)
+    let exec sql = Session.statement () (Statement.unpreparable sql Encoders.noParams Decoders.noResult)
 
     -- The role should have access to all existing tables in our schema
     exec ("GRANT USAGE ON SCHEMA public TO " <> quoteIdentifier role)
@@ -97,5 +95,5 @@ authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
 
 -- | Quote a SQL identifier (role name, table name, etc.) to prevent SQL injection.
 -- Escapes embedded double quotes by doubling them per SQL standard.
-quoteIdentifier :: Text -> ByteString
-quoteIdentifier name = cs ("\"" <> Text.replace "\"" "\"\"" name <> "\"")
+quoteIdentifier :: Text -> Text
+quoteIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""

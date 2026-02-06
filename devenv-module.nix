@@ -103,6 +103,9 @@ that is defined in flake-module.nix
                         hasql-dynamic-statements
                         hasql-implicits
                         hasql-transaction
+                        hasql-mapping
+                        hasql-postgresql-types
+                        postgresql-types
                         wai-app-static
                         wai-util
                         aeson

@@ -22,7 +22,6 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
@@ -153,17 +152,16 @@ createNotificationFunction table = Snippet.sql [i|
 -- Statements
 
 retrieveChangesStatement :: Statement.Statement UUID ByteString
-retrieveChangesStatement = Statement.Statement
+retrieveChangesStatement = Statement.preparable
     "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
     (Encoders.param (Encoders.nonNullable Encoders.uuid))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
-    True
 
 -- Sessions
 
 installTableChangeTriggersSession :: RLS.TableWithRLS -> Session.Session ()
 installTableChangeTriggersSession table =
-    DynSession.dynamicallyParameterizedStatement (createNotificationFunction table) Decoders.noResult True
+    Snippet.toSession (createNotificationFunction table) Decoders.noResult
 
 retrieveChangesSession :: UUID -> Session.Session ByteString
 retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
