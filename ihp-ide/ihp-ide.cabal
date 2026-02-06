@@ -213,6 +213,7 @@ library
         , IHP.IDE.CodeGen.ControllerGenerator
         , IHP.IDE.CodeGen.ScriptGenerator
         , IHP.IDE.CodeGen.Types
+        , IHP.IDE.CodeGen.DefaultUuidFunction
         , IHP.IDE.CodeGen.ViewGenerator
         , IHP.IDE.CodeGen.JobGenerator
         , IHP.IDE.CodeGen.View.NewJob
