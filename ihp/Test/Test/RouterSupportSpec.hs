@@ -30,6 +30,7 @@ import IHP.Controller.NotFound (handleNotFound)
 import Data.String.Conversions
 import Unsafe.Coerce
 import IHP.RequestVault
+import IHP.Controller.Layout (viewLayoutMiddleware)
 import System.IO.Unsafe (unsafePerformIO)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
@@ -170,7 +171,7 @@ config = do
 initApplication :: IO Application
 initApplication = do
     frameworkConfig <- buildFrameworkConfig (pure ())
-    pure (frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app))
+    pure (frameworkConfigMiddleware frameworkConfig $ viewLayoutMiddleware $ Server.application handleNotFound (\app -> app))
 
 application = unsafePerformIO initApplication
 
