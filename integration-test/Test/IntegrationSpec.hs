@@ -5,6 +5,9 @@ import IHP.FrameworkConfig
 import IHP.Environment
 import IHP.Test.Mocking
 import IHP.Hspec (withIHPApp)
+import IHP.Job.Queue (fetchNextJob, jobDidSucceed)
+import IHP.Job.Types (BackoffStrategy(..), JobStatus(..))
+import qualified Data.UUID
 import Test.Hspec
 
 import Web.FrontController ()
@@ -88,7 +91,7 @@ tests = around (withIHPApp WebApplication testConfig) do
             let [thePost] = posts
             thePost.title `shouldBe` "From Controller"
 
-        it "can run a job" $ withContext do
+        it "can run a job via the worker queue" $ withContext do
             user <- newRecord @User
                 |> set #email "job@example.com"
                 |> set #passwordHash "hash"
@@ -102,11 +105,34 @@ tests = around (withIHPApp WebApplication testConfig) do
 
             post.viewsCount `shouldBe` 0
 
+            -- Insert job into the queue
             job <- newRecord @UpdatePostViewsJob
                 |> set #postId post.id
                 |> createRecord
 
-            callJob job
+            -- Step 1: fetchNextJob — atomically locks the job and sets status to Running
+            let workerId = Data.UUID.nil
+            maybeJob <- fetchNextJob @UpdatePostViewsJob
+                (timeoutInMicroseconds @UpdatePostViewsJob)
+                (backoffStrategy @UpdatePostViewsJob)
+                workerId
 
+            case maybeJob of
+                Nothing -> expectationFailure "No job found in queue"
+                Just lockedJob -> do
+                    lockedJob.status `shouldBe` JobStatusRunning
+
+                    -- Step 2: perform — execute the job logic
+                    let ?context = (?mocking).frameworkConfig
+                    perform lockedJob
+
+                    -- Step 3: jobDidSucceed — marks job as Succeeded in DB
+                    jobDidSucceed lockedJob
+
+            -- Verify side effect
             updatedPost <- fetch post.id
             updatedPost.viewsCount `shouldBe` 1
+
+            -- Verify job status was updated to Succeeded
+            completedJob <- fetch job.id
+            completedJob.status `shouldBe` JobStatusSucceeded
