@@ -4,8 +4,7 @@ import Test.Hspec
 import IHP.Prelude hiding (head)
 import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import IHP.DataSync.RowLevelSecurity (rlsPolicyColumns)
 import IHP.DataSync.Hasql (runSession)
@@ -29,12 +28,12 @@ makePool :: Text -> IO Hasql.Pool.Pool
 makePool connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size 2
     , Hasql.Pool.Config.staticConnectionSettings
-        [HasqlSetting.connection (HasqlConnection.string connStr)]
+        (HasqlSettings.connectionString connStr)
     ]
 
 -- | Run a raw SQL statement on a pool (for test setup)
 execSQL :: Hasql.Pool.Pool -> ByteString -> IO ()
-execSQL pool sql = runSession pool (Session.sql sql)
+execSQL pool sql = runSession pool (Session.script (cs sql))
 
 -- | Check if we can connect to Postgres. Returns True if a connection succeeds.
 canConnectToPostgres :: IO Bool

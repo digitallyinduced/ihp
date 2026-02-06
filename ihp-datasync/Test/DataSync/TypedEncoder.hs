@@ -7,10 +7,8 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder
-import Hasql.Statement (Statement(..))
-import qualified Hasql.DynamicStatements.Statement as DynStatement
-import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Vector as Vector
@@ -18,8 +16,7 @@ import qualified Control.Exception as Exception
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
-snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
-    Statement sql _ _ _ -> sql
+snippetToSql snippet = cs (Snippet.toSql snippet)
 
 tests = do
     describe "IHP.DataSync.TypedEncoder" do

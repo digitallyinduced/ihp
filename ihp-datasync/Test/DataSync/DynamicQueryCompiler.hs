@@ -9,17 +9,14 @@ import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..))
 import IHP.QueryBuilder hiding (OrderByClause)
-import Hasql.Statement (Statement(..))
-import qualified Hasql.DynamicStatements.Statement as DynStatement
-import qualified Hasql.Decoders as Decoders
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Aeson as Aeson
 
 -- | Convert a Snippet to its SQL text representation for testing purposes.
 snippetToSql :: Snippet -> ByteString
-snippetToSql snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
-    Statement sql _ _ _ -> sql
+snippetToSql snippet = cs (Snippet.toSql snippet)
 
 -- | Column types for the "posts" table used in tests.
 -- Simulates database column order: id first, then other columns in schema definition order.

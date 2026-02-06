@@ -23,7 +23,7 @@ where
 import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Hasql.Pool
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Statement as DynStatement
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
@@ -39,11 +39,10 @@ import Data.Functor.Contravariant (contramap)
 -- Statements
 
 hasRLSEnabledStatement :: Statement.Statement Text Bool
-hasRLSEnabledStatement = Statement.Statement
+hasRLSEnabledStatement = Statement.preparable
     "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-    True
 
 -- | Prepared statement that sets the RLS role and user id using set_config().
 --
@@ -54,12 +53,11 @@ hasRLSEnabledStatement = Statement.Statement
 -- The third argument @true@ makes the setting local to the current transaction,
 -- equivalent to @SET LOCAL@.
 setRLSConfigStatement :: Statement.Statement (Text, Text) ()
-setRLSConfigStatement = Statement.Statement
+setRLSConfigStatement = Statement.preparable
     "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
     (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
      <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
     Decoders.noResult
-    True
 
 -- Sessions
 
@@ -99,7 +97,7 @@ sqlQueryWithRLSSession ::
 sqlQueryWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+        Tx.statement () (Snippet.toStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -120,7 +118,7 @@ sqlQueryWriteWithRLSSession ::
 sqlQueryWriteWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+        Tx.statement () (Snippet.toStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -137,7 +135,7 @@ sqlExecWithRLSSession ::
 sqlExecWithRLSSession snippet =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (DynStatement.dynamicallyParameterized snippet Decoders.noResult True)
+        Tx.statement () (Snippet.toStatement snippet Decoders.noResult)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -154,7 +152,7 @@ sqlQueryScalarWithRLSSession ::
 sqlQueryScalarWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (DynStatement.dynamicallyParameterized snippet decoder True)
+        Tx.statement () (Snippet.toStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -263,11 +261,10 @@ newtype TableWithRLS = TableWithRLS { tableName :: Text } deriving (Eq, Ord)
 --
 -- Checks both @USING@ (@polqual@) and @WITH CHECK@ (@polwithcheck@) expressions.
 rlsPolicyColumnsStatement :: Statement.Statement Text [Text]
-rlsPolicyColumnsStatement = Statement.Statement
+rlsPolicyColumnsStatement = Statement.preparable
     "SELECT DISTINCT a.attname::text FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 WHERE c.relname = $1 AND (pg_get_expr(p.polqual, p.polrelid) LIKE '%' || a.attname || '%' OR pg_get_expr(p.polwithcheck, p.polrelid) LIKE '%' || a.attname || '%')"
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
-    True
 
 -- | Returns the set of column names referenced in a table's RLS policies.
 --

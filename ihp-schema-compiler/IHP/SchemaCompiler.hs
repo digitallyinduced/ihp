@@ -698,10 +698,9 @@ hasqlSupportsColumnType = \case
     (PArray inner) -> hasqlSupportsColumnType inner
     PCustomType _ -> True  -- enums have generated DefaultParamEncoder
     PSingleChar -> True
-    -- Unsupported:
-    PPoint -> False
-    PPolygon -> False
-    PInet -> False
+    PPoint -> True
+    PPolygon -> True
+    PInet -> True
     PTSVector -> False
     (PInterval _) -> False
     PTrigger -> False
