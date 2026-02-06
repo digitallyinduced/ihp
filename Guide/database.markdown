@@ -98,6 +98,14 @@ When dumping the database into the `Fixtures.sql` first and then rebuilding the 
 
 To have the full database dumped in a portable manner, you can do `make sql_dump > /tmp/my_app.sql`, which will generate a full SQL database dump, without owner or ACL information.
 
+## Typed SQL
+
+When Query Builder is not expressive enough and `sqlQuery` feels too loose,
+use `typedSql` for compile-time checked SQL with IHP type inference. It uses
+your schema to return `Id` and generated record types automatically.
+
+See [Typed SQL](https://ihp.digitallyinduced.com/Guide/typed-sql.html).
+
 ## Haskell Bindings
 
 ### Model Context
