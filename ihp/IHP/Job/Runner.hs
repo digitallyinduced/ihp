@@ -11,7 +11,6 @@ import IHP.ControllerPrelude
 import IHP.ScriptSupport
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception.Safe as Exception
-import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
@@ -124,7 +123,7 @@ worker :: forall job.
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
+    , FromField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , SetField "attemptsCount" job Int
     , SetField "lockedBy" job (Maybe UUID)
@@ -137,6 +136,7 @@ worker :: forall job.
     , CanUpdate job
     , Show job
     , Table job
+    , PrimaryKey (GetTableName job) ~ UUID
     ) => JobWorker
 worker = JobWorker (jobWorkerFetchAndRunLoop @job)
 
@@ -146,7 +146,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
+    , FromField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , SetField "attemptsCount" job Int
     , SetField "lockedBy" job (Maybe UUID)
@@ -158,6 +158,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , CanUpdate job
     , Show job
     , Table job
+    , PrimaryKey (GetTableName job) ~ UUID
     ) => JobWorkerArgs -> ResourceT IO JobWorkerProcess
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig

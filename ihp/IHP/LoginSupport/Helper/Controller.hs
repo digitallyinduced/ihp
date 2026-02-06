@@ -36,7 +36,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import qualified Database.PostgreSQL.Simple.ToField as PG
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import Data.Typeable
 
 currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
@@ -162,13 +163,13 @@ enableRowLevelSecurityIfLoggedIn ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , HasField "id" CurrentUserRecord userId
-    , PG.ToField userId
+    , DefaultParamEncoder userId
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
     case currentUserOrNothing of
         Just user -> do
             let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
-            let rlsUserId = PG.toField user.id
+            let rlsUserId = Snippet.param user.id
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             putContext rlsContext
         Nothing -> pure ()

@@ -95,14 +95,11 @@ that is defined in flake-module.nix
                         http-types
                         inflections
                         text
-                        postgresql-simple
                         hasql
-                        hasql-notifications
                         hasql-pool
-                        ihp-pglistener
                         hasql-dynamic-statements
+                        hasql-notifications
                         hasql-implicits
-                        hasql-transaction
                         wai-app-static
                         wai-util
                         aeson

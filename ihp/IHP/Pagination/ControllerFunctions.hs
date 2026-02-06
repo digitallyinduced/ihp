@@ -21,7 +21,8 @@ import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
 import qualified Network.Wai as Wai
 
-import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.Decoders as Decoders
 
 -- | Paginate a query, with the following default options:
 --
@@ -178,12 +179,11 @@ defaultPaginationOptions =
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQuery
   :: ( FromRow model
-     , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Wai.Request
      )
-  => Query -> parameters -> IO ([model], Pagination)
+  => Snippet.Snippet -> IO ([model], Pagination)
 paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 
 -- | Runs a raw sql query and adds pagination to it.
@@ -195,21 +195,20 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 -- > (users, pagination) <- paginatedSqlQueryWithOptions
 -- >     (defaultPaginationOptions |> set #maxItems 10)
 -- >     "SELECT id, firstname, lastname FROM users"
--- >     ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQueryWithOptions
-  :: ( FromRow model
-     , ToRow parameters
+  :: forall model. ( FromRow model
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Wai.Request
      )
-  => Options -> Query -> parameters -> IO ([model], Pagination)
-paginatedSqlQueryWithOptions options sql placeholders = do
-    count :: Int <- sqlQueryScalar ("SELECT count(subquery.*) FROM (" <> sql <> ") as subquery") placeholders
+  => Options -> Snippet.Snippet -> IO ([model], Pagination)
+paginatedSqlQueryWithOptions options baseSnippet = do
+    let countSnippet = Snippet.sql "SELECT count(subquery.*) FROM (" <> baseSnippet <> Snippet.sql ") as subquery"
+    count :: Int <- sqlQueryScalar countSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8))))
 
     let pageSize = pageSize' options
         pagination = Pagination
@@ -219,9 +218,8 @@ paginatedSqlQueryWithOptions options sql placeholders = do
             , window = windowSize options
             }
 
-    results :: [model] <- sqlQuery
-        ("SELECT subquery.* FROM (" <> sql <> ") as subquery LIMIT ? OFFSET ?")
-        (placeholders :. Only pageSize :. Only (offset' pageSize page))
+    let querySnippet = Snippet.sql "SELECT subquery.* FROM (" <> baseSnippet <> Snippet.sql ") as subquery LIMIT " <> Snippet.param pageSize <> Snippet.sql " OFFSET " <> Snippet.param (offset' pageSize page)
+    results :: [model] <- sqlQuery querySnippet (Decoders.rowList (fromRow @model))
 
     pure (results, pagination)
 

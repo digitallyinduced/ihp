@@ -25,7 +25,8 @@ common shared-properties
           , unordered-containers
           , text
           , attoparsec
-          , postgresql-simple
+          , hasql
+          , hasql-dynamic-statements
           , aeson
           , countable-inflections
     default-extensions:

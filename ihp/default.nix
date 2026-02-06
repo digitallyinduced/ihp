@@ -1,8 +1,10 @@
 { mkDerivation, aeson, async, attoparsec, base, basic-prelude
 , binary, blaze-html, blaze-markup, bytestring, case-insensitive
 , cereal, cereal-text, classy-prelude, clientsession, conduit-extra
-, containers, cookie, countable-inflections, data-default, deepseq
+, containers, contravariant, cookie, countable-inflections, data-default, deepseq
 , directory, fast-logger, filepath, ghc-prim, hashable
+, hasql, hasql-dynamic-statements, hasql-implicits, hasql-notifications
+, hasql-pool
 , haskell-src-exts, haskell-src-meta, hspec, http-client
 , http-client-tls, http-media, http-types, ihp-context, ihp-hsx
 , ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead
@@ -10,8 +12,8 @@
 , ihp-postgresql-simple-extra, inflections, interpolate, ip, lens
 , lib, mime-types, minio-hs, mono-traversable, mtl
 , neat-interpolation, network, network-uri, parser-combinators
-, postgresql-simple, process, pwstore-fast, random, random-strings
-, regex-tdfa, resource-pool, resourcet, safe-exceptions, scientific
+, process, pwstore-fast, random, random-strings
+, regex-tdfa, resourcet, safe-exceptions, scientific
 , slugger, split, stm, string-conversions, template-haskell
 , temporary, text, time, transformers, typerep-map, unagi-chan
 , unix, unliftio, unordered-containers, uri-encode, uuid, vault
@@ -28,17 +30,19 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
     blaze-markup bytestring case-insensitive cereal cereal-text
-    classy-prelude clientsession conduit-extra containers cookie
+    classy-prelude clientsession conduit-extra containers contravariant cookie
     countable-inflections data-default deepseq directory fast-logger
     filepath ghc-prim hashable
+    hasql hasql-dynamic-statements hasql-implicits hasql-notifications
+    hasql-pool
     haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
     ihp-pglistener
     ihp-postgresql-simple-extra inflections interpolate ip lens
     mime-types minio-hs mono-traversable mtl neat-interpolation network
-    network-uri parser-combinators postgresql-simple process
-    pwstore-fast random random-strings regex-tdfa resource-pool
+    network-uri parser-combinators process
+    pwstore-fast random random-strings regex-tdfa
     resourcet safe-exceptions scientific slugger split stm
     string-conversions template-haskell temporary text time
     transformers typerep-map unagi-chan unix unliftio
@@ -50,17 +54,19 @@ mkDerivation {
   testHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
     blaze-markup bytestring case-insensitive cereal cereal-text
-    classy-prelude clientsession conduit-extra containers cookie
+    classy-prelude clientsession conduit-extra containers contravariant cookie
     countable-inflections data-default deepseq directory fast-logger
     filepath ghc-prim hashable
+    hasql hasql-dynamic-statements hasql-implicits hasql-notifications
+    hasql-pool
     haskell-src-exts haskell-src-meta hspec
     http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
     ihp-pglistener
     ihp-postgresql-simple-extra inflections interpolate ip lens
     mime-types minio-hs mono-traversable mtl neat-interpolation network
-    network-uri parser-combinators postgresql-simple process
-    pwstore-fast random random-strings regex-tdfa resource-pool
+    network-uri parser-combinators process
+    pwstore-fast random random-strings regex-tdfa
     resourcet safe-exceptions scientific slugger split stm
     string-conversions template-haskell temporary text time
     transformers typerep-map unagi-chan unix unliftio
