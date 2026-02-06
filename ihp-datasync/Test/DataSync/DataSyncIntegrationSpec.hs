@@ -150,11 +150,12 @@ withDataSyncController connStr testUserId action = do
         modelContext <- createModelContext 10 4 actualConnStr logger
         PGListener.withPGListener actualConnStr logger \pgListener -> do
             frameworkConfig <- buildFrameworkConfig (pure ())
+            let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
             let v = Vault.empty
                     |> Vault.insert hasqlPoolVaultKey hasqlPool
                     |> Vault.insert pgListenerVaultKey pgListener
-                    |> Vault.insert frameworkConfigVaultKey frameworkConfig
+                    |> Vault.insert frameworkConfigVaultKey frameworkConfig'
             let request = defaultRequest { vault = v }
 
             -- Set up ControllerContext with the request and current user
