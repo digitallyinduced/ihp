@@ -65,6 +65,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.DynamicStatements.Statement as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Implicits.Encoders
 import IHP.Postgres.Point
 import IHP.Postgres.Interval ()
 import IHP.Postgres.Polygon
@@ -413,6 +414,40 @@ sqlQueryHasql pool snippet decoder = do
         else runQuery
 {-# INLINABLE sqlQueryHasql #-}
 
+-- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
+sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
+sqlExecHasql pool snippet = do
+    let ?context = ?modelContext
+    let currentLogLevel = ?modelContext.logger.level
+    let statement = Snippet.dynamicallyParameterized snippet Decoders.noResult True
+    let runQuery = do
+            let session = Hasql.statement () statement
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right () -> pure ()
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            runQuery `finally` do
+                end <- getCurrentTime
+                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let Hasql.Statement sqlText _ _ _ = statement
+                Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+        else runQuery
+{-# INLINABLE sqlExecHasql #-}
+
+-- | Routes between hasql and pg-simple based on context
+--
+-- Uses hasql when there's no transaction, a hasql pool is available, and no RLS.
+-- Falls back to pg-simple otherwise.
+withHasqlOrPgSimple :: (?modelContext :: ModelContext) => (HasqlPool.Pool -> IO a) -> IO a -> IO a
+withHasqlOrPgSimple hasqlAction pgSimpleAction =
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
+        (Nothing, Just pool, Nothing) -> hasqlAction pool
+        _ -> pgSimpleAction
+{-# INLINABLE withHasqlOrPgSimple #-}
+
 -- | Exception type for hasql errors
 data HasqlError = HasqlError HasqlPool.UsageError
     deriving (Show)
@@ -637,7 +672,7 @@ logQuery logPrefix connection query parameters time = do
 --
 -- Use 'deleteRecords' if you want to delete multiple records.
 --
-deleteRecord :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), HasField "id" record (Id record), GetTableName record ~ table, record ~ GetModelByTableName table) => record -> IO ()
+deleteRecord :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), HasField "id" record (Id record), GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder (Id' table)) => record -> IO ()
 deleteRecord record =
     deleteRecordById @record record.id
 {-# INLINABLE deleteRecord #-}
@@ -648,12 +683,17 @@ deleteRecord record =
 -- >>> delete projectId
 -- DELETE FROM projects WHERE id = '..'
 --
-deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table) => Id' table -> IO ()
-deleteRecordById id = do
-    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
-    let theParameters = PG.Only $ primaryKeyConditionForId @record id
-    sqlExec (PG.Query $! theQuery) theParameters
-    pure ()
+deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder (Id' table)) => Id' table -> IO ()
+deleteRecordById id = withHasqlOrPgSimple hasqlPath pgSimplePath
+    where
+        hasqlPath pool = sqlExecHasql pool $
+            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
+            <> Snippet.param id
+        pgSimplePath = do
+            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
+            let theParameters = PG.Only $ primaryKeyConditionForId @record id
+            sqlExec (PG.Query $! theQuery) theParameters
+            pure ()
 {-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
@@ -661,7 +701,7 @@ deleteRecordById id = do
 -- >>> let projects :: [Project] = ...
 -- >>> deleteRecords projects
 -- DELETE FROM projects WHERE id IN (..)
-deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), GetTableName record ~ table, record ~ GetModelByTableName table) => [record] -> IO ()
+deleteRecords :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, HasField "id" record (Id' table), GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder [Id' table]) => [record] -> IO ()
 deleteRecords records =
     deleteRecordByIds @record (ids records)
 {-# INLINABLE deleteRecords #-}
@@ -672,12 +712,18 @@ deleteRecords records =
 -- >>> delete projectIds
 -- DELETE FROM projects WHERE id IN ('..')
 --
-deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table) => [Id' table] -> IO ()
-deleteRecordByIds ids = do
-    let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
-    let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
-    sqlExec (PG.Query $! theQuery) theParameters
-    pure ()
+deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder [Id' table]) => [Id' table] -> IO ()
+deleteRecordByIds ids = withHasqlOrPgSimple hasqlPath pgSimplePath
+    where
+        hasqlPath pool = sqlExecHasql pool $
+            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
+            <> Snippet.param ids
+            <> Snippet.sql ")"
+        pgSimplePath = do
+            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
+            let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
+            sqlExec (PG.Query $! theQuery) theParameters
+            pure ()
 {-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
@@ -685,10 +731,14 @@ deleteRecordByIds ids = do
 -- >>> deleteAll @Project
 -- DELETE FROM projects
 deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
-deleteAll = do
-    let theQuery = "DELETE FROM " <> tableName @record
-    sqlExec (PG.Query . cs $! theQuery) ()
-    pure ()
+deleteAll = withHasqlOrPgSimple hasqlPath pgSimplePath
+    where
+        hasqlPath pool = sqlExecHasql pool $
+            Snippet.sql ("DELETE FROM " <> cs (tableName @record))
+        pgSimplePath = do
+            let theQuery = "DELETE FROM " <> tableName @record
+            sqlExec (PG.Query . cs $! theQuery) ()
+            pure ()
 {-# INLINABLE deleteAll #-}
 
 instance Default NominalDiffTime where
@@ -857,6 +907,40 @@ fieldWithUpdate name model
   | cs (symbolVal name) `elem` model.meta.touchedFields =
     Update (get name model)
   | otherwise = NoUpdate name
+
+-- | Like 'fieldWithDefault' but produces a hasql 'Snippet' instead of a 'FieldWithDefault'
+--
+--   When the field hasn't been touched, produces @DEFAULT@. Otherwise encodes the value
+--   using hasql's 'DefaultParamEncoder'.
+fieldWithDefaultSnippet
+  :: ( KnownSymbol name
+     , HasField name model value
+     , HasField "meta" model MetaBag
+     , Hasql.Implicits.Encoders.DefaultParamEncoder value
+     )
+  => Proxy name
+  -> model
+  -> Snippet.Snippet
+fieldWithDefaultSnippet name model
+  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
+  | otherwise = Snippet.sql "DEFAULT"
+
+-- | Like 'fieldWithUpdate' but produces a hasql 'Snippet' instead of a 'FieldWithUpdate'
+--
+--   When the field hasn't been touched, produces the column name (keeping the current DB value).
+--   Otherwise encodes the new value using hasql's 'DefaultParamEncoder'.
+fieldWithUpdateSnippet
+  :: ( KnownSymbol name
+     , HasField name model value
+     , HasField "meta" model MetaBag
+     , Hasql.Implicits.Encoders.DefaultParamEncoder value
+     )
+  => Proxy name
+  -> model
+  -> Snippet.Snippet
+fieldWithUpdateSnippet name model
+  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
+  | otherwise = Snippet.sql (cs $ fieldNameToColumnName $ cs $ symbolVal name)
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
