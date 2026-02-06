@@ -130,11 +130,13 @@ dynamicRowDecoder = Decoders.rowList dynamicRowJsonDecoder
 -- | Decodes a single row from a @row_to_json@ wrapped query.
 -- The row consists of a single JSONB column containing the original row as a JSON object.
 dynamicRowJsonDecoder :: Decoders.Row [Field]
-dynamicRowJsonDecoder = do
-    jsonValue <- Decoders.column (Decoders.nonNullable Decoders.jsonb)
-    case jsonToFields jsonValue of
-        Right fields -> pure fields
-        Left err -> error ("dynamicRowJsonDecoder: Failed to decode JSON row: " <> cs err)
+dynamicRowJsonDecoder =
+    Decoders.column (Decoders.nonNullable Decoders.jsonb)
+    |> fmap (\jsonValue ->
+        case jsonToFields jsonValue of
+            Right fields -> fields
+            Left err -> error ("dynamicRowJsonDecoder: Failed to decode JSON row: " <> cs err)
+    )
 
 -- | Converts a JSON object (from @row_to_json@) into a list of Fields
 jsonToFields :: Value -> Either String [Field]

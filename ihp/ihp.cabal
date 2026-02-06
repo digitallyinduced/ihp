@@ -135,6 +135,11 @@ common shared-properties
             , hasql-pool
             , hasql-dynamic-statements
             , hasql-implicits
+            , hasql-mapping
+            , hasql-postgresql-types
+            , postgresql-types
+            , contravariant
+            , wide-word
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

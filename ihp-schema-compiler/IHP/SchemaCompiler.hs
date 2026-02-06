@@ -602,9 +602,9 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "textToEnum" <> modelName <> " t = HashMap.lookup t textToEnum" <> modelName <> "Map\n"
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
-        <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum inputValue)\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow name <> " inputValue)\n"
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
-        <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum inputValue)\n"
+        <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow name <> " inputValue)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
@@ -698,10 +698,9 @@ hasqlSupportsColumnType = \case
     (PArray inner) -> hasqlSupportsColumnType inner
     PCustomType _ -> True  -- enums have generated DefaultParamEncoder
     PSingleChar -> True
-    -- Unsupported:
-    PPoint -> False
-    PPolygon -> False
-    PInet -> False
+    PPoint -> True
+    PPolygon -> True
+    PInet -> True
     PTSVector -> False
     (PInterval _) -> False
     PTrigger -> False
