@@ -1042,19 +1042,21 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
 --
 -- This is parallel to 'compileFromRowInstance' but generates code for the
 -- hasql decoder instead of postgresql-simple's FromRow.
--- Uses do-notation to bind column values, allowing one-to-many QueryBuilders
--- to reference the decoded primary key (shadowing any imported field selectors).
+-- Uses applicative style (<$>/<*>) since hasql 1.10's Decoders.Row is
+-- Applicative but not Monad. Column values are bound via a lambda so that
+-- one-to-many QueryBuilders can reference the decoded primary key.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = do
-#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
-        pure theRecord
+    hasqlRowDecoder = (\\#{intercalate " " columnNames} -> let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))} in theRecord)
+#{unsafeInit . indent . indent $ unlines applicativeDecoders}
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
         columnNames = map (columnNameToFieldName . (.name)) columns
-        columnBinding columnName = columnName <> " <- " <> hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        columnDecoderExpr columnName = hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        applicativeDecoders = case columnNames of
+            [] -> error "compileFromRowHasqlInstance: table has no columns"
+            (first:rest) -> ("<$> " <> columnDecoderExpr first) : map (\cn -> "<*> " <> columnDecoderExpr cn) rest
 
         referencing = columnsReferencingTable table.name
         -- Pair each referencing column with its generated field name for proper matching
