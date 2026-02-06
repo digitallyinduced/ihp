@@ -373,6 +373,7 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Hasql.Encoders
             import qualified Hasql.Implicits.Encoders
             import qualified Data.Functor.Contravariant
+            import qualified Data.HashMap.Strict as HashMap
         |]
 
 compilePrimaryKeysModule :: (?compilerOptions :: CompilerOptions) => Schema -> Text
@@ -593,10 +594,11 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "instance InputValue " <> modelName <> " where\n" <> indent (unlines (map compileInputValue values))
         <> "instance DeepSeq.NFData " <> modelName <> " where" <> " rnf a = seq a ()" <> "\n"
         <> "instance IHP.Controller.Param.ParamReader " <> modelName <> " where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON\n"
-        -- textToEnum function for hasql decoder
+        -- textToEnum function for hasql decoder using HashMap for O(1) lookup
+        <> "textToEnum" <> modelName <> "Map :: HashMap.HashMap Text " <> modelName <> "\n"
+        <> "textToEnum" <> modelName <> "Map = HashMap.fromList [" <> intercalate ", " (map compileTextToEnumMapEntry values) <> "]\n"
         <> "textToEnum" <> modelName <> " :: Text -> Maybe " <> modelName <> "\n"
-        <> unlines (map compileTextToEnumCase values)
-        <> "textToEnum" <> modelName <> " _ = Nothing\n"
+        <> "textToEnum" <> modelName <> " t = HashMap.lookup t textToEnum" <> modelName <> "Map\n"
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
         <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
@@ -612,7 +614,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         compileFromFieldInstanceForValue value = "fromField field (Just value) | value == (Data.Text.Encoding.encodeUtf8 " <> tshow value <> ") = pure " <> enumValueToConstructorName value
         compileToFieldInstanceForValue value = "toField " <> enumValueToConstructorName value <> " = toField (" <> tshow value <> " :: Text)"
         compileInputValue value = "inputValue " <> enumValueToConstructorName value <> " = " <> tshow value <> " :: Text"
-        compileTextToEnumCase value = "textToEnum" <> modelName <> " " <> tshow value <> " = Just " <> enumValueToConstructorName value
+        compileTextToEnumMapEntry value = "(" <> tshow value <> ", " <> enumValueToConstructorName value <> ")"
 
         -- Let's say we have a schema like this:
         --

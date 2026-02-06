@@ -40,12 +40,10 @@ tests = do
                         inputValue VerySad = "very sad" :: Text
                     instance DeepSeq.NFData Mood where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumMoodMap :: HashMap.HashMap Text Mood
+                    textToEnumMoodMap = HashMap.fromList [("happy", Happy), ("very happy", VeryHappy), ("sad", Sad), ("very sad", VerySad)]
                     textToEnumMood :: Text -> Maybe Mood
-                    textToEnumMood "happy" = Just Happy
-                    textToEnumMood "very happy" = Just VeryHappy
-                    textToEnumMood "sad" = Just Sad
-                    textToEnumMood "very sad" = Just VerySad
-                    textToEnumMood _ = Nothing
+                    textToEnumMood t = HashMap.lookup t textToEnumMoodMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
@@ -103,18 +101,10 @@ tests = do
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
                     instance DeepSeq.NFData Province where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumProvinceMap :: HashMap.HashMap Text Province
+                    textToEnumProvinceMap = HashMap.fromList [("Alberta", Alberta), ("BritishColumbia", Britishcolumbia), ("Saskatchewan", Saskatchewan), ("Manitoba", Manitoba), ("Ontario", Ontario), ("Quebec", Quebec), ("NovaScotia", Novascotia), ("NewBrunswick", Newbrunswick), ("PrinceEdwardIsland", Princeedwardisland), ("NewfoundlandAndLabrador", Newfoundlandandlabrador)]
                     textToEnumProvince :: Text -> Maybe Province
-                    textToEnumProvince "Alberta" = Just Alberta
-                    textToEnumProvince "BritishColumbia" = Just Britishcolumbia
-                    textToEnumProvince "Saskatchewan" = Just Saskatchewan
-                    textToEnumProvince "Manitoba" = Just Manitoba
-                    textToEnumProvince "Ontario" = Just Ontario
-                    textToEnumProvince "Quebec" = Just Quebec
-                    textToEnumProvince "NovaScotia" = Just Novascotia
-                    textToEnumProvince "NewBrunswick" = Just Newbrunswick
-                    textToEnumProvince "PrinceEdwardIsland" = Just Princeedwardisland
-                    textToEnumProvince "NewfoundlandAndLabrador" = Just Newfoundlandandlabrador
-                    textToEnumProvince _ = Nothing
+                    textToEnumProvince t = HashMap.lookup t textToEnumProvinceMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
@@ -139,10 +129,10 @@ tests = do
                         inputValue House = "HOUSE" :: Text
                     instance DeepSeq.NFData PropertyType where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumPropertyTypeMap :: HashMap.HashMap Text PropertyType
+                    textToEnumPropertyTypeMap = HashMap.fromList [("APARTMENT", PropertyTypeApartment), ("HOUSE", House)]
                     textToEnumPropertyType :: Text -> Maybe PropertyType
-                    textToEnumPropertyType "APARTMENT" = Just PropertyTypeApartment
-                    textToEnumPropertyType "HOUSE" = Just House
-                    textToEnumPropertyType _ = Nothing
+                    textToEnumPropertyType t = HashMap.lookup t textToEnumPropertyTypeMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
