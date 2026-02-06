@@ -53,7 +53,6 @@ tests = do
             let [change] = changesForTable "users" changeSet
             change.table `shouldBe` "users"
             rowFieldNew @"userId" change `shouldBe` Just userId
-            rowFieldByColumnName "user_id" row `shouldBe` Just userId
 
         it "prefers new row data and exposes old/new fields" do
             let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a005"

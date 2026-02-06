@@ -100,8 +100,6 @@ action ShowProjectAction { projectId } =
         in pure (any isTarget projectChanges)
 ```
 
-If you want to access JSON fields by column name directly, use `rowFieldByColumnName "user_id"`.
-
 ### Filtering by ids or foreign keys
 
 The change set includes full row JSON for each change,

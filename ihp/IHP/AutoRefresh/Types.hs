@@ -122,23 +122,23 @@ anyChangeWithField value (AutoRefreshChangeSet existing) =
 
 -- | Reads a field from the new row data (after the update).
 rowFieldNew :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => AutoRefreshRowChange -> Maybe value
-rowFieldNew change = change.newRow >>= rowFieldByColumnName (fieldNameToColumnName (symbolToText @field))
+rowFieldNew change = do
+    row <- change.newRow
+    case row of
+        Aeson.Object object -> do
+            value <- AesonKeyMap.lookup (cs (fieldNameToColumnName (symbolToText @field))) object
+            AesonTypes.parseMaybe Aeson.parseJSON value
+        _ -> Nothing
 
 -- | Reads a field from the old row data (before the update).
 rowFieldOld :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => AutoRefreshRowChange -> Maybe value
-rowFieldOld change = change.oldRow >>= rowFieldByColumnName (fieldNameToColumnName (symbolToText @field))
-
--- | Reads a field by the SQL column name from a json value.
---
--- Use this when the column name differs from IHP's default snake_case mapping:
---
--- > rowFieldByColumnName "user_id" row
-rowFieldByColumnName :: forall value. (Aeson.FromJSON value) => Text -> Aeson.Value -> Maybe value
-rowFieldByColumnName columnName = \case
-    Aeson.Object object -> do
-        value <- AesonKeyMap.lookup (cs columnName) object
-        AesonTypes.parseMaybe Aeson.parseJSON value
-    _ -> Nothing
+rowFieldOld change = do
+    row <- change.oldRow
+    case row of
+        Aeson.Object object -> do
+            value <- AesonKeyMap.lookup (cs (fieldNameToColumnName (symbolToText @field))) object
+            AesonTypes.parseMaybe Aeson.parseJSON value
+        _ -> Nothing
 
 -- | Internal state stored in the controller context, used to decide whether to render the auto refresh websocket meta tag.
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }

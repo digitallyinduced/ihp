@@ -13,7 +13,6 @@ module IHP.AutoRefresh.ChangeSet
     , anyChangeWithField
     , rowFieldNew
     , rowFieldOld
-    , rowFieldByColumnName
     ) where
 
 import IHP.AutoRefresh.Types
