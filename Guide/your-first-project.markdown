@@ -147,7 +147,7 @@ Open the `Application/Schema.sql` in your code editor to see the SQL queries whi
 
 ```sql
 CREATE TABLE posts (
-    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL
 );

@@ -19,7 +19,7 @@ tests = do
             it "should generate a valid typescript definition file" do
                 let schema = parseSqlStatements $ cs [plain|
                     CREATE TABLE users (
-                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
                         email TEXT NOT NULL,
                         password_hash TEXT NOT NULL,
                         locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -28,7 +28,7 @@ tests = do
                     );
                     CREATE TYPE colors AS ENUM ('red', 'blue');
                     CREATE TABLE tasks (
-                        id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
                         title TEXT NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                         user_id UUID NOT NULL,
@@ -414,7 +414,7 @@ tests = do
                 let table = CreateTable
                         { name = "tasks"
                         , columns =
-                            [ Column { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuidv7" []), notNull = True, isUnique = False, generator = Nothing }
+                            [ Column { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing }
                             , Column { name = "title", columnType = PText, defaultValue = Just (TextExpression "untitled"), notNull = True, isUnique = False, generator = Nothing }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]

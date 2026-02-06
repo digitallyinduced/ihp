@@ -15,14 +15,17 @@ import qualified Data.Text as Text
 type Schema = [Statement]
 
 -- | Creates a new tables with a 'id' columns as the primary key
-addTable :: Text -> Schema -> Schema
-addTable tableName list = list <> [StatementCreateTable CreateTable
+--
+-- The second parameter is the UUID function name to use as default value
+-- (e.g. @"uuid_generate_v4"@ or @"uuidv7"@).
+addTable :: Text -> Text -> Schema -> Schema
+addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
     { name = tableName
     , columns =
         [Column
             { name = "id"
             , columnType = PUUID
-            , defaultValue = Just (CallExpression "uuidv7" [])
+            , defaultValue = Just (CallExpression uuidFunction [])
             , notNull = True
             , isUnique = False
             , generator = Nothing

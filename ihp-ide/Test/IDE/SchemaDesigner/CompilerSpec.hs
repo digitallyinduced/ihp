@@ -28,7 +28,7 @@ tests = do
 
         it "should compile a CREATE TABLE with columns" do
             let sql = cs [plain|CREATE TABLE users (
-    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL,
     password_hash TEXT NOT NULL,
@@ -40,7 +40,7 @@ tests = do
 |]
             let statement = StatementCreateTable (table "users")
                     { columns = [
-                        (col "id" PUUID) { defaultValue = Just (CallExpression "uuidv7" []), notNull = True }
+                        (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         , (col "firstname" PText) { notNull = True }
                         , (col "lastname" PText) { notNull = True }
                         , (col "password_hash" PText) { notNull = True }
@@ -432,10 +432,10 @@ tests = do
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TABLE statement with a multi-column UNIQUE (a, b) constraint" do
-            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
+            let sql = cs [plain|CREATE TABLE user_followers (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    user_id UUID NOT NULL,\n    follower_id UUID NOT NULL,\n    UNIQUE(user_id, follower_id)\n);\n|]
             let statement = StatementCreateTable (table "user_followers")
                     { columns =
-                        [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuidv7" []), notNull = True }
+                        [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
                         , (col "user_id" PUUID) { notNull = True }
                         , (col "follower_id" PUUID) { notNull = True }
                         ]

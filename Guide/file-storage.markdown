@@ -197,7 +197,7 @@ In this example we assume the following data schema:
 
 ```sql
 CREATE TABLE companies (
-    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     logo_url TEXT DEFAULT NULL
 );
@@ -498,7 +498,7 @@ To solve both problems we can introduce a new model `UploadedFile`:
 
 ```sql
 CREATE TABLE uploaded_files (
-    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     signed_url TEXT NOT NULL,
     signed_url_expired_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     path TEXT NOT NULL,
@@ -513,7 +513,7 @@ Companies will now reference this new record
 
 ```sql
 CREATE TABLE companies (
-    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     uploaded_file_id UUID NOT NULL
 );

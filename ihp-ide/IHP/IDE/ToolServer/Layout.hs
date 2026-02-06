@@ -5,6 +5,8 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import qualified IHP.Version as Version
 import IHP.IDE.ToolServer.Helper.View
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.IDE.CodeGen.Types (defaultUuidFunction)
 
 toolServerLayout :: Html -> Html
 toolServerLayout inner = [hsx|
@@ -49,7 +51,7 @@ toolServerLayout inner = [hsx|
 
         <title>IHP IDE</title>
     </head>
-    <body class="d-flex h-100 flex-row">
+    <body class="d-flex h-100 flex-row" data-default-uuid-function={defaultUuidFn <> "()"}>
         <div id="nav">
             <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
             <div id="ihp-plan">{ihpEditionTitle}</div>
@@ -70,6 +72,9 @@ toolServerLayout inner = [hsx|
     </body>
 </html>
 |]  where
+        defaultUuidFn :: Text
+        defaultUuidFn = unsafePerformIO defaultUuidFunction
+        {-# NOINLINE defaultUuidFn #-}
         (AvailableApps appNames) = fromFrozenContext @AvailableApps
         apps = forEach appNames appNavItem
         schema = navItem "SCHEMA" schemaIcon (pathTo TablesAction) (isSchemaEditorController)
