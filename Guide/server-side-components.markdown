@@ -125,13 +125,11 @@ instance View WelcomeView where
     html WelcomeView = [hsx|
         <h1>Counter</h1>
 
-        {counter}
+        {component @Counter}
     |]
-        where
-            counter = component @Counter
 ```
 
-If you wonder why we're using the `where` instead of writing [`{component @Counter}`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-ViewFunctions.html#v:component): Currently the at-symbol `@` is not supported in HSX expressions.
+If this does not compile in your project, make sure `TypeApplications` is enabled for the module (e.g. add `{-# LANGUAGE TypeApplications #-}` at the top). In current IHP versions, HSX splices support type applications like `@Counter`.
 
 We also need to load the `ihp-ssc.js` from our `Layout.hs`. Open the `Web/View/Layout.hs` and add `<script src="/vendor/ihp-ssc.js"></script>` inside your `scripts` section:
 
