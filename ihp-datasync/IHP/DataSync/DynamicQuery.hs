@@ -162,6 +162,17 @@ recordIds result = result
 -- | A map from column name to PostgreSQL type name (e.g. @"uuid"@, @"int4"@, @"timestamptz"@)
 type ColumnTypeMap = HashMap.HashMap Text Text
 
+-- | Column type information with both O(1) type lookup and database column ordering.
+--
+-- The 'typeMap' provides fast type lookups for WHERE clause compilation,
+-- while 'orderedColumns' preserves the order columns were defined in the schema
+-- (from @pg_attribute.attnum@), ensuring @id@ naturally appears first when
+-- expanding @SELECT *@.
+data ColumnTypeInfo = ColumnTypeInfo
+    { typeMap :: !ColumnTypeMap
+    , orderedColumns :: ![Text]
+    } deriving (Show, Eq)
+
 -- | Encode an Aeson 'Value' as a Snippet parameter using native Haskell types.
 --
 -- Used for expressions without column context (e.g. bare literals in WHERE clauses).

@@ -21,6 +21,11 @@ import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
 import qualified IHP.Log as Log
 import Control.Monad.Trans.Resource
+import IHP.Hasql.FromRow (FromRowHasql)
+import qualified Hasql.Encoders as Encoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import Data.Functor.Contravariant (contramap)
+import qualified Data.HashMap.Strict as HashMap
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -39,6 +44,7 @@ fetchNextJob :: forall job.
     , job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
+    , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , Table job
@@ -259,6 +265,25 @@ instance InputValue JobStatus where
 
 instance IHP.Controller.Param.ParamReader JobStatus where
     readParameter = IHP.Controller.Param.enumParamReader
+
+-- | Parses a Text value to a JobStatus. Used by hasql decoders.
+-- Uses HashMap for O(1) lookup.
+textToEnumJobStatusMap :: HashMap.HashMap Text JobStatus
+textToEnumJobStatusMap = HashMap.fromList
+    [ ("job_status_not_started", JobStatusNotStarted)
+    , ("job_status_running", JobStatusRunning)
+    , ("job_status_failed", JobStatusFailed)
+    , ("job_status_timed_out", JobStatusTimedOut)
+    , ("job_status_succeeded", JobStatusSucceeded)
+    , ("job_status_retry", JobStatusRetry)
+    ]
+
+textToEnumJobStatus :: Text -> Maybe JobStatus
+textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
+
+-- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
+instance DefaultParamEncoder JobStatus where
+    defaultParam = Encoders.nonNullable (contramap inputValue Encoders.text)
 
 retryQuery :: BackoffStrategy -> ByteString
 retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"

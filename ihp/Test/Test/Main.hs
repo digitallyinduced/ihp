@@ -19,6 +19,7 @@ import qualified Test.RouterSupportSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
+import qualified Test.MockingSpec
 
 main :: IO ()
 main = hspec do
@@ -38,3 +39,4 @@ main = hspec do
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
+    Test.MockingSpec.tests

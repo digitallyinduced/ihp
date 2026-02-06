@@ -184,6 +184,7 @@ body, .modal-content {
 .context-menu-open {
     display: block;
     position: fixed;
+    width: fit-content;
 }
 
 /* slightly transparent fallback */

@@ -13,21 +13,26 @@ module IHP.QueryBuilder.Compiler
 , toSQL'
 , compileConditionQuery
 , compileConditionArgs
+, compileConditionSnippets
 , compileOperator
+, compileOperatorHasql
 , negateFilterOperator
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import qualified Data.List as List
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import Hasql.DynamicStatements.Snippet (Snippet)
 
 
--- | Compiles a 'FilterOperator' to its SQL representation
+-- | Compiles a 'FilterOperator' to its SQL representation for postgresql-simple
+--
+-- Uses traditional IN/NOT IN syntax with expanded parameters for postgresql-simple.
 compileOperator :: FilterOperator -> ByteString
 compileOperator EqOp = "="
 compileOperator NotEqOp = "!="
@@ -47,6 +52,16 @@ compileOperator LessThanOp = "<"
 compileOperator LessThanOrEqualToOp = "<="
 compileOperator SqlOp = ""
 {-# INLINE compileOperator #-}
+
+-- | Compiles a 'FilterOperator' to its SQL representation for hasql
+--
+-- For InOp and NotInOp, uses = ANY(?) and <> ALL(?) with array parameters
+-- instead of the traditional IN (?, ?, ?) syntax.
+compileOperatorHasql :: FilterOperator -> ByteString
+compileOperatorHasql InOp = "= ANY"  -- Uses array parameter: column = ANY(?)
+compileOperatorHasql NotInOp = "<> ALL"  -- Uses array parameter: column <> ALL(?)
+compileOperatorHasql op = compileOperator op  -- All other operators are the same
+{-# INLINE compileOperatorHasql #-}
 
 -- | Returns the "NOT" version of an operator
 --
@@ -115,13 +130,24 @@ buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilde
     buildQueryHelper DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
             |> buildQueryHelper
             |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
-    buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, value), applyLeft, applyRight } =
+    buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, action, snippet), applyLeft, applyRight } =
                 let
-                    applyFn fn value = case fn of
-                            Just fn -> fn <> "(" <> value <> ")"
-                            Nothing -> value
+                    applyFn fn val = case fn of
+                            Just fn' -> fn' <> "(" <> val <> ")"
+                            Nothing -> val
 
-                    condition = VarCondition (applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> applyFn applyRight "?") value
+                    -- pg-simple: use standard placeholder, In type expands arrays
+                    pgSimpleParamPlaceholder = applyFn applyRight "?"
+                    pgSimpleTemplate = applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> pgSimpleParamPlaceholder
+
+                    -- hasql: use = ANY(?)/(<> ALL(?) for IN/NOT IN with array parameters
+                    hasqlParamPlaceholder = case operator of
+                        InOp -> "(?)"     -- column = ANY(?)
+                        NotInOp -> "(?)"  -- column <> ALL(?)
+                        _ -> applyFn applyRight "?"
+                    hasqlTemplate = applyFn applyLeft columnName <> " " <> compileOperatorHasql operator <> " " <> hasqlParamPlaceholder
+
+                    condition = VarCondition pgSimpleTemplate hasqlTemplate action snippet
                 in
                     queryBuilder
                         |> buildQueryHelper
@@ -213,6 +239,7 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                 columnParts = map (\column -> selectFromB <> Builder.char8 '.' <> Builder.byteString column) columns
             in mconcat $ List.intersperse (Builder.byteString ", ") (indexParts <> columnParts)
 
+        -- Extract Action parameters for postgresql-simple execution
         !theParams =
             case whereCondition sqlQuery of
                 Just condition -> compileConditionArgs condition
@@ -235,13 +262,22 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
 {-# INLINE toSQL' #-}
 
 {-# INLINE compileConditionQuery #-}
+-- | Compile condition to SQL template for postgresql-simple
 compileConditionQuery :: Condition -> ByteString
-compileConditionQuery (VarCondition var _) =  var
+compileConditionQuery (VarCondition pgTemplate _ _ _) =  pgTemplate
 compileConditionQuery (OrCondition a b) =  "(" <> compileConditionQuery a <> ") OR (" <> compileConditionQuery b <> ")"
 compileConditionQuery (AndCondition a b) =  "(" <> compileConditionQuery a <> ") AND (" <> compileConditionQuery b <> ")"
 
+-- | Extract Action parameters for postgresql-simple
 {-# INLINE compileConditionArgs #-}
 compileConditionArgs :: Condition -> [Action]
-compileConditionArgs (VarCondition _ arg) = [arg]
+compileConditionArgs (VarCondition _ _ action _) = [action]
 compileConditionArgs (OrCondition a b) = compileConditionArgs a <> compileConditionArgs b
 compileConditionArgs (AndCondition a b) = compileConditionArgs a <> compileConditionArgs b
+
+-- | Extract Snippet parameters for hasql
+{-# INLINE compileConditionSnippets #-}
+compileConditionSnippets :: Condition -> [Snippet]
+compileConditionSnippets (VarCondition _ _ _ snippet) = [snippet]
+compileConditionSnippets (OrCondition a b) = compileConditionSnippets a <> compileConditionSnippets b
+compileConditionSnippets (AndCondition a b) = compileConditionSnippets a <> compileConditionSnippets b

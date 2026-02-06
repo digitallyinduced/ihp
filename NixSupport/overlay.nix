@@ -1,41 +1,39 @@
 { self, inputs }:
 let
     flakeRoot = self;
-in
-final: prev: {
-    ghc = final.haskellPackages.override {
-        overrides = self: super:
-            let
-                filter = inputs.nix-filter.lib;
-                # Disable profiling and haddock for faster local builds
-                fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
 
-                filteredSrc = name: filter {
-                    root = "${toString flakeRoot}/${name}";
-                    include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
-                };
+    ihpOverrides = final: self: super:
+        let
+            filter = inputs.nix-filter.lib;
+            # Disable profiling and haddock for faster local builds
+            fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
 
-                # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
-                # IFD causes nix to build cabal2nix during evaluation, making derivation
-                # hashes platform-dependent and breaking caching across machines.
-                # To regenerate: run ./update-nix-from-cabal.sh after changing .cabal files.
-                localPackage = name: fastBuild (
+            filteredSrc = name: filter {
+                root = "${toString flakeRoot}/${name}";
+                include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
+            };
+
+            # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
+            # IFD causes nix to build cabal2nix during evaluation, making derivation
+            # hashes platform-dependent and breaking caching across machines.
+            # To regenerate: run ./update-nix-from-cabal.sh after changing .cabal files.
+            localPackage = name: fastBuild (
+                final.haskell.lib.overrideSrc
+                    (super.callPackage "${flakeRoot}/${name}/default.nix" {})
+                    { src = filteredSrc name; }
+            );
+
+            # For quick testing during development, you can use callCabal2nix directly
+            # (slower eval due to IFD, but no generated files needed):
+            #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
+
+            # ihp-with-docs has haddock for reference docs
+            localPackageWithHaddock = name:
+                final.haskell.lib.disableLibraryProfiling (
                     final.haskell.lib.overrideSrc
                         (super.callPackage "${flakeRoot}/${name}/default.nix" {})
                         { src = filteredSrc name; }
                 );
-
-                # For quick testing during development, you can use callCabal2nix directly
-                # (slower eval due to IFD, but no generated files needed):
-                #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
-
-                # ihp-with-docs has haddock for reference docs
-                localPackageWithHaddock = name:
-                    final.haskell.lib.disableLibraryProfiling (
-                        final.haskell.lib.overrideSrc
-                            (super.callPackage "${flakeRoot}/${name}/default.nix" {})
-                            { src = filteredSrc name; }
-                    );
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
@@ -84,5 +82,27 @@ final: prev: {
                 };
             };
         };
+in
+final: prev: {
+    # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
+    ghc = final.haskellPackages.override {
+        overrides = ihpOverrides final;
+    };
+
+    # Experimental: GHC 9.12 (not yet binary-cached; builds from source)
+    ghc912 = final.haskell.packages.ghc912.override {
+        overrides = final.lib.composeManyExtensions [
+            (ihpOverrides final)
+            (self: super: {
+                # say tests fail due to CRLF newline handling changes
+                say = final.haskell.lib.dontCheck super.say;
+
+                # text-icu tests fail due to newer ICU BlockCode enum range
+                text-icu = final.haskell.lib.dontCheck super.text-icu;
+
+                # cryptonite tests have a flaky failure (1 of 1548)
+                cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+            })
+        ];
     };
 }

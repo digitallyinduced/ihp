@@ -110,6 +110,7 @@
 }
 
 .column-selector .column td {
+	color: white;
     padding-top: 0px;
     padding-bottom: 0px;
     font-size: 10px;
@@ -150,7 +151,7 @@
 
 #editor {
     min-height: 800px;
-    background-color: #33555E#33555E
+    background-color: #33555E;
 }
 
 .row-form {

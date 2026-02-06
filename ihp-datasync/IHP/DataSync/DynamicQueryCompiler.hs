@@ -7,7 +7,7 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (typedValueParam)
+import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), typedValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
@@ -23,10 +23,16 @@ data Renamer = Renamer
 
 -- | Compile a 'DynamicSQLQuery' to a SQL 'Snippet' with typed parameter encoding.
 --
--- Column types must be provided via 'ColumnTypeMap' (from 'makeCachedColumnTypeLookup').
+-- Column types must be provided via 'ColumnTypeInfo' (from 'makeCachedColumnTypeLookup').
 -- Missing column types in WHERE conditions will error at runtime.
-compileQueryTyped :: Renamer -> ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryTyped renamer columnTypes query = compileQueryMappedTyped columnTypes (mapColumnNames renamer.fieldToColumn query)
+--
+-- This function:
+-- 1. Converts field names from camelCase to snake_case for the query
+-- 2. Generates SQL column aliases so results come back with camelCase names
+-- 3. For 'SelectAll', expands to all columns from 'ColumnTypeInfo' in database schema order
+compileQueryTyped :: Renamer -> ColumnTypeInfo -> DynamicSQLQuery -> Snippet
+compileQueryTyped renamer columnInfo query =
+    compileQueryMappedTyped renamer columnInfo (mapColumnNames renamer.fieldToColumn query)
 
 -- | Default renamer used by DataSync.
 --
@@ -44,11 +50,11 @@ renameField :: Renamer -> Field -> Field
 renameField renamer field =
     field { fieldName = renamer.columnToField field.fieldName }
 
-compileQueryMappedTyped :: ColumnTypeMap -> DynamicSQLQuery -> Snippet
-compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
+compileQueryMappedTyped :: Renamer -> ColumnTypeInfo -> DynamicSQLQuery -> Snippet
+compileQueryMappedTyped renamer columnInfo DynamicSQLQuery { .. } =
     Snippet.sql "SELECT"
     <> distinctOnSnippet
-    <> compileSelectedColumns selectedColumns
+    <> compileSelectedColumns renamer columnInfo selectedColumns
     <> Snippet.sql " FROM "
     <> quoteIdentifier table
     <> whereSnippet
@@ -67,7 +73,7 @@ compileQueryMappedTyped columnTypes DynamicSQLQuery { .. } =
                     <> mconcat (List.intersperse (Snippet.sql ", ") (map compileOrderByClauseSnippet orderByClauses))
 
         whereSnippet = case whereCondition of
-            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnTypes condition
+            Just condition -> Snippet.sql " WHERE " <> compileConditionTyped columnInfo.typeMap condition
             Nothing -> mempty
 
         limitSnippet = case limit of
@@ -110,10 +116,64 @@ compileOrderByClauseSnippet OrderByClause { orderByColumn, orderByDirection } =
 compileOrderByClauseSnippet OrderByTSRank { tsvector, tsquery } =
     Snippet.sql "ts_rank(" <> quoteIdentifier tsvector <> Snippet.sql ", to_tsquery('english', " <> Snippet.param tsquery <> Snippet.sql "))"
 
-compileSelectedColumns :: SelectedColumns -> Snippet
-compileSelectedColumns SelectAll = Snippet.sql "*"
-compileSelectedColumns (SelectSpecific fields) =
-    mconcat (List.intersperse (Snippet.sql ", ") (map quoteIdentifier fields))
+-- | Compile selected columns, generating SQL aliases when the camelCase field name
+-- differs from the snake_case column name.
+--
+-- For example, if the column is @user_id@ but the client expects @userId@, this will
+-- generate @"user_id" AS "userId"@ instead of just @"user_id"@.
+--
+-- For 'SelectAll', expands to all columns from 'ColumnTypeInfo' in the order they
+-- were defined in the database schema (from @pg_attribute.attnum@).
+compileSelectedColumns :: Renamer -> ColumnTypeInfo -> SelectedColumns -> Snippet
+compileSelectedColumns renamer columnInfo SelectAll =
+    compileSelectedColumns renamer columnInfo (SelectSpecific columnInfo.orderedColumns)
+compileSelectedColumns renamer _columnInfo (SelectSpecific columns) =
+    mconcat (List.intersperse (Snippet.sql ", ") (map compileColumn columns))
+    where
+        compileColumn col =
+            let alias = renamer.columnToField col
+            in if alias == col
+                then quoteIdentifier col
+                else quoteIdentifier col <> Snippet.sql " AS " <> quoteIdentifier alias
+
+-- | Compile a SQL @RETURNING@ clause with aliased columns.
+--
+-- For INSERT/UPDATE/DELETE statements that return data, this generates
+-- @RETURNING "col_a" AS "colA", "col_b" AS "colB", ...@ with proper camelCase aliases.
+compileReturningClause :: Renamer -> ColumnTypeInfo -> Snippet
+compileReturningClause renamer columnInfo =
+    Snippet.sql " RETURNING " <> compileSelectedColumns renamer columnInfo SelectAll
+
+-- | Build an INSERT statement with RETURNING clause.
+compileInsert :: Text -> [Text] -> [Snippet] -> Renamer -> ColumnTypeInfo -> Snippet
+compileInsert table columns values renamer columnTypes =
+    Snippet.sql "INSERT INTO " <> quoteIdentifier table
+    <> Snippet.sql " (" <> columnSnippet <> Snippet.sql ") VALUES ("
+    <> valueSnippet <> Snippet.sql ")"
+    <> compileReturningClause renamer columnTypes
+  where
+    columnSnippet = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+    valueSnippet = mconcat $ List.intersperse (Snippet.sql ", ") values
+
+-- | Build an INSERT statement for multiple rows with RETURNING clause.
+compileInsertMany :: Text -> [Text] -> [[Snippet]] -> Renamer -> ColumnTypeInfo -> Snippet
+compileInsertMany table columns valueRows renamer columnTypes =
+    Snippet.sql "INSERT INTO " <> quoteIdentifier table
+    <> Snippet.sql " (" <> columnSnippet <> Snippet.sql ") VALUES "
+    <> valuesSnippet
+    <> compileReturningClause renamer columnTypes
+  where
+    columnSnippet = mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier columns)
+    valueRowSnippets = map (\row -> Snippet.sql "(" <> mconcat (List.intersperse (Snippet.sql ", ") row) <> Snippet.sql ")") valueRows
+    valuesSnippet = mconcat $ List.intersperse (Snippet.sql ", ") valueRowSnippets
+
+-- | Build an UPDATE statement with RETURNING clause.
+compileUpdate :: Text -> Snippet -> Snippet -> Renamer -> ColumnTypeInfo -> Snippet
+compileUpdate table setSnippet whereSnippet renamer columnTypes =
+    Snippet.sql "UPDATE " <> quoteIdentifier table
+    <> Snippet.sql " SET " <> setSnippet
+    <> Snippet.sql " WHERE " <> whereSnippet
+    <> compileReturningClause renamer columnTypes
 
 -- | Compile a condition expression to a SQL snippet, using typed parameter encoding when column types are known.
 --
