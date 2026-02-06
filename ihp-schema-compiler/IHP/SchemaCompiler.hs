@@ -768,13 +768,11 @@ compileUpdate table@(CreateTable { name, columns }) =
             )
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
-instance FromRow #{modelName} where
+compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance FromRow #{modelName} where
     fromRow = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
         let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
         pure theRecord
-
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
@@ -864,13 +862,11 @@ instance FromRow #{modelName} where
 -- Uses do-notation to bind column values, allowing one-to-many QueryBuilders
 -- to reference the decoded primary key (shadowing any imported field selectors).
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|
-instance FromRowHasql #{modelName} where
+compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
     hasqlRowDecoder = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
         let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
         pure theRecord
-
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
