@@ -40,6 +40,12 @@ tests = do
                         inputValue VerySad = "very sad" :: Text
                     instance DeepSeq.NFData Mood where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Mood where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumMoodMap :: HashMap.HashMap Text Mood
+                    textToEnumMoodMap = HashMap.fromList [("happy", Happy), ("very happy", VeryHappy), ("sad", Sad), ("very sad", VerySad)]
+                    textToEnumMood :: Text -> Maybe Mood
+                    textToEnumMood t = HashMap.lookup t textToEnumMoodMap
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -95,6 +101,12 @@ tests = do
                         inputValue Newfoundlandandlabrador = "NewfoundlandAndLabrador" :: Text
                     instance DeepSeq.NFData Province where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader Province where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumProvinceMap :: HashMap.HashMap Text Province
+                    textToEnumProvinceMap = HashMap.fromList [("Alberta", Alberta), ("BritishColumbia", Britishcolumbia), ("Saskatchewan", Saskatchewan), ("Manitoba", Manitoba), ("Ontario", Ontario), ("Quebec", Quebec), ("NovaScotia", Novascotia), ("NewBrunswick", Newbrunswick), ("PrinceEdwardIsland", Princeedwardisland), ("NewfoundlandAndLabrador", Newfoundlandandlabrador)]
+                    textToEnumProvince :: Text -> Maybe Province
+                    textToEnumProvince t = HashMap.lookup t textToEnumProvinceMap
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -117,6 +129,12 @@ tests = do
                         inputValue House = "HOUSE" :: Text
                     instance DeepSeq.NFData PropertyType where rnf a = seq a ()
                     instance IHP.Controller.Param.ParamReader PropertyType where readParameter = IHP.Controller.Param.enumParamReader; readParameterJSON = IHP.Controller.Param.enumParamReaderJSON
+                    textToEnumPropertyTypeMap :: HashMap.HashMap Text PropertyType
+                    textToEnumPropertyTypeMap = HashMap.fromList [("APARTMENT", PropertyTypeApartment), ("HOUSE", House)]
+                    textToEnumPropertyType :: Text -> Maybe PropertyType
+                    textToEnumPropertyType t = HashMap.lookup t textToEnumPropertyTypeMap
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
+                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
@@ -205,6 +223,14 @@ tests = do
                             pure theRecord
 
 
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                            <*> pure def
+
+
                     type instance GetModelName (User' ) = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -278,6 +304,14 @@ tests = do
                             pure theRecord
 
 
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                            <*> pure def
+
+
                     type instance GetModelName (User' ) = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -347,6 +381,13 @@ tests = do
                             ts <- field
                             let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.User where
+                        hasqlRowDecoder = Generated.ActualTypes.User
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
+                            <*> pure def
 
 
                     type instance GetModelName (User' ) = "User"
@@ -463,6 +504,14 @@ tests = do
                             id <- field
                             let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.LandingPage where
+                        hasqlRowDecoder = Generated.ActualTypes.LandingPage
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> pure def
+                            <*> pure def
+                            <*> pure def
 
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
@@ -734,6 +783,14 @@ tests = do
                             userId <- field
                             let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
+
+
+                    instance FromRowHasql Generated.ActualTypes.Post where
+                        hasqlRowDecoder = Generated.ActualTypes.Post
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                            <*> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> pure def
 
 
                     type instance GetModelName (Post' ) = "Post"

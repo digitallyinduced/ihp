@@ -32,13 +32,15 @@ module IHP.QueryBuilder.Types
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
 import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import qualified GHC.Generics
+import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Prelude
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -140,16 +142,25 @@ data QueryBuilder (table :: Symbol) =
     NewQueryBuilder { selectFrom :: !ByteString, columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
+    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
     | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
     | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
-    deriving (Show, Eq)
 
 -- | Represents a WHERE condition
-data Condition = VarCondition !ByteString !Action | OrCondition !Condition !Condition | AndCondition !Condition !Condition deriving (Show, Eq)
+-- Stores templates for both backends: pg-simple template (with IN/NOT IN), hasql template (with = ANY/<> ALL)
+-- Also stores both Action (for postgresql-simple) and Snippet (for hasql)
+data Condition = VarCondition !ByteString !ByteString !Action !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+--                             ^pgTemplate ^hasqlTemplate
+
+-- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
+instance Show Snippet where
+    showsPrec _ _ = Prelude.showString "<Snippet>"
+
+deriving instance Show Condition
+deriving instance Show (QueryBuilder table)
 
 -- | Display QueryBuilder's as their sql query inside HSX
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
@@ -178,23 +189,12 @@ data SQLQuery = SQLQuery
     , limitClause :: !(Maybe ByteString)
     , offsetClause :: !(Maybe ByteString)
     , columns :: ![ByteString]
-    } deriving (Show, Eq)
+    } deriving (Show)
 
--- | Needed for the 'Eq QueryBuilder' instance
+-- | Needed for the 'Eq Action' instance used in tests
 deriving instance Eq Action
 
--- | Need for the 'Eq QueryBuilder' instance
---
--- You likely wonder: Why do we need the 'Eq SQLQuery' instance if this causes so much trouble?
--- This has to do with how has-many and belongs-to relations are models by the SchemaCompiler
---
--- E.g. given a table users and a table posts. Each Post belongs to a user. The schema compiler will
--- add a field 'posts :: QueryBuilder "posts"' with the default value @query |> filterWhere (#userId, self.id)@ to all users by default.
---
--- This is needed to support syntax like this:
---
--- > fetch user.posts
---
+-- | Need for the 'Eq Builder.Builder' instance used in tests
 instance Eq Builder.Builder where
     a == b = (Builder.toLazyByteString a) == (Builder.toLazyByteString b)
 

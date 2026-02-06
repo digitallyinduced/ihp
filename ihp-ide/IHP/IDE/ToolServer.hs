@@ -85,6 +85,7 @@ data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
 -- - methodOverridePost (for PUT/DELETE via POST)
 -- - sessionMiddleware (for session handling)
 -- - approotMiddleware (for app root path)
+-- - viewLayoutMiddleware (for setLayout/getLayout support)
 -- - frameworkConfigMiddleware (for framework config in request vault)
 -- - requestBodyMiddleware (for parsing form params - required for controllers)
 -- - websocket support (for live reload)
@@ -112,6 +113,7 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
 
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
+                $ viewLayoutMiddleware
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                 $ Websocket.websocketsOr

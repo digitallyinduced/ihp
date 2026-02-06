@@ -39,6 +39,7 @@ import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
+import IHP.Controller.Layout (viewLayoutMiddleware)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env
 import qualified Text.Read as Read
@@ -161,6 +162,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . sessionMiddleware
         . approotMiddleware
         . autoRefreshMiddleware
+        . viewLayoutMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions

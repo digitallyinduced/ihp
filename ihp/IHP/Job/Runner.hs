@@ -21,6 +21,7 @@ import qualified System.Timeout as Timeout
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
 import qualified IHP.Log as Log
+import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Used by the RunJobs binary
 runJobWorkers :: [JobWorker] -> Script
@@ -123,6 +124,7 @@ worker :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
+    , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
@@ -145,6 +147,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
     , FromRow job
+    , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , PG.FromField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)

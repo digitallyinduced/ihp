@@ -39,6 +39,9 @@ module IHP.QueryBuilder
 , toSQL
 , toSQL'
 , buildQuery
+  -- * Hasql Compilation
+, toSnippet
+, snippetToSQL
   -- * Filtering
 , filterWhere
 , filterWhereCaseInsensitive
@@ -103,6 +106,7 @@ module IHP.QueryBuilder
 
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler
+import IHP.QueryBuilder.HasqlCompiler (toSnippet, snippetToSQL)
 import IHP.QueryBuilder.Filter
 import IHP.QueryBuilder.Join
 import IHP.QueryBuilder.Order

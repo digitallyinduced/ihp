@@ -214,3 +214,33 @@ Also notice `CustomMiddleware (gzip gzipSettings . brotli brotliSettings)`, It's
 
 By default all `text/*` content types will be compressed, including `application/json`, `application/javascript`, `application/ecmascript` and `image/x-icon`.
 Simply put, html, text, css, javascript, json and icons.
+
+## Database Connection Pool
+
+IHP uses two database connection pools:
+
+1. **postgresql-simple pool** - Used for inserts, updates, deletes, and transactions
+2. **hasql pool** - Used for fetch queries with prepared statements (better performance)
+
+### Hasql Pool Configuration
+
+The hasql pool can be configured using environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HASQL_POOL_SIZE` | 3 | Number of connections in the pool |
+| `HASQL_IDLE_TIME` | 600 | Seconds before idle connections are closed |
+
+Example `.env` configuration:
+
+```bash
+# Use a single connection for consistent prepared statement caching
+export HASQL_POOL_SIZE=1
+
+# Keep connections alive for 30 minutes
+export HASQL_IDLE_TIME=1800
+```
+
+#### Prepared Statement Caching
+
+PostgreSQL prepared statements are cached per-connection. With multiple connections in the pool, the first query on each connection will re-prepare the statement.

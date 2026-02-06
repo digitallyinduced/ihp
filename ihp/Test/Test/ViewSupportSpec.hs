@@ -31,6 +31,7 @@ import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
 import IHP.RequestVault (frameworkConfigMiddleware, modelContextMiddleware)
+import IHP.Controller.Layout (viewLayoutMiddleware)
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -102,6 +103,7 @@ config = do
 -- so that ?context.frameworkConfig works during request handling
 mkApplication :: (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext) => Application
 mkApplication = frameworkConfigMiddleware ?request.frameworkConfig
+              $ viewLayoutMiddleware
               $ modelContextMiddleware ?modelContext
               $ Server.application handleNotFound (\app -> app)
 

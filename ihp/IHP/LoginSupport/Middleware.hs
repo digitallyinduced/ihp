@@ -10,6 +10,7 @@ import IHP.Fetch
 import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context
+import IHP.Hasql.FromRow (FromRowHasql)
 import qualified Network.Wai
 
 {-# INLINE initAuthentication #-}
@@ -21,6 +22,7 @@ initAuthentication :: forall user normalizedModel.
         , Typeable normalizedModel
         , Table normalizedModel
         , FromRow normalizedModel
+        , FromRowHasql normalizedModel
         , PrimaryKey (GetTableName normalizedModel) ~ UUID
         , GetTableName normalizedModel ~ GetTableName user
         , FilterPrimaryKey (GetTableName normalizedModel)
