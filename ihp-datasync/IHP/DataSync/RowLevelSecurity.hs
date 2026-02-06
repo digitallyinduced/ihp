@@ -57,7 +57,9 @@ setRLSConfigStatement = Statement.preparable
     "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
     (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
      <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
-    Decoders.noResult
+    -- set_config returns a row with text columns; read and discard them
+    -- (Decoders.noResult errors in hasql 1.10 when rows are present)
+    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) $> ()))
 
 -- Sessions
 
