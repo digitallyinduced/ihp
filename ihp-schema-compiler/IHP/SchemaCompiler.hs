@@ -1144,7 +1144,7 @@ hasqlValueDecoder = \case
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
     PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
-    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum" <> tableNameToModelName typeName <> " t)) Decoders.text)"
+    PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow typeName <> " textToEnum" <> tableNameToModelName typeName <> ")"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
