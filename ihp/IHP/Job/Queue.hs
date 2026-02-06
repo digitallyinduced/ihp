@@ -91,7 +91,7 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
     let tableNameBS = cs tableName
     liftIO do
         pool <- getHasqlPool
-        withoutQueryLogging (runSessionHasql pool (HasqlSession.sql (createNotificationTriggerSQL tableNameBS)))
+        withoutQueryLogging (runSessionHasql pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS)))
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
