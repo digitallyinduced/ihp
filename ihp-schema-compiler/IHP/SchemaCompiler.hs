@@ -425,9 +425,8 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         <> modelName
         <> " = "
         <> modelName
-        <> "' "
-        <> unwords (map (haskellType table) (variableAttributes table))
-        <> hasManyDefaults
+        <> "'"
+        <> spacePrefix (unwords (map (haskellType table) (variableAttributes table)) <> hasManyDefaults)
         <> "\n"
     where
         modelName = tableNameToModelName name
@@ -443,7 +442,7 @@ primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
 compileData :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileData table@(CreateTable { name, columns }) =
-        "data " <> modelName <> "' " <> typeArguments
+        "data " <> modelName <> "'" <> spacePrefix typeArguments
         <> " = " <> modelName <> " {"
         <>
             table
@@ -717,6 +716,12 @@ compileCreate table@(CreateTable { name, columns }) =
 
 commaSep :: [Text] -> Text
 commaSep = intercalate ", "
+
+-- | Prefixes text with a space if non-empty, returns empty text otherwise.
+-- Avoids trailing spaces when type arguments are empty.
+spacePrefix :: Text -> Text
+spacePrefix "" = ""
+spacePrefix t = " " <> t
 
 toBinding :: Text -> Column -> Text
 toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
@@ -1016,7 +1021,7 @@ toDefaultValueExpr _ = "def"
 
 compileHasTableNameInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
-    "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
+    "type instance GetTableName (" <> tableNameToModelName name <> "'" <> spacePrefix (unwords (map (const "_") (dataTypeArguments table))) <>  ") = " <> tshow name <> "\n"
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
@@ -1097,13 +1102,13 @@ instance #{instanceHead} where
                 |> tshow
 
 compileGetModelName :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "'" <> spacePrefix (unwords (map (const "_") (dataTypeArguments table))) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
 compileDataTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
 
 compileTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
+compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "'" <> spacePrefix (unwords (dataTypeArguments table))
 
 compileInclude :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
@@ -1166,7 +1171,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                     | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
-                compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
+                compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table)))
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
