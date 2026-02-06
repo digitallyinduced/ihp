@@ -7,6 +7,7 @@ import Generated.Types
 import Web.Types
 import Web.Routes ()
 import Web.Controller.Posts ()
+import Web.Job.UpdatePostViews ()
 import Text.Blaze.Html (Html)
 
 instance FrontController WebApplication where

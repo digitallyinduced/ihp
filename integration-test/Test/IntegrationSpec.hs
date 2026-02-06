@@ -8,6 +8,7 @@ import IHP.Hspec (withIHPApp)
 import Test.Hspec
 
 import Web.FrontController ()
+import Web.Job.UpdatePostViews ()
 
 testConfig :: ConfigBuilder
 testConfig = do
@@ -86,3 +87,26 @@ tests = around (withIHPApp WebApplication testConfig) do
             length posts `shouldBe` 1
             let [thePost] = posts
             thePost.title `shouldBe` "From Controller"
+
+        it "can run a job" $ withContext do
+            user <- newRecord @User
+                |> set #email "job@example.com"
+                |> set #passwordHash "hash"
+                |> createRecord
+
+            post <- newRecord @Post
+                |> set #title "Job Post"
+                |> set #body "Body"
+                |> set #userId user.id
+                |> createRecord
+
+            post.viewsCount `shouldBe` 0
+
+            job <- newRecord @UpdatePostViewsJob
+                |> set #postId post.id
+                |> createRecord
+
+            callJob job
+
+            updatedPost <- fetch post.id
+            updatedPost.viewsCount `shouldBe` 1

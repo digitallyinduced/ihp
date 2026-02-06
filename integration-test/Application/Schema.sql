@@ -30,3 +30,17 @@ CREATE TABLE comments (
 );
 ALTER TABLE comments ADD CONSTRAINT comments_ref_post_id FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE;
 ALTER TABLE comments ADD CONSTRAINT comments_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
+
+CREATE TABLE update_post_views_jobs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    post_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,
+    last_error TEXT DEFAULT NULL,
+    attempts_count INT DEFAULT 0 NOT NULL,
+    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    locked_by UUID DEFAULT NULL,
+    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+ALTER TABLE update_post_views_jobs ADD CONSTRAINT update_post_views_jobs_ref_post_id FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE;
