@@ -155,17 +155,12 @@ data QueryBuilder (table :: Symbol) =
 data Condition = VarCondition !ByteString !ByteString !Action !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
 --                             ^pgTemplate ^hasqlTemplate
 
--- | Snippet doesn't have Eq/Show instances, so we provide approximate ones for QueryBuilder
-instance Eq Snippet where
-    _ == _ = True  -- Approximate equality for deriving purposes
-
+-- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
 instance Show Snippet where
     showsPrec _ _ = Prelude.showString "<Snippet>"
 
 deriving instance Show Condition
-deriving instance Eq Condition
 deriving instance Show (QueryBuilder table)
-deriving instance Eq (QueryBuilder table)
 
 -- | Display QueryBuilder's as their sql query inside HSX
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
@@ -194,7 +189,7 @@ data SQLQuery = SQLQuery
     , limitClause :: !(Maybe ByteString)
     , offsetClause :: !(Maybe ByteString)
     , columns :: ![ByteString]
-    } deriving (Show, Eq)
+    } deriving (Show)
 
 -- | Needed for the 'Eq Action' instance used in tests
 deriving instance Eq Action
