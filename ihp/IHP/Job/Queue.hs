@@ -20,8 +20,6 @@ import Control.Monad.Trans.Resource
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
-import qualified Data.Text.Encoding as Text.Encoding
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
@@ -55,12 +53,12 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
     let returningColumns = ByteString.intercalate ", " (columnNames @job)
     let snippet =
             Snippet.sql "UPDATE " <> Snippet.sql tableNameBS
-            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning
+            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning <> Snippet.sql "::job_status"
             <> Snippet.sql ", locked_at = NOW(), locked_by = " <> Snippet.param workerId
             <> Snippet.sql ", attempts_count = attempts_count + 1"
             <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameBS
-            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
-            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
+            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted <> Snippet.sql "::job_status"
+            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry <> Snippet.sql "::job_status"
             <> Snippet.sql " AND " <> retrySnippet backoffStrategy
             <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
             <> timeoutSnippet timeoutInMicroseconds
@@ -112,8 +110,8 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     let tableNameBS = cs tableName :: ByteString
     let snippet =
             Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableNameBS
-            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
-            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
+            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted <> Snippet.sql "::job_status"
+            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry <> Snippet.sql "::job_status"
             <> Snippet.sql " AND " <> retrySnippet backoffStrategy
             <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
             <> timeoutSnippet timeoutInMicroseconds
@@ -305,7 +303,9 @@ textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
 
 -- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
 instance DefaultParamEncoder JobStatus where
-    defaultParam = Encoders.nonNullable (contramap (Text.Encoding.encodeUtf8 . inputValue) Encoders.unknown)
+    defaultParam = Encoders.nonNullable (Encoders.enum inputValue)
+
+instance PgEnumCast JobStatus where pgEnumCast = Snippet.sql "::job_status"
 
 getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
 getHasqlPool = case ?modelContext.hasqlPool of

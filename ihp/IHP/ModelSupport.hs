@@ -1037,6 +1037,22 @@ withTableReadTracker trackedSection = do
     trackedSection
 
 
+-- | Typeclass for appending SQL type casts to enum parameters in hasql snippets.
+--
+-- PostgreSQL enum types need explicit @::type_name@ casts when parameters are sent as text OID.
+-- Non-enum types use the default instance which appends nothing (mempty).
+--
+-- Generated code produces instances like:
+--
+-- > instance PgEnumCast MyStatus where pgEnumCast = Snippet.sql "::my_status"
+-- > instance PgEnumCast (Maybe MyStatus) where pgEnumCast = Snippet.sql "::my_status"
+class PgEnumCast a where
+    pgEnumCast :: Snippet.Snippet
+    pgEnumCast = mempty
+
+instance {-# OVERLAPPABLE #-} PgEnumCast a where
+    pgEnumCast = mempty
+
 -- | Shorthand filter function
 --
 -- In IHP code bases you often write filter functions such as these:

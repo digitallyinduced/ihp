@@ -343,7 +343,6 @@ defaultImports = [trimming|
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
-    import qualified Data.Functor.Contravariant
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import qualified Hasql.Pool as HasqlPool
     import IHP.Hasql.Encoders ()
@@ -376,7 +375,7 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Control.DeepSeq as DeepSeq
             import qualified Hasql.Encoders
             import qualified Hasql.Implicits.Encoders
-            import qualified Data.Functor.Contravariant
+            import qualified Hasql.DynamicStatements.Snippet as Snippet
             import qualified Data.HashMap.Strict as HashMap
         |]
 
@@ -604,9 +603,12 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "textToEnum" <> modelName <> " t = HashMap.lookup t textToEnum" <> modelName <> "Map\n"
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
-        <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum inputValue)\n"
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
-        <> "    defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)\n"
+        <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum inputValue)\n"
+        -- PgEnumCast for SQL type casts in filterWhere queries
+        <> "instance PgEnumCast " <> modelName <> " where pgEnumCast = Snippet.sql \"::" <> name <> "\"\n"
+        <> "instance PgEnumCast (Maybe " <> modelName <> ") where pgEnumCast = Snippet.sql \"::" <> name <> "\"\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values

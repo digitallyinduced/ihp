@@ -45,9 +45,11 @@ tests = do
                     textToEnumMood :: Text -> Maybe Mood
                     textToEnumMood t = HashMap.lookup t textToEnumMoodMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Mood) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum inputValue)
+                    instance PgEnumCast Mood where pgEnumCast = Snippet.sql "::mood"
+                    instance PgEnumCast (Maybe Mood) where pgEnumCast = Snippet.sql "::mood"
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -108,9 +110,11 @@ tests = do
                     textToEnumProvince :: Text -> Maybe Province
                     textToEnumProvince t = HashMap.lookup t textToEnumProvinceMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Province) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum inputValue)
+                    instance PgEnumCast Province where pgEnumCast = Snippet.sql "::Province"
+                    instance PgEnumCast (Maybe Province) where pgEnumCast = Snippet.sql "::Province"
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -138,9 +142,11 @@ tests = do
                     textToEnumPropertyType :: Text -> Maybe PropertyType
                     textToEnumPropertyType t = HashMap.lookup t textToEnumPropertyTypeMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PropertyType) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (Data.Text.Encoding.encodeUtf8 . inputValue) Hasql.Encoders.unknown)
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum inputValue)
+                    instance PgEnumCast PropertyType where pgEnumCast = Snippet.sql "::property_type"
+                    instance PgEnumCast (Maybe PropertyType) where pgEnumCast = Snippet.sql "::property_type"
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
