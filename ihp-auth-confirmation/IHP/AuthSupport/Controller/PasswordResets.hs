@@ -12,6 +12,7 @@ import Data.Data
 import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail, sendMail)
+import IHP.Hasql.FromRow (FromRowHasql)
 import qualified Network.Wai
 
 newPasswordResetAction :: forall record action.
@@ -42,6 +43,7 @@ showPasswordResetAction :: forall record action.
     , HasField "passwordResetToken" record (Maybe Text)
     , KnownSymbol (GetTableName record)
     , FromRow record
+    , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
     , Table record
     ) => Id record -> Text -> IO ()
@@ -65,6 +67,7 @@ updatePasswordAction :: forall record action.
     , HasField "passwordResetToken" record (Maybe Text)
     , SetField "passwordHash" record Text
     , FromRow record
+    , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
     , KnownSymbol (GetTableName record)
     , Table record
@@ -104,6 +107,7 @@ createPasswordResetAction :: forall record action passwordField.
     , BuildMail (PasswordResetLinkMail record)
     , SetField "passwordResetToken" record (Maybe Text)
     , FromRow record
+    , FromRowHasql record
     , KnownSymbol (GetTableName record)
     , Table record
     ) => IO ()

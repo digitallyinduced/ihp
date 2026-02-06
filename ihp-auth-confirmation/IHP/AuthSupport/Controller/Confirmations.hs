@@ -13,6 +13,7 @@ import Data.Data
 import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail)
+import IHP.Hasql.FromRow (FromRowHasql)
 import qualified Network.Wai
 
 confirmAction :: forall record action.
@@ -33,6 +34,8 @@ confirmAction :: forall record action.
     , HasField "isConfirmed" record Bool
     , Sessions.SessionsControllerConfig record
     , Table record
+    , FromRow record
+    , FromRowHasql record
     ) => Id record -> Text -> IO ()
 confirmAction userId confirmationToken = do
     user <- fetch userId
