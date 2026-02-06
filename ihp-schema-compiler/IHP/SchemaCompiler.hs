@@ -605,6 +605,8 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
         <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
+        <> "    defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
