@@ -542,6 +542,26 @@ Run `nix flake update` to rebuild the development environment.
 
 We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
 
+### Switching GHC Versions
+
+IHP ships with GHC 9.10 by default. This is the recommended version and all IHP packages are binary-cached for it.
+
+GHC 9.12 is available as an experimental opt-in. To switch, add an overlay in your project's `flake.nix` that remaps `ghc` to `ghc912`:
+
+```nix
+devenv.shells.default = {
+    overlays = lib.mkAfter [
+        (final: prev: { ghc = prev.ghc912; })
+    ];
+};
+```
+
+This works because IHP's overlay provides both `pkgs.ghc` (GHC 9.10) and `pkgs.ghc912` (GHC 9.12) with all IHP packages. The extra overlay swaps the default. After adding the overlay, run `direnv reload` to rebuild the development environment.
+
+**Note:** GHC 9.12 is not yet binary-cached. Everything will build from source, which takes significantly longer on the first build. We recommend setting up your own [cachix binary cache](https://cachix.org/) if you use GHC 9.12 regularly.
+
+To switch back to GHC 9.10, remove the overlay and run `direnv reload`.
+
 ### Binary Cache
 
 When installing IHP, the `ihp-new` tool will add the `digitallyinduced.cachix.org` binary cache to your nix system. This binary cache provides binaries for all IHP packages and commonly used dependencies for all nixpkgs versions used by IHP.
