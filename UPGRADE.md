@@ -178,6 +178,10 @@ nix build
 nix flake check --impure
 ```
 
+## 14. GHC 9.12 Support (Experimental)
+
+IHP now supports GHC 9.12 as an experimental opt-in. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
+
 
 # Upgrade to 1.4.0 from 1.3.0
 
