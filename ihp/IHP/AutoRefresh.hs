@@ -89,6 +89,9 @@ autoRefreshInternal config runAction = do
 
             id <- UUID.nextRandom
 
+            -- Put the autorefreshEnabled before frozing the context to not repass in the autorefreshdisabled branch after the first render
+            putContext (AutoRefreshEnabled id)
+
             -- We save the current state of the controller context here. This includes e.g. all current
             -- flash messages, the current user, ...
             --
@@ -102,11 +105,8 @@ autoRefreshInternal config runAction = do
                     let ?request = waiRequest
                     let ?respond = waiRespond
                     putContext waiRequest
-                    -- Re-renders should not restart the AutoRefresh setup, so we keep the state enabled.
-                    putContext (AutoRefreshEnabled id)
                     action ?theAction
 
-            putContext (AutoRefreshEnabled id)
 
             -- We save the allowed session ids to the session cookie to only grant a client access
             -- to sessions it initially opened itself
@@ -468,7 +468,7 @@ fetchAutoRefreshPayload payloadId = do
     case payloadResult of
         Left (_ :: Exception.SomeException) -> pure Nothing
         Right payload -> case Aeson.eitherDecodeStrict' payload of
-            Left _ -> pure Nothing
+            Left _       -> pure Nothing
             Right result -> pure (Just result)
 
 autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
