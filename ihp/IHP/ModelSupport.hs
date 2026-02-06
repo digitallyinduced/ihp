@@ -437,6 +437,34 @@ sqlExecHasql pool snippet = do
         else runQuery
 {-# INLINABLE sqlExecHasql #-}
 
+-- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
+--
+-- Use this instead of 'sqlExecHasql' when you need the simple protocol (no prepared statements),
+-- e.g. for multi-statement SQL like trigger creation.
+--
+-- __Example:__
+--
+-- > runSessionHasql pool (Hasql.sql "BEGIN; CREATE ...; COMMIT;")
+--
+runSessionHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Hasql.Session () -> IO ()
+runSessionHasql pool session = do
+    let ?context = ?modelContext
+    let currentLogLevel = ?modelContext.logger.level
+    let runQuery = do
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right () -> pure ()
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            runQuery `finally` do
+                end <- getCurrentTime
+                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                Log.debug ("💾 runSessionHasql (" <> Text.pack (show queryTimeInMs) <> "ms)")
+        else runQuery
+{-# INLINABLE runSessionHasql #-}
+
 -- | Routes between hasql and pg-simple based on context
 --
 -- Uses hasql when there's no transaction, a hasql pool is available, and no RLS.
