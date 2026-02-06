@@ -50,6 +50,12 @@ getOrCreateAutoRefreshServer =
             server <- newIORef (newAutoRefreshServer pgListener)
             pure (Just server, server)
 
+
+-- | Limits the client-side morphing to the DOM node matching the given CSS selector.
+-- Useful when combining Auto Refresh with fragment based renderers such as HTMX.
+setAutoRefreshTarget :: (?context :: ControllerContext) => Text -> IO ()
+setAutoRefreshTarget selector = putContext (AutoRefreshTarget selector)
+
 -- | Options for fine-grained auto refresh via 'autoRefreshWith'.
 --
 -- The callback should be fast and ideally avoid additional SQL queries. It runs on the server and decides whether a
@@ -112,6 +118,7 @@ autoRefreshInternal config runAction = do
             -- Update request in controller context so freeze captures the updated state
             let ControllerContext { customFieldsRef } = ?context
             modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
+            putContext (AutoRefreshEnabled id)
 
             -- We save the current state of the controller context here. This includes e.g. all current
             -- flash messages, the current user, ...
