@@ -716,6 +716,7 @@ compileCreate table@(CreateTable { name, columns }) =
     let
         writableColumns = onlyWritableColumns columns
         modelName = qualifiedConstructorNameFromTableName name
+        funcName = tableNameToModelName name
         columnNames = commaSep (map (.name) writableColumns)
         allColumnNames = commaSep (map (.name) columns)
         values = commaSep (map columnPlaceholder writableColumns)
@@ -764,66 +765,79 @@ compileCreate table@(CreateTable { name, columns }) =
         -- For createMany, build snippet for each model
         snippetCreateManyValueExpr = "mconcat $ List.intersperse (Snippet.sql \", \") $ List.map (\\model -> Snippet.sql \"(\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\") models"
 
-        hasqlCreate =
-            "create model = withHasqlOrPgSimple (\\pool -> do\n"
-            <> indent (indent (
-                "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \") RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))\n"
-                ))
-            <> "    ) (do\n"
-            <> indent (indent (
-                "sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")\n"
-                ))
-            <> "    )"
+        -- PgSimple bodies (shared between dual-path and pg-simple-only)
+        pgSimpleCreateBody = "sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")"
+        pgSimpleCreateManyBody = "sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues
+        pgSimpleCreateDiscardBody = "sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")"
 
-        pgSimpleCreate =
-            "create model = do\n"
-            <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")")
-
-        hasqlCreateMany =
-            "createMany [] = pure []\n"
-            <> "createMany models = withHasqlOrPgSimple (\\pool -> do\n"
-            <> indent (indent (
-                "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> " <> snippetCreateManyValueExpr <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @" <> modelName <> "))\n"
-                ))
-            <> "    ) (do\n"
-            <> indent (indent (
-                "sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues <> "\n"
-                ))
-            <> "    )"
-
-        pgSimpleCreateMany =
-            "createMany [] = pure []\n"
-            <> "createMany models = do\n"
-            <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues)
-
-        hasqlCreateRecordDiscardResult =
-            "createRecordDiscardResult model = withHasqlOrPgSimple (\\pool -> do\n"
-            <> indent (indent (
-                "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\"\n"
-                <> "sqlExecHasql pool snippet\n"
-                ))
-            <> "    ) (do\n"
-            <> indent (indent (
-                "sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")\n"
-                ))
-            <> "    )"
-
-        pgSimpleCreateRecordDiscardResult =
-            "createRecordDiscardResult model = do\n"
-            <> indent ("sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")")
+        -- Hasql bodies
+        hasqlCreateBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \") RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlCreateManyBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> " <> snippetCreateManyValueExpr <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlCreateDiscardBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\"\n"
+                <> "sqlExecHasql pool snippet"
     in
+        -- Instance block: delegate to top-level functions
         "instance CanCreate " <> modelName <> " where\n"
-        <> indent (
-            "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
-                <> (if supportsHasql then hasqlCreate else pgSimpleCreate) <> "\n"
-                <> (if supportsHasql then hasqlCreateMany else pgSimpleCreateMany) <> "\n"
-            )
-        <> indent (
-            "createRecordDiscardResult :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
-                <> (if supportsHasql then hasqlCreateRecordDiscardResult else pgSimpleCreateRecordDiscardResult) <> "\n"
-            )
+        <> indent ("create = create" <> funcName <> "\n")
+        <> indent ("createMany = createMany" <> funcName <> "\n")
+        <> indent ("createRecordDiscardResult = createRecordDiscardResult" <> funcName <> "\n")
+        -- create<Model>
+        <> "\n"
+        <> "create" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+        <> (if supportsHasql
+            then "create" <> funcName <> " model = withHasqlOrPgSimple (create" <> funcName <> "Hasql model) (create" <> funcName <> "PgSimple model)\n"
+            else "create" <> funcName <> " model = do\n" <> indent (pgSimpleCreateBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "create" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO " <> modelName <> "\n"
+                <> "create" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlCreateBody <> "\n")
+                <> "\n"
+                <> "create" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+                <> "create" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleCreateBody <> "\n")
+            else ""
+           )
+        -- createMany<Model>
+        <> "\n"
+        <> "createMany" <> funcName <> " :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> IO [" <> modelName <> "]\n"
+        <> "createMany" <> funcName <> " [] = pure []\n"
+        <> (if supportsHasql
+            then "createMany" <> funcName <> " models = withHasqlOrPgSimple (createMany" <> funcName <> "Hasql models) (createMany" <> funcName <> "PgSimple models)\n"
+            else "createMany" <> funcName <> " models = do\n" <> indent (pgSimpleCreateManyBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "createMany" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> HasqlPool.Pool -> IO [" <> modelName <> "]\n"
+                <> "createMany" <> funcName <> "Hasql models pool = do\n"
+                <> indent (hasqlCreateManyBody <> "\n")
+                <> "\n"
+                <> "createMany" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> IO [" <> modelName <> "]\n"
+                <> "createMany" <> funcName <> "PgSimple models = do\n"
+                <> indent (pgSimpleCreateManyBody <> "\n")
+            else ""
+           )
+        -- createRecordDiscardResult<Model>
+        <> "\n"
+        <> "createRecordDiscardResult" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+        <> (if supportsHasql
+            then "createRecordDiscardResult" <> funcName <> " model = withHasqlOrPgSimple (createRecordDiscardResult" <> funcName <> "Hasql model) (createRecordDiscardResult" <> funcName <> "PgSimple model)\n"
+            else "createRecordDiscardResult" <> funcName <> " model = do\n" <> indent (pgSimpleCreateDiscardBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "createRecordDiscardResult" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO ()\n"
+                <> "createRecordDiscardResult" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlCreateDiscardBody <> "\n")
+                <> "\n"
+                <> "createRecordDiscardResult" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+                <> "createRecordDiscardResult" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleCreateDiscardBody <> "\n")
+            else ""
+           )
 
 commaSep :: [Text] -> Text
 commaSep = intercalate ", "
@@ -837,6 +851,7 @@ compileUpdate :: CreateTable -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = qualifiedConstructorNameFromTableName name
+        funcName = tableNameToModelName name
         writableColumns = onlyWritableColumns columns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
@@ -879,45 +894,56 @@ compileUpdate table@(CreateTable { name, columns }) =
                     <> intercalate " <> Snippet.sql \", \" <> " (map (\col -> "Snippet.param model." <> columnNameToFieldName col.name) cols)
                     <> " <> Snippet.sql \")\""
 
-        hasqlUpdateRecord =
-            "updateRecord model = withHasqlOrPgSimple (\\pool -> do\n"
-            <> indent (indent (
-                "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))\n"
-                ))
-            <> "    ) (do\n"
-            <> indent (indent (
-                "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")\n"
-                ))
-            <> "    )"
+        -- PgSimple bodies
+        pgSimpleUpdateBody = "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")"
+        pgSimpleUpdateDiscardBody = "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")"
 
-        pgSimpleUpdateRecord =
-            "updateRecord model = do\n"
-            <> indent (
-                "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")"
-            )
-
-        hasqlUpdateRecordDiscardResult =
-            "updateRecordDiscardResult model = withHasqlOrPgSimple (\\pool -> do\n"
-            <> indent (indent (
-                "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> "\n"
-                <> "sqlExecHasql pool snippet\n"
-                ))
-            <> "    ) (do\n"
-            <> indent (indent (
-                "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")\n"
-                ))
-            <> "    )"
-
-        pgSimpleUpdateRecordDiscardResult =
-            "updateRecordDiscardResult model = do\n"
-            <> indent (
-                "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")"
-            )
+        -- Hasql bodies
+        hasqlUpdateBody = "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlUpdateDiscardBody = "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> "\n"
+                <> "sqlExecHasql pool snippet"
     in
+        -- Instance block: delegate to top-level functions
         "instance CanUpdate " <> modelName <> " where\n"
-        <> indent ((if supportsHasql then hasqlUpdateRecord else pgSimpleUpdateRecord) <> "\n")
-        <> indent ((if supportsHasql then hasqlUpdateRecordDiscardResult else pgSimpleUpdateRecordDiscardResult) <> "\n")
+        <> indent ("updateRecord = updateRecord" <> funcName <> "\n")
+        <> indent ("updateRecordDiscardResult = updateRecordDiscardResult" <> funcName <> "\n")
+        -- updateRecord<Model>
+        <> "\n"
+        <> "updateRecord" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+        <> (if supportsHasql
+            then "updateRecord" <> funcName <> " model = withHasqlOrPgSimple (updateRecord" <> funcName <> "Hasql model) (updateRecord" <> funcName <> "PgSimple model)\n"
+            else "updateRecord" <> funcName <> " model = do\n" <> indent (pgSimpleUpdateBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "updateRecord" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO " <> modelName <> "\n"
+                <> "updateRecord" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlUpdateBody <> "\n")
+                <> "\n"
+                <> "updateRecord" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+                <> "updateRecord" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleUpdateBody <> "\n")
+            else ""
+           )
+        -- updateRecordDiscardResult<Model>
+        <> "\n"
+        <> "updateRecordDiscardResult" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+        <> (if supportsHasql
+            then "updateRecordDiscardResult" <> funcName <> " model = withHasqlOrPgSimple (updateRecordDiscardResult" <> funcName <> "Hasql model) (updateRecordDiscardResult" <> funcName <> "PgSimple model)\n"
+            else "updateRecordDiscardResult" <> funcName <> " model = do\n" <> indent (pgSimpleUpdateDiscardBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "updateRecordDiscardResult" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO ()\n"
+                <> "updateRecordDiscardResult" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlUpdateDiscardBody <> "\n")
+                <> "\n"
+                <> "updateRecordDiscardResult" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+                <> "updateRecordDiscardResult" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleUpdateDiscardBody <> "\n")
+            else ""
+           )
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|

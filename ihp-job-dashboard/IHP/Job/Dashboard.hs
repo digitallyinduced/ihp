@@ -50,6 +50,7 @@ import IHP.Job.Dashboard.View
 import IHP.Job.Dashboard.Auth
 import IHP.Hasql.FromRow (FromRowHasql)
 import IHP.Job.Dashboard.Utils
+import qualified Hasql.Implicits.Encoders
 
 -- | The crazy list of type constraints for this class defines everything needed for a generic "Job".
 -- All jobs created through the IHP dev IDE will automatically satisfy these constraints and thus be able to
@@ -75,7 +76,9 @@ class ( job ~ GetModelByTableName (GetTableName job)
     , Show job
     , Eq job
     , Table job
-    , Typeable job) => DisplayableJob job where
+    , Typeable job
+    , Hasql.Implicits.Encoders.DefaultParamEncoder (Id' (GetTableName job))
+    ) => DisplayableJob job where
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
     -- but this can be any arbitrary view! Make some cool graphs :)
