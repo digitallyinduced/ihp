@@ -110,6 +110,7 @@
 }
 
 .column-selector .column td {
+	color: white;
     padding-top: 0px;
     padding-bottom: 0px;
     font-size: 10px;
@@ -178,8 +179,9 @@
     margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
 }
 
-.index .index-name, .policy .policy-name {
+.index .index-name, .policy .policy-name, .policy-expression {
     padding-left: 8px;
+    color: inherit;
 }
 
 .policy-expression small {

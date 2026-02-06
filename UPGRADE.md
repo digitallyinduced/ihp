@@ -183,6 +183,38 @@ nix flake check --impure
 IHP now supports GHC 9.12 as an experimental opt-in. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
 
 
+## AI Assisted Upgrade
+
+Run the following commands:
+
+```bash
+nix flake update
+direnv reload
+```
+
+Start the development environment:
+
+```bash
+devenv up
+```
+
+Then you can use this prompt to copy/paste into your AI agent (e.g., Claude or Codex):
+
+```
+I ran devenv up. Keep tailing .devenv/state/process-compose/process-compose.log and fix compile errors iteratively until the app builds.
+  Rules:
+
+  - Check the git history at https://github.com/digitallyinduced/ihp to see what has changed.
+  - Don’t touch anything under IHP/ (IHP core).
+  - Always tail -n 120 .devenv/state/process-compose/process-compose.log after each change.
+  - Fix only the app code (Web/, Application/, Config/, etc.).
+  - If a fix requires new deps/config, update project files accordingly (e.g., add p.ihp-mail in flake.nix when IHP.Mail imports fail) and tell me if I need to restart
+    devenv up.
+  - Keep going until the log shows no compile errors.
+  - Tests run with: direnv exec . ghci -e ':l Test/Main.hs' -e 'main' 2>&1
+  - Tests now need the ihp-hspec in flake.nix
+```
+
 # Upgrade to 1.4.0 from 1.3.0
 
 ## Switch IHP version
@@ -352,9 +384,9 @@ This update process is a bit more complex than normal IHP updates, but it's wort
     if ! has nix_direnv_version || ! nix_direnv_version 2.3.0; then
         source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/2.3.0/direnvrc" "sha256-Dmd+j63L84wuzgyjITIfSxSD57Tx7v51DMxVZOsiUD8="
     fi
-    
+
     use flake . --impure --accept-flake-config
-    
+
     # Include .env file if it exists locally. Use the .env file to load env vars that you don't want to commit to git
     if [ -f .env ]
     then
@@ -641,7 +673,7 @@ This means that from now on when adding new packages, you need to do it in a sin
     This will finally solve all the issues that typically happen around IHP's stateful `build/ihp-lib` symlink. This symlink is now replaced with an env variable called `IHP_LIB` that is automatically provided by devenv.
 
 10. **Update `Makefile`**
-    
+
     Open your `Makefile` and remove the following boilerplate code at the top of the file:
 
     ```Makefile

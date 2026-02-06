@@ -12,6 +12,15 @@ thead > tr {
     color:  #fff;
 }
 
+/* Override Bootstrap's .table>:not(caption)>*>* which resets color on cells */
+.table > :not(caption) > * > * {
+    color: inherit;
+}
+
+.table td, .table th {
+    border-bottom: 0;
+}
+
 .table td a {
     color: #fff;
 }
