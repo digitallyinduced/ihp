@@ -54,7 +54,7 @@ import qualified Data.ByteString.Builder as Builder
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
-import IHP.Hasql.Encoder () -- Import for Int encoder instances
+import IHP.Hasql.Encoders () -- Import for DefaultParamEncoder instances
 
 -- | Adds a simple @WHERE x = y@ condition to the query.
 --

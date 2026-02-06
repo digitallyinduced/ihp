@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-|
-Module: IHP.Hasql.Encoder
+Module: IHP.Hasql.Encoders
 Description: DefaultParamEncoder instances for common types
 Copyright: (c) digitally induced GmbH, 2025
 
@@ -13,7 +13,7 @@ fixed-width integer types ('Int16', 'Int32', 'Int64'), not Haskell's
 platform-dependent 'Int'. Since most IHP applications use 'Int' for
 integer columns, we provide these instances to make the transition seamless.
 -}
-module IHP.Hasql.Encoder () where
+module IHP.Hasql.Encoders () where
 
 import Prelude
 import Data.Int (Int64)
