@@ -191,18 +191,18 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
-                    type instance GetTableName (User' ) = "users"
+                    type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User') where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
@@ -213,7 +213,6 @@ tests = do
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
-
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
@@ -222,16 +221,15 @@ tests = do
                             let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = Generated.ActualTypes.User
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
-                            <*> pure def
+                        hasqlRowDecoder = do
+                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
+                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
 
-
-                    type instance GetModelName (User' ) = "User"
+                    type instance GetModelName (User') = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
@@ -272,18 +270,18 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User'  = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
-                    type instance GetTableName (User' ) = "users"
+                    type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User') where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
@@ -294,7 +292,6 @@ tests = do
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
-
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
@@ -303,16 +300,15 @@ tests = do
                             let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = Generated.ActualTypes.User
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
-                            <*> pure def
+                        hasqlRowDecoder = do
+                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
+                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
 
-
-                    type instance GetModelName (User' ) = "User"
+                    type instance GetModelName (User') = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
@@ -352,18 +348,18 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User'  = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
-                    type User = User' 
+                    type User = User'
 
-                    type instance GetTableName (User' ) = "users"
+                    type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User' ) where
+                    instance () => IHP.ModelSupport.Table (User') where
                         tableName = "users"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
@@ -374,7 +370,6 @@ tests = do
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
-
                     instance FromRow Generated.ActualTypes.User where
                         fromRow = do
                             id <- field
@@ -382,15 +377,14 @@ tests = do
                             let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = Generated.ActualTypes.User
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
-                            <*> pure def
+                        hasqlRowDecoder = do
+                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            ts <- Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
+                            let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
 
-
-                    type instance GetModelName (User' ) = "User"
+                    type instance GetModelName (User') = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
@@ -498,21 +492,17 @@ tests = do
 
                     instance InputValue Generated.ActualTypes.LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
 
-
                     instance FromRow Generated.ActualTypes.LandingPage where
                         fromRow = do
                             id <- field
-                            let theRecord = Generated.ActualTypes.LandingPage id def def def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
-                        hasqlRowDecoder = Generated.ActualTypes.LandingPage
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> pure def
-                            <*> pure def
-                            <*> pure def
-
+                        hasqlRowDecoder = do
+                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -753,18 +743,18 @@ tests = do
 
                 -- data Post' has no type parameters, no QueryBuilder field, and userId has concrete type
                 compileOutput `shouldBe` [trimming|
-                    data Post'  = Post {id :: (Id' "posts"), title :: Text, userId :: (Id' "users"), meta :: MetaBag} deriving (Eq, Show)
+                    data Post' = Post {id :: (Id' "posts"), title :: Text, userId :: (Id' "users"), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "posts" = UUID
 
-                    type Post = Post' 
+                    type Post = Post'
 
-                    type instance GetTableName (Post' ) = "posts"
+                    type instance GetTableName (Post') = "posts"
                     type instance GetModelByTableName "posts" = Post
 
                     instance Default (Id' "posts") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (Post' ) where
+                    instance () => IHP.ModelSupport.Table (Post') where
                         tableName = "posts"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "posts"
                         columnNames = ["id","title","user_id"]
@@ -775,7 +765,6 @@ tests = do
 
                     instance InputValue Generated.ActualTypes.Post where inputValue = IHP.ModelSupport.recordToInputValue
 
-
                     instance FromRow Generated.ActualTypes.Post where
                         fromRow = do
                             id <- field
@@ -784,16 +773,15 @@ tests = do
                             let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
                             pure theRecord
 
-
                     instance FromRowHasql Generated.ActualTypes.Post where
-                        hasqlRowDecoder = Generated.ActualTypes.Post
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                            <*> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> pure def
+                        hasqlRowDecoder = do
+                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            title <- Decoders.column (Decoders.nonNullable Decoders.text)
+                            userId <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
 
-
-                    type instance GetModelName (Post' ) = "Post"
+                    type instance GetModelName (Post') = "Post"
 
                     instance CanCreate Generated.ActualTypes.Post where
                         create :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post

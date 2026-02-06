@@ -8,6 +8,7 @@ module IHP.SchemaCompiler
 ) where
 
 import ClassyPrelude
+import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
@@ -424,9 +425,8 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         <> modelName
         <> " = "
         <> modelName
-        <> "' "
-        <> unwords (map (haskellType table) (variableAttributes table))
-        <> hasManyDefaults
+        <> "'"
+        <> spacePrefix (unwords (map (haskellType table) (variableAttributes table)) <> hasManyDefaults)
         <> "\n"
     where
         modelName = tableNameToModelName name
@@ -442,7 +442,7 @@ primaryKeyTypeName name = "Id' " <> tshow name <> ""
 
 compileData :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileData table@(CreateTable { name, columns }) =
-        "data " <> modelName <> "' " <> typeArguments
+        "data " <> modelName <> "'" <> spacePrefix typeArguments
         <> " = " <> modelName <> " {"
         <>
             table
@@ -717,6 +717,12 @@ compileCreate table@(CreateTable { name, columns }) =
 commaSep :: [Text] -> Text
 commaSep = intercalate ", "
 
+-- | Prefixes text with a space if non-empty, returns empty text otherwise.
+-- Avoids trailing spaces when type arguments are empty.
+spacePrefix :: Text -> Text
+spacePrefix "" = ""
+spacePrefix t = " " <> t
+
 toBinding :: Text -> Column -> Text
 toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
 
@@ -767,13 +773,11 @@ compileUpdate table@(CreateTable { name, columns }) =
             )
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|
-instance FromRow #{modelName} where
+compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance FromRow #{modelName} where
     fromRow = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
         let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
         pure theRecord
-
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
@@ -781,16 +785,18 @@ instance FromRow #{modelName} where
         columnBinding columnName = columnName <> " <- field"
 
         referencing = columnsReferencingTable table.name
+        -- Pair each referencing column with its generated field name for proper matching
+        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
-            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
         isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
         isColumn name = name `elem` columnNames
-        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
+        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
         compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
@@ -858,37 +864,34 @@ instance FromRow #{modelName} where
 --
 -- This is parallel to 'compileFromRowInstance' but generates code for the
 -- hasql decoder instead of postgresql-simple's FromRow.
--- Uses idiomatic hasql applicative style with explicit inline decoders.
+-- Uses do-notation to bind column values, allowing one-to-many QueryBuilders
+-- to reference the decoded primary key (shadowing any imported field selectors).
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = #{modelName}
-#{unsafeInit . indent . indent . unlines $ zipWith (<>) (firstOp : repeat nextOp) decoderExprs}
-
+    hasqlRowDecoder = do
+#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
+        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
+        pure theRecord
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
-        firstOp = "<$> "
-        nextOp = "<*> "
-
-        -- Generate decoder expressions for all data fields
-        decoderExprs = map compileFieldDecoder (dataFields table)
+        columnNames = map (columnNameToFieldName . (.name)) columns
+        columnBinding columnName = columnName <> " <- " <> hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
 
         referencing = columnsReferencingTable table.name
-        columnNames = map (columnNameToFieldName . (.name)) columns
+        -- Pair each referencing column with its generated field name for proper matching
+        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
 
-        compileFieldDecoder :: (Text, Text) -> Text
-        compileFieldDecoder (fieldName, _)
-            | Just col <- findColumn fieldName = hasqlColumnDecoder table col
-            | isOneToManyField fieldName = let (Just ref) = find (\(n, _) -> columnNameToFieldName n == fieldName) referencing in compileSetQueryBuilder ref
-            | fieldName == "meta" = "pure def"  -- meta field gets default, originalDatabaseRecord set later
-            | otherwise = "pure def"
+        compileField (fieldName, _)
+            | isColumn fieldName = fieldName
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
+            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
+            | otherwise = "def"
 
-        findColumn :: Text -> Maybe Column
-        findColumn fieldName = find (\col -> columnNameToFieldName col.name == fieldName) columns
+        isColumn name = name `elem` columnNames
+        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
-        isOneToManyField fieldName = fieldName `elem` (referencing |> map (columnNameToFieldName . fst))
-
-        compileSetQueryBuilder (refTableName, refFieldName) = "pure (QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
             where
                 primaryKeyField :: Text
                 primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
@@ -1018,7 +1021,7 @@ toDefaultValueExpr _ = "def"
 
 compileHasTableNameInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasTableNameInstance table@(CreateTable { name }) =
-    "type instance GetTableName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow name <> "\n"
+    "type instance GetTableName (" <> tableNameToModelName name <> "'" <> spacePrefix (unwords (map (const "_") (dataTypeArguments table))) <>  ") = " <> tshow name <> "\n"
     <> "type instance GetModelByTableName " <> tshow name <> " = " <> tableNameToModelName name <> "\n"
 
 compilePrimaryKeyInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
@@ -1099,13 +1102,13 @@ instance #{instanceHead} where
                 |> tshow
 
 compileGetModelName :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "' " <> unwords (map (const "_") (dataTypeArguments table)) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
+compileGetModelName table@(CreateTable { name }) = "type instance GetModelName (" <> tableNameToModelName name <> "'" <> spacePrefix (unwords (map (const "_") (dataTypeArguments table))) <>  ") = " <> tshow (tableNameToModelName name) <> "\n"
 
 compileDataTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileDataTypePattern table@(CreateTable { name }) = tableNameToModelName name <> " " <> unwords (table |> dataFields |> map fst)
 
 compileTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "' " <> unwords (dataTypeArguments table)
+compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "'" <> spacePrefix (unwords (dataTypeArguments table))
 
 compileInclude :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
@@ -1168,7 +1171,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                     | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
-                compileTypePattern' name = tableNameToModelName table.name <> "' " <> unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table))
+                compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table)))
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
