@@ -401,7 +401,15 @@ sqlQueryHasql pool snippet decoder = do
             let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
             case result of
-                Left err -> throwIO (HasqlError err)
+                Left err
+                    | isCachedPlanError err -> do
+                        Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                        HasqlPool.release pool
+                        retryResult <- HasqlPool.use pool session
+                        case retryResult of
+                            Left retryErr -> throwIO (HasqlError retryErr)
+                            Right a -> pure a
+                    | otherwise -> throwIO (HasqlError err)
                 Right a -> pure a
     if currentLogLevel == Debug
         then do
@@ -424,7 +432,15 @@ sqlExecHasql pool snippet = do
             let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
             case result of
-                Left err -> throwIO (HasqlError err)
+                Left err
+                    | isCachedPlanError err -> do
+                        Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                        HasqlPool.release pool
+                        retryResult <- HasqlPool.use pool session
+                        case retryResult of
+                            Left retryErr -> throwIO (HasqlError retryErr)
+                            Right () -> pure ()
+                    | otherwise -> throwIO (HasqlError err)
                 Right () -> pure ()
     if currentLogLevel == Debug
         then do
@@ -453,6 +469,13 @@ data HasqlError = HasqlError HasqlPool.UsageError
     deriving (Show)
 
 instance Exception HasqlError
+
+-- | Detects PostgreSQL "cached plan must not change result type" errors.
+-- This happens when the database schema changes (e.g. after @make db@) while
+-- the connection pool still holds connections with stale prepared statements.
+isCachedPlanError :: HasqlPool.UsageError -> Bool
+isCachedPlanError (HasqlPool.SessionUsageError (Hasql.QueryError _ _ (Hasql.ResultError (Hasql.ServerError "0A000" _ _ _ _)))) = True
+isCachedPlanError _ = False
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
