@@ -26,7 +26,7 @@ runSessionOnConnection :: Hasql.Connection -> Session.Session a -> IO a
 runSessionOnConnection conn session = do
     result <- Hasql.use conn session
     case result of
-        Left err -> error (cs (Hasql.toMessage err))
+        Left err -> error (Hasql.toDetailedText err)
         Right val -> pure val
 {-# INLINE runSessionOnConnection #-}
 
@@ -40,4 +40,4 @@ withDedicatedConnection databaseUrl action = do
     connResult <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
     case connResult of
         Right conn -> action conn `Exception.finally` Hasql.release conn
-        Left err -> error (cs (Hasql.toMessage err))
+        Left err -> error (Hasql.toDetailedText err)
