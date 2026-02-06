@@ -46,6 +46,8 @@ tests = do
                     textToEnumMood t = HashMap.lookup t textToEnumMoodMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Mood) where
+                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -107,6 +109,8 @@ tests = do
                     textToEnumProvince t = HashMap.lookup t textToEnumProvinceMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Province) where
+                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -135,6 +139,8 @@ tests = do
                     textToEnumPropertyType t = HashMap.lookup t textToEnumPropertyTypeMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
                         defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PropertyType) where
+                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
