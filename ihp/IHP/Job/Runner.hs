@@ -11,7 +11,6 @@ import IHP.ControllerPrelude
 import IHP.ScriptSupport
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception.Safe as Exception
-import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
@@ -126,7 +125,7 @@ worker :: forall job.
     , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , KnownSymbol (GetTableName job)
     , SetField "attemptsCount" job Int
     , SetField "lockedBy" job (Maybe UUID)
@@ -149,7 +148,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , KnownSymbol (GetTableName job)
     , SetField "attemptsCount" job Int
     , SetField "lockedBy" job (Maybe UUID)
