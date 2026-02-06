@@ -17,6 +17,7 @@ module IHP.Hasql.Encoders () where
 
 import Prelude
 import Data.Int (Int64)
+import Data.ByteString (ByteString)
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import Data.Functor.Contravariant (contramap, (>$<))
@@ -24,6 +25,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import Data.UUID (UUID)
+import Database.PostgreSQL.Simple.Types (Binary(..))
 
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
@@ -94,3 +96,21 @@ instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder [(Id'
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite $
         ((\(Id uuid) -> uuid) . fst >$< Encoders.field (Encoders.nonNullable Encoders.uuid)) <>
         ((\(Id uuid) -> uuid) . snd >$< Encoders.field (Encoders.nonNullable Encoders.uuid))
+
+-- | Encode 'Binary ByteString' as PostgreSQL bytea
+-- IHP wraps bytea columns in Binary, so we need to unwrap before encoding
+instance DefaultParamEncoder (Binary ByteString) where
+    defaultParam = Encoders.nonNullable (contramap (\(Binary bs) -> bs) Encoders.bytea)
+
+-- | Encode 'Maybe (Binary ByteString)' as nullable PostgreSQL bytea
+instance DefaultParamEncoder (Maybe (Binary ByteString)) where
+    defaultParam = Encoders.nullable (contramap (\(Binary bs) -> bs) Encoders.bytea)
+
+-- | Encode 'Integer' as PostgreSQL int8 (bigint)
+-- Used for BigInt and BigSerial columns
+instance DefaultParamEncoder Integer where
+    defaultParam = Encoders.nonNullable (contramap fromInteger Encoders.int8)
+
+-- | Encode 'Maybe Integer' as nullable PostgreSQL int8
+instance DefaultParamEncoder (Maybe Integer) where
+    defaultParam = Encoders.nullable (contramap fromInteger Encoders.int8)
