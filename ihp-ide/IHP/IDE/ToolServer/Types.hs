@@ -165,3 +165,10 @@ newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool
 data SqlConsoleResult
     = SelectQueryResult ![[DynamicField]]
     | InsertOrUpdateResult !Int64
+
+data SqlConsoleError = SqlConsoleError
+    { errorMessage :: Text
+    , errorDetail :: Text
+    , errorHint :: Text
+    , errorState :: Text
+    }
