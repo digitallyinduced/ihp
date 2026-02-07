@@ -35,7 +35,7 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
     </div>
 |]
     where
-        (DatabaseNeedsMigration hasUnmigratedChanges) = lookupRequestVault databaseNeedsMigrationVaultKey ?context.request
+        (DatabaseNeedsMigration hasUnmigratedChanges) = lookupRequestVault databaseNeedsMigrationVaultKey ?request
 
 unmigratedChanges :: Html
 unmigratedChanges = [hsx|
@@ -55,7 +55,7 @@ migrationStatus = if hasPendingMigrations
             then unmigratedChanges
             else mempty
     where
-        (DatabaseNeedsMigration databaseNeedsMigration) = lookupRequestVault databaseNeedsMigrationVaultKey ?context.request
+        (DatabaseNeedsMigration databaseNeedsMigration) = lookupRequestVault databaseNeedsMigrationVaultKey ?request
 
         hasPendingMigrations :: Bool
         hasPendingMigrations = False
@@ -643,7 +643,7 @@ renderObjectSelector statements activeObjectName = [hsx|
                 generateControllerLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
                 controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
-                (WebControllers webControllers) = lookupRequestVault webControllersVaultKey ?context.request
+                (WebControllers webControllers) = lookupRequestVault webControllersVaultKey ?request
 
                 rlsEnabled = statements
                         |> map snd

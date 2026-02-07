@@ -120,15 +120,8 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
     let innerApplication :: Wai.Application = \request respond -> do
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-    let responseHeadersMiddleware app req respond = do
-            headersRef <- newIORef []
-            let req' = req { vault = Vault.insert responseHeadersVaultKey headersRef req.vault }
-            app req' respond
-
-    let rlsContextMiddleware app req respond = do
-            rlsRef <- newIORef Nothing
-            let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
-            app req' respond
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
 
     let toolServerVaultMiddleware app req respond = do
             availableApps <- AvailableApps <$> findApplications

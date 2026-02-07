@@ -34,7 +34,6 @@ import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
-import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import IHP.PageHead.Types
@@ -160,38 +159,17 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
-    let responseHeadersMiddleware app req respond = do
-            headersRef <- newIORef []
-            let req' = req { vault = Vault.insert responseHeadersVaultKey headersRef req.vault }
-            app req' respond
-
-    let rlsContextMiddleware app req respond = do
-            rlsRef <- newIORef Nothing
-            let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
-            app req' respond
-
-    let modalMiddleware app req respond = do
-            modalRef <- newIORef Nothing
-            let req' = req { vault = Vault.insert modalContainerVaultKey modalRef req.vault }
-            app req' respond
-
-    let pageHeadMiddleware app req respond = do
-            pageTitleRef <- newIORef Nothing
-            pageDescriptionRef <- newIORef Nothing
-            ogTitleRef <- newIORef Nothing
-            ogTypeRef <- newIORef Nothing
-            ogDescriptionRef <- newIORef Nothing
-            ogUrlRef <- newIORef Nothing
-            ogImageRef <- newIORef Nothing
-            let req' = req { vault = Vault.insert pageTitleVaultKey pageTitleRef
-                                   . Vault.insert pageDescriptionVaultKey pageDescriptionRef
-                                   . Vault.insert ogTitleVaultKey ogTitleRef
-                                   . Vault.insert ogTypeVaultKey ogTypeRef
-                                   . Vault.insert ogDescriptionVaultKey ogDescriptionRef
-                                   . Vault.insert ogUrlVaultKey ogUrlRef
-                                   . Vault.insert ogImageVaultKey ogImageRef
-                                   $ req.vault }
-            app req' respond
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+    let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
+    let pageHeadMiddleware =
+            insertNewIORefVaultMiddleware pageTitleVaultKey Nothing
+            . insertNewIORefVaultMiddleware pageDescriptionVaultKey Nothing
+            . insertNewIORefVaultMiddleware ogTitleVaultKey Nothing
+            . insertNewIORefVaultMiddleware ogTypeVaultKey Nothing
+            . insertNewIORefVaultMiddleware ogDescriptionVaultKey Nothing
+            . insertNewIORefVaultMiddleware ogUrlVaultKey Nothing
+            . insertNewIORefVaultMiddleware ogImageVaultKey Nothing
 
     pure $
         customMiddleware
