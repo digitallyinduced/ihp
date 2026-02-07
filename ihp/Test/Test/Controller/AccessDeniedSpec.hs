@@ -31,6 +31,8 @@ import Unsafe.Coerce
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
 import IHP.Controller.Layout (viewLayoutMiddleware)
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.Log.Types (newLogger, LoggerSettings(..), LogLevel(..))
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -71,8 +73,16 @@ config = do
     option Development
     option (AppPort 8000)
 
+initApplication :: IO Application
+initApplication = do
+    frameworkConfig <- buildFrameworkConfig (pure ())
+    logger <- newLogger def { level = Warn }
+    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
+    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
+    pure (middleware $ Server.application handleNotFound (\app -> app))
+
 application :: Application
-application = viewLayoutMiddleware $ Server.application handleNotFound (\app -> app)
+application = unsafePerformIO initApplication
 
 assertAccessDenied :: SResponse -> IO ()
 assertAccessDenied response = do

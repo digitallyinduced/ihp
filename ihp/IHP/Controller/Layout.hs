@@ -28,6 +28,7 @@ viewLayoutVaultKey = unsafePerformIO Vault.newKey
 
 -- | Middleware that initializes the layout IORef with the identity layout.
 -- This must be installed in the middleware stack for setLayout/getLayout to work.
+{-# INLINE viewLayoutMiddleware #-}
 viewLayoutMiddleware :: Middleware
 viewLayoutMiddleware app request respond = do
     ref <- newIORef (ViewLayout id)
@@ -42,14 +43,15 @@ viewLayoutMiddleware app request respond = do
 -- >     initContext = do
 -- >         setLayout defaultLayout
 --
-setLayout :: (?context :: ControllerContext) => ((?context :: ControllerContext, ?request :: Request) => Layout) -> IO ()
+setLayout :: (?context :: ControllerContext, ?request :: Request) => ((?context :: ControllerContext, ?request :: Request) => Layout) -> IO ()
 setLayout layout =
-    case Vault.lookup viewLayoutVaultKey (vault ?context.request) of
+    case Vault.lookup viewLayoutVaultKey (vault ?request) of
         Just ref -> writeIORef ref (ViewLayout layout)
         Nothing -> error "viewLayoutMiddleware not installed. Add it to your middleware stack in Server.hs"
 {-# INLINE setLayout #-}
 
 -- | Get the current layout. Returns the identity layout if none was set.
+{-# INLINE getLayout #-}
 getLayout :: (?request :: Request) => IO ViewLayout
 getLayout =
     case Vault.lookup viewLayoutVaultKey (vault ?request) of

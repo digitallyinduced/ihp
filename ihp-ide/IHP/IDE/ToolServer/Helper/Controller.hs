@@ -67,10 +67,15 @@ findEditor = do
 
 findWebControllers :: IO [Text]
 findWebControllers = do
-    osEntries <- Directory.listDirectory "Web/Controller"
-    directoryFiles <- mapM decodeUtf osEntries
-    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
-    pure $ map (Text.replace ".hs" "") controllerFiles
+    osPath <- encodeUtf "Web/Controller"
+    exists <- Directory.doesDirectoryExist osPath
+    if exists
+        then do
+            osEntries <- Directory.listDirectory osPath
+            directoryFiles <- mapM decodeUtf osEntries
+            let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+            pure $ map (Text.replace ".hs" "") controllerFiles
+        else pure []
 
 findControllers :: Text -> IO [Text]
 findControllers application = do
@@ -82,11 +87,16 @@ findControllers application = do
 
 findApplications :: IO ([Text])
 findApplications = do
-    mainhs <- IO.readFile "Main.hs"
-    let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
-    pure (map removeImport imports)
-        where
-            removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
+    osPath <- encodeUtf "Main.hs"
+    exists <- Directory.doesFileExist osPath
+    if exists
+        then do
+            mainhs <- IO.readFile "Main.hs"
+            let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
+            pure (map removeImport imports)
+        else pure []
+    where
+        removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
 theToolServerApplication :: (?context :: ControllerContext) => IO ToolServerApplication
 theToolServerApplication = fromContext @ToolServerApplication

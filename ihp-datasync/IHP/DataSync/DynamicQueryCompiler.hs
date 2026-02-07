@@ -187,9 +187,12 @@ compileConditionTyped types (InfixOperatorExpression a OpEqual (LiteralExpressio
 compileConditionTyped types (InfixOperatorExpression a OpNotEqual (LiteralExpression Aeson.Null)) = compileConditionTyped types (InfixOperatorExpression a OpIsNot (LiteralExpression Aeson.Null))
 compileConditionTyped _types (InfixOperatorExpression _a OpIn (ListExpression { values = [] })) = Snippet.sql "FALSE"
 compileConditionTyped types (InfixOperatorExpression a OpIn (ListExpression { values })) | (Aeson.Null `List.elem` values) =
-    case partition ((/=) Aeson.Null) values of
-        ([], _nullValues) -> compileConditionTyped types (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null))
-        (nonNullValues, _nullValues) -> compileConditionTyped types (InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null)))
+    let condition =
+            case partition ((/=) Aeson.Null) values of
+                ([], _nullValues) -> InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null)
+                (nonNullValues, _nullValues) -> InfixOperatorExpression (InfixOperatorExpression a OpIn (ListExpression { values = nonNullValues })) OpOr (InfixOperatorExpression a OpIs (LiteralExpression Aeson.Null))
+    in
+        compileConditionTyped types condition
 -- When comparing a column to a literal or list, look up the column's type for typed encoding.
 -- Errors if the column type is not in the map — callers must provide complete type info.
 compileConditionTyped types (InfixOperatorExpression (ColumnExpression col) operator (LiteralExpression literal)) =

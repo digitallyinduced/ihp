@@ -36,11 +36,14 @@ import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
+import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
 import qualified IHP.PGListener as PGListener
+import IHP.RequestVault.ModelContext (modelContextMiddleware)
+import qualified Control.Exception.Safe as Exception
 
 import qualified Network.Wai.Application.Static as Static
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -49,6 +52,9 @@ import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 import Paths_ihp_ide (getDataFileName)
 import IHP.RequestVault
+import qualified Data.Vault.Lazy as Vault
+import IHP.Controller.Response (responseHeadersVaultKey)
+import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
@@ -69,13 +75,14 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
 
     let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
-    Warp.runSettings warpSettings $
-            logMiddleware weightedApp.application
+    Warp.runSettings warpSettings (logMiddleware weightedApp.application)
+        `Exception.finally` releaseModelContext weightedApp.modelContext
 
 -- | Result of building the ToolServer application
 data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
     { application :: Wai.Application
     , frameworkConfig :: Config.FrameworkConfig
+    , modelContext :: ModelContext
     }
 
 -- | Builds the full ToolServer WAI application with all middlewares applied.
@@ -101,6 +108,8 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
             Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
             Nothing -> pure ()
 
+    modelContext <- Config.initModelContext frameworkConfig
+
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
@@ -111,9 +120,29 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
     let innerApplication :: Wai.Application = \request respond -> do
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+
+    let toolServerVaultMiddleware app req respond = do
+            availableApps <- AvailableApps <$> findApplications
+            webControllers <- WebControllers <$> findWebControllers
+            let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
+            appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
+            databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
+            let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
+                                   . Vault.insert webControllersVaultKey webControllers
+                                   . Vault.insert appUrlVaultKey appUrl
+                                   . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
+                                   $ req.vault }
+            app req' respond
+
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
+                $ responseHeadersMiddleware
+                $ rlsContextMiddleware
+                $ toolServerVaultMiddleware
+                $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                 $ Websocket.websocketsOr
@@ -121,7 +150,7 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
                     (LiveReloadNotificationServer.app liveReloadClients)
                     innerApplication
 
-    pure ToolServerApplicationWithConfig { application, frameworkConfig }
+    pure ToolServerApplicationWithConfig { application, frameworkConfig, modelContext }
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
@@ -168,23 +197,4 @@ instance FrontController ToolServerApplication where
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
     initContext = do
-        availableApps <- AvailableApps <$> findApplications
-        webControllers <- WebControllers <$> findWebControllers
-
-        appPort <- Helper.theAppPort
-        let defaultAppUrl = "http://localhost:" <> tshow appPort
-        appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
-
-        putContext availableApps
-        putContext webControllers
-        putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
-
-        databaseNeedsMigration <- readDatabaseNeedsMigration
-        putContext (DatabaseNeedsMigration databaseNeedsMigration)
-
-
-readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
-readDatabaseNeedsMigration = do
-    context <- fromContext @ToolServerApplication
-    readIORef context.databaseNeedsMigration

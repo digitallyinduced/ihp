@@ -32,6 +32,7 @@ import Unsafe.Coerce
 import IHP.RequestVault
 import IHP.Controller.Layout (viewLayoutMiddleware)
 import System.IO.Unsafe (unsafePerformIO)
+import IHP.Log.Types (newLogger, LoggerSettings(..), LogLevel(..))
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -171,7 +172,10 @@ config = do
 initApplication :: IO Application
 initApplication = do
     frameworkConfig <- buildFrameworkConfig (pure ())
-    pure (frameworkConfigMiddleware frameworkConfig $ viewLayoutMiddleware $ Server.application handleNotFound (\app -> app))
+    logger <- newLogger def { level = Warn }
+    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
+    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
+    pure (middleware $ Server.application handleNotFound (\app -> app))
 
 application = unsafePerformIO initApplication
 

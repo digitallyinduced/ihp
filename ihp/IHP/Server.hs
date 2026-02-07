@@ -34,6 +34,10 @@ import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
+import IHP.Controller.Response (responseHeadersVaultKey)
+import IHP.ControllerSupport (rlsContextVaultKey)
+import IHP.PageHead.Types
+import IHP.Modal.Types (modalContainerVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
@@ -155,6 +159,11 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+    let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
+    let pageHeadMiddleware = insertNewIORefVaultMiddleware pageHeadVaultKey emptyPageHeadState
+
     pure $
         customMiddleware
         . corsMiddleware
@@ -163,6 +172,10 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . approotMiddleware
         . autoRefreshMiddleware
         . viewLayoutMiddleware
+        . responseHeadersMiddleware
+        . rlsContextMiddleware
+        . pageHeadMiddleware
+        . modalMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions

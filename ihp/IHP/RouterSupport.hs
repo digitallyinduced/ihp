@@ -97,7 +97,7 @@ runAction' controller waiRequest waiRespond = do
     case contextOrErrorResponse of
         Left res -> res
         Right context -> let ?context = context in runAction controller
-{-# INLINABLE runAction' #-}
+{-# INLINE runAction' #-}
 
 class FrontController application where
     controllers
@@ -568,91 +568,62 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
     {-# INLINABLE pathTo #-}
     pathTo !action = case customPathTo action of
         Just path -> path
-        Nothing -> appPrefix <> actionName <> Text.pack arguments
+        Nothing ->
+            let !ci = constrIndex (toConstr action) - 1
+                (!basePath, !fieldNames) = constrInfoCache !! ci
+            in case fieldNames of
+                [] -> basePath
+                _ ->
+                    let !fieldValues = gmapQ renderFieldForUrl action
+                    in basePath <> buildQueryText fieldNames fieldValues
         where
-            appPrefix :: Text
-            !appPrefix = actionPrefixText @controller
+            -- Precomputed per constructor: (basePath, fieldNames).
+            -- Does not reference 'action', so GHC floats this out as a CAF
+            -- when the instance is specialized for a concrete controller type.
+            constrInfoCache :: [(Text, [Text])]
+            constrInfoCache = map mkInfo allConstrs
+                where
+                    allConstrs = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+                    !appPrefix = actionPrefixText @controller
+                    mkInfo c =
+                        let !bp = appPrefix <> stripActionSuffixText (Text.pack (showConstr c))
+                            !fns = map Text.pack (constrFields c)
+                        in (bp, fns)
 
-            actionName :: Text
-            !actionName = stripActionSuffixText $! Text.pack (showConstr constructor)
+            buildQueryText :: [Text] -> [Text] -> Text
+            buildQueryText names values =
+                zip names values
+                |> filter (\(_, v) -> not (Text.null v))
+                |> map (\(k, v) -> k <> "=" <> URI.encodeText v)
+                |> Text.intercalate "&"
+                |> (\q -> if Text.null q then q else Text.cons '?' q)
 
-            constructor = toConstr action
-
-            stripQuotes ('"':rest) = List.init rest
-            stripQuotes otherwise = otherwise
-
-            -- | The @gmapQ@ function allows us to iterate over each term in a constructor function and
-            -- build a list of results from performing some function on each term.
-            -- Here we send each term through @constrShow@, giving us our preferred representation for
-            -- use in URLs.
-            showTerms :: controller -> [Maybe String]
-            showTerms = gmapQ (constrShow typeShows)
-
-            -- | @constrShow@ tries to convert each value @d@ into a String representation.
-            -- If one passes, return it immediately, otherwise try all the defined @typeShow@ functions.
-            constrShow :: Data d => [(d -> Maybe String)] -> d -> Maybe String
-            constrShow [] _ = Nothing
-            constrShow (f:fs) d = case f d of
-                Just str -> Just str
-                Nothing -> constrShow fs d
-
-            -- | Try and match some value to all of the types we can represent in a URL.
-            -- Only type not contained in here is the "Id" type, since we cannot match
-            -- on polymorphic types.
-            typeShows :: forall d. Data d => [(d -> Maybe String)]
-            typeShows = [
-                \val -> (eqT :: Maybe (d :~: Text))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: [Text]))
-                    >>= \Refl -> Just (showQueryParam (val :: [Text])),
-                \val -> (eqT :: Maybe (d :~: Maybe Text))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Int))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: [Int]))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Maybe Int))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Integer))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: [Integer]))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Maybe Integer))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: UUID))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: Maybe UUID))
-                    >>= \Refl -> Just (showQueryParam val),
-                \val -> (eqT :: Maybe (d :~: [UUID]))
-                    >>= \Refl -> Just (showQueryParam val)
-                ]
-
-            arguments :: String
-            !arguments = show action -- `SomeRecord { a = b, c = d }`
-                    |> List.filter (/= ' ')
-                    |> List.break (== '{')
-                    |> snd
-                    |> List.drop 1
-                    |> List.break (== '}')
-                    |> fst -- `a=b,c=d`
-                    |> List.splitWhen (== ',') -- ["a=b", "c=d"]
-                    |> map (\s -> let (key, value) = List.break (== '=') s in (key, List.drop 1 value))
-                    |> map (\(k ,v) -> (k, stripQuotes v)) -- "value" -> value
-                    |> filter (\(k, v) -> (not . List.null) k && (not . List.null) v)
-                    -- At this point we have a list of keys and values as represented by @show@.
-                    -- For Lists and Maybe types, we want to represent these in a different way,
-                    -- so we construct another list of values using type reflection and the QueryParam type class.
-                    |> \(kvs :: [(String, String)]) -> zip (showTerms action) kvs
-                    -- If an Id type was present in the action, it will be returned as Nothing by @showTerms@
-                    -- as we are not able to match on the type using reflection.
-                    -- In this case we default back to the @show@ representation.
-                    |> map (\(v1, (k, v2)) -> (k, fromMaybe v2 v1))
-                    |> map (\(k, v) -> if isEmpty v
-                        then ""
-                        else  k <> "=" <> URI.encode v)
-                    |> List.filter (not . isEmpty)
-                    |> List.intercalate "&"
-                    |> (\q -> if List.null q then q else '?':q)
+-- | Render a controller field value as 'Text' for URL query parameter inclusion.
+--
+-- Uses type reflection ('eqT') to match known types (Text, UUID, Int, Integer,
+-- and their Maybe\/List variants). For newtypes like @Id'@ that wrap a known type,
+-- falls back to recursive unwrap via 'gmapQ'.
+renderFieldForUrl :: forall d. Data d => d -> Text
+renderFieldForUrl val
+    -- UUID first: most common type after Id newtype unwrap
+    | Just Refl <- eqT @d @UUID = toText val
+    | Just Refl <- eqT @d @Text = val
+    | Just Refl <- eqT @d @Int = Text.pack (show val)
+    | Just Refl <- eqT @d @Integer = Text.pack (show val)
+    | Just Refl <- eqT @d @(Maybe UUID) = maybe "" toText val
+    | Just Refl <- eqT @d @(Maybe Text) = maybe "" id val
+    | Just Refl <- eqT @d @(Maybe Int) = maybe "" (Text.pack . show) val
+    | Just Refl <- eqT @d @(Maybe Integer) = maybe "" (Text.pack . show) val
+    | Just Refl <- eqT @d @[UUID] = Text.intercalate "," (map toText val)
+    | Just Refl <- eqT @d @[Text] = Text.intercalate "," (val :: [Text])
+    | Just Refl <- eqT @d @[Int] = Text.intercalate "," (map (Text.pack . show) val)
+    | Just Refl <- eqT @d @[Integer] = Text.intercalate "," (map (Text.pack . show) val)
+    | otherwise =
+        -- Unwrap one layer for newtypes (e.g., Id' wrapping UUID, Maybe (Id' table))
+        case gmapQ renderFieldForUrl val of
+            [inner] -> inner
+            _ -> ""
+{-# INLINABLE renderFieldForUrl #-}
 
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?request :: Request, ?respond :: Respond) => Parser StdMethod
@@ -918,7 +889,7 @@ catchAll action = do
     string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
     pure (runAction' @application action)
-{-# INLINABLE catchAll #-}
+{-# INLINE catchAll #-}
 
 -- | This instances makes it possible to write @<a href={MyAction}/>@ in HSX
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where

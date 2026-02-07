@@ -6,8 +6,9 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Modal.ControllerFunctions (setModal) where
 
 import Prelude
+import Data.IORef (writeIORef)
 import Text.Blaze.Html5 (Html)
-import IHP.ControllerContext (ControllerContext, putContext)
+import Network.Wai (Request)
 import IHP.Modal.Types
 
 -- | Store modal HTML in the context for later rendering.
@@ -16,5 +17,5 @@ import IHP.Modal.Types
 --
 -- > setModal (html MyModalView { .. })
 --
-setModal :: (?context :: ControllerContext) => Html -> IO ()
-setModal modalHtml = putContext (ModalContainer modalHtml)
+setModal :: (?request :: Request) => Html -> IO ()
+setModal modalHtml = writeIORef (lookupModalVault modalContainerVaultKey ?request) (Just (ModalContainer modalHtml))
