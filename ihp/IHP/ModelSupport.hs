@@ -60,6 +60,7 @@ import qualified Hasql.Pool.Config as HasqlPoolConfig
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Hasql
 import qualified Hasql.Statement as Hasql
+import qualified Hasql.Errors as HasqlErrors
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
@@ -506,8 +507,13 @@ instance Exception HasqlError
 -- This happens when the database schema changes (e.g. after @make db@) while
 -- the connection pool still holds connections with stale prepared statements.
 isCachedPlanError :: HasqlPool.UsageError -> Bool
-isCachedPlanError (HasqlPool.SessionUsageError (Hasql.QueryError _ _ (Hasql.ResultError (Hasql.ServerError "0A000" _ _ _ _)))) = True
+isCachedPlanError (HasqlPool.SessionUsageError sessionError) = isCachedPlanSessionError sessionError
 isCachedPlanError _ = False
+
+isCachedPlanSessionError :: HasqlErrors.SessionError -> Bool
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "0A000" _ _ _ _))) = True
+isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "0A000" _ _ _ _)) = True
+isCachedPlanSessionError _ = False
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
