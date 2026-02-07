@@ -6,7 +6,7 @@ import IHP.Environment
 import IHP.Test.Mocking
 import IHP.Hspec (withIHPApp)
 import IHP.Job.Queue (fetchNextJob, jobDidSucceed)
-import IHP.Job.Types (BackoffStrategy(..), JobStatus(..))
+import IHP.Job.Types (JobStatus(..))
 import qualified Data.UUID
 import Test.Hspec
 
@@ -112,10 +112,7 @@ tests = around (withIHPApp WebApplication testConfig) do
 
             -- Step 1: fetchNextJob — atomically locks the job and sets status to Running
             let workerId = Data.UUID.nil
-            maybeJob <- fetchNextJob @UpdatePostViewsJob
-                (timeoutInMicroseconds @UpdatePostViewsJob)
-                (backoffStrategy @UpdatePostViewsJob)
-                workerId
+            maybeJob <- fetchNextJob @UpdatePostViewsJob workerId
 
             case maybeJob of
                 Nothing -> expectationFailure "No job found in queue"

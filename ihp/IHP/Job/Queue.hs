@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-|
 Module: IHP.Job.Queue
 Description: Functions to operate on the Job Queue Database
@@ -28,11 +29,13 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import IHP.Hasql.Encoders ()
 import qualified Data.ByteString.Char8 as ByteString
+import Control.Concurrent.STM (TBQueue, atomically, writeTBQueue, STM)
+import Control.Concurrent.STM.TBQueue (isFullTBQueue)
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
 -- The lock is set on the job row in an atomic way.
--- 
+--
 -- The job status is set to JobStatusRunning, lockedBy will be set to the worker id and the attemptsCount is incremented.
 --
 -- __Example:__ Locking a SendMailJob
@@ -48,8 +51,8 @@ fetchNextJob :: forall job.
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , Table job
-    ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
-fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
+    ) => UUID -> IO (Maybe job)
+fetchNextJob workerId = do
     let tableNameText = tableName @job
     let returningColumns = ByteString.intercalate ", " (columnNames @job)
     let snippet =
@@ -58,17 +61,22 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
             <> Snippet.sql ", locked_at = NOW(), locked_by = " <> Snippet.param workerId
             <> Snippet.sql ", attempts_count = attempts_count + 1"
             <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameText
-            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
-            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
-            <> Snippet.sql " AND " <> retrySnippet backoffStrategy
-            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
-            <> timeoutSnippet timeoutInMicroseconds
-            <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE)"
+            <> Snippet.sql " WHERE " <> pendingJobCondition
+            <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
             <> Snippet.sql " RETURNING " <> Snippet.sql (cs returningColumns)
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
 
     pool <- getHasqlPool
     withoutQueryLogging (sqlQueryHasql pool snippet decoder)
+
+-- | Shared WHERE condition for fetching pending jobs.
+-- Matches jobs that are either not started or in retry state,
+-- not locked, and whose run_at time has passed.
+pendingJobCondition :: Snippet.Snippet
+pendingJobCondition =
+    Snippet.sql "(status = " <> Snippet.param JobStatusNotStarted
+    <> Snippet.sql " OR status = " <> Snippet.param JobStatusRetry
+    <> Snippet.sql ") AND locked_by IS NULL AND run_at <= NOW()"
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
@@ -86,15 +94,15 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
-watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
+watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
+watchForJob pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     liftIO do
         pool <- getHasqlPool
         withoutQueryLogging (runSessionHasql pool (mapM_ HasqlSession.script (createNotificationTriggerStatements tableNameBS)))
 
-    poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
-    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
+    poller <- pollForJob tableName pollInterval onNewJob
+    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable; pure ()))
 
     pure (subscription, poller)
 
@@ -106,16 +114,11 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO ReleaseKey
-pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
-    let tableNameBS = cs tableName :: ByteString
+pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
+pollForJob tableName pollInterval onNewJob = do
     let snippet =
             Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableName
-            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
-            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
-            <> Snippet.sql " AND " <> retrySnippet backoffStrategy
-            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
-            <> timeoutSnippet timeoutInMicroseconds
+            <> Snippet.sql " WHERE " <> pendingJobCondition
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
     let handler = do
             pool <- getHasqlPool
@@ -127,7 +130,8 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
                 -- This way we use full concurrency when we find multiple jobs
                 -- that haven't been picked up by the PGListener
                 forEach [1..count] \_ -> do
-                    Concurrent.putMVar onNewJob JobAvailable
+                    _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable
+                    pure ()
 
                 -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
                 jitter <- Random.randomRIO (0, 2000000)
@@ -171,6 +175,7 @@ jobDidFail :: forall job context.
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
     , SetField "updatedAt" job UTCTime
+    , SetField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , SetField "lastError" job (Maybe Text)
     , Job job
@@ -181,18 +186,20 @@ jobDidFail :: forall job context.
     , HasField "logger" context Log.Logger
     ) => job -> SomeException -> IO ()
 jobDidFail job exception = do
-    updatedAt <- getCurrentTime
+    now <- getCurrentTime
 
     Log.warn ("Failed job with exception: " <> tshow exception)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusFailed
+    let nextRunAt = addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
     job
         |> set #status status
         |> set #lockedBy Nothing
-        |> set #updatedAt updatedAt
+        |> set #updatedAt now
         |> set #lastError (Just (tshow exception))
+        |> (if canRetry then set #runAt nextRunAt else id)
         |> updateRecord
 
     pure ()
@@ -202,6 +209,7 @@ jobDidTimeout :: forall job context.
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
     , SetField "updatedAt" job UTCTime
+    , SetField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , SetField "lastError" job (Maybe Text)
     , Job job
@@ -212,22 +220,24 @@ jobDidTimeout :: forall job context.
     , HasField "logger" context Log.Logger
     ) => job -> IO ()
 jobDidTimeout job = do
-    updatedAt <- getCurrentTime
+    now <- getCurrentTime
 
     Log.warn ("Job timed out" :: Text)
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusTimedOut
+    let nextRunAt = addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
     job
         |> set #status status
         |> set #lockedBy Nothing
-        |> set #updatedAt updatedAt
+        |> set #updatedAt now
         |> setJust #lastError "Timeout reached"
+        |> (if canRetry then set #runAt nextRunAt else id)
         |> updateRecord
 
     pure ()
-  
+
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
 jobDidSucceed :: forall job context.
@@ -254,6 +264,49 @@ jobDidSucceed job = do
         |> updateRecord
 
     pure ()
+
+-- | Compute the delay before the next retry attempt.
+--
+-- For 'LinearBackoff', the delay is constant.
+-- For 'ExponentialBackoff', the delay doubles each attempt, capped at 24 hours.
+backoffDelay :: BackoffStrategy -> Int -> NominalDiffTime
+backoffDelay (LinearBackoff {delayInSeconds}) _ = fromIntegral delayInSeconds
+backoffDelay (ExponentialBackoff {delayInSeconds}) attempts =
+    min 86400 (fromIntegral delayInSeconds * (2 ^ min attempts 20))
+
+-- | Recover stale jobs that have been in 'JobStatusRunning' for too long,
+-- likely due to a worker crash.
+--
+-- Two-tier recovery:
+-- - Recently stale jobs (within 24h) are set back to retry
+-- - Ancient stale jobs (older than 24h) are marked as failed
+recoverStaleJobs :: forall job.
+    ( ?modelContext :: ModelContext
+    , Table job
+    ) => NominalDiffTime -> IO ()
+recoverStaleJobs staleThreshold = do
+    let tableNameText = tableName @job
+    -- Tier 1: Recently stale jobs (threshold..24h) → retry
+    let retrySnippet =
+            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
+            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRetry
+            <> Snippet.sql ", locked_by = NULL, locked_at = NULL, run_at = NOW()"
+            <> Snippet.sql " WHERE status = " <> Snippet.param JobStatusRunning
+            <> Snippet.sql " AND locked_at < NOW() - interval '1 second' * " <> Snippet.param (round staleThreshold :: Int)
+            <> Snippet.sql " AND locked_at > NOW() - interval '1 day'"
+
+    -- Tier 2: Ancient stale jobs (>24h) → mark failed
+    let failSnippet =
+            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
+            <> Snippet.sql " SET status = " <> Snippet.param JobStatusFailed
+            <> Snippet.sql ", locked_by = NULL, locked_at = NULL"
+            <> Snippet.sql ", last_error = 'Stale job: worker likely crashed'"
+            <> Snippet.sql " WHERE status = " <> Snippet.param JobStatusRunning
+            <> Snippet.sql " AND locked_at < NOW() - interval '1 day'"
+
+    pool <- getHasqlPool
+    withoutQueryLogging (sqlExecHasql pool retrySnippet)
+    withoutQueryLogging (sqlExecHasql pool failSnippet)
 
 -- | Mapping for @JOB_STATUS@:
 --
@@ -318,10 +371,13 @@ getHasqlPool = case ?modelContext.hasqlPool of
     Just pool -> pure pool
     Nothing -> error "getHasqlPool: No hasql pool available in ModelContext"
 
-retrySnippet :: BackoffStrategy -> Snippet.Snippet
-retrySnippet LinearBackoff {..}      = Snippet.sql "updated_at < NOW() + (interval '1 second' * " <> Snippet.param delayInSeconds <> Snippet.sql ")"
-retrySnippet ExponentialBackoff {..} = Snippet.sql "updated_at < NOW() - interval '1 second' * " <> Snippet.param delayInSeconds <> Snippet.sql " * POW(2, attempts_count)"
-
-timeoutSnippet :: Maybe Int -> Snippet.Snippet
-timeoutSnippet (Just timeout) = Snippet.sql "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((" <> Snippet.param timeout <> Snippet.sql " + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
-timeoutSnippet Nothing = Snippet.sql "AND (TRUE)"
+-- | Non-blocking write to a TBQueue. Returns True if the value was written,
+-- False if the queue was full.
+tryWriteTBQueue :: TBQueue a -> a -> STM Bool
+tryWriteTBQueue queue value = do
+    full <- isFullTBQueue queue
+    if full
+        then pure False
+        else do
+            writeTBQueue queue value
+            pure True
