@@ -16,6 +16,7 @@ insertVaultMiddleware key value app req respond = do
     let req' = req { vault = Vault.insert key value req.vault }
     app req' respond
 
+{-# INLINE lookupRequestVault #-}
 lookupRequestVault :: forall value. Typeable value => Vault.Key value -> Request -> value
 lookupRequestVault key req =
     case Vault.lookup key req.vault of
