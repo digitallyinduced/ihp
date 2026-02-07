@@ -24,6 +24,7 @@ import qualified Data.Vector as Vector
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
+import qualified IHP.QueryBuilder.HasqlHelpers as HasqlHelpers
 import IHP.Postgres.Point (Point(..))
 import Data.Int (Int64)
 import qualified Data.Set as Set
@@ -104,22 +105,6 @@ instance {-# OVERLAPS #-} ToJSON [Field] where
         where
             encodedFields = (map (\Field { fieldName, fieldValue } -> (cs fieldName) .= fieldValue) fields)
 
--- | Wraps a SQL query snippet so that each row is returned as a JSON object.
---
--- This is needed because hasql decoders are positional and don't provide column name metadata.
--- By wrapping with @row_to_json@, we get column names in the JSON keys, which we can then
--- decode into @[Field]@.
---
--- Uses a CTE (Common Table Expression) which works for both SELECT queries
--- and DML statements (INSERT, UPDATE, DELETE) with RETURNING:
---
--- @
--- WITH _ihp_dynamic_result AS (...original query...) SELECT row_to_json(t) FROM _ihp_dynamic_result AS t
--- @
-wrapDynamicQuery :: Snippet -> Snippet
-wrapDynamicQuery innerQuery =
-    Snippet.sql "WITH _ihp_dynamic_result AS (" <> innerQuery <> Snippet.sql ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
-
 -- | Decoder for dynamic query results wrapped with 'wrapDynamicQuery'.
 --
 -- Each row comes back as a single JSON column (from @row_to_json@), which is then
@@ -191,10 +176,6 @@ dynamicValueParam (Aeson.Number n) =
 dynamicValueParam (Aeson.Array arr) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
 dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :: Text)
 
--- | Quote a SQL identifier (table name, column name) to prevent SQL injection
-quoteIdentifier :: Text -> Snippet
-quoteIdentifier name = Snippet.sql (cs ("\"" <> Text.replace "\"" "\"\"" name <> "\""))
-
 -- | Extracts all column names referenced in a 'ConditionExpression'
 conditionColumns :: ConditionExpression -> Set.Set Text
 conditionColumns (ColumnExpression field) = Set.singleton field
@@ -202,6 +183,14 @@ conditionColumns (InfixOperatorExpression left _ right) = Set.union (conditionCo
 conditionColumns (LiteralExpression _) = Set.empty
 conditionColumns (CallExpression _) = Set.empty
 conditionColumns (ListExpression _) = Set.empty
+
+-- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
+wrapDynamicQuery :: Snippet -> Snippet
+wrapDynamicQuery = HasqlHelpers.wrapDynamicQuery
+
+-- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
+quoteIdentifier :: Text -> Snippet
+quoteIdentifier = HasqlHelpers.quoteIdentifier
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)
