@@ -162,14 +162,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
     let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
     let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
-    let pageHeadMiddleware =
-            insertNewIORefVaultMiddleware pageTitleVaultKey Nothing
-            . insertNewIORefVaultMiddleware pageDescriptionVaultKey Nothing
-            . insertNewIORefVaultMiddleware ogTitleVaultKey Nothing
-            . insertNewIORefVaultMiddleware ogTypeVaultKey Nothing
-            . insertNewIORefVaultMiddleware ogDescriptionVaultKey Nothing
-            . insertNewIORefVaultMiddleware ogUrlVaultKey Nothing
-            . insertNewIORefVaultMiddleware ogImageVaultKey Nothing
+    let pageHeadMiddleware = insertNewIORefVaultMiddleware pageHeadVaultKey emptyPageHeadState
 
     pure $
         customMiddleware
