@@ -53,6 +53,7 @@ import Paths_ihp_ide (getDataFileName)
 import IHP.RequestVault
 import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
+import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
@@ -123,10 +124,16 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
             let req' = req { vault = Vault.insert responseHeadersVaultKey headersRef req.vault }
             app req' respond
 
+    let rlsContextMiddleware app req respond = do
+            rlsRef <- newIORef Nothing
+            let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
+            app req' respond
+
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
                 $ responseHeadersMiddleware
+                $ rlsContextMiddleware
                 $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
