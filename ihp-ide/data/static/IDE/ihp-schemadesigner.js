@@ -187,7 +187,11 @@ function initCodeEditor() {
 }
 
 function initTooltip() {
-    $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip({ container: 'body'});
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+        new bootstrap.Tooltip(el, { container: 'body' });
+    });
 }
 
 document.addEventListener('turbolinks:load', initSchemaDesigner);
@@ -249,7 +253,7 @@ function sqlModeCheckbox(id, checkbox, isBoolean) {
 function setSqlMode(id, sqlMode) {
     var inputField = document.getElementById(id + "-input");
     if (sqlMode) {
-        inputField.className = "form-control text-monospace text-secondary bg-light"
+        inputField.className = "form-control font-monospace text-secondary bg-light"
     } else {
         inputField.className = "form-control";
     }
@@ -270,7 +274,7 @@ function setCheckboxSqlMode(id, sqlMode) {
         inputField.className = "d-none";
         inputField.name = id + "-inactive";
         hiddenField.name = id + "-inactive";
-        altField.className = "form-control text-monospace text-secondary bg-light";
+        altField.className = "form-control font-monospace text-secondary bg-light";
         altField.name = id;
         checkBoxContainer.className = "d-none";
         

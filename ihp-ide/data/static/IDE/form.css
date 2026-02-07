@@ -57,29 +57,22 @@
     background-color: hsl(192deg 100% 26% / 50%) !important;
 }
 
-.custom-control-label::before {
+.form-check-input {
     background-color: #002b36;
     border: 1px solid hsl(192deg 100% 30% / 50%);
 }
 
-.custom-checkbox .custom-control-input:checked~.custom-control-label::after {
-    top: 1px;
-}
-
-.custom-control-input:checked~.custom-control-label::before {
-    background-color:#519f98;
+.form-check-input:checked {
+    background-color: #519f98;
     border-color: #519f98;
 }
 
-.custom-control-input:focus~.custom-control-label::before {
+.form-check-input:focus {
     box-shadow: none !important;
-}
-
-.custom-control-input:focus:not(:checked)~.custom-control-label::before {
     border-color: #519f98;
 }
 
-.custom-control-label {
+.form-check-label {
     user-select: none;
     -webkit-user-select: none;
 }

@@ -79,7 +79,7 @@ instance View EditRowView where
                                 id={def.columnName <> "-alt"}
                                 type="text"
                                 name={def.columnName}
-                                class="form-control text-monospace text-secondary bg-light"
+                                class="form-control font-monospace text-secondary bg-light"
                                 value="NULL"
                                 />
                             <div class="form-control" id={def.columnName <> "-boxcontainer"}>
@@ -125,7 +125,7 @@ instance View EditRowView where
                                 id={def.columnName <> "-alt"}
                                 type="text"
                                 name={def.columnName <> "-inactive"}
-                                class="form-control text-monospace text-secondary bg-light d-none"
+                                class="form-control font-monospace text-secondary bg-light d-none"
                                 />
                             <div class="form-control" id={def.columnName <> "-boxcontainer"}>
                                 <input
@@ -169,7 +169,7 @@ instance View EditRowView where
                                 id={def.columnName <> "-input"}
                                 type="text"
                                 name={def.columnName}
-                                class={classes ["form-control", ("text-monospace text-secondary bg-light", isSqlFunction_ (value val))]}
+                                class={classes ["form-control", ("font-monospace text-secondary bg-light", isSqlFunction_ (value val))]}
                                 value={value val}
                                 oninput={"stopSqlModeOnInput('" <> def.columnName <> "')"}
                                 />
