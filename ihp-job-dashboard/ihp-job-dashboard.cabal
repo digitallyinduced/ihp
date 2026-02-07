@@ -28,6 +28,10 @@ library
             , http-types
             , wai-request-params
             , hasql-implicits
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-pool
+            , text
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
