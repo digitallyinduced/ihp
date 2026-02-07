@@ -43,6 +43,7 @@ runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Network.Wai.Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -107,6 +108,7 @@ buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Network.Wai.Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -117,7 +119,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
     pure (handleMessage getRLSColumns)
     where
-            pgListener = ?context.request.pgListener
+            pgListener = ?request.pgListener
             handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
             handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)

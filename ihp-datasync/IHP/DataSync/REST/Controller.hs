@@ -32,7 +32,7 @@ instance (
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Controller ApiController where
     action CreateRecordAction { table } = do
-        let hasqlPool = requestHasqlPool ?context.request
+        let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
@@ -97,7 +97,7 @@ instance (
             _ -> error "Expected JSON object or array"
 
     action UpdateRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?context.request
+        let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
@@ -127,7 +127,7 @@ instance (
 
     -- DELETE /api/:table/:id
     action DeleteRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?context.request
+        let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled hasqlPool table
 
         sqlExecWithRLS hasqlPool (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
@@ -136,7 +136,7 @@ instance (
 
     -- GET /api/:table/:id
     action ShowRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?context.request
+        let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
@@ -150,7 +150,7 @@ instance (
     -- GET /api/:table?orderBy=createdAt
     -- GET /api/:table?fields=id,title
     action ListRecordsAction { table } = do
-        let hasqlPool = requestHasqlPool ?context.request
+        let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
