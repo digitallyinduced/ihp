@@ -159,7 +159,7 @@ toolServerLayout inner = [hsx|
                 target :: Maybe Text
                 target = if isExternal then "_blank" else Nothing
 
-appUrl :: (?context :: ControllerContext) => Text
+appUrl :: (?context :: ControllerContext, ?request :: Request) => Text
 appUrl = let (AppUrl url) = lookupRequestVault appUrlVaultKey ?request in url
 
 -- | https://github.com/encharm/Font-Awesome-SVG-PNG/blob/master/white/svg/terminal.svg
