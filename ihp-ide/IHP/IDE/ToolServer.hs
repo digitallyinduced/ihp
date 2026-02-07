@@ -36,6 +36,7 @@ import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
+import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
@@ -129,11 +130,24 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
             let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
             app req' respond
 
+    let toolServerVaultMiddleware app req respond = do
+            availableAppsRef <- newIORef (AvailableApps [])
+            webControllersRef <- newIORef (WebControllers [])
+            appUrlRef <- newIORef (AppUrl "")
+            databaseNeedsMigrationRef <- newIORef (DatabaseNeedsMigration False)
+            let req' = req { vault = Vault.insert availableAppsVaultKey availableAppsRef
+                                   . Vault.insert webControllersVaultKey webControllersRef
+                                   . Vault.insert appUrlVaultKey appUrlRef
+                                   . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigrationRef
+                                   $ req.vault }
+            app req' respond
+
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
                 $ responseHeadersMiddleware
                 $ rlsContextMiddleware
+                $ toolServerVaultMiddleware
                 $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
@@ -196,13 +210,13 @@ instance ControllerSupport.InitControllerContext ToolServerApplication where
         let defaultAppUrl = "http://localhost:" <> tshow appPort
         appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
 
-        putContext availableApps
-        putContext webControllers
-        putContext (AppUrl appUrl)
+        writeIORef (lookupRequestVault availableAppsVaultKey ?request) availableApps
+        writeIORef (lookupRequestVault webControllersVaultKey ?request) webControllers
+        writeIORef (lookupRequestVault appUrlVaultKey ?request) (AppUrl appUrl)
         setLayout Layout.toolServerLayout
 
         databaseNeedsMigration <- readDatabaseNeedsMigration
-        putContext (DatabaseNeedsMigration databaseNeedsMigration)
+        writeIORef (lookupRequestVault databaseNeedsMigrationVaultKey ?request) (DatabaseNeedsMigration databaseNeedsMigration)
 
 
 readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool

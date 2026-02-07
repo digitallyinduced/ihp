@@ -23,6 +23,8 @@ import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
 import IHP.Postgres.Compiler (compilePostgresType, compileExpression)
 import qualified Data.List as List
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (lookupRequestVault)
 
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
@@ -34,7 +36,7 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
     </div>
 |]
     where
-        (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
+        (DatabaseNeedsMigration hasUnmigratedChanges) = unsafePerformIO (readIORef (lookupRequestVault databaseNeedsMigrationVaultKey ?context.request))
 
 unmigratedChanges :: Html
 unmigratedChanges = [hsx|
@@ -54,7 +56,7 @@ migrationStatus = if hasPendingMigrations
             then unmigratedChanges
             else mempty
     where
-        (DatabaseNeedsMigration databaseNeedsMigration) = fromFrozenContext @DatabaseNeedsMigration
+        (DatabaseNeedsMigration databaseNeedsMigration) = unsafePerformIO (readIORef (lookupRequestVault databaseNeedsMigrationVaultKey ?context.request))
 
         hasPendingMigrations :: Bool
         hasPendingMigrations = False
@@ -642,7 +644,7 @@ renderObjectSelector statements activeObjectName = [hsx|
                 generateControllerLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
                 controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
-                (WebControllers webControllers) = fromFrozenContext @WebControllers
+                (WebControllers webControllers) = unsafePerformIO (readIORef (lookupRequestVault webControllersVaultKey ?context.request))
 
                 rlsEnabled = statements
                         |> map snd
