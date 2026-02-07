@@ -108,6 +108,7 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Fix type equality operator warning by re-exporting `(~)` from Prelude
 - Fix `hsDataDir` picking doc directory on x86_64-linux
 - Fix `make db` failing
+- Fix AutoRefresh and DataSync breaking after `make db` recreates the database ([#2295](https://github.com/digitallyinduced/ihp/pull/2295))
 - Fix crash in ToolServer
 - Fix missing `UrlInput` pattern in Bootstrap CSS framework
 - Use `modelContextMiddleware` to populate request vault in test helpers ([#2174](https://github.com/digitallyinduced/ihp/pull/2174))

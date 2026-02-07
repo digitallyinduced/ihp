@@ -20,6 +20,7 @@ instance (
 
     run = do
         let hasqlPool = requestHasqlPool ?context.request
+        let pgListener = ?context.request.pgListener
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool
+        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool pgListener
         runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)

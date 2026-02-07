@@ -183,7 +183,7 @@ withDataSyncController connStr testUserId action = do
 
             -- Build the helper functions
             ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-            installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool
+            installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool pgListener
 
             -- Start the controller in an async thread
             let ?modelContext = modelContext
