@@ -90,6 +90,9 @@ common shared-properties
             , safe-exceptions
             , countable-inflections
             , ihp-migrate
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-implicits
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

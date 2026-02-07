@@ -107,6 +107,7 @@ filterGitIgnored dirs = do
                 }
         Process.withCreateProcess process \_ (Just stdout) _ processHandle -> do
             output <- IO.hGetContents stdout
+            _ <- evaluate (length output)
             let ignored = List.lines output
             _ <- Process.waitForProcess processHandle
             pure ignored

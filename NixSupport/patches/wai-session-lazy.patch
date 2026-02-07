@@ -1,0 +1,66 @@
+Allow SessionStore to return Nothing for "contents of new cookie"
+
+When getNewCookie returns Nothing, withSession skips the Set-Cookie header.
+This enables session stores to signal "no change" and avoid unnecessary
+cookie updates on every response.
+
+See: https://github.com/singpolyma/wai-session/issues/15
+
+diff -ruN a/Network/Wai/Session.hs b/Network/Wai/Session.hs
+--- a/Network/Wai/Session.hs
++++ b/Network/Wai/Session.hs
+@@ -32,7 +32,7 @@
+
+ -- | A 'SessionStore' takes in the contents of the cookie (if there was one)
+ -- and returns a ('Session', 'IO' action to get new contents for cookie) pair
+-type SessionStore m k v = (Maybe ByteString -> IO (Session m k v, IO ByteString))
++type SessionStore m k v = (Maybe ByteString -> IO (Session m k v, IO (Maybe ByteString)))
+
+ -- | Fully parameterised middleware for cookie-based sessions
+ withSession ::
+@@ -53,13 +53,21 @@
+ 	(session, getNewCookie) <- liftIO $ sessions $ lookup cookieName =<< cookies
+ #if MIN_VERSION_wai(3,0,0)
+ 	app (req {vault = Vault.insert vkey session (vault req)}) (\r -> do
+-			newCookieVal <- liftIO getNewCookie
+-			respond $ mapHeader (\hs -> (setCookie, newCookie newCookieVal):hs) r
++			mNewCookieVal <- liftIO getNewCookie
++			case mNewCookieVal of
++				Just newCookieVal ->
++					respond $ mapHeader (\hs -> (setCookie, newCookie newCookieVal):hs) r
++				Nothing ->
++					respond r
+ 		)
+ #else
+ 	resp <- app (req {vault = Vault.insert vkey session (vault req)})
+-	newCookieVal <- liftIO getNewCookie
+-	return $ mapHeader (\hs -> (setCookie, newCookie newCookieVal):hs) resp
++	mNewCookieVal <- liftIO getNewCookie
++	case mNewCookieVal of
++		Just newCookieVal ->
++			return $ mapHeader (\hs -> (setCookie, newCookie newCookieVal):hs) resp
++		Nothing ->
++			return resp
+ #endif
+ 	where
+ 	newCookie v = Builder.toByteString $ renderSetCookie $ cookieDefaults {
+diff -ruN a/Network/Wai/Session/Map.hs b/Network/Wai/Session/Map.hs
+--- a/Network/Wai/Session/Map.hs
++++ b/Network/Wai/Session/Map.hs
+@@ -28,14 +28,14 @@
+ 	mapStore' _ ssv (Just k) = do
+ 		m <- get ssv
+ 		case Map.lookup k m of
+-			Just sv -> return (sessionFromMapStateVar sv, return k)
++			Just sv -> return (sessionFromMapStateVar sv, return (Just k))
+ 			-- Could not find key, so it's as if we were not sent one
+ 			Nothing -> mapStore' gen ssv Nothing
+ 	mapStore' genNewKey ssv Nothing = do
+ 		newKey <- genNewKey
+ 		sv <- newThreadSafeStateVar Map.empty
+ 		ssv $~ Map.insert newKey sv
+-		return (sessionFromMapStateVar sv, return newKey)
++		return (sessionFromMapStateVar sv, return (Just newKey))
+
+ -- | Store using simple session ID generator based on time and 'Data.Unique'
+ mapStore_ :: (Ord k, MonadIO m) => IO (SessionStore m k v)
