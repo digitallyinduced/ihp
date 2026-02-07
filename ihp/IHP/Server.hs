@@ -38,6 +38,7 @@ import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import IHP.PageHead.Types
+import IHP.Modal.Types (modalContainerVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
@@ -169,6 +170,11 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
             let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
             app req' respond
 
+    let modalMiddleware app req respond = do
+            modalRef <- newIORef Nothing
+            let req' = req { vault = Vault.insert modalContainerVaultKey modalRef req.vault }
+            app req' respond
+
     let pageHeadMiddleware app req respond = do
             pageTitleRef <- newIORef Nothing
             pageDescriptionRef <- newIORef Nothing
@@ -198,6 +204,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . responseHeadersMiddleware
         . rlsContextMiddleware
         . pageHeadMiddleware
+        . modalMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
