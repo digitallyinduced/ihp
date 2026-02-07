@@ -12,13 +12,14 @@ module IHP.TypedSql
     , sqlExecTyped -- execute a typed statement and return affected rows
     ) where
 
-import           Control.Exception                  (bracket_)
+import           Control.Exception                  (bracket, bracket_)
 import           Control.Monad                      (guard, when)
 import qualified Data.Aeson                         as Aeson
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Char8              as BS8
 import qualified Data.Char                          as Char
 import           Data.Coerce                        (coerce)
+import           Data.Int                           (Int32)
 import qualified Data.List                          as List
 import qualified Data.Map.Strict                    as Map
 import           Data.Maybe                         (catMaybes, mapMaybe)
@@ -36,6 +37,12 @@ import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.ToField as PGTF
 import qualified Database.PostgreSQL.Simple.ToRow   as PGTR
 import qualified Database.PostgreSQL.Simple.Types   as PG
+import qualified Hasql.Connection                   as HasqlConnection
+import qualified Hasql.Connection.Settings          as HasqlSettings
+import qualified Hasql.Decoders                     as HasqlDecoders
+import qualified Hasql.Encoders                     as HasqlEncoders
+import qualified Hasql.Session                      as HasqlSession
+import qualified Hasql.Statement                    as HasqlStatement
 import           IHP.Prelude
 import qualified Language.Haskell.Meta.Parse        as HaskellMeta
 import qualified Language.Haskell.TH                as TH
@@ -165,13 +172,13 @@ data PgTypeInfo = PgTypeInfo
     , ptiNamespace :: !(Maybe Text) -- low-level: namespace name
     }
 
--- Convert libpq Oid to postgres-simple Oid.
-toPGOid :: PQ.Oid -> PG.Oid
-toPGOid (PQ.Oid w) = PG.Oid w -- low-level: wrap the same numeric value
+-- Convert libpq Oid to Int32 for Hasql parameter encoding.
+toOidInt32 :: PQ.Oid -> Int32
+toOidInt32 (PQ.Oid oid) = fromIntegral oid
 
--- Convert postgres-simple Oid to libpq Oid.
-toPQOid :: PG.Oid -> PQ.Oid
-toPQOid (PG.Oid w) = PQ.Oid w -- low-level: wrap the same numeric value
+-- Convert Hasql-decoded Oid value back to libpq Oid.
+fromOidInt32 :: Int32 -> PQ.Oid
+fromOidInt32 oid = PQ.Oid (fromIntegral oid)
 
 -- Build the TH expression for a typed SQL quasiquote.
 typedSqlExp :: String -> TH.ExpQ
@@ -748,8 +755,7 @@ describeStatementWith dbUrl sql = do
     let tableOids = Set.fromList (map dcTable columns) |> Set.delete (PQ.Oid 0) -- collect referenced table OIDs
         typeOids = Set.fromList paramTypes <> Set.fromList (map dcType columns) -- collect referenced type OIDs
 
-    pgConn <- PG.connectPostgreSQL dbUrl -- open postgres-simple connection for catalog queries
-    tables <- loadTableMeta pgConn (Set.toList tableOids) -- load table metadata
+    tables <- loadTableMeta dbUrl (Set.toList tableOids) -- load table metadata
     let referencedOids =
             tables
                 |> Map.elems
@@ -759,10 +765,9 @@ describeStatementWith dbUrl sql = do
                     )
                     mempty
     let missingRefs = referencedOids `Set.difference` Map.keysSet tables
-    extraTables <- loadTableMeta pgConn (Set.toList missingRefs)
+    extraTables <- loadTableMeta dbUrl (Set.toList missingRefs)
     let tables' = tables <> extraTables
-    types <- loadTypeInfo pgConn (Set.toList typeOids) -- load type metadata
-    PG.close pgConn -- close postgres-simple connection
+    types <- loadTypeInfo dbUrl (Set.toList typeOids) -- load type metadata
 
     _ <- PQ.exec conn ("DEALLOCATE " <> statementName) -- release prepared statement
     PQ.finish conn -- close libpq connection
@@ -782,48 +787,130 @@ ensureOk actionName = \case
                 msg <- PQ.resultErrorMessage res -- read error message
                 fail ("typedSql: " <> actionName <> " failed: " <> CS.cs (fromMaybe "" msg)) -- abort
 
--- | Load table metadata for all referenced tables.
--- High-level: read pg_catalog to map table/column info.
-loadTableMeta :: PG.Connection -> [PQ.Oid] -> IO (Map.Map PQ.Oid TableMeta)
-loadTableMeta _ [] = pure mempty -- no tables requested
-loadTableMeta conn tableOids = do
-    rows <- PG.query conn -- fetch column info for each requested table
+runHasqlMetadataSession :: BS.ByteString -> HasqlSession.Session a -> IO a
+runHasqlMetadataSession dbUrl session = do
+    let settings = HasqlSettings.connectionString (CS.cs dbUrl)
+    hasqlConnection <-
+        HasqlConnection.acquire settings >>= \case
+            Left connectionError ->
+                fail (CS.cs ("typedSql: could not connect to database: " <> tshow connectionError))
+            Right connection ->
+                pure connection
+    bracket (pure hasqlConnection) HasqlConnection.release \connection ->
+        HasqlConnection.use connection session >>= \case
+            Left sessionError ->
+                fail (CS.cs ("typedSql: metadata query failed: " <> tshow sessionError))
+            Right result ->
+                pure result
+
+oidArrayParamsEncoder :: HasqlEncoders.Params [Int32]
+oidArrayParamsEncoder =
+    HasqlEncoders.param
+        (HasqlEncoders.nonNullable
+            (HasqlEncoders.foldableArray
+                (HasqlEncoders.nonNullable HasqlEncoders.oid)
+            )
+        )
+
+tableColumnsStatement :: HasqlStatement.Statement [Int32] [(Int32, Text, Int32, Text, Int32, Bool)]
+tableColumnsStatement =
+    HasqlStatement.preparable
         (mconcat
-            [ "SELECT c.oid, c.relname, a.attnum, a.attname, a.atttypid, a.attnotnull "
+            [ "SELECT c.oid::int4, c.relname::text, a.attnum::int4, a.attname::text, a.atttypid::int4, a.attnotnull "
             , "FROM pg_class c "
             , "JOIN pg_namespace ns ON ns.oid = c.relnamespace "
             , "JOIN pg_attribute a ON a.attrelid = c.oid "
-            , "WHERE c.oid = ANY(?) AND a.attnum > 0 AND NOT a.attisdropped "
+            , "WHERE c.oid = ANY($1) AND a.attnum > 0 AND NOT a.attisdropped "
             , "ORDER BY c.oid, a.attnum"
             ])
-        (PG.Only (PG.PGArray (map toPGOid tableOids)) :: PG.Only (PG.PGArray PG.Oid)) -- parameterize the OID list
+        oidArrayParamsEncoder
+        (HasqlDecoders.rowList
+            ((,,,,,)
+                <$> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.bool)
+            ))
 
-    primaryKeys <- PG.query conn -- fetch primary key columns for each table
-        "SELECT conrelid, unnest(conkey) as attnum FROM pg_constraint WHERE contype = 'p' AND conrelid = ANY(?)"
-        (PG.Only (PG.PGArray (map toPGOid tableOids)) :: PG.Only (PG.PGArray PG.Oid)) -- parameterize the OID list
+primaryKeysStatement :: HasqlStatement.Statement [Int32] [(Int32, Int32)]
+primaryKeysStatement =
+    HasqlStatement.preparable
+        "SELECT conrelid::int4, unnest(conkey)::int4 as attnum FROM pg_constraint WHERE contype = 'p' AND conrelid = ANY($1)"
+        oidArrayParamsEncoder
+        (HasqlDecoders.rowList
+            ((,)
+                <$> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+            ))
 
-    foreignKeys <- PG.query conn -- fetch simple (single-column) foreign keys
+foreignKeysStatement :: HasqlStatement.Statement [Int32] [(Int32, Int32, Int32)]
+foreignKeysStatement =
+    HasqlStatement.preparable
         (mconcat
-            [ "SELECT conrelid, conkey[1] as attnum, confrelid "
+            [ "SELECT conrelid::int4, conkey[1]::int4 as attnum, confrelid::int4 "
             , "FROM pg_constraint "
-            , "WHERE contype = 'f' AND array_length(conkey,1) = 1 AND conrelid = ANY(?)"
+            , "WHERE contype = 'f' AND array_length(conkey,1) = 1 AND conrelid = ANY($1)"
             ])
-        (PG.Only (PG.PGArray (map toPGOid tableOids)) :: PG.Only (PG.PGArray PG.Oid)) -- parameterize the OID list
+        oidArrayParamsEncoder
+        (HasqlDecoders.rowList
+            ((,,)
+                <$> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+            ))
+
+typeInfoStatement :: HasqlStatement.Statement [Int32] [(Int32, Text, Int32, Maybe Text, Maybe Text)]
+typeInfoStatement =
+    HasqlStatement.preparable
+        (mconcat
+            [ "SELECT oid::int4, typname::text, typelem::int4, typtype::text, typnamespace::regnamespace::text "
+            , "FROM pg_type "
+            , "WHERE oid = ANY($1)"
+            ])
+        oidArrayParamsEncoder
+        (HasqlDecoders.rowList
+            ((,,,,)
+                <$> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
+                <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)
+                <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)
+            ))
+
+-- | Load table metadata for all referenced tables.
+-- High-level: read pg_catalog to map table/column info.
+loadTableMeta :: BS.ByteString -> [PQ.Oid] -> IO (Map.Map PQ.Oid TableMeta)
+loadTableMeta _ [] = pure mempty -- no tables requested
+loadTableMeta dbUrl tableOids = do
+    let tableOidParams = map toOidInt32 tableOids
+    rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams tableColumnsStatement)
+    primaryKeys <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams primaryKeysStatement)
+    foreignKeys <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams foreignKeysStatement)
 
     let pkMap = primaryKeys
-            |> foldl' (\acc (relid :: PG.Oid, att :: Int) ->
-                    Map.insertWith Set.union (toPQOid relid) (Set.singleton att) acc
+            |> foldl' (\acc (relid, attnum) ->
+                    Map.insertWith Set.union (fromOidInt32 relid) (Set.singleton (fromIntegral attnum)) acc
                 ) mempty -- build map of table -> primary key attnums
 
         fkMap = foreignKeys
-            |> foldl' (\acc (relid :: PG.Oid, att :: Int, ref :: PG.Oid) ->
-                    Map.insertWith Map.union (toPQOid relid) (Map.singleton att (toPQOid ref)) acc
+            |> foldl' (\acc (relid, attnum, ref) ->
+                    Map.insertWith Map.union (fromOidInt32 relid) (Map.singleton (fromIntegral attnum) (fromOidInt32 ref)) acc
                 ) mempty -- build map of table -> foreign key attnum -> referenced table
 
         tableGroups =
             rows
-                |> map (\(relid :: PG.Oid, name :: Text, attnum :: Int, attname :: Text, atttypid :: PG.Oid, attnotnull :: Bool) ->
-                        (toPQOid relid, ColumnMeta { cmAttnum = attnum, cmName = attname, cmTypeOid = toPQOid atttypid, cmNotNull = attnotnull }, name)
+                |> map (\(relid, name, attnum, attname, atttypid, attnotnull) ->
+                        ( fromOidInt32 relid
+                        , ColumnMeta
+                            { cmAttnum = fromIntegral attnum
+                            , cmName = attname
+                            , cmTypeOid = fromOidInt32 atttypid
+                            , cmNotNull = attnotnull
+                            }
+                        , name
+                        )
                     ) -- annotate each column row with its table
                 |> List.groupBy (\(l, _, _) (r, _, _) -> l == r) -- group by table OID
 
@@ -853,23 +940,17 @@ loadTableMeta conn tableOids = do
 
 -- | Load type information for the given OIDs.
 -- High-level: fetch pg_type metadata recursively for arrays.
-loadTypeInfo :: PG.Connection -> [PQ.Oid] -> IO (Map.Map PQ.Oid PgTypeInfo)
+loadTypeInfo :: BS.ByteString -> [PQ.Oid] -> IO (Map.Map PQ.Oid PgTypeInfo)
 loadTypeInfo _ [] = pure mempty -- no types requested
-loadTypeInfo conn typeOids = do
+loadTypeInfo dbUrl typeOids = do
     let requested = Set.fromList typeOids -- track requested OIDs
-    rows <- PG.query conn -- fetch pg_type rows for requested OIDs
-        (mconcat
-            [ "SELECT oid, typname, typelem, typtype, typnamespace::regnamespace::text "
-            , "FROM pg_type "
-            , "WHERE oid = ANY(?)"
-            ])
-        (PG.Only (PG.PGArray (map toPGOid typeOids)) :: PG.Only (PG.PGArray PG.Oid)) -- parameterize the OID list
+    rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement (map toOidInt32 typeOids) typeInfoStatement)
     let (typeMap, missing) =
             rows
                 |> foldl'
-                    (\(acc, missingAcc) (oid :: PG.Oid, name :: Text, elemOid :: PG.Oid, typtype :: Maybe Text, nsp :: Maybe Text) ->
-                        let thisOid = toPQOid oid -- convert to libpq Oid type
-                            elemOid' = if elemOid == PG.Oid 0 then Nothing else Just (toPQOid elemOid) -- ignore 0 elem
+                    (\(acc, missingAcc) (oid, name, elemOid, typtype, nsp) ->
+                        let thisOid = fromOidInt32 oid -- convert to libpq Oid type
+                            elemOid' = if elemOid == 0 then Nothing else Just (fromOidInt32 elemOid) -- ignore 0 elem
                             nextMissing = case elemOid' of
                                 Just o | o `Set.notMember` requested -> o : missingAcc -- queue missing element types
                                 _ -> missingAcc
@@ -885,7 +966,7 @@ loadTypeInfo conn typeOids = do
                            )
                     )
                     (mempty, []) -- start with empty map and missing list
-    extras <- loadTypeInfo conn missing -- recursively load missing element types
+    extras <- loadTypeInfo dbUrl missing -- recursively load missing element types
     pure (typeMap <> extras) -- merge base and extra type info
 
 -- | Build the Haskell type for a parameter, based on its OID.

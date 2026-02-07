@@ -214,7 +214,6 @@ library
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
         , IHP.QueryBuilder.HasqlCompiler
-        , IHP.Postgres.Typed
         , IHP.TypedSql
         , IHP.Fetch
         , IHP.RouterPrelude
@@ -291,3 +290,4 @@ test-suite tests
         Test.Controller.CookieSpec
         Test.PGListenerSpec
         Test.MockingSpec
+        Test.TypedSqlSpec

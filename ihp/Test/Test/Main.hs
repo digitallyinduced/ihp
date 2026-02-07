@@ -20,6 +20,7 @@ import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
 import qualified Test.MockingSpec
+import qualified Test.TypedSqlSpec
 
 main :: IO ()
 main = hspec do
@@ -40,3 +41,4 @@ main = hspec do
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
     Test.MockingSpec.tests
+    Test.TypedSqlSpec.tests

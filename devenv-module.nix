@@ -95,6 +95,8 @@ that is defined in flake-module.nix
                         http-types
                         inflections
                         text
+                        hasql
+                        postgresql-libpq
                         postgresql-simple
                         hasql
                         hasql-notifications
