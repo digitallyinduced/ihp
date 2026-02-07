@@ -40,7 +40,6 @@ import IHP.Job.Queue ()
 import IHP.Pagination.Types
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Database.PostgreSQL.Simple.Types (In(..), Query(..))
 import qualified Network.Wai as Wai
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
@@ -176,12 +175,9 @@ instance JobsDashboard '[] where
         tables <- mapM buildBaseJobTable tableNames
         render $ SomeView tables
         where
-            getAllTableNames = withHasqlOrPgSimple
-                (\pool -> sqlQueryHasql pool
-                    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
-                    (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text))))
-                (sqlQuery "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'" ()
-                    >>= pure . map (\(Only t) -> t))
+            getAllTableNames = sqlQueryHasql getHasqlPool
+                (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
+                (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
     listJob' _ = do
@@ -210,9 +206,7 @@ instance JobsDashboard '[] where
         where
             insertJob = do
                 let tableName = param "tableName"
-                withHasqlOrPgSimple
-                    (\pool -> sqlExecHasql pool (Snippet.sql "INSERT INTO " <> sqlIdentifier tableName <> Snippet.sql " DEFAULT VALUES"))
-                    (sqlExec (Query (cs $ "INSERT INTO " <> tableName <> " DEFAULT VALUES")) () >> pure ())
+                sqlExecHasql getHasqlPool (Snippet.sql "INSERT INTO " <> sqlIdentifier tableName <> Snippet.sql " DEFAULT VALUES")
 
     deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
     deleteJob' _ = do
@@ -223,9 +217,8 @@ instance JobsDashboard '[] where
         redirectTo ListJobsAction
 
         where
-            delete id table = withHasqlOrPgSimple
-                (\pool -> sqlExecHasql pool (Snippet.sql "DELETE FROM " <> sqlIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id))
-                (sqlExec (Query (cs $ "DELETE FROM " <> table <> " WHERE id = ?")) (Only id) >> pure ())
+            delete id table = sqlExecHasql getHasqlPool
+                (Snippet.sql "DELETE FROM " <> sqlIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
 
     retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
     retryJob' = do
@@ -236,9 +229,8 @@ instance JobsDashboard '[] where
         redirectTo ListJobsAction
 
         where
-            retryJobById table id = withHasqlOrPgSimple
-                (\pool -> sqlExecHasql pool (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id))
-                (sqlExec (Query (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?")) (Only id) >> pure ())
+            retryJobById table id = sqlExecHasql getHasqlPool
+                (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id)
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -355,10 +347,8 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
     retryJob table uuid = do
         let id    :: UUID = param "id"
             table :: Text = param "tableName"
-            retryJobById table id = withHasqlOrPgSimple
-                (\pool -> sqlExecHasql pool (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id))
-                (sqlExec (Query (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?")) (Only id) >> pure ())
-        retryJobById table id
+        sqlExecHasql getHasqlPool
+            (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id)
         setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
         redirectTo ListJobsAction
     retryJob' = do
@@ -388,22 +378,16 @@ baseJobDecoder = BaseJob
     <*> Decoders.column (Decoders.nullable Decoders.text)           -- lastError
 
 getNotIncludedTableNames :: (?modelContext :: ModelContext) => [Text] -> IO [Text]
-getNotIncludedTableNames includedNames = withHasqlOrPgSimple
-    (\pool -> sqlQueryHasql pool
-        (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
-        (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text))))
-    (map (\(Only t) -> t) <$> sqlQuery
-        "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND table_name NOT IN ?"
-        (Only $ In $ includedNames))
+getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
+    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
+    (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Wai.Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
-    baseJobs <- withHasqlOrPgSimple
-        (\pool -> sqlQueryHasql pool
-            (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
-                <> sqlIdentifier tableName <> Snippet.sql " ORDER BY created_at DESC LIMIT 10")
-            (Decoders.rowList baseJobDecoder))
-        (sqlQuery (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> tableName <> " ORDER BY created_at DESC LIMIT 10")) (Only tableName))
+    baseJobs <- sqlQueryHasql getHasqlPool
+        (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
+            <> sqlIdentifier tableName <> Snippet.sql " ORDER BY created_at DESC LIMIT 10")
+        (Decoders.rowList baseJobDecoder)
     baseJobs
         |> renderBaseJobTable tableName
         |> HtmlView
@@ -427,26 +411,16 @@ getTableName _ = tableName @job
 
 -- | Get the job with in the given table with the given ID as a 'BaseJob'.
 queryBaseJob :: (?modelContext :: ModelContext) => Text -> UUID -> IO BaseJob
-queryBaseJob table id = withHasqlOrPgSimple
-    (\pool -> sqlQueryHasql pool
-        (Snippet.sql "SELECT " <> Snippet.param table <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
-            <> sqlIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
-        (Decoders.singleRow baseJobDecoder))
-    (do
-        (job : _) <- sqlQuery
-            (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " WHERE id = ?"))
-            [table, tshow id]
-        pure job)
+queryBaseJob table id = sqlQueryHasql getHasqlPool
+    (Snippet.sql "SELECT " <> Snippet.param table <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
+        <> sqlIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
+    (Decoders.singleRow baseJobDecoder)
 
 queryBaseJobsFromTablePaginated :: (?modelContext :: ModelContext) => Text -> Int -> Int -> IO [BaseJob]
-queryBaseJobsFromTablePaginated table page pageSize = withHasqlOrPgSimple
-    (\pool -> sqlQueryHasql pool
-        (Snippet.sql "SELECT " <> Snippet.param table <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
-            <> sqlIdentifier table <> Snippet.sql " OFFSET " <> Snippet.param (page * pageSize) <> Snippet.sql " LIMIT " <> Snippet.param pageSize)
-        (Decoders.rowList baseJobDecoder))
-    (sqlQuery
-        (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize))
-        (Only table))
+queryBaseJobsFromTablePaginated table page pageSize = sqlQueryHasql getHasqlPool
+    (Snippet.sql "SELECT " <> Snippet.param table <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
+        <> sqlIdentifier table <> Snippet.sql " OFFSET " <> Snippet.param (page * pageSize) <> Snippet.sql " LIMIT " <> Snippet.param pageSize)
+    (Decoders.rowList baseJobDecoder)
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
     beforeAction = authenticate @authType
