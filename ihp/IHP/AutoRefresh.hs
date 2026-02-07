@@ -58,12 +58,15 @@ autoRefresh runAction = do
             -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
             frozenControllerContext <- freeze ?context
 
+            let originalRequest = ?request
             let renderView = \waiRequest waiRespond -> do
                     controllerContext <- unfreeze frozenControllerContext
                     let ?context = controllerContext
-                    let ?request = waiRequest
+                    -- Copy vault from original request to preserve layout and other middleware state
+                    let waiRequest' = waiRequest { Wai.vault = Wai.vault originalRequest }
+                    let ?request = waiRequest'
                     let ?respond = waiRespond
-                    putContext waiRequest
+                    putContext waiRequest'
                     action ?theAction
 
             putContext (AutoRefreshEnabled id)
