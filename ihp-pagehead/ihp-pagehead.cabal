@@ -30,6 +30,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , QuasiQuotes
+        , OverloadedRecordDot
     ghc-options: -Werror=incomplete-patterns
 
 library
