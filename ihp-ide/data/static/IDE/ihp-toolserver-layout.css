@@ -293,7 +293,7 @@ body, .modal-content {
     color: #fdf6e3;
 }
 
-.border, .border-left, .border-bottom, .border-right, .border-top {
+.border, .border-start, .border-bottom, .border-end, .border-top {
     border-color: #0A4151 !important;
 }
 
@@ -401,6 +401,6 @@ a, a:hover {
     background-color: hsl(193deg 80% 6%);
 }
 
-.bs-popover-auto[x-placement^=right]>.arrow::after, .bs-popover-right>.arrow::after {
+.bs-popover-auto[data-popper-placement^="right"]>.popover-arrow::after, .bs-popover-end>.popover-arrow::after {
     border-right-color: #0B5163;
 }

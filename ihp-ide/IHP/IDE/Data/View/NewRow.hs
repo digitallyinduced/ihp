@@ -71,7 +71,7 @@ instance View NewRowView where
                                 id={col.columnName <> "-alt"}
                                 type="text"
                                 name={col.columnName <> "-inactive"}
-                                class="form-control text-monospace text-secondary d-none"
+                                class="form-control font-monospace text-secondary d-none"
                                 />
                             <div class="form-control" id={col.columnName <> "-boxcontainer"}>
                                 <input
@@ -148,7 +148,7 @@ instance View NewRowView where
                                             id={col.columnName <> "-input"}
                                             type="text"
                                             name={col.columnName}
-                                            class={classes ["form-control", ("text-monospace", isSqlFunction (getColDefaultValue col)), ("is-foreign-key-column", isForeignKeyColumn)]}
+                                            class={classes ["form-control", ("font-monospace", isSqlFunction (getColDefaultValue col)), ("is-foreign-key-column", isForeignKeyColumn)]}
                                             value={renderDefaultWithoutType (getColDefaultValue col)}
                                             oninput={"stopSqlModeOnInput('" <> col.columnName <> "')"}
                                         />
