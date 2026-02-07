@@ -14,7 +14,7 @@ import qualified Data.List as List
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-import IHP.Controller.Context (ControllerContext, putContext)
+import IHP.Controller.Context (ControllerContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
@@ -119,13 +119,10 @@ polymorphicRender = PolymorphicRender Nothing Nothing
 {-# INLINABLE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Network.Wai.Request, ?respond :: Respond) => view -> IO ()
 render !view = do
-    -- Get the current request from the context
     let !currentRequest = ?request
     renderPolymorphic PolymorphicRender
             { html = Just do
                     let next request respond = do
-                            -- Store the modified request (with flash messages in vault) in the context
-                            putContext request
                             let ?request = request in ((renderHtml view) >>= respondHtml)
                             error "unreachable"
                     _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
