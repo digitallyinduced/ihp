@@ -40,6 +40,9 @@ tests = do
             let project = Project { name = "Testproject" }
             [hsx|<h1>Project: {project.name}</h1>|] `shouldBeSameHtml` "<h1>Project: Testproject</h1>"
 
+        it "should support TypeApplications inside spliced expressions" do
+            [hsx|<h1>{show (id @Int 1)}</h1>|] `shouldBeSameHtml` "<h1>1</h1>"
+
         it "should support lambdas and pattern matching on constructors" do
             let placeData = PlaceId "Punches Cross"
             [hsx|<h1>{(\(PlaceId x) -> x)(placeData)}</h1>|] `shouldBeSameHtml` "<h1>Punches Cross</h1>"

@@ -10,12 +10,14 @@ data JobConfig = JobConfig
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
     , isFirstJobInApplication :: Bool -- If true, creates Worker.hs in application directory
+    , uuidFunction :: Text -- E.g. "uuid_generate_v4" or "uuidv7"
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
     let workerPath = textToOsPath (applicationName <> "/Worker.hs")
     isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
+    uuidFunction <- defaultUuidFunction
     if null jobName
         then pure $ Left "Job name cannot be empty"
         else do
@@ -24,6 +26,7 @@ buildPlan jobName applicationName = do
                     , tableName = jobName
                     , modelName = tableNameToModelName jobName
                     , isFirstJobInApplication
+                    , uuidFunction
                     }
             pure $ Right $ buildPlan' jobConfig
 
@@ -54,7 +57,7 @@ buildPlan' config =
             schemaSql =
                 ""
                 <> "CREATE TABLE " <> tableName <> " (\n"
-                <> "    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n"
+                <> "    id UUID DEFAULT " <> config.uuidFunction <> "() PRIMARY KEY NOT NULL,\n"
                 <> "    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,\n"

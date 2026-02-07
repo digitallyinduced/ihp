@@ -594,7 +594,7 @@ filterWhereAtMost = filterWhereLessThanOrEqualTo
 -- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
 --
 filterWhereSql :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, ByteString) -> queryBuilderProvider table -> queryBuilderProvider table
-filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Plain (Builder.byteString sqlCondition), Snippet.sql sqlCondition), applyLeft = Nothing, applyRight = Nothing }
+filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, SqlOp, Plain (Builder.byteString sqlCondition), Snippet.sql (cs sqlCondition)), applyLeft = Nothing, applyRight = Nothing }
     where
         columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
         queryBuilder = getQueryBuilder queryBuilderProvider

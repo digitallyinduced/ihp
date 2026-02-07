@@ -22,12 +22,12 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
+import IHP.PGVersion (defaultUuidFunction)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -47,8 +47,8 @@ data Change
     deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationFunction :: RLS.TableWithRLS -> Snippet
-createNotificationFunction table = Snippet.sql [i|
+createNotificationFunction :: Text -> RLS.TableWithRLS -> Snippet
+createNotificationFunction uuidFunction table = Snippet.sql [i|
     DO $$
     BEGIN
         -- This inner block handles concurrent installations from multiple
@@ -133,7 +133,7 @@ createNotificationFunction table = Snippet.sql [i|
               AND n.nspname = 'public'
         ) THEN
             CREATE UNLOGGED TABLE large_pg_notifications (
-                id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                id UUID DEFAULT #{uuidFunction}() PRIMARY KEY NOT NULL,
                 payload TEXT DEFAULT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
             );
@@ -153,17 +153,16 @@ createNotificationFunction table = Snippet.sql [i|
 -- Statements
 
 retrieveChangesStatement :: Statement.Statement UUID ByteString
-retrieveChangesStatement = Statement.Statement
+retrieveChangesStatement = Statement.preparable
     "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
     (Encoders.param (Encoders.nonNullable Encoders.uuid))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
-    True
 
 -- Sessions
 
-installTableChangeTriggersSession :: RLS.TableWithRLS -> Session.Session ()
-installTableChangeTriggersSession table =
-    DynSession.dynamicallyParameterizedStatement (createNotificationFunction table) Decoders.noResult True
+installTableChangeTriggersSession :: Text -> RLS.TableWithRLS -> Session.Session ()
+installTableChangeTriggersSession uuidFunction table =
+    Snippet.toSession (createNotificationFunction uuidFunction table) Decoders.noResult
 
 retrieveChangesSession :: UUID -> Session.Session ByteString
 retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
@@ -172,7 +171,8 @@ retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
 
 installTableChangeTriggers :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO ()
 installTableChangeTriggers pool tableNameRLS = do
-    runSession pool (installTableChangeTriggersSession tableNameRLS)
+    uuidFunction <- defaultUuidFunction
+    runSession pool (installTableChangeTriggersSession uuidFunction tableNameRLS)
     pure ()
 
 makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())

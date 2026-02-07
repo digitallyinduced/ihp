@@ -1,9 +1,10 @@
-module IHP.IDE.CodeGen.Types where
+module IHP.IDE.CodeGen.Types (module IHP.IDE.CodeGen.Types, defaultUuidFunction) where
 
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.Postgres.Types
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
+import IHP.IDE.CodeGen.DefaultUuidFunction (defaultUuidFunction)
 
 data GeneratorAction
     = CreateFile { filePath :: OsPath, fileContent :: Text }

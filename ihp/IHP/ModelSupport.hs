@@ -57,12 +57,10 @@ import qualified Text.Read as Read
 import qualified Data.Pool as Pool
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Pool.Config as HasqlPoolConfig
-import qualified Hasql.Connection.Setting as HasqlConnectionSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnectionConfig
+import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Hasql
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import qualified Hasql.DynamicStatements.Statement as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
@@ -106,9 +104,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
-            [ HasqlPoolConfig.staticConnectionSettings
-                [ HasqlConnectionSetting.connection (HasqlConnectionConfig.string (cs databaseUrl))
-                ]
+            [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
             ]
             <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
@@ -396,7 +392,7 @@ sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Sn
 sqlQueryHasql pool snippet decoder = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.dynamicallyParameterized snippet decoder True
+    let statement = Snippet.toStatement snippet decoder
     let runQuery = do
             let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
@@ -416,8 +412,8 @@ sqlQueryHasql pool snippet decoder = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
-                let Hasql.Statement sqlText _ _ _ = statement
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
+                let sqlText = Hasql.toSql statement
                 Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE sqlQueryHasql #-}
@@ -427,7 +423,7 @@ sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Sni
 sqlExecHasql pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.dynamicallyParameterized snippet Decoders.noResult True
+    let statement = Snippet.toStatement snippet Decoders.noResult
     let runQuery = do
             let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
@@ -447,8 +443,8 @@ sqlExecHasql pool snippet = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
-                let Hasql.Statement sqlText _ _ _ = statement
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
+                let sqlText = Hasql.toSql statement
                 Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE sqlExecHasql #-}
@@ -484,7 +480,7 @@ runSessionHasql pool session = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 Log.debug ("💾 runSessionHasql (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE runSessionHasql #-}
@@ -712,7 +708,7 @@ logQuery logPrefix connection query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double |> round
+        let queryTimeInMs = round (realToFrac time * 1000 :: Double)
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))

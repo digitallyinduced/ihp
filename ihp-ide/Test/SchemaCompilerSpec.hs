@@ -45,7 +45,9 @@ tests = do
                     textToEnumMood :: Text -> Maybe Mood
                     textToEnumMood t = HashMap.lookup t textToEnumMoodMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Mood where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Mood) where
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -106,7 +108,9 @@ tests = do
                     textToEnumProvince :: Text -> Maybe Province
                     textToEnumProvince t = HashMap.lookup t textToEnumProvinceMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder Province where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Province) where
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -134,7 +138,9 @@ tests = do
                     textToEnumPropertyType :: Text -> Maybe PropertyType
                     textToEnumPropertyType t = HashMap.lookup t textToEnumPropertyTypeMap
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder PropertyType where
-                        defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)
+                        defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PropertyType) where
+                        defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
@@ -212,12 +218,10 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = do
-                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
-                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
 
                     type instance GetModelName (User') = "User"
 
@@ -344,12 +348,10 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = do
-                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            ids <- Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            electricityUnitPrice <- Decoders.column (Decoders.nonNullable Decoders.float8)
-                            let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
 
                     type instance GetModelName (User') = "User"
 
@@ -474,11 +476,9 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = do
-                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            ts <- Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
-                            let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = (\id ts -> let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
 
                     type instance GetModelName (User') = "User"
 
@@ -640,10 +640,8 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
-                        hasqlRowDecoder = do
-                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = (\id -> let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -946,12 +944,10 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.Post where
-                        hasqlRowDecoder = do
-                            id <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            title <- Decoders.column (Decoders.nonNullable Decoders.text)
-                            userId <- Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
-                            pure theRecord
+                        hasqlRowDecoder = (\id title userId -> let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                            <*> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
 
                     type instance GetModelName (Post') = "Post"
 

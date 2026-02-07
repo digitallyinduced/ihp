@@ -68,6 +68,60 @@ that is defined in flake-module.nix
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
+
+            # Integration test: a minimal IHP app that exercises controllers, views, models, HSX, and withIHPApp
+            // {
+                integration-test = pkgs.stdenv.mkDerivation {
+                    name = "ihp-integration-test";
+                    src = self;
+                    sourceRoot = "source/integration-test";
+                    nativeBuildInputs = [
+                        (pkgs.ghc.ghc.withPackages (p: with p; [
+                            ihp ihp-hsx ihp-hspec ihp-ide ihp-schema-compiler
+                            hspec
+                        ]))
+                        pkgs.gnumake
+                        pkgs.postgresql
+                    ];
+                    buildPhase = ''
+                        export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data}
+
+                        # Start temporary PostgreSQL
+                        export PGDATA="$TMPDIR/pgdata"
+                        export PGHOST="$TMPDIR/pghost"
+                        mkdir -p "$PGHOST"
+                        initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                        echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                        pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+                        # Create the test database (withIHPApp replaces '/app' in the URL)
+                        createdb -h "$PGHOST" app
+                        export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                        # Generate types from Schema.sql
+                        make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                        # Compile and run integration tests
+                        GHC_EXTS=$(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions | sed 's/-fbyte-code//g')
+                        ghc --make \
+                            $GHC_EXTS \
+                            -threaded \
+                            -i. -ibuild -iConfig \
+                            -package-env - \
+                            -package ihp -package ihp-hspec -package hspec \
+                            -main-is Test.Main \
+                            Test/Main.hs -o test-runner
+                        ./test-runner
+
+                        # Cleanup
+                        pg_ctl -D "$PGDATA" stop || true
+                    '';
+                    installPhase = ''
+                        touch $out
+                    '';
+                };
+            }
         ;
 
         devenv.shells.default = {
@@ -103,6 +157,9 @@ that is defined in flake-module.nix
                         hasql-dynamic-statements
                         hasql-implicits
                         hasql-transaction
+                        hasql-mapping
+                        hasql-postgresql-types
+                        postgresql-types
                         wai-app-static
                         wai-util
                         aeson

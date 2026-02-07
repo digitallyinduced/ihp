@@ -15,6 +15,7 @@ import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 import IHP.IDE.SchemaDesigner.Controller.Columns (updateForeignKeyConstraint)
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import IHP.IDE.CodeGen.Types (defaultUuidFunction)
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -53,7 +54,8 @@ instance Controller TablesController where
                 setErrorMessage message
                 redirectTo TablesAction
             Success -> do
-                updateSchema (SchemaOperations.addTable tableName)
+                uuidFunction <- defaultUuidFunction
+                updateSchema (SchemaOperations.addTable tableName uuidFunction)
                 redirectTo ShowTableAction { .. }
 
     action EditTableAction { .. } = do

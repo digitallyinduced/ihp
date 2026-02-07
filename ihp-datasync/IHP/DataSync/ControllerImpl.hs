@@ -12,9 +12,8 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Pool
-import qualified Hasql.DynamicStatements.Session as DynSession
 import qualified Hasql.Session as Session
-import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withPoolConnection)
+import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withDedicatedConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -423,11 +422,11 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 transactionId <- UUID.nextRandom
 
-                withPoolConnection hasqlPool \connection -> do
+                withDedicatedConnection ?context.frameworkConfig.databaseUrl \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
                     runSessionOnConnection connection $ do
-                        Session.sql "BEGIN"
+                        Session.script "BEGIN"
                         setRLSConfigSession
 
                     let transaction = DataSyncTransaction
@@ -447,7 +446,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage getRLSColumns RollbackTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                runSessionOnConnection connection (Session.sql "ROLLBACK")
+                runSessionOnConnection connection (Session.script "ROLLBACK")
                 MVar.putMVar close ()
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
@@ -455,7 +454,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage getRLSColumns CommitTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                runSessionOnConnection connection (Session.sql "COMMIT")
+                runSessionOnConnection connection (Session.script "COMMIT")
                 MVar.putMVar close ()
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
@@ -526,7 +525,7 @@ sqlQueryWithRLSAndTransactionId _pool (Just transactionId) snippet decoder = do
     -- RLS role and user id were already set when the transaction was started
     DataSyncTransaction { connection } <- findTransactionById transactionId
     runSessionOnConnection connection
-        (DynSession.dynamicallyParameterizedStatement snippet decoder True)
+        (Snippet.toSession snippet decoder)
 sqlQueryWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
 
 -- | Like 'sqlQueryWithRLSAndTransactionId', but uses a write transaction when no transaction ID is provided.
@@ -545,7 +544,7 @@ sqlQueryWriteWithRLSAndTransactionId _pool (Just transactionId) snippet decoder 
     -- RLS role and user id were already set when the transaction was started
     DataSyncTransaction { connection } <- findTransactionById transactionId
     runSessionOnConnection connection
-        (DynSession.dynamicallyParameterizedStatement snippet decoder True)
+        (Snippet.toSession snippet decoder)
 sqlQueryWriteWithRLSAndTransactionId pool Nothing snippet decoder = runSession pool (sqlQueryWriteWithRLSSession snippet decoder)
 
 sqlExecWithRLSAndTransactionId ::
@@ -560,7 +559,7 @@ sqlExecWithRLSAndTransactionId _pool (Just transactionId) snippet = do
     -- RLS role and user id were already set when the transaction was started
     DataSyncTransaction { connection } <- findTransactionById transactionId
     runSessionOnConnection connection
-        (DynSession.dynamicallyParameterizedStatement snippet Decoders.noResult True)
+        (Snippet.toSession snippet Decoders.noResult)
 sqlExecWithRLSAndTransactionId pool Nothing snippet = runSession pool (sqlExecWithRLSSession snippet)
 
 

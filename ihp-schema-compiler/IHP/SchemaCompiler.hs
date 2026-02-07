@@ -343,7 +343,6 @@ defaultImports = [trimming|
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
-    import qualified Data.Functor.Contravariant
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import qualified Hasql.Pool as HasqlPool
     import IHP.Hasql.Encoders ()
@@ -376,7 +375,6 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Control.DeepSeq as DeepSeq
             import qualified Hasql.Encoders
             import qualified Hasql.Implicits.Encoders
-            import qualified Data.Functor.Contravariant
             import qualified Data.HashMap.Strict as HashMap
         |]
 
@@ -604,7 +602,9 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "textToEnum" <> modelName <> " t = HashMap.lookup t textToEnum" <> modelName <> "Map\n"
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
-        <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
+        <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
@@ -698,10 +698,9 @@ hasqlSupportsColumnType = \case
     (PArray inner) -> hasqlSupportsColumnType inner
     PCustomType _ -> True  -- enums have generated DefaultParamEncoder
     PSingleChar -> True
-    -- Unsupported:
-    PPoint -> False
-    PPolygon -> False
-    PInet -> False
+    PPoint -> True
+    PPolygon -> True
+    PInet -> True
     PTSVector -> False
     (PInterval _) -> False
     PTrigger -> False
@@ -1043,19 +1042,21 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
 --
 -- This is parallel to 'compileFromRowInstance' but generates code for the
 -- hasql decoder instead of postgresql-simple's FromRow.
--- Uses do-notation to bind column values, allowing one-to-many QueryBuilders
--- to reference the decoded primary key (shadowing any imported field selectors).
+-- Uses applicative style (<$>/<*>) since hasql 1.10's Decoders.Row is
+-- Applicative but not Monad. Column values are bound via a lambda so that
+-- one-to-many QueryBuilders can reference the decoded primary key.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = do
-#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
-        pure theRecord
+    hasqlRowDecoder = (\\#{intercalate " " columnNames} -> let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))} in theRecord)
+#{unsafeInit . indent . indent $ unlines applicativeDecoders}
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
         columnNames = map (columnNameToFieldName . (.name)) columns
-        columnBinding columnName = columnName <> " <- " <> hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        columnDecoderExpr columnName = hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        applicativeDecoders = case columnNames of
+            [] -> error "compileFromRowHasqlInstance: table has no columns"
+            (first:rest) -> ("<$> " <> columnDecoderExpr first) : map (\cn -> "<*> " <> columnDecoderExpr cn) rest
 
         referencing = columnsReferencingTable table.name
         -- Pair each referencing column with its generated field name for proper matching
@@ -1143,7 +1144,7 @@ hasqlValueDecoder = \case
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
     PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
-    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum" <> tableNameToModelName typeName <> " t)) Decoders.text)"
+    PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow (Text.toLower typeName) <> " textToEnum" <> tableNameToModelName typeName <> ")"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns

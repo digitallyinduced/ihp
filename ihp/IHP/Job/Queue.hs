@@ -21,7 +21,7 @@ import Control.Monad.Trans.Resource
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
+
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
@@ -51,21 +51,21 @@ fetchNextJob :: forall job.
     , Table job
     ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
 fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
-    let tableNameBS = cs (tableName @job) :: ByteString
+    let tableNameText = tableName @job
     let returningColumns = ByteString.intercalate ", " (columnNames @job)
     let snippet =
-            Snippet.sql "UPDATE " <> Snippet.sql tableNameBS
+            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
             <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning
             <> Snippet.sql ", locked_at = NOW(), locked_by = " <> Snippet.param workerId
             <> Snippet.sql ", attempts_count = attempts_count + 1"
-            <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameBS
+            <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameText
             <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
             <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
             <> Snippet.sql " AND " <> retrySnippet backoffStrategy
             <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
             <> timeoutSnippet timeoutInMicroseconds
             <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE)"
-            <> Snippet.sql " RETURNING " <> Snippet.sql returningColumns
+            <> Snippet.sql " RETURNING " <> Snippet.sql (cs returningColumns)
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
 
     pool <- getHasqlPool
@@ -92,7 +92,7 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
     let tableNameBS = cs tableName
     liftIO do
         pool <- getHasqlPool
-        withoutQueryLogging (runSessionHasql pool (HasqlSession.sql (createNotificationTriggerSQL tableNameBS)))
+        withoutQueryLogging (runSessionHasql pool (mapM_ HasqlSession.script (createNotificationTriggerStatements tableNameBS)))
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
@@ -111,7 +111,7 @@ pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> Bac
 pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName :: ByteString
     let snippet =
-            Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableNameBS
+            Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableName
             <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
             <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
             <> Snippet.sql " AND " <> retrySnippet backoffStrategy
@@ -143,18 +143,25 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
 
     fst <$> allocate (Async.async handler) Async.cancel
 
-createNotificationTriggerSQL :: ByteString -> ByteString
-createNotificationTriggerSQL tableName = ""
-        <> "BEGIN;\n"
-        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
-        <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
-        <> "    RETURN new;"
-        <> "END;\n"
-        <> "$$ language plpgsql;"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "COMMIT;"
+-- | Returns individual SQL statements to create the notification trigger.
+-- Split into separate statements because hasql 1.10's 'script' expects
+-- exactly one result per call (multi-statement scripts cause
+-- "Got too many results in script" errors).
+createNotificationTriggerStatements :: ByteString -> [Text]
+createNotificationTriggerStatements tableName =
+        [ "BEGIN"
+        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+            <> "BEGIN\n"
+            <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+            <> "    RETURN new;"
+            <> "END;\n"
+            <> "$$ language plpgsql"
+        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , "COMMIT"
+        ]
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName
@@ -310,7 +317,7 @@ textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
 
 -- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
 instance DefaultParamEncoder JobStatus where
-    defaultParam = Encoders.nonNullable (contramap inputValue Encoders.text)
+    defaultParam = Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
 
 getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
 getHasqlPool = case ?modelContext.hasqlPool of

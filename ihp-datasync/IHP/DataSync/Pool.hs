@@ -13,8 +13,7 @@ import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Connection.Settings as HasqlSettings
 import IHP.FrameworkConfig (findOptionOrNothing, configIO, defaultDatabaseUrl)
 import IHP.FrameworkConfig.Types (DatabaseUrl(..), DBPoolMaxConnections(..), CustomMiddleware(..), RLSAuthenticatedRole(..))
 import qualified Control.Monad.Trans.State.Strict as State
@@ -42,7 +41,7 @@ initHasqlPoolMiddleware databaseUrl poolSize = do
     let poolConfig = Hasql.Pool.Config.settings
             [ Hasql.Pool.Config.size poolSize
             , Hasql.Pool.Config.staticConnectionSettings
-                [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+                (HasqlSettings.connectionString (cs databaseUrl))
             ]
     pool <- Hasql.Pool.acquire poolConfig
     pure (hasqlPoolMiddleware pool)
@@ -90,7 +89,7 @@ initHasqlPoolImpl = do
         let poolConfig = Hasql.Pool.Config.settings
                 [ Hasql.Pool.Config.size maxConnections
                 , Hasql.Pool.Config.staticConnectionSettings
-                    [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
+                    (HasqlSettings.connectionString (cs databaseUrl))
                 ]
         Hasql.Pool.acquire poolConfig
     existingMiddleware <- findOptionOrNothing @CustomMiddleware >>= \case

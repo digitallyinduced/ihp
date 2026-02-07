@@ -9,7 +9,10 @@ thead > tr {
 }
 
 .table {
-    color:  #fff;
+    --bs-table-bg: transparent;
+    --bs-table-color: #fff;
+    --bs-table-hover-bg: hsla(192, 81%, 26%, 0.25);
+    color: #fff;
 }
 
 /* Override Bootstrap's .table>:not(caption)>*>* which resets color on cells */

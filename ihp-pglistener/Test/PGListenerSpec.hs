@@ -22,8 +22,7 @@ import IHP.Log.Types (Logger(..), LogLevel(..))
 import qualified IHP.PGListener as PGListener
 
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 
 logger :: Logger
@@ -42,8 +41,7 @@ getDatabaseUrl = do
 
 acquireConnection :: ByteString -> IO Hasql.Connection
 acquireConnection databaseUrl = do
-    let settings = [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
-    result <- Hasql.acquire settings
+    result <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> error ("Test: Failed to connect to database: " <> show err)
@@ -67,7 +65,7 @@ withDB action = do
 -- | Execute a raw SQL statement via a temporary hasql connection
 execSQL :: ByteString -> ByteString -> IO ()
 execSQL connStr sql = Exception.bracket (acquireConnection connStr) Hasql.release \conn -> do
-    result <- Session.run (Session.sql sql) conn
+    result <- Hasql.use conn (Session.script (cs sql))
     case result of
         Right () -> pure ()
         Left err -> error ("SQL exec failed: " <> show err)
@@ -147,7 +145,7 @@ tests = do
                                 -- so they arrive while waitForNotifications is active
                                 (forM_ [1..totalNotifications] \i -> do
                                     let payload = BS8.pack (show i)
-                                    Session.run (Session.sql ("NOTIFY nodrop_1, '" <> payload <> "'")) notifyConn
+                                    Hasql.use notifyConn (Session.script (cs ("NOTIFY nodrop_1, '" <> payload <> "'")))
                                         >>= \case
                                             Right () -> pure ()
                                             Left err -> error ("NOTIFY failed: " <> show err)
