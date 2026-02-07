@@ -311,14 +311,10 @@
     font-size: 12px;
 }
 
-#column-options .custom-control {
+#column-options .form-check {
     display: flex;
     justify-content: center;
     align-items: center;
-}
-
-#column-options .custom-control-label::before {
-    top: 1px;
 }
 
 #editor .code-editor-container {

@@ -236,9 +236,15 @@ executable RunDevServer
     build-depends: ihp, ihp-log, ihp-ide, ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
+    ghc-options: -rtsopts=all
     if flag(FastBuild)
         ghc-options:
             -threaded
+            -with-rtsopts=-A512m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -with-rtsopts=-Iw60
             +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
@@ -260,6 +266,7 @@ executable RunDevServer
             -with-rtsopts=-N
             -with-rtsopts=-n4m
             -with-rtsopts=--nonmoving-gc
+            -with-rtsopts=-Iw60
             +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns

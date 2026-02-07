@@ -14,8 +14,8 @@ where
 import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified IHP.PGListener as PGListener
-import qualified Control.Concurrent as Concurrent
 import Control.Monad.Trans.Resource
+import Control.Concurrent.STM (TBQueue, TVar)
 
 data BackoffStrategy
     = LinearBackoff { delayInSeconds :: !Int }
@@ -48,6 +48,13 @@ class Job job where
     backoffStrategy :: BackoffStrategy
     backoffStrategy = LinearBackoff { delayInSeconds = 30 }
 
+    -- | How long a job can be in 'JobStatusRunning' before it's considered stale
+    -- and recovered. Set to 'Nothing' to disable stale job recovery.
+    --
+    -- Default: 10 minutes
+    staleJobTimeout :: Maybe NominalDiffTime
+    staleJobTimeout = Just 600
+
 class Worker application where
     workers :: application -> [JobWorker]
 
@@ -74,10 +81,13 @@ data JobStatus
 
 data JobWorkerProcess
     = JobWorkerProcess
-    { runners :: [(ReleaseKey, Async ())]
+    { dispatcher :: (ReleaseKey, Async ())
     , subscription :: PGListener.Subscription
     , pollerReleaseKey :: ReleaseKey
-    , action :: Concurrent.MVar JobWorkerProcessMessage
+    , action :: TBQueue JobWorkerProcessMessage
+    , staleRecoveryReleaseKey :: Maybe ReleaseKey
+    , activeWorkers :: TVar [Async ()]
+    , activeCount :: TVar Int
     }
 
 data JobWorkerProcessMessage

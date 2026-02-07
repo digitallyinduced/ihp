@@ -21,6 +21,8 @@ import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
 import qualified IHP.Log as Log
 import IHP.Hasql.FromRow (FromRowHasql)
+import Control.Concurrent.STM (TBQueue, TVar, atomically, newTBQueue, readTBQueue, writeTBQueue, newTVarIO, readTVar, readTVarIO, writeTVar, modifyTVar', check)
+import IHP.Job.Queue (tryWriteTBQueue)
 
 -- | Used by the RunJobs binary
 runJobWorkers :: [JobWorker] -> Script
@@ -50,7 +52,7 @@ dedicatedProcessMainLoop jobWorkers = do
             waitForExitSignal <- liftIO installSignalHandlers
 
             let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-            
+
             processes <- jobWorkers
                 |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
 
@@ -59,11 +61,15 @@ dedicatedProcessMainLoop jobWorkers = do
             liftIO $ Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
 
             -- Stop subscriptions and poller already
-            -- This will stop all producers for the queue MVar
-            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, action } -> do
+            -- This will stop all producers for the queue
+            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, action, staleRecoveryReleaseKey } -> do
                 PGListener.unsubscribe subscription pgListener
                 release pollerReleaseKey
-                Concurrent.putMVar action Stop
+                case staleRecoveryReleaseKey of
+                    Just key -> release key
+                    Nothing -> pure ()
+                -- Single Stop for the dispatcher (it waits for active workers internally)
+                atomically $ writeTBQueue action Stop
 
             liftIO $ PGListener.stop pgListener
 
@@ -73,17 +79,19 @@ dedicatedProcessMainLoop jobWorkers = do
                 waitForExitSignal
 
                 Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
-                
-                forEach processes \JobWorkerProcess { runners } -> do
-                    forEach runners \(releaseKey, _) -> release releaseKey
+
+                forEach processes \JobWorkerProcess { activeWorkers, dispatcher = (dispatcherKey, _) } -> do
+                    workers <- readTVarIO activeWorkers
+                    forEach workers Async.cancel
+                    release dispatcherKey
 
                 Concurrent.throwTo threadId Exit.ExitSuccess
 
                 pure ()
 
-            -- Wait for all runners to complete
-            liftIO $ forEach processes \JobWorkerProcess { runners } -> do
-                forEach runners \(_, async) -> Async.wait async
+            -- Wait for dispatchers (which wait for their workers before exiting)
+            liftIO $ forEach processes \JobWorkerProcess { dispatcher = (_, dispatcherAsync) } -> do
+                Async.wait dispatcherAsync
 
             liftIO $ Concurrent.throwTo threadId Exit.ExitSuccess
 
@@ -94,16 +102,16 @@ devServerMainLoop frameworkConfig pgListener jobWorkers = do
     let logger = frameworkConfig.logger
 
     Log.info ("Starting worker " <> tshow workerId)
-    
+
     runResourceT do
         let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-        
+
         processes <- jobWorkers
                 |> mapM (\(JobWorker listenAndRun) -> listenAndRun jobWorkerArgs)
 
         liftIO $ (forever (Concurrent.threadDelay maxBound)) `Exception.finally` do
             forEach processes \JobWorkerProcess { action } -> do
-                Concurrent.putMVar action Stop
+                atomically $ writeTBQueue action Stop
 
 -- | Installs signals handlers and returns an IO action that blocks until the next sigINT or sigTERM is sent
 installSignalHandlers :: IO (IO ())
@@ -111,7 +119,7 @@ installSignalHandlers = do
     exitSignal <- Concurrent.newEmptyMVar
 
     let catchHandler = Concurrent.putMVar exitSignal ()
-            
+
     Signals.installHandler Signals.sigINT (Signals.Catch catchHandler) Nothing
     Signals.installHandler Signals.sigTERM (Signals.Catch catchHandler) Nothing
 
@@ -129,6 +137,7 @@ worker :: forall job.
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
     , SetField "updatedAt" job UTCTime
+    , SetField "runAt" job UTCTime
     , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , SetField "lastError" job (Maybe Text)
@@ -150,6 +159,8 @@ jobWorkerFetchAndRunLoop :: forall job.
     , SetField "lockedBy" job (Maybe UUID)
     , SetField "status" job JobStatus
     , SetField "updatedAt" job UTCTime
+    , SetField "runAt" job UTCTime
+    , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , SetField "lastError" job (Maybe Text)
     , Job job
@@ -160,37 +171,71 @@ jobWorkerFetchAndRunLoop :: forall job.
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
-    action <- liftIO $ Concurrent.newMVar JobAvailable
-    let loop = do
-            receivedAction <- Concurrent.takeMVar action
+    action <- liftIO $ atomically $ newTBQueue (fromIntegral (maxConcurrency @job))
+    -- Seed the queue with one initial JobAvailable so the dispatcher attempts a fetch on startup
+    liftIO $ atomically $ writeTBQueue action JobAvailable
 
-            case receivedAction of
-                JobAvailable -> do
-                    maybeJob <- Queue.fetchNextJob @job (timeoutInMicroseconds @job) (backoffStrategy @job) workerId
-                    case maybeJob of
-                        Just job -> do
-                            Log.info ("Starting job: " <> tshow job)
+    activeCount <- liftIO $ newTVarIO (0 :: Int)
+    activeWorkers <- liftIO $ newTVarIO ([] :: [Async ()])
 
-                            let ?job = job
-                            let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                            resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
-                            case resultOrException of
-                                Left exception -> do
-                                    Queue.jobDidFail job exception
-                                    when (Exception.isAsyncException exception) (Exception.throwIO exception)
-                                Right Nothing -> Queue.jobDidTimeout job
-                                Right (Just _) -> Queue.jobDidSucceed job
+    let runJobLoop = do
+            maybeJob <- Queue.fetchNextJob @job workerId
+            case maybeJob of
+                Just job -> do
+                    Log.info ("Starting job: " <> tshow job)
 
-                            loop
-                        Nothing -> loop
+                    let ?job = job
+                    let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                    resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
+                    case resultOrException of
+                        Left exception -> do
+                            Queue.jobDidFail job exception
+                            when (Exception.isAsyncException exception) (Exception.throwIO exception)
+                        Right Nothing -> Queue.jobDidTimeout job
+                        Right (Just _) -> Queue.jobDidSucceed job
+
+                    runJobLoop -- try next job immediately
+                Nothing -> pure ()
+
+    let dispatcherLoop = do
+            msg <- atomically $ readTBQueue action
+            case msg of
                 Stop -> do
-                    -- Put the stop signal back in to stop the other runners as well
-                    Concurrent.putMVar action Stop
+                    -- Wait for all active workers to finish
+                    atomically $ do
+                        count <- readTVar activeCount
+                        check (count == 0)
+                JobAvailable -> do
+                    acquired <- atomically $ do
+                        count <- readTVar activeCount
+                        if count < maxConcurrency @job
+                            then do
+                                writeTVar activeCount (count + 1)
+                                pure True
+                            else pure False
+                    when acquired do
+                        workerAsync <- async $
+                            runJobLoop `Exception.finally`
+                                atomically (modifyTVar' activeCount (subtract 1))
+                        atomically $ modifyTVar' activeWorkers (workerAsync :)
+                    dispatcherLoop
+
+    dispatcher <- allocate (async dispatcherLoop) cancel
+
+    (subscription, pollerReleaseKey) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) action
+
+    -- Start stale job recovery if configured
+    staleRecoveryReleaseKey <- case staleJobTimeout @job of
+        Just threshold -> do
+            let intervalMicroseconds = round (threshold / 2) * 1000000
+            let recoveryLoop = forever do
+                    Queue.recoverStaleJobs @job threshold
+                    -- Signal workers to check for recovered jobs
+                    _ <- atomically $ tryWriteTBQueue action JobAvailable
                     pure ()
+                    Concurrent.threadDelay intervalMicroseconds
+            (key, _) <- allocate (Async.async recoveryLoop) Async.cancel
+            pure (Just key)
+        Nothing -> pure Nothing
 
-    runners <- forM [1..(maxConcurrency @job)] \index -> allocate (async loop) cancel
-
-    (subscription, pollerReleaseKey) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) (timeoutInMicroseconds @job) (backoffStrategy @job) action
-
-
-    pure JobWorkerProcess { runners, subscription, pollerReleaseKey, action }
+    pure JobWorkerProcess { dispatcher, subscription, pollerReleaseKey, action, staleRecoveryReleaseKey, activeWorkers, activeCount }
