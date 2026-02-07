@@ -129,7 +129,7 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
             let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
             appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
             databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
-            let req' = req { vault = Vault.insert availableAppsVaultKey availableApps
+            let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
                                    . Vault.insert webControllersVaultKey webControllers
                                    . Vault.insert appUrlVaultKey appUrl
                                    . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
