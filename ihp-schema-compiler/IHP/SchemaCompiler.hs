@@ -343,7 +343,9 @@ defaultImports = [trimming|
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
-    import qualified Data.Functor.Contravariant
+    import qualified Hasql.DynamicStatements.Snippet as Snippet
+    import qualified Hasql.Pool as HasqlPool
+    import IHP.Hasql.Encoders ()
 |]
 
 
@@ -373,7 +375,6 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Control.DeepSeq as DeepSeq
             import qualified Hasql.Encoders
             import qualified Hasql.Implicits.Encoders
-            import qualified Data.Functor.Contravariant
             import qualified Data.HashMap.Strict as HashMap
         |]
 
@@ -601,7 +602,9 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "textToEnum" <> modelName <> " t = HashMap.lookup t textToEnum" <> modelName <> "Map\n"
         -- DefaultParamEncoder for hasql queries
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> modelName <> " where\n"
-        <> "    defaultParam = Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap inputValue Hasql.Encoders.text)\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow name <> " inputValue)\n"
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
+        <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow name <> " inputValue)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
@@ -666,11 +669,53 @@ columnPlaceholder column@Column { columnType } = if columnPlaceholderNeedsTypeca
 qualifiedConstructorNameFromTableName :: Text -> Text
 qualifiedConstructorNameFromTableName unqualifiedName = "Generated.ActualTypes." <> (tableNameToModelName unqualifiedName)
 
+-- | Check if a column type has a native hasql encoder via DefaultParamEncoder
+--
+-- Types like Point, Polygon, TSVector, IP, PGInterval don't have native hasql encoders.
+-- When a table has any column with an unsupported type, we skip the hasql code path
+-- for create/update operations and use only pg-simple.
+hasqlSupportsColumnType :: PostgresType -> Bool
+hasqlSupportsColumnType = \case
+    PUUID -> True
+    PText -> True
+    PInt -> True
+    PSmallInt -> True
+    PBigInt -> True
+    PSerial -> True
+    PBigserial -> True
+    PBoolean -> True
+    PReal -> True
+    PDouble -> True
+    PTimestampWithTimezone -> True
+    PTimestamp -> True
+    PDate -> True
+    PTime -> True
+    (PNumeric _ _) -> True
+    PJSONB -> True
+    PBinary -> True
+    (PVaryingN _) -> True
+    (PCharacterN _) -> True
+    (PArray inner) -> hasqlSupportsColumnType inner
+    PCustomType _ -> True  -- enums have generated DefaultParamEncoder
+    PSingleChar -> True
+    PPoint -> True
+    PPolygon -> True
+    PInet -> True
+    PTSVector -> False
+    (PInterval _) -> False
+    PTrigger -> False
+    PEventTrigger -> False
+
+-- | Check if all writable columns in a table support hasql encoding
+tableSupportsHasqlEncoding :: CreateTable -> Bool
+tableSupportsHasqlEncoding table = all (hasqlSupportsColumnType . (.columnType)) (onlyWritableColumns table.columns)
+
 compileCreate :: CreateTable -> Text
 compileCreate table@(CreateTable { name, columns }) =
     let
         writableColumns = onlyWritableColumns columns
         modelName = qualifiedConstructorNameFromTableName name
+        funcName = tableNameToModelName name
         columnNames = commaSep (map (.name) writableColumns)
         allColumnNames = commaSep (map (.name) columns)
         values = commaSep (map columnPlaceholder writableColumns)
@@ -697,22 +742,101 @@ compileCreate table@(CreateTable { name, columns }) =
         createManyFieldValues = if null bindings
                 then "()"
                 else "(List.concat $ List.map (\\model -> [" <> (intercalate ", " (map (\b -> "toField (" <> b <> ")") bindings)) <> "]) models)"
+
+        supportsHasql = tableSupportsHasqlEncoding table
+
+        -- Hasql snippet bindings for INSERT VALUES
+        toSnippetBinding column@(Column { name }) =
+                if hasExplicitOrImplicitDefault column && not isArrayColumn
+                    then "fieldWithDefaultSnippet #" <> columnNameToFieldName name <> " model"
+                    else "Snippet.param model." <> columnNameToFieldName name
+            where
+                isArrayColumn = case column.columnType of
+                    PArray _ -> True
+                    _        -> False
+
+        snippetBindings :: [Text]
+        snippetBindings = map toSnippetBinding writableColumns
+
+        -- Build the snippet expression for a single INSERT VALUES clause
+        snippetValueExpr = intercalate " <> Snippet.sql \", \" <> " snippetBindings
+
+        -- For createMany, build snippet for each model
+        snippetCreateManyValueExpr = "mconcat $ List.intersperse (Snippet.sql \", \") $ List.map (\\model -> Snippet.sql \"(\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\") models"
+
+        -- PgSimple bodies (shared between dual-path and pg-simple-only)
+        pgSimpleCreateBody = "sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")"
+        pgSimpleCreateManyBody = "sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues
+        pgSimpleCreateDiscardBody = "sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")"
+
+        -- Hasql bodies
+        hasqlCreateBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \") RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlCreateManyBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (" <> snippetCreateManyValueExpr <> ") <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlCreateDiscardBody = "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\"\n"
+                <> "sqlExecHasql pool snippet"
     in
+        -- Instance block: delegate to top-level functions
         "instance CanCreate " <> modelName <> " where\n"
-        <> indent (
-            "create :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
-                <> "create model = do\n"
-                <> indent ("sqlQuerySingleRow \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ") RETURNING " <> allColumnNames <> "\" (" <> compileToRowValues bindings <> ")\n")
-                <> "createMany [] = pure []\n"
-                <> "createMany models = do\n"
-                <> indent ("sqlQuery (Query $ \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (ByteString.intercalate \", \" (List.map (\\_ -> \"(" <> values <> ")\") models)) <> \" RETURNING " <> allColumnNames <> "\") " <> createManyFieldValues <> "\n"
-                    )
-            )
-        <> indent (
-            "createRecordDiscardResult :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
-                <> "createRecordDiscardResult model = do\n"
-                <> indent ("sqlExecDiscardResult \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (" <> values <> ")\" (" <> compileToRowValues bindings <> ")\n")
-            )
+        <> indent ("create = create" <> funcName <> "\n")
+        <> indent ("createMany = createMany" <> funcName <> "\n")
+        <> indent ("createRecordDiscardResult = createRecordDiscardResult" <> funcName <> "\n")
+        -- create<Model>
+        <> "\n"
+        <> "create" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+        <> (if supportsHasql
+            then "create" <> funcName <> " model = withHasqlOrPgSimple (create" <> funcName <> "Hasql model) (create" <> funcName <> "PgSimple model)\n"
+            else "create" <> funcName <> " model = do\n" <> indent (pgSimpleCreateBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "create" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO " <> modelName <> "\n"
+                <> "create" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlCreateBody <> "\n")
+                <> "\n"
+                <> "create" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+                <> "create" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleCreateBody <> "\n")
+            else ""
+           )
+        -- createMany<Model>
+        <> "\n"
+        <> "createMany" <> funcName <> " :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> IO [" <> modelName <> "]\n"
+        <> "createMany" <> funcName <> " [] = pure []\n"
+        <> (if supportsHasql
+            then "createMany" <> funcName <> " models = withHasqlOrPgSimple (createMany" <> funcName <> "Hasql models) (createMany" <> funcName <> "PgSimple models)\n"
+            else "createMany" <> funcName <> " models = do\n" <> indent (pgSimpleCreateManyBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "createMany" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> HasqlPool.Pool -> IO [" <> modelName <> "]\n"
+                <> "createMany" <> funcName <> "Hasql models pool = do\n"
+                <> indent (hasqlCreateManyBody <> "\n")
+                <> "\n"
+                <> "createMany" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => [" <> modelName <> "] -> IO [" <> modelName <> "]\n"
+                <> "createMany" <> funcName <> "PgSimple models = do\n"
+                <> indent (pgSimpleCreateManyBody <> "\n")
+            else ""
+           )
+        -- createRecordDiscardResult<Model>
+        <> "\n"
+        <> "createRecordDiscardResult" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+        <> (if supportsHasql
+            then "createRecordDiscardResult" <> funcName <> " model = withHasqlOrPgSimple (createRecordDiscardResult" <> funcName <> "Hasql model) (createRecordDiscardResult" <> funcName <> "PgSimple model)\n"
+            else "createRecordDiscardResult" <> funcName <> " model = do\n" <> indent (pgSimpleCreateDiscardBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "createRecordDiscardResult" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO ()\n"
+                <> "createRecordDiscardResult" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlCreateDiscardBody <> "\n")
+                <> "\n"
+                <> "createRecordDiscardResult" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+                <> "createRecordDiscardResult" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleCreateDiscardBody <> "\n")
+            else ""
+           )
 
 commaSep :: [Text] -> Text
 commaSep = intercalate ", "
@@ -732,6 +856,7 @@ compileUpdate :: CreateTable -> Text
 compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = qualifiedConstructorNameFromTableName name
+        funcName = tableNameToModelName name
         writableColumns = onlyWritableColumns columns
 
         toUpdateBinding Column { name } = "fieldWithUpdate #" <> columnNameToFieldName name <> " model"
@@ -759,18 +884,71 @@ compileUpdate table@(CreateTable { name, columns }) =
                                 [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
                                 [col] -> "?"
                                 cols -> "(" <> commaSep (map (const "?") (primaryKeyColumns table)) <> ")"
+
+        supportsHasql = tableSupportsHasqlEncoding table
+
+        -- Hasql snippet for SET clause: "col1 = " <> snippetBinding <> ", col2 = " <> ...
+        snippetSetClause = intercalate " <> Snippet.sql \", \" <> " $
+            map (\column -> "Snippet.sql \"" <> column.name <> " = \" <> fieldWithUpdateSnippet #" <> columnNameToFieldName column.name <> " model") writableColumns
+
+        -- Hasql snippet for WHERE clause
+        snippetWhereClause = case primaryKeyColumns table of
+            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name
+            [col] -> "Snippet.sql \"" <> col.name <> " = \" <> Snippet.param model." <> columnNameToFieldName col.name
+            cols -> "Snippet.sql \"(" <> commaSep (map (.name) cols) <> ") = (\" <> "
+                    <> intercalate " <> Snippet.sql \", \" <> " (map (\col -> "Snippet.param model." <> columnNameToFieldName col.name) cols)
+                    <> " <> Snippet.sql \")\""
+
+        -- PgSimple bodies
+        pgSimpleUpdateBody = "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")"
+        pgSimpleUpdateDiscardBody = "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")"
+
+        -- Hasql bodies
+        hasqlUpdateBody = "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
+                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+        hasqlUpdateDiscardBody = "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> "\n"
+                <> "sqlExecHasql pool snippet"
     in
+        -- Instance block: delegate to top-level functions
         "instance CanUpdate " <> modelName <> " where\n"
-        <> indent ("updateRecord model = do\n"
-                <> indent (
-                    "sqlQuerySingleRow \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> " RETURNING " <> allColumnNames <> "\" (" <> bindings <> ")\n"
-                )
-            )
-        <> indent ("updateRecordDiscardResult model = do\n"
-                <> indent (
-                    "sqlExecDiscardResult \"UPDATE " <> name <> " SET " <> updates <> " WHERE " <> primaryKeyPattern <> " = "<> primaryKeyParameters <> "\" (" <> bindings <> ")\n"
-                )
-            )
+        <> indent ("updateRecord = updateRecord" <> funcName <> "\n")
+        <> indent ("updateRecordDiscardResult = updateRecordDiscardResult" <> funcName <> "\n")
+        -- updateRecord<Model>
+        <> "\n"
+        <> "updateRecord" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+        <> (if supportsHasql
+            then "updateRecord" <> funcName <> " model = withHasqlOrPgSimple (updateRecord" <> funcName <> "Hasql model) (updateRecord" <> funcName <> "PgSimple model)\n"
+            else "updateRecord" <> funcName <> " model = do\n" <> indent (pgSimpleUpdateBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "updateRecord" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO " <> modelName <> "\n"
+                <> "updateRecord" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlUpdateBody <> "\n")
+                <> "\n"
+                <> "updateRecord" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO " <> modelName <> "\n"
+                <> "updateRecord" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleUpdateBody <> "\n")
+            else ""
+           )
+        -- updateRecordDiscardResult<Model>
+        <> "\n"
+        <> "updateRecordDiscardResult" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+        <> (if supportsHasql
+            then "updateRecordDiscardResult" <> funcName <> " model = withHasqlOrPgSimple (updateRecordDiscardResult" <> funcName <> "Hasql model) (updateRecordDiscardResult" <> funcName <> "PgSimple model)\n"
+            else "updateRecordDiscardResult" <> funcName <> " model = do\n" <> indent (pgSimpleUpdateDiscardBody <> "\n")
+           )
+        <> (if supportsHasql
+            then "\n"
+                <> "updateRecordDiscardResult" <> funcName <> "Hasql :: (?modelContext :: ModelContext) => " <> modelName <> " -> HasqlPool.Pool -> IO ()\n"
+                <> "updateRecordDiscardResult" <> funcName <> "Hasql model pool = do\n"
+                <> indent (hasqlUpdateDiscardBody <> "\n")
+                <> "\n"
+                <> "updateRecordDiscardResult" <> funcName <> "PgSimple :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
+                <> "updateRecordDiscardResult" <> funcName <> "PgSimple model = do\n"
+                <> indent (pgSimpleUpdateDiscardBody <> "\n")
+            else ""
+           )
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance FromRow #{modelName} where
@@ -864,19 +1042,21 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
 --
 -- This is parallel to 'compileFromRowInstance' but generates code for the
 -- hasql decoder instead of postgresql-simple's FromRow.
--- Uses do-notation to bind column values, allowing one-to-many QueryBuilders
--- to reference the decoded primary key (shadowing any imported field selectors).
+-- Uses applicative style (<$>/<*>) since hasql 1.10's Decoders.Row is
+-- Applicative but not Monad. Column values are bound via a lambda so that
+-- one-to-many QueryBuilders can reference the decoded primary key.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = do
-#{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
-        let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
-        pure theRecord
+    hasqlRowDecoder = (\\#{intercalate " " columnNames} -> let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))} in theRecord)
+#{unsafeInit . indent . indent $ unlines applicativeDecoders}
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
         columnNames = map (columnNameToFieldName . (.name)) columns
-        columnBinding columnName = columnName <> " <- " <> hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        columnDecoderExpr columnName = hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
+        applicativeDecoders = case columnNames of
+            [] -> error "compileFromRowHasqlInstance: table has no columns"
+            (first:rest) -> ("<$> " <> columnDecoderExpr first) : map (\cn -> "<*> " <> columnDecoderExpr cn) rest
 
         referencing = columnsReferencingTable table.name
         -- Pair each referencing column with its generated field name for proper matching
@@ -964,7 +1144,7 @@ hasqlValueDecoder = \case
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
     PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
-    PCustomType typeName -> "(Decoders.refine (\\t -> maybe (Left (\"Invalid enum value: \" <> t)) Right (textToEnum" <> tableNameToModelName typeName <> " t)) Decoders.text)"
+    PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow typeName <> " textToEnum" <> tableNameToModelName typeName <> ")"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns

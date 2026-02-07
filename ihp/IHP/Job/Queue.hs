@@ -7,25 +7,27 @@ module IHP.Job.Queue where
 
 import IHP.Prelude
 import IHP.Job.Types
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import IHP.ModelSupport
-import IHP.QueryBuilder
-import IHP.Fetch
 import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
 import qualified IHP.Log as Log
 import Control.Monad.Trans.Resource
-import IHP.Hasql.FromRow (FromRowHasql)
+import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap)
+
 import qualified Data.HashMap.Strict as HashMap
+import qualified Hasql.Pool as HasqlPool
+import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import IHP.Hasql.Encoders ()
+import qualified Data.ByteString.Char8 as ByteString
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -42,22 +44,31 @@ import qualified Data.HashMap.Strict as HashMap
 fetchNextJob :: forall job.
     ( ?modelContext :: ModelContext
     , job ~ GetModelByTableName (GetTableName job)
-    , FilterPrimaryKey (GetTableName job)
     , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
     , Table job
     ) => Maybe Int -> BackoffStrategy -> UUID -> IO (Maybe job)
 fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
-    let query = PG.Query ("UPDATE ? SET status = ?, locked_at = NOW(), locked_by = ?, attempts_count = attempts_count + 1 WHERE id IN (SELECT id FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " ORDER BY created_at LIMIT 1 FOR UPDATE) RETURNING id")
-    let params = (PG.Identifier (tableName @job), JobStatusRunning, workerId, PG.Identifier (tableName @job), JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
+    let tableNameText = tableName @job
+    let returningColumns = ByteString.intercalate ", " (columnNames @job)
+    let snippet =
+            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
+            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning
+            <> Snippet.sql ", locked_at = NOW(), locked_by = " <> Snippet.param workerId
+            <> Snippet.sql ", attempts_count = attempts_count + 1"
+            <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameText
+            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
+            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
+            <> Snippet.sql " AND " <> retrySnippet backoffStrategy
+            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
+            <> timeoutSnippet timeoutInMicroseconds
+            <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE)"
+            <> Snippet.sql " RETURNING " <> Snippet.sql (cs returningColumns)
+    let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
 
-    result :: [PG.Only (Id job)] <- withoutQueryLogging (sqlQuery query params)
-    case result of
-        [] -> pure Nothing
-        [PG.Only id] -> Just <$> withoutQueryLogging (fetch id)
-        otherwise -> error (show otherwise)
+    pool <- getHasqlPool
+    withoutQueryLogging (sqlQueryHasql pool snippet decoder)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
@@ -78,7 +89,9 @@ fetchNextJob timeoutInMicroseconds backoffStrategy workerId = do
 watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
     let tableNameBS = cs tableName
-    liftIO $ withoutQueryLogging (sqlExec (createNotificationTrigger tableNameBS) ())
+    liftIO do
+        pool <- getHasqlPool
+        withoutQueryLogging (runSessionHasql pool (mapM_ HasqlSession.script (createNotificationTriggerStatements tableNameBS)))
 
     poller <- pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (Concurrent.putMVar onNewJob JobAvailable))
@@ -95,12 +108,20 @@ watchForJob pgListener tableName pollInterval timeoutInMicroseconds backoffStrat
 --
 pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> Maybe Int -> BackoffStrategy -> Concurrent.MVar JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob = do
-    let query = PG.Query ("SELECT COUNT(*) FROM ? WHERE (((status = ?) OR (status = ? AND " <> retryQuery backoffStrategy <> ")) AND locked_by IS NULL AND run_at <= NOW()) " <> timeoutCondition timeoutInMicroseconds <> " LIMIT 1")
-    let params = (PG.Identifier tableName, JobStatusNotStarted, JobStatusRetry, backoffStrategy.delayInSeconds, timeoutInMicroseconds)
+    let tableNameBS = cs tableName :: ByteString
+    let snippet =
+            Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableName
+            <> Snippet.sql " WHERE (((status = " <> Snippet.param JobStatusNotStarted
+            <> Snippet.sql ") OR (status = " <> Snippet.param JobStatusRetry
+            <> Snippet.sql " AND " <> retrySnippet backoffStrategy
+            <> Snippet.sql ")) AND locked_by IS NULL AND run_at <= NOW()) "
+            <> timeoutSnippet timeoutInMicroseconds
+    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
     let handler = do
+            pool <- getHasqlPool
             forever do
                 -- We don't log the queries to the console as it's filling up the log entries with noise
-                count :: Int <- withoutQueryLogging (sqlQueryScalar query params)
+                count :: Int <- fromIntegral <$> withoutQueryLogging (sqlQueryHasql pool snippet decoder)
 
                 -- For every job we send one signal to the job workers
                 -- This way we use full concurrency when we find multiple jobs
@@ -116,18 +137,25 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
 
     fst <$> allocate (Async.async handler) Async.cancel
 
-createNotificationTrigger :: ByteString -> PG.Query
-createNotificationTrigger tableName = PG.Query $ ""
-        <> "BEGIN;\n"
-        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
-        <> "BEGIN\n"
-        <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
-        <> "    RETURN new;"
-        <> "END;\n"
-        <> "$$ language plpgsql;"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> "; CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "COMMIT;"
+-- | Returns individual SQL statements to create the notification trigger.
+-- Split into separate statements because hasql 1.10's 'script' expects
+-- exactly one result per call (multi-statement scripts cause
+-- "Got too many results in script" errors).
+createNotificationTriggerStatements :: ByteString -> [Text]
+createNotificationTriggerStatements tableName =
+        [ "BEGIN"
+        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+            <> "BEGIN\n"
+            <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+            <> "    RETURN new;"
+            <> "END;\n"
+            <> "$$ language plpgsql"
+        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
+        , "COMMIT"
+        ]
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName
@@ -283,12 +311,17 @@ textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
 
 -- | DefaultParamEncoder for hasql queries using JobStatus in filterWhere
 instance DefaultParamEncoder JobStatus where
-    defaultParam = Encoders.nonNullable (contramap inputValue Encoders.text)
+    defaultParam = Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
 
-retryQuery :: BackoffStrategy -> ByteString
-retryQuery LinearBackoff {}      = "updated_at < NOW() + (interval '1 second' * ?)"
-retryQuery ExponentialBackoff {} = "updated_at < NOW() - interval '1 second' * ? * POW(2, attempts_count)"
+getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
+getHasqlPool = case ?modelContext.hasqlPool of
+    Just pool -> pure pool
+    Nothing -> error "getHasqlPool: No hasql pool available in ModelContext"
 
-timeoutCondition :: Maybe Int -> ByteString
-timeoutCondition (Just timeoutInMicroseconds) = "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((? + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
-timeoutCondition Nothing = "AND (? IS NULL)"
+retrySnippet :: BackoffStrategy -> Snippet.Snippet
+retrySnippet LinearBackoff {..}      = Snippet.sql "updated_at < NOW() + (interval '1 second' * " <> Snippet.param delayInSeconds <> Snippet.sql ")"
+retrySnippet ExponentialBackoff {..} = Snippet.sql "updated_at < NOW() - interval '1 second' * " <> Snippet.param delayInSeconds <> Snippet.sql " * POW(2, attempts_count)"
+
+timeoutSnippet :: Maybe Int -> Snippet.Snippet
+timeoutSnippet (Just timeout) = Snippet.sql "OR (status = 'job_status_running' AND locked_by IS NOT NULL AND locked_at + ((" <> Snippet.param timeout <> Snippet.sql " + 1000000) || 'microseconds')::interval < NOW())" -- Add 1000000 here to avoid race condition with the Haskell based timeout mechanism
+timeoutSnippet Nothing = Snippet.sql "AND (TRUE)"

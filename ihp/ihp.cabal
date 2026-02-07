@@ -135,6 +135,11 @@ common shared-properties
             , hasql-pool
             , hasql-dynamic-statements
             , hasql-implicits
+            , hasql-mapping
+            , hasql-postgresql-types
+            , postgresql-types
+            , contravariant
+            , wide-word
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -250,6 +255,7 @@ library
         , IHP.EnvVar
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
+        , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp

@@ -53,8 +53,7 @@ import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
 
 import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Setting as HasqlSetting
-import qualified Hasql.Connection.Setting.Connection as HasqlConnection
+import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Notifications as HasqlNotifications
 
 -- | Local helper: show as Text
@@ -226,8 +225,7 @@ listenToChannelIfNeeded channel pgListener = do
 -- | Acquires a dedicated hasql connection from the given database URL.
 acquireConnection :: ByteString -> IO Hasql.Connection
 acquireConnection databaseUrl = do
-    let settings = [HasqlSetting.connection (HasqlConnection.string (cs databaseUrl))]
-    result <- Hasql.acquire settings
+    result <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> Prelude.error ("PGListener: Failed to connect to database: " <> Prelude.show err)

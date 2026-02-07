@@ -21,6 +21,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -37,6 +38,7 @@ tests = do
             let tableName = "create_container"
             let modelName = "CreateContainer"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -54,6 +56,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = True
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -70,6 +73,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -86,6 +90,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = True
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 

@@ -27,6 +27,7 @@ library
             , postgresql-simple
             , http-types
             , wai-request-params
+            , hasql-implicits
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

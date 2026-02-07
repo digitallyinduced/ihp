@@ -21,14 +21,18 @@ module IHP.QueryBuilder.HasqlCompiler
 import IHP.Prelude
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Statement as DynStatement
-import Hasql.Statement (Statement(..))
-import qualified Hasql.Decoders as Decoders
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.List as List
+
+-- | Snippet.sql takes Text in hasql-dynamic-statements 0.5+.
+-- This helper converts ByteString to Text for convenience since
+-- the query builder types use ByteString.
+sqlBS :: ByteString -> Snippet
+sqlBS = Snippet.sql . cs
+{-# INLINE sqlBS #-}
 
 -- | Compile a QueryBuilder to a Hasql Snippet
 --
@@ -47,7 +51,7 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
     <> optionalSnippet distinctOnClause
     <> Snippet.sql " " <> selectorsSnippet
     <> Snippet.sql " FROM"
-    <> Snippet.sql " " <> Snippet.sql selectFrom
+    <> Snippet.sql " " <> sqlBS selectFrom
     <> optionalSnippet joinClause
     <> whereSnippet (whereCondition sqlQuery)
     <> orderBySnippet orderByClause
@@ -56,15 +60,15 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
     where
         optionalSnippet :: Maybe ByteString -> Snippet
         optionalSnippet Nothing = mempty
-        optionalSnippet (Just bs) = Snippet.sql " " <> Snippet.sql bs
+        optionalSnippet (Just bs) = Snippet.sql " " <> sqlBS bs
         {-# INLINE optionalSnippet #-}
 
         selectorsSnippet :: Snippet
         selectorsSnippet =
             let indexParts = case queryIndex of
-                    Just idx -> [Snippet.sql idx]
+                    Just idx -> [sqlBS idx]
                     Nothing -> []
-                columnParts = map (\column -> Snippet.sql selectFrom <> Snippet.sql "." <> Snippet.sql column) columns
+                columnParts = map (\column -> sqlBS selectFrom <> Snippet.sql "." <> sqlBS column) columns
             in mconcat $ List.intersperse (Snippet.sql ", ") (indexParts <> columnParts)
 
         joinClause :: Maybe ByteString
@@ -103,8 +107,8 @@ substituteSnippet :: ByteString -> Snippet -> Snippet
 substituteSnippet template snippet =
     let (before, after) = BS8.break (== '?') template
     in if BS.null after
-        then Snippet.sql template  -- No ? found, just use the template (e.g., for raw SQL conditions)
-        else Snippet.sql before <> snippet <> Snippet.sql (BS.drop 1 after)
+        then sqlBS template  -- No ? found, just use the template (e.g., for raw SQL conditions)
+        else sqlBS before <> snippet <> sqlBS (BS.drop 1 after)
 {-# INLINE substituteSnippet #-}
 
 -- | Convert ORDER BY clause to Snippet
@@ -113,13 +117,12 @@ orderBySnippet [] = mempty
 orderBySnippet clauses = Snippet.sql " ORDER BY " <> mconcat (List.intersperse (Snippet.sql ",") (map orderByClauseToSnippet clauses))
     where
         orderByClauseToSnippet OrderByClause { orderByColumn, orderByDirection } =
-            Snippet.sql orderByColumn <> (if orderByDirection == Desc then Snippet.sql " DESC" else mempty)
+            sqlBS orderByColumn <> (if orderByDirection == Desc then Snippet.sql " DESC" else mempty)
 {-# INLINE orderBySnippet #-}
 
 -- | Extract the SQL ByteString from a Snippet (for testing purposes)
 --
 -- This converts a Snippet to a Statement and extracts the SQL text.
 -- Useful for verifying the hasql compilation path in tests.
-snippetToSQL :: Snippet -> ByteString
-snippetToSQL snippet = case DynStatement.dynamicallyParameterized snippet Decoders.noResult False of
-    Statement sql _ _ _ -> sql
+snippetToSQL :: Snippet -> Text
+snippetToSQL snippet = Snippet.toSql snippet

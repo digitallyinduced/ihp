@@ -228,6 +228,14 @@ body, .modal-content {
 .data-rows-table {
     font-size: 14px;
     width: 100%;
+    table-layout: fixed;
+}
+
+.data-rows-table td {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .data-rows-table [data-fieldname$="id"] { font-size: 8px }
