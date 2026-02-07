@@ -16,6 +16,7 @@ import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
+import Control.Exception (SomeException)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
@@ -134,13 +135,16 @@ instance WSApp AutoRefreshWSApp where
                             updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
 
+            let handleOtherException :: SomeException -> IO ()
+                handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
+
             async $ forever do
                 MVar.takeMVar event
                 let currentRequest = ?request
                 -- Create a dummy respond function that does nothing, since actual response
                 -- is handled by the handleResponseException handler
                 let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-                (renderView currentRequest dummyRespond) `catch` handleResponseException
+                ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
                 pure ()
 
             pure ()

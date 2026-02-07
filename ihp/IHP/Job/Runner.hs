@@ -166,23 +166,28 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
             case receivedAction of
                 JobAvailable -> do
-                    maybeJob <- Queue.fetchNextJob @job (timeoutInMicroseconds @job) (backoffStrategy @job) workerId
-                    case maybeJob of
-                        Just job -> do
-                            Log.info ("Starting job: " <> tshow job)
-
-                            let ?job = job
-                            let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                            resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
-                            case resultOrException of
-                                Left exception -> do
-                                    Queue.jobDidFail job exception
-                                    when (Exception.isAsyncException exception) (Exception.throwIO exception)
-                                Right Nothing -> Queue.jobDidTimeout job
-                                Right (Just _) -> Queue.jobDidSucceed job
-
+                    fetchResult <- Exception.tryAny (Queue.fetchNextJob @job (timeoutInMicroseconds @job) (backoffStrategy @job) workerId)
+                    case fetchResult of
+                        Left exception -> do
+                            Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
+                            Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
                             loop
-                        Nothing -> loop
+                        Right maybeJob -> case maybeJob of
+                            Just job -> do
+                                Log.info ("Starting job: " <> tshow job)
+
+                                let ?job = job
+                                let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                                resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
+                                case resultOrException of
+                                    Left exception -> do
+                                        Queue.jobDidFail job exception
+                                        when (Exception.isAsyncException exception) (Exception.throwIO exception)
+                                    Right Nothing -> Queue.jobDidTimeout job
+                                    Right (Just _) -> Queue.jobDidSucceed job
+
+                                loop
+                            Nothing -> loop
                 Stop -> do
                     -- Put the stop signal back in to stop the other runners as well
                     Concurrent.putMVar action Stop

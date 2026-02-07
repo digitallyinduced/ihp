@@ -469,7 +469,15 @@ runSessionHasql pool session = do
     let runQuery = do
             result <- HasqlPool.use pool session
             case result of
-                Left err -> throwIO (HasqlError err)
+                Left err
+                    | isCachedPlanError err -> do
+                        Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                        HasqlPool.release pool
+                        retryResult <- HasqlPool.use pool session
+                        case retryResult of
+                            Left retryErr -> throwIO (HasqlError retryErr)
+                            Right () -> pure ()
+                    | otherwise -> throwIO (HasqlError err)
                 Right () -> pure ()
     if currentLogLevel == Debug
         then do

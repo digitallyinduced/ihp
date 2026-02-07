@@ -11,6 +11,7 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
+import qualified Control.Exception.Safe as Exception
 import IHP.ModelSupport
 import IHP.Controller.Param
 import qualified System.Random as Random
@@ -118,16 +119,21 @@ pollForJob tableName pollInterval timeoutInMicroseconds backoffStrategy onNewJob
             <> timeoutSnippet timeoutInMicroseconds
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
     let handler = do
+            let ?context = ?modelContext
             pool <- getHasqlPool
             forever do
-                -- We don't log the queries to the console as it's filling up the log entries with noise
-                count :: Int <- fromIntegral <$> withoutQueryLogging (sqlQueryHasql pool snippet decoder)
+                result <- Exception.tryAny do
+                    -- We don't log the queries to the console as it's filling up the log entries with noise
+                    count :: Int <- fromIntegral <$> withoutQueryLogging (sqlQueryHasql pool snippet decoder)
 
-                -- For every job we send one signal to the job workers
-                -- This way we use full concurrency when we find multiple jobs
-                -- that haven't been picked up by the PGListener
-                forEach [1..count] \_ -> do
-                    Concurrent.putMVar onNewJob JobAvailable
+                    -- For every job we send one signal to the job workers
+                    -- This way we use full concurrency when we find multiple jobs
+                    -- that haven't been picked up by the PGListener
+                    forEach [1..count] \_ -> do
+                        Concurrent.putMVar onNewJob JobAvailable
+                case result of
+                    Left exception -> Log.error ("Job poller: " <> tshow exception)
+                    Right _ -> pure ()
 
                 -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
                 jitter <- Random.randomRIO (0, 2000000)
