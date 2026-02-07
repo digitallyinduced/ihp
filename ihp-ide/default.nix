@@ -2,7 +2,8 @@
 , base16-bytestring, base64-bytestring, basic-prelude, blaze-html
 , blaze-markup, bytestring, classy-prelude, clientsession
 , containers, countable-inflections, cryptohash, data-default
-, directory, filepath, fsnotify, hspec, http-types, ihp, ihp-hsx
+, directory, filepath, fsnotify, hasql, hasql-dynamic-statements
+, hasql-implicits, hspec, http-types, ihp, ihp-hsx
 , ihp-log, ihp-migrate, ihp-modal, ihp-postgres-parser
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
@@ -24,7 +25,8 @@ mkDerivation {
     aeson async attoparsec auto-update base base16-bytestring
     basic-prelude blaze-html blaze-markup bytestring classy-prelude
     clientsession containers countable-inflections cryptohash
-    data-default directory filepath fsnotify http-types ihp ihp-hsx
+    data-default directory filepath fsnotify hasql
+    hasql-dynamic-statements hasql-implicits http-types ihp ihp-hsx
     ihp-log ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
     mono-traversable neat-interpolation network network-uri
@@ -38,7 +40,8 @@ mkDerivation {
     aeson async attoparsec auto-update base base16-bytestring
     base64-bytestring basic-prelude blaze-html blaze-markup bytestring
     classy-prelude clientsession containers countable-inflections
-    cryptohash data-default directory filepath fsnotify http-types ihp
+    cryptohash data-default directory filepath fsnotify hasql
+    hasql-dynamic-statements hasql-implicits http-types ihp
     ihp-hsx ihp-log ihp-migrate ihp-postgres-parser ihp-schema-compiler
     inflections interpolate megaparsec mono-traversable
     neat-interpolation network network-uri postgresql-simple process
@@ -51,7 +54,8 @@ mkDerivation {
     aeson async attoparsec auto-update base base16-bytestring
     basic-prelude blaze-html blaze-markup bytestring classy-prelude
     clientsession containers countable-inflections cryptohash
-    data-default directory filepath fsnotify hspec http-types ihp
+    data-default directory filepath fsnotify hasql
+    hasql-dynamic-statements hasql-implicits hspec http-types ihp
     ihp-hsx ihp-log ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
     mono-traversable neat-interpolation network network-uri

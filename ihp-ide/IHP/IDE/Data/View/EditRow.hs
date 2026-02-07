@@ -88,7 +88,7 @@ instance View EditRowView where
                                     type="checkbox"
                                     class="d-none"
                                     name={def.columnName <> "-inactive"}
-                                    checked={(value val) == "t"}
+                                    checked={(value val) == "true"}
                                     />
                             </div>
                             <input
@@ -132,7 +132,7 @@ instance View EditRowView where
                                     id={def.columnName <> "-input"}
                                     type="checkbox"
                                     name={def.columnName}
-                                    checked={(value val) == "t"}
+                                    checked={(value val) == "true"}
                                     />
                             </div>
                             <input

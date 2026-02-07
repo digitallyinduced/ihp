@@ -71,6 +71,14 @@ let
             ihp-oauth-google = localPackage "ihp-oauth-google";
             ihp-auth-confirmation = localPackage "ihp-auth-confirmation";
 
+            # Lazy session middleware: defer cookie decryption until first access,
+            # skip Set-Cookie when session is unmodified.
+            # See: https://github.com/singpolyma/wai-session/issues/15
+            wai-session = final.haskell.lib.appendPatch super.wai-session
+                "${flakeRoot}/NixSupport/patches/wai-session-lazy.patch";
+            wai-session-clientsession = final.haskell.lib.appendPatch super.wai-session-clientsession
+                "${flakeRoot}/NixSupport/patches/wai-session-clientsession-lazy.patch";
+
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
                 version = "0.3.2";

@@ -52,7 +52,7 @@ instance View ShowTableRowsView where
                     primaryKey = intercalate "---" . map (cs . fromMaybe "" . (.fieldValue)) $ filter ((`elem` primaryKeyFields) . cs . (.fieldName)) fields
             renderField primaryKey DynamicField { .. }
                 | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="border rounded p-1" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
-                | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
+                | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "true"} /></span></td>|]
                 | otherwise = renderNormalField primaryKey DynamicField { .. }
 
             renderNormalField primaryKey DynamicField { .. } = [hsx|

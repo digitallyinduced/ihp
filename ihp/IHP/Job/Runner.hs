@@ -80,10 +80,8 @@ dedicatedProcessMainLoop jobWorkers = do
 
                 Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
 
-                forEach processes \JobWorkerProcess { activeWorkers, dispatcher = (dispatcherKey, _) } -> do
-                    workers <- readTVarIO activeWorkers
-                    forEach workers Async.cancel
-                    release dispatcherKey
+                forEach processes \JobWorkerProcess { dispatcher = (dispatcherKey, _) } -> do
+                    release dispatcherKey  -- cancels dispatcher, whose finally cancels all workers
 
                 Concurrent.throwTo threadId Exit.ExitSuccess
 
@@ -214,13 +212,26 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                                 pure True
                             else pure False
                     when acquired do
+                        selfVar <- Concurrent.newEmptyMVar
                         workerAsync <- async $
-                            runJobLoop `Exception.finally`
-                                atomically (modifyTVar' activeCount (subtract 1))
+                            (do self <- Concurrent.readMVar selfVar
+                                runJobLoop)
+                            `Exception.finally`
+                                (do maybeSelf <- Concurrent.tryReadMVar selfVar
+                                    atomically do
+                                        modifyTVar' activeCount (subtract 1)
+                                        case maybeSelf of
+                                            Just self -> modifyTVar' activeWorkers (filter (/= self))
+                                            Nothing -> pure ())
+                        Concurrent.putMVar selfVar workerAsync
                         atomically $ modifyTVar' activeWorkers (workerAsync :)
                     dispatcherLoop
 
-    dispatcher <- allocate (async dispatcherLoop) cancel
+    let cancelAllWorkers = do
+            workers <- readTVarIO activeWorkers
+            mapM_ Async.cancel workers
+
+    dispatcher <- allocate (async (dispatcherLoop `Exception.finally` cancelAllWorkers)) cancel
 
     (subscription, pollerReleaseKey) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) action
 
