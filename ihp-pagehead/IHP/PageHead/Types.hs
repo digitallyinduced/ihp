@@ -8,7 +8,14 @@ module IHP.PageHead.Types where
 import Data.Text (Text)
 import Data.Maybe (Maybe(..))
 import Data.IORef (IORef)
+import Data.Typeable (Typeable, typeRep)
+import Data.Proxy (Proxy(..))
+import Data.Semigroup ((<>))
+import GHC.Err (error)
+import GHC.Show (show)
+import Data.Function (($))
 import qualified Data.Vault.Lazy as Vault
+import qualified Network.Wai as Wai
 import System.IO.Unsafe (unsafePerformIO)
 
 newtype PageTitle = PageTitle Text
@@ -41,3 +48,9 @@ emptyPageHeadState = PageHeadState Nothing Nothing Nothing Nothing Nothing Nothi
 pageHeadVaultKey :: Vault.Key (IORef PageHeadState)
 pageHeadVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE pageHeadVaultKey #-}
+
+lookupPageHeadVault :: forall value. Typeable value => Vault.Key value -> Wai.Request -> value
+lookupPageHeadVault key req =
+    case Vault.lookup key (Wai.vault req) of
+        Just v -> v
+        Nothing -> error $ "lookupPageHeadVault: Could not find " <> show (typeRep (Proxy @value) ) <> " in request vault. Did you forget to add the PageHead middleware?"

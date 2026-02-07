@@ -18,7 +18,6 @@ import Data.IORef (modifyIORef')
 import Data.Text (Text)
 import Network.Wai (Request)
 import IHP.PageHead.Types
-import IHP.RequestVault.Helper (lookupRequestVault)
 
 -- | Sets the page title. Can be accessed using '{pageTitle}' inside your @Layout.hs@.
 --
@@ -39,22 +38,22 @@ import IHP.RequestVault.Helper (lookupRequestVault)
 -- > |]
 --
 setTitle :: (?request :: Request) => Text -> IO ()
-setTitle title = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { title = Just (PageTitle title) })
+setTitle title = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { title = Just (PageTitle title) })
 
 setDescription :: (?request :: Request) => Text -> IO ()
-setDescription description = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { description = Just (PageDescription description) })
+setDescription description = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { description = Just (PageDescription description) })
 
 setOGTitle :: (?request :: Request) => Text -> IO ()
-setOGTitle title = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { ogTitle = Just (OGTitle title) })
+setOGTitle title = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { ogTitle = Just (OGTitle title) })
 
 setOGType :: (?request :: Request) => Text -> IO ()
-setOGType type_ = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { ogType = Just (OGType type_) })
+setOGType type_ = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { ogType = Just (OGType type_) })
 
 setOGDescription :: (?request :: Request) => Text -> IO ()
-setOGDescription description = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { ogDescription = Just (OGDescription description) })
+setOGDescription description = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { ogDescription = Just (OGDescription description) })
 
 setOGUrl :: (?request :: Request) => Text -> IO ()
-setOGUrl url = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { ogUrl = Just (OGUrl url) })
+setOGUrl url = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { ogUrl = Just (OGUrl url) })
 
 setOGImage :: (?request :: Request) => Text -> IO ()
-setOGImage image = modifyIORef' (lookupRequestVault pageHeadVaultKey ?request) (\s -> s { ogImage = Just (OGImage image) })
+setOGImage image = modifyIORef' (lookupPageHeadVault pageHeadVaultKey ?request) (\s -> s { ogImage = Just (OGImage image) })

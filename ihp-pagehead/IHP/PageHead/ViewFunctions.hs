@@ -24,7 +24,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
 import IHP.PageHead.Types
 import IHP.PageHead.ControllerFunctions
-import IHP.RequestVault.Helper (lookupRequestVault)
 import IHP.HSX.QQ (hsx)
 import Text.Blaze.Html5 (Html)
 
@@ -80,7 +79,7 @@ pageTitleOrDefault defaultValue = fromMaybe defaultValue pageTitleOrNothing
 
 -- | Returns the current page title or Nothing if not set yet
 pageTitleOrNothing :: (?request :: Request) => Maybe Text
-pageTitleOrNothing = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).title of
+pageTitleOrNothing = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).title of
         Just (PageTitle title) -> Just title
         Nothing -> Nothing
 
@@ -111,7 +110,7 @@ pageTitleOrNothing = case (unsafePerformIO (readIORef (lookupRequestVault pageHe
 ogTitleOrDefault :: (?request :: Request) => Text -> Html
 ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}/>|]
     where
-        content = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).ogTitle of
+        content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogTitle of
             Just (OGTitle title) -> title
             Nothing -> defaultValue
 
@@ -141,7 +140,7 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
 descriptionOrDefault :: (?request :: Request) => Text -> Html
 descriptionOrDefault defaultValue = [hsx|<meta name="description" content={content}/>|]
     where
-        content = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).description of
+        content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).description of
             Just (PageDescription description) -> description
             Nothing -> defaultValue
 
@@ -171,7 +170,7 @@ descriptionOrDefault defaultValue = [hsx|<meta name="description" content={conte
 ogTypeOrDefault :: (?request :: Request) => Text -> Html
 ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>|]
     where
-        content = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).ogType of
+        content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogType of
             Just (OGType type_) -> type_
             Nothing -> defaultValue
 
@@ -201,7 +200,7 @@ ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>
 ogDescriptionOrDefault :: (?request :: Request) => Text -> Html
 ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" content={content}/>|]
     where
-        content = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).ogDescription of
+        content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogDescription of
             Just (OGDescription description) -> description
             Nothing -> defaultValue
 
@@ -231,7 +230,7 @@ ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" conte
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogUrl :: (?request :: Request) => Html
-ogUrl = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).ogUrl of
+ogUrl = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogUrl of
     Just (OGUrl url) -> [hsx|<meta property="og:url" content={url}/>|]
     Nothing -> mempty
 
@@ -261,6 +260,6 @@ ogUrl = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?r
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
 ogImage :: (?request :: Request) => Html
-ogImage = case (unsafePerformIO (readIORef (lookupRequestVault pageHeadVaultKey ?request))).ogImage of
+ogImage = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogImage of
     Just (OGImage url) -> [hsx|<meta property="og:image" content={url}/>|]
     Nothing -> mempty
