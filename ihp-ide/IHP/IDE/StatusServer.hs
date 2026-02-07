@@ -202,7 +202,7 @@ renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError 
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
 
-                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse standardOutput)}</pre>
+                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse (take 5000 standardOutput))}</pre>
                 </div>
             |]
                 where

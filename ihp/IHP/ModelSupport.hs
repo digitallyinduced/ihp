@@ -404,7 +404,7 @@ sqlQueryHasql pool snippet decoder = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 let sqlText = Hasql.toSql statement
                 Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
@@ -427,7 +427,7 @@ sqlExecHasql pool snippet = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 let sqlText = Hasql.toSql statement
                 Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
@@ -456,7 +456,7 @@ runSessionHasql pool session = do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = ((end `diffUTCTime` start) * 1000) |> toRational |> fromRational @Double |> round
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 Log.debug ("💾 runSessionHasql (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE runSessionHasql #-}
@@ -677,7 +677,7 @@ logQuery logPrefix connection query parameters time = do
         let ?context = ?modelContext
         -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
         -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = (time * 1000) |> toRational |> fromRational @Double |> round
+        let queryTimeInMs = round (realToFrac time * 1000 :: Double)
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
                 Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
