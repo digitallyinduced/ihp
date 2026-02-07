@@ -28,6 +28,7 @@ viewLayoutVaultKey = unsafePerformIO Vault.newKey
 
 -- | Middleware that initializes the layout IORef with the identity layout.
 -- This must be installed in the middleware stack for setLayout/getLayout to work.
+{-# INLINE viewLayoutMiddleware #-}
 viewLayoutMiddleware :: Middleware
 viewLayoutMiddleware app request respond = do
     ref <- newIORef (ViewLayout id)

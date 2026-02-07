@@ -22,12 +22,23 @@ modelContextVaultKey :: Vault.Key ModelContext
 modelContextVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE modelContextVaultKey #-}
 
-(modelContextMiddleware, requestModelContext) = insertVaultMiddlewareAndGetter modelContextVaultKey
+{-# INLINE modelContextMiddleware #-}
+modelContextMiddleware :: ModelContext -> Middleware
+modelContextMiddleware = insertVaultMiddleware modelContextVaultKey
+
+{-# INLINE requestModelContext #-}
+requestModelContext :: Request -> ModelContext
+requestModelContext = lookupRequestVault modelContextVaultKey
 
 -- request.parsedBody
+{-# INLINE requestParsedBody #-}
 requestParsedBody :: Request -> RequestBody
 requestParsedBody = lookupRequestVault requestBodyVaultKey
 
 -- Field access helpers
-instance HasField "modelContext" Request ModelContext where getField request = requestModelContext request
-instance HasField "parsedBody" Request RequestBody where getField request = requestParsedBody request
+instance HasField "modelContext" Request ModelContext where
+    {-# INLINE getField #-}
+    getField request = requestModelContext request
+instance HasField "parsedBody" Request RequestBody where
+    {-# INLINE getField #-}
+    getField request = requestParsedBody request

@@ -11,6 +11,7 @@ import qualified Data.Vault.Lazy as Vault
 import Data.Proxy
 import Data.Typeable
 
+{-# INLINE insertVaultMiddleware #-}
 insertVaultMiddleware :: Vault.Key value -> value -> Middleware
 insertVaultMiddleware key value app req respond = do
     let req' = req { vault = Vault.insert key value req.vault }
@@ -23,5 +24,6 @@ lookupRequestVault key req =
         Just modelContext -> modelContext
         Nothing -> error $ "lookupRequestVault: Could not find " <> show (typeRep (Proxy @value) ) <> " in request.vault. Did you forget to add the middleware to your application?"
 
+{-# INLINE insertVaultMiddlewareAndGetter #-}
 insertVaultMiddlewareAndGetter :: Typeable value => Vault.Key value -> (value -> Middleware, Request -> value)
 insertVaultMiddlewareAndGetter key = (insertVaultMiddleware key, lookupRequestVault key)
