@@ -37,6 +37,7 @@ import IHP.RequestVault hiding (requestBodyMiddleware)
 import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
+import IHP.PageHead.Types
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
@@ -168,6 +169,24 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
             let req' = req { vault = Vault.insert rlsContextVaultKey rlsRef req.vault }
             app req' respond
 
+    let pageHeadMiddleware app req respond = do
+            pageTitleRef <- newIORef Nothing
+            pageDescriptionRef <- newIORef Nothing
+            ogTitleRef <- newIORef Nothing
+            ogTypeRef <- newIORef Nothing
+            ogDescriptionRef <- newIORef Nothing
+            ogUrlRef <- newIORef Nothing
+            ogImageRef <- newIORef Nothing
+            let req' = req { vault = Vault.insert pageTitleVaultKey pageTitleRef
+                                   . Vault.insert pageDescriptionVaultKey pageDescriptionRef
+                                   . Vault.insert ogTitleVaultKey ogTitleRef
+                                   . Vault.insert ogTypeVaultKey ogTypeRef
+                                   . Vault.insert ogDescriptionVaultKey ogDescriptionRef
+                                   . Vault.insert ogUrlVaultKey ogUrlRef
+                                   . Vault.insert ogImageVaultKey ogImageRef
+                                   $ req.vault }
+            app req' respond
+
     pure $
         customMiddleware
         . corsMiddleware
@@ -178,6 +197,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . viewLayoutMiddleware
         . responseHeadersMiddleware
         . rlsContextMiddleware
+        . pageHeadMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions

@@ -41,6 +41,8 @@ library
         , ihp-hsx
         , text
         , blaze-html
+        , vault
+        , wai
     exposed-modules:
         IHP.PageHead.Types
         , IHP.PageHead.ControllerFunctions

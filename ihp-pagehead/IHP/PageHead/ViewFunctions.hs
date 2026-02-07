@@ -17,10 +17,12 @@ module IHP.PageHead.ViewFunctions
 ) where
 
 import Prelude
+import Data.IORef (readIORef)
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
+import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai (Request)
 import IHP.PageHead.Types
-import IHP.ControllerContext (ControllerContext, maybeFromFrozenContext)
 import IHP.PageHead.ControllerFunctions
 import IHP.HSX.QQ (hsx)
 import Text.Blaze.Html5 (Html)
@@ -60,7 +62,7 @@ import Text.Blaze.Html5 (Html)
 -- >         setTitle "Custom title"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-pageTitle :: (?context :: ControllerContext) => Text
+pageTitle :: (?request :: Request) => Text
 pageTitle = pageTitleOrDefault ""
 
 -- | Returns the current page title, like 'pageTitle' but returns a provided default value instead of an empty string if no title is set.
@@ -72,12 +74,12 @@ pageTitle = pageTitleOrDefault ""
 -- >         <title>{pageTitleOrDefault "My Application"}</title>
 -- >     </head>
 -- > |]
-pageTitleOrDefault :: (?context :: ControllerContext) => Text -> Text
+pageTitleOrDefault :: (?request :: Request) => Text -> Text
 pageTitleOrDefault defaultValue = fromMaybe defaultValue pageTitleOrNothing
 
 -- | Returns the current page title or Nothing if not set yet
-pageTitleOrNothing :: (?context :: ControllerContext) => Maybe Text
-pageTitleOrNothing = case maybeFromFrozenContext @PageTitle of
+pageTitleOrNothing :: (?request :: Request) => Maybe Text
+pageTitleOrNothing = case unsafePerformIO (readIORef (lookupPageHeadVault pageTitleVaultKey ?request)) of
         Just (PageTitle title) -> Just title
         Nothing -> Nothing
 
@@ -105,10 +107,10 @@ pageTitleOrNothing = case maybeFromFrozenContext @PageTitle of
 -- >         setOGTitle "Custom title"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogTitleOrDefault :: (?context :: ControllerContext) => Text -> Html
+ogTitleOrDefault :: (?request :: Request) => Text -> Html
 ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}/>|]
     where
-        content = case maybeFromFrozenContext @OGTitle of
+        content = case unsafePerformIO (readIORef (lookupPageHeadVault ogTitleVaultKey ?request)) of
             Just (OGTitle title) -> title
             Nothing -> defaultValue
 
@@ -135,10 +137,10 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
 -- >         setDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-descriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
+descriptionOrDefault :: (?request :: Request) => Text -> Html
 descriptionOrDefault defaultValue = [hsx|<meta name="description" content={content}/>|]
     where
-        content = case maybeFromFrozenContext @PageDescription of
+        content = case unsafePerformIO (readIORef (lookupPageHeadVault pageDescriptionVaultKey ?request)) of
             Just (PageDescription description) -> description
             Nothing -> defaultValue
 
@@ -165,10 +167,10 @@ descriptionOrDefault defaultValue = [hsx|<meta name="description" content={conte
 -- >         setOGType "mytype"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogTypeOrDefault :: (?context :: ControllerContext) => Text -> Html
+ogTypeOrDefault :: (?request :: Request) => Text -> Html
 ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>|]
     where
-        content = case maybeFromFrozenContext @OGType of
+        content = case unsafePerformIO (readIORef (lookupPageHeadVault ogTypeVaultKey ?request)) of
             Just (OGType type_) -> type_
             Nothing -> defaultValue
 
@@ -195,10 +197,10 @@ ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>
 -- >         setOGDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogDescriptionOrDefault :: (?context :: ControllerContext) => Text -> Html
+ogDescriptionOrDefault :: (?request :: Request) => Text -> Html
 ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" content={content}/>|]
     where
-        content = case maybeFromFrozenContext @OGDescription of
+        content = case unsafePerformIO (readIORef (lookupPageHeadVault ogDescriptionVaultKey ?request)) of
             Just (OGDescription description) -> description
             Nothing -> defaultValue
 
@@ -227,8 +229,8 @@ ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" conte
 -- >         setOGUrl (urlTo ShowAction { .. })
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogUrl :: (?context :: ControllerContext) => Html
-ogUrl = case maybeFromFrozenContext @OGUrl of
+ogUrl :: (?request :: Request) => Html
+ogUrl = case unsafePerformIO (readIORef (lookupPageHeadVault ogUrlVaultKey ?request)) of
     Just (OGUrl url) -> [hsx|<meta property="og:url" content={url}/>|]
     Nothing -> mempty
 
@@ -257,7 +259,7 @@ ogUrl = case maybeFromFrozenContext @OGUrl of
 -- >         setOGImage "https://example.com/image.png"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogImage :: (?context :: ControllerContext) => Html
-ogImage = case maybeFromFrozenContext @OGImage of
+ogImage :: (?request :: Request) => Html
+ogImage = case unsafePerformIO (readIORef (lookupPageHeadVault ogImageVaultKey ?request)) of
     Just (OGImage url) -> [hsx|<meta property="og:image" content={url}/>|]
     Nothing -> mempty

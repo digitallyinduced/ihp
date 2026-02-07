@@ -14,9 +14,10 @@ module IHP.PageHead.ControllerFunctions
 ) where
 
 import Prelude
+import Data.IORef (writeIORef)
 import Data.Text (Text)
+import Network.Wai (Request)
 import IHP.PageHead.Types
-import IHP.ControllerContext (ControllerContext, putContext)
 
 -- | Sets the page title. Can be accessed using '{pageTitle}' inside your @Layout.hs@.
 --
@@ -36,23 +37,23 @@ import IHP.ControllerContext (ControllerContext, putContext)
 -- > </head>
 -- > |]
 --
-setTitle :: (?context :: ControllerContext) => Text -> IO ()
-setTitle title = putContext (PageTitle title)
+setTitle :: (?request :: Request) => Text -> IO ()
+setTitle title = writeIORef (lookupPageHeadVault pageTitleVaultKey ?request) (Just (PageTitle title))
 
-setDescription :: (?context :: ControllerContext) => Text -> IO ()
-setDescription description = putContext (PageDescription description)
+setDescription :: (?request :: Request) => Text -> IO ()
+setDescription description = writeIORef (lookupPageHeadVault pageDescriptionVaultKey ?request) (Just (PageDescription description))
 
-setOGTitle :: (?context :: ControllerContext) => Text -> IO ()
-setOGTitle title = putContext (OGTitle title)
+setOGTitle :: (?request :: Request) => Text -> IO ()
+setOGTitle title = writeIORef (lookupPageHeadVault ogTitleVaultKey ?request) (Just (OGTitle title))
 
-setOGType :: (?context :: ControllerContext) => Text -> IO ()
-setOGType type_ = putContext (OGType type_)
+setOGType :: (?request :: Request) => Text -> IO ()
+setOGType type_ = writeIORef (lookupPageHeadVault ogTypeVaultKey ?request) (Just (OGType type_))
 
-setOGDescription :: (?context :: ControllerContext) => Text -> IO ()
-setOGDescription description = putContext (OGDescription description)
+setOGDescription :: (?request :: Request) => Text -> IO ()
+setOGDescription description = writeIORef (lookupPageHeadVault ogDescriptionVaultKey ?request) (Just (OGDescription description))
 
-setOGUrl :: (?context :: ControllerContext) => Text -> IO ()
-setOGUrl url = putContext (OGUrl url)
+setOGUrl :: (?request :: Request) => Text -> IO ()
+setOGUrl url = writeIORef (lookupPageHeadVault ogUrlVaultKey ?request) (Just (OGUrl url))
 
-setOGImage :: (?context :: ControllerContext) => Text -> IO ()
-setOGImage image = putContext (OGImage image)
+setOGImage :: (?request :: Request) => Text -> IO ()
+setOGImage image = writeIORef (lookupPageHeadVault ogImageVaultKey ?request) (Just (OGImage image))
