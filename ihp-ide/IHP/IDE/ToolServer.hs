@@ -51,6 +51,8 @@ import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 import Paths_ihp_ide (getDataFileName)
 import IHP.RequestVault
+import qualified Data.Vault.Lazy as Vault
+import IHP.Controller.Response (responseHeadersVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
@@ -116,9 +118,15 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
     let innerApplication :: Wai.Application = \request respond -> do
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
+    let responseHeadersMiddleware app req respond = do
+            headersRef <- newIORef []
+            let req' = req { vault = Vault.insert responseHeadersVaultKey headersRef req.vault }
+            app req' respond
+
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
+                $ responseHeadersMiddleware
                 $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions

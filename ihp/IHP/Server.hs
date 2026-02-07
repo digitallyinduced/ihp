@@ -34,6 +34,8 @@ import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
+import qualified Data.Vault.Lazy as Vault
+import IHP.Controller.Response (responseHeadersVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
@@ -155,6 +157,11 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
+    let responseHeadersMiddleware app req respond = do
+            headersRef <- newIORef []
+            let req' = req { vault = Vault.insert responseHeadersVaultKey headersRef req.vault }
+            app req' respond
+
     pure $
         customMiddleware
         . corsMiddleware
@@ -163,6 +170,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . approotMiddleware
         . autoRefreshMiddleware
         . viewLayoutMiddleware
+        . responseHeadersMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
