@@ -213,6 +213,7 @@ library
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
         , IHP.QueryBuilder.HasqlCompiler
+        , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server

@@ -10,24 +10,23 @@ import IHP.IDE.Data.View.EditRow
 import IHP.IDE.Data.View.EditValue
 import IHP.IDE.Data.View.ShowForeignKeyHoverCard
 
-import qualified Hasql.Connection as Hasql
-import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import qualified Hasql.Errors as HasqlErrors
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Pool as HasqlPool
 import qualified Data.Text as T
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
 import qualified Data.List as List
-import qualified Control.Exception.Safe as Exception
 import Data.Int (Int64)
+import IHP.QueryBuilder.HasqlHelpers (wrapDynamicQuery, quoteIdentifier)
 
 instance Controller DataController where
     action ShowDatabaseAction = do
-        tableNames <- withAppDb fetchTableNames
+        tableNames <- fetchTableNames
         case headMay tableNames of
             Just tableName -> jumpToAction ShowTableRowsAction { tableName }
             Nothing -> render ShowDatabaseView { .. }
@@ -35,13 +34,11 @@ instance Controller DataController where
     action ShowTableRowsAction { tableName } = do
         let page :: Int = paramOrDefault @Int 1 "page"
         let pageSize :: Int = paramOrDefault @Int 20 "rows"
-        (tableNames, primaryKeyFields, rows :: [[DynamicField]], tableCols, totalRows) <- withAppDb \connection -> do
-            tableNames <- fetchTableNames connection
-            primaryKeyFields <- tablePrimaryKeyFields connection tableName
-            rows <- fetchRowsPage connection tableName page pageSize
-            tableCols <- fetchTableCols connection tableName
-            totalRows <- tableLength connection tableName
-            pure (tableNames, primaryKeyFields, rows, tableCols, totalRows)
+        tableNames <- fetchTableNames
+        primaryKeyFields <- tablePrimaryKeyFields tableName
+        rows <- fetchRowsPage tableName page pageSize
+        tableCols <- fetchTableCols tableName
+        totalRows <- tableLength tableName
         render ShowTableRowsView { .. }
 
     action NewQueryAction = do
@@ -54,100 +51,93 @@ instance Controller DataController where
         when (isEmpty queryText) do
             redirectTo NewQueryAction
 
-        queryResult :: Maybe (Either SqlConsoleError SqlConsoleResult) <- withAppDb \connection ->
+        queryResult :: Maybe (Either SqlConsoleError SqlConsoleResult) <- do
+            let pool = getPool
             Just <$> if isQuery queryText then do
                     let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
                     let statement = Snippet.toStatement snippet dynamicFieldDecoder
                     let session = Session.statement () statement
-                    result <- Hasql.use connection session
+                    result <- HasqlPool.use pool session
                     case result of
                         Right rows -> pure (Right (SelectQueryResult rows))
-                        Left err -> pure (Left (sessionErrorToConsoleError err))
+                        Left err -> pure (Left (usageErrorToConsoleError err))
                 else do
                     let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
                     let session = Session.statement () statement
-                    result <- Hasql.use connection session
+                    result <- HasqlPool.use pool session
                     case result of
                         Right count -> pure (Right (InsertOrUpdateResult count))
-                        Left err -> pure (Left (sessionErrorToConsoleError err))
+                        Left err -> pure (Left (usageErrorToConsoleError err))
 
         render ShowQueryView { .. }
 
     action DeleteEntryAction { primaryKey, tableName } = do
-        withAppDb \connection -> do
-            primaryKeyFields <- tablePrimaryKeyFields connection tableName
-            let primaryKeyValues = T.splitOn "---" primaryKey
-            let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                    zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields primaryKeyValues
-            let snippet = Snippet.sql "DELETE FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> whereClause
-            runSnippetExec connection snippet
+        primaryKeyFields <- tablePrimaryKeyFields tableName
+        let primaryKeyValues = T.splitOn "---" primaryKey
+        let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
+                zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields primaryKeyValues
+        let snippet = Snippet.sql "DELETE FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> whereClause
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action NewRowAction { tableName } = do
-        (tableNames, rows :: [[DynamicField]], tableCols) <- withAppDb \connection -> do
-            tableNames <- fetchTableNames connection
-            rows <- fetchRows connection tableName
-            tableCols <- fetchTableCols connection tableName
-            pure (tableNames, rows, tableCols)
+        tableNames <- fetchTableNames
+        rows :: [[DynamicField]] <- fetchRows tableName
+        tableCols <- fetchTableCols tableName
         render NewRowView { .. }
 
     action CreateRowAction = do
         let tableName = param "tableName"
-        withAppDb \connection -> do
-            tableCols <- fetchTableCols connection tableName
-            let values :: [Snippet] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
-            let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier tableName <> Snippet.sql " VALUES (" <> (mconcat $ List.intersperse (Snippet.sql ", ") values) <> Snippet.sql ")"
-            runSnippetExec connection snippet
+        tableCols <- fetchTableCols tableName
+        let values :: [Snippet] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
+        let snippet = Snippet.sql "INSERT INTO " <> quoteIdentifier tableName <> Snippet.sql " VALUES (" <> (mconcat $ List.intersperse (Snippet.sql ", ") values) <> Snippet.sql ")"
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action EditRowAction { tableName, targetPrimaryKey } = do
-        (tableNames, primaryKeyFields, rows :: [[DynamicField]], tableCols, rowValues) <- withAppDb \connection -> do
-            tableNames <- fetchTableNames connection
-            primaryKeyFields <- tablePrimaryKeyFields connection tableName
-            rows <- fetchRows connection tableName
-            tableCols <- fetchTableCols connection tableName
-            let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
-            values <- fetchRow connection tableName targetPrimaryKeyValues
-            let (Just rowValues) = head values
-            pure (tableNames, primaryKeyFields, rows, tableCols, rowValues)
+        tableNames <- fetchTableNames
+        primaryKeyFields <- tablePrimaryKeyFields tableName
+        rows :: [[DynamicField]] <- fetchRows tableName
+        tableCols <- fetchTableCols tableName
+        let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
+        values <- fetchRow tableName targetPrimaryKeyValues
+        rowValues <- case values of
+            [rowValues] -> pure rowValues
+            _ -> error ("Row not found in " <> cs tableName)
         render EditRowView { .. }
 
     action UpdateRowAction = do
         let tableName = param "tableName"
-        withAppDb \connection -> do
-            tableCols <- fetchTableCols connection tableName
-            primaryKeyFields <- tablePrimaryKeyFields connection tableName
+        tableCols <- fetchTableCols tableName
+        primaryKeyFields <- tablePrimaryKeyFields tableName
 
-            let values :: [Snippet] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
-            let columns :: [Text] = map (\col -> col.columnName) tableCols
+        let values :: [Snippet] = map (\col -> parseValues (param @Bool (cs (col.columnName) <> "_")) (param @Bool (cs (col.columnName) <> "-isBoolean")) (param @Text (cs (col.columnName)))) tableCols
+        let columns :: [Text] = map (\col -> col.columnName) tableCols
 
-            let setClause = mconcat $ List.intersperse (Snippet.sql ", ") $
-                    zipWith (\col val -> quoteIdentifier col <> Snippet.sql " = " <> val) columns values
-            let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                    map (\pkey -> quoteIdentifier pkey <> Snippet.sql " = " <> Snippet.param (param @Text (cs pkey <> "-pk"))) primaryKeyFields
+        let setClause = mconcat $ List.intersperse (Snippet.sql ", ") $
+                zipWith (\col val -> quoteIdentifier col <> Snippet.sql " = " <> val) columns values
+        let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
+                map (\pkey -> quoteIdentifier pkey <> Snippet.sql " = " <> Snippet.param (param @Text (cs pkey <> "-pk"))) primaryKeyFields
 
-            let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> setClause <> Snippet.sql " WHERE " <> whereClause
-            runSnippetExec connection snippet
+        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> setClause <> Snippet.sql " WHERE " <> whereClause
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action EditRowValueAction { tableName, targetName, id } = do
-        (tableNames, rows :: [[DynamicField]]) <- withAppDb \connection -> do
-            tableNames <- fetchTableNames connection
-            rows <- fetchRows connection tableName
-            pure (tableNames, rows)
+        tableNames <- fetchTableNames
+        rows :: [[DynamicField]] <- fetchRows tableName
         let targetId = cs id
         render EditValueView { .. }
 
     action ToggleBooleanFieldAction { tableName, targetName, targetPrimaryKey } = do
         let id :: String = cs (param @Text "id")
         let tableName = param "tableName"
-        withAppDb \connection -> do
-            primaryKeyFields <- tablePrimaryKeyFields connection tableName
-            let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
-            let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                    zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields targetPrimaryKeyValues
-            let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetName <> Snippet.sql " = NOT " <> quoteIdentifier targetName <> Snippet.sql " WHERE " <> whereClause
-            runSnippetExec connection snippet
+        primaryKeyFields <- tablePrimaryKeyFields tableName
+        let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
+        let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
+                zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields targetPrimaryKeyValues
+        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetName <> Snippet.sql " = NOT " <> quoteIdentifier targetName <> Snippet.sql " WHERE " <> whereClause
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action UpdateValueAction = do
@@ -156,41 +146,38 @@ instance Controller DataController where
         let targetCol = param @Text "targetName"
         let targetValue = param @Text "targetValue"
         let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetCol <> Snippet.sql " = " <> Snippet.param targetValue <> Snippet.sql " WHERE id = " <> Snippet.param (cs id :: Text)
-        withAppDb \connection ->
-            runSnippetExec connection snippet
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action DeleteTableRowsAction { tableName } = do
         let snippet = Snippet.sql "TRUNCATE TABLE " <> quoteIdentifier tableName
-        withAppDb \connection ->
-            runSnippetExec connection snippet
+        runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
     action AutocompleteForeignKeyColumnAction { tableName, columnName, term } = do
-        rows :: Maybe [[DynamicField]] <- withAppDb \connection -> do
-            foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
+        foreignKeyInfo <- fetchForeignKeyInfo tableName columnName
 
-            case foreignKeyInfo of
-                Just (foreignTable, foreignColumn) -> Just <$> fetchRowsPage connection foreignTable 1 50
-                Nothing -> pure Nothing
+        rows :: Maybe [[DynamicField]] <- case foreignKeyInfo of
+            Just (foreignTable, foreignColumn) -> Just <$> fetchRowsPage foreignTable 1 50
+            Nothing -> pure Nothing
 
         case rows of
             Just rows -> renderJson rows
             Nothing -> renderNotFound
 
     action ShowForeignKeyHoverCardAction { tableName, id, columnName } = do
-        hovercardData <- withAppDb \connection -> do
+        hovercardData <- do
             let fetchIdSnippet = Snippet.sql "SELECT " <> quoteIdentifier columnName <> Snippet.sql "::text FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE id = " <> Snippet.param id
-            foreignIdResult <- runSnippetQuery connection fetchIdSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
+            foreignIdResult <- runSnippetQuery fetchIdSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
             case foreignIdResult of
                 [foreignId] -> do
-                    foreignKeyInfo <- fetchForeignKeyInfo connection tableName columnName
+                    foreignKeyInfo <- fetchForeignKeyInfo tableName columnName
 
                     case foreignKeyInfo of
                         Just (foreignTable, foreignColumn) -> do
                             let fetchRecordSnippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier foreignTable <> Snippet.sql " WHERE " <> quoteIdentifier foreignColumn <> Snippet.sql " = " <> Snippet.param foreignId <> Snippet.sql "::uuid LIMIT 1")
-                            records <- runSnippetQuery connection fetchRecordSnippet dynamicFieldDecoder
+                            records <- runSnippetQuery fetchRecordSnippet dynamicFieldDecoder
                             case records of
                                 [record] -> pure $ Just (record, foreignTable)
                                 _ -> pure Nothing
@@ -201,51 +188,50 @@ instance Controller DataController where
             Just (record, foreignTableName) -> render ShowForeignKeyHoverCardView { record, foreignTableName }
             Nothing -> renderNotFound
 
-withAppDb :: (?context :: ControllerContext) => (Hasql.Connection -> IO a) -> IO a
-withAppDb action = do
-    let databaseUrl = ?context.frameworkConfig.databaseUrl
-    connResult <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
-    case connResult of
-        Right conn -> action conn `Exception.finally` Hasql.release conn
-        Left err -> error (HasqlErrors.toDetailedText err)
+getPool :: (?modelContext :: ModelContext) => HasqlPool.Pool
+getPool = fromMaybe (error "No hasql pool available") ?modelContext.hasqlPool
 
-runSnippetQuery :: Hasql.Connection -> Snippet -> Decoders.Result a -> IO a
-runSnippetQuery conn snippet decoder = do
+runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
+runSnippetQuery snippet decoder = do
+    let pool = getPool
     let statement = Snippet.toStatement snippet decoder
     let session = Session.statement () statement
-    result <- Hasql.use conn session
+    result <- HasqlPool.use pool session
     case result of
         Right a -> pure a
-        Left err -> error (HasqlErrors.toDetailedText err)
+        Left (HasqlPool.SessionUsageError err) -> error (cs (HasqlErrors.toDetailedText err))
+        Left err -> error (show err)
 
-runSnippetExec :: Hasql.Connection -> Snippet -> IO ()
-runSnippetExec conn snippet = do
+runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
+runSnippetExec snippet = do
+    let pool = getPool
     let statement = Snippet.toStatement snippet Decoders.noResult
     let session = Session.statement () statement
-    result <- Hasql.use conn session
+    result <- HasqlPool.use pool session
     case result of
         Right () -> pure ()
-        Left err -> error (HasqlErrors.toDetailedText err)
+        Left (HasqlPool.SessionUsageError err) -> error (cs (HasqlErrors.toDetailedText err))
+        Left err -> error (show err)
 
-fetchTableNames :: Hasql.Connection -> IO [Text]
-fetchTableNames connection =
-    runSnippetQuery connection
+fetchTableNames :: (?modelContext :: ModelContext) => IO [Text]
+fetchTableNames =
+    runSnippetQuery
         (Snippet.sql "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
         (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
-fetchTableCols :: Hasql.Connection -> Text -> IO [ColumnDefinition]
-fetchTableCols connection tableName =
-    runSnippetQuery connection
+fetchTableCols :: (?modelContext :: ModelContext) => Text -> IO [ColumnDefinition]
+fetchTableCols tableName =
+    runSnippetQuery
         (Snippet.sql "SELECT column_name, data_type, column_default, CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns WHERE table_name = " <> Snippet.param tableName <> Snippet.sql " ORDER BY ordinal_position")
         columnDefinitionDecoder
 
-fetchRow :: Hasql.Connection -> Text -> [Text] -> IO [[DynamicField]]
-fetchRow connection tableName primaryKeyValues = do
-    pkFields <- tablePrimaryKeyFields connection tableName
+fetchRow :: (?modelContext :: ModelContext) => Text -> [Text] -> IO [[DynamicField]]
+fetchRow tableName primaryKeyValues = do
+    pkFields <- tablePrimaryKeyFields tableName
     let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
             zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) pkFields primaryKeyValues
     let snippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> whereClause)
-    runSnippetQuery connection snippet dynamicFieldDecoder
+    runSnippetQuery snippet dynamicFieldDecoder
 
 columnDefinitionDecoder :: Decoders.Result [ColumnDefinition]
 columnDefinitionDecoder = Decoders.rowList $
@@ -277,26 +263,26 @@ jsonFieldToDynamicField (key, val) = DynamicField
     , fieldName = cs (Aeson.toText key)
     }
 
-tablePrimaryKeyFields :: Hasql.Connection -> Text -> IO [Text]
-tablePrimaryKeyFields connection tableName =
-    runSnippetQuery connection
+tablePrimaryKeyFields :: (?modelContext :: ModelContext) => Text -> IO [Text]
+tablePrimaryKeyFields tableName =
+    runSnippetQuery
         (Snippet.sql "SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indrelid = " <> Snippet.param tableName <> Snippet.sql "::regclass AND i.indisprimary")
         (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
-fetchRows :: Hasql.Connection -> Text -> IO [[DynamicField]]
-fetchRows connection tableName = do
-    pkFields <- tablePrimaryKeyFields connection tableName
+fetchRows :: (?modelContext :: ModelContext) => Text -> IO [[DynamicField]]
+fetchRows tableName = do
+    pkFields <- tablePrimaryKeyFields tableName
 
     let orderBy = if null pkFields
             then mempty
             else Snippet.sql " ORDER BY " <> (mconcat $ List.intersperse (Snippet.sql ", ") (map quoteIdentifier pkFields))
 
     let snippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier tableName <> orderBy)
-    runSnippetQuery connection snippet dynamicFieldDecoder
+    runSnippetQuery snippet dynamicFieldDecoder
 
-fetchRowsPage :: Hasql.Connection -> Text -> Int -> Int -> IO [[DynamicField]]
-fetchRowsPage connection tableName page rows = do
-    pkFields <- tablePrimaryKeyFields connection tableName
+fetchRowsPage :: (?modelContext :: ModelContext) => Text -> Int -> Int -> IO [[DynamicField]]
+fetchRowsPage tableName page rows = do
+    pkFields <- tablePrimaryKeyFields tableName
 
     let orderBy = if null pkFields
             then mempty
@@ -309,11 +295,11 @@ fetchRowsPage connection tableName page rows = do
             <> Snippet.sql " ROWS FETCH FIRST " <> Snippet.param (fromIntegral rows :: Int64)
             <> Snippet.sql " ROWS ONLY"
             )
-    runSnippetQuery connection snippet dynamicFieldDecoder
+    runSnippetQuery snippet dynamicFieldDecoder
 
-tableLength :: Hasql.Connection -> Text -> IO Int
-tableLength connection tableName = do
-    count <- runSnippetQuery connection
+tableLength :: (?modelContext :: ModelContext) => Text -> IO Int
+tableLength tableName = do
+    count <- runSnippetQuery
         (Snippet.sql "SELECT COUNT(*) FROM " <> quoteIdentifier tableName)
         (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
     pure (fromIntegral count)
@@ -329,19 +315,8 @@ isQuery :: Text -> Bool
 isQuery sql = T.isInfixOf "SELECT" u
     where u = T.toUpper sql
 
--- | Quote a SQL identifier (table name, column name) to prevent SQL injection.
--- Duplicated from IHP.DataSync.DynamicQuery to avoid ihp-datasync dependency.
-quoteIdentifier :: Text -> Snippet
-quoteIdentifier name = Snippet.sql (cs ("\"" <> T.replace "\"" "\"\"" name <> "\""))
-
--- | Wraps a SQL query snippet so that each row is returned as a JSON object.
--- Duplicated from IHP.DataSync.DynamicQuery to avoid ihp-datasync dependency.
-wrapDynamicQuery :: Snippet -> Snippet
-wrapDynamicQuery innerQuery =
-    Snippet.sql "WITH _ihp_dynamic_result AS (" <> innerQuery <> Snippet.sql ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
-
-fetchForeignKeyInfo :: Hasql.Connection -> Text -> Text -> IO (Maybe (Text, Text))
-fetchForeignKeyInfo connection tableName columnName = do
+fetchForeignKeyInfo :: (?modelContext :: ModelContext) => Text -> Text -> IO (Maybe (Text, Text))
+fetchForeignKeyInfo tableName columnName = do
     let snippet =
             Snippet.sql "SELECT ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name FROM information_schema.table_constraints AS tc JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = "
             <> Snippet.param tableName
@@ -350,10 +325,15 @@ fetchForeignKeyInfo connection tableName columnName = do
     let decoder = Decoders.rowList $
             (,) <$> Decoders.column (Decoders.nonNullable Decoders.text)
                 <*> Decoders.column (Decoders.nonNullable Decoders.text)
-    result <- runSnippetQuery connection snippet decoder
+    result <- runSnippetQuery snippet decoder
     case result of
         [(foreignTableName, foreignColumnName)] -> pure $ Just (foreignTableName, foreignColumnName)
         _ -> pure Nothing
+
+usageErrorToConsoleError :: HasqlPool.UsageError -> SqlConsoleError
+usageErrorToConsoleError (HasqlPool.SessionUsageError sessionError) = sessionErrorToConsoleError sessionError
+usageErrorToConsoleError err =
+    SqlConsoleError { errorMessage = cs (show err), errorDetail = "", errorHint = "", errorState = "" }
 
 sessionErrorToConsoleError :: HasqlErrors.SessionError -> SqlConsoleError
 sessionErrorToConsoleError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError code message detail hint _))) =
@@ -361,7 +341,7 @@ sessionErrorToConsoleError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlEr
 sessionErrorToConsoleError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError code message detail hint _)) =
     SqlConsoleError { errorMessage = message, errorDetail = fromMaybe "" detail, errorHint = fromMaybe "" hint, errorState = code }
 sessionErrorToConsoleError err =
-    SqlConsoleError { errorMessage = cs (show err), errorDetail = "", errorHint = "", errorState = "" }
+    SqlConsoleError { errorMessage = cs (HasqlErrors.toDetailedText err), errorDetail = "", errorHint = "", errorState = "" }
 
 instance {-# OVERLAPS #-} ToJSON [DynamicField] where
     toJSON fields = object (map (\DynamicField { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)

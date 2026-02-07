@@ -41,6 +41,8 @@ import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
 import qualified IHP.PGListener as PGListener
+import IHP.RequestVault.ModelContext (modelContextMiddleware)
+import qualified Control.Exception.Safe as Exception
 
 import qualified Network.Wai.Application.Static as Static
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -69,13 +71,14 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
 
     let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
-    Warp.runSettings warpSettings $
-            logMiddleware weightedApp.application
+    Warp.runSettings warpSettings (logMiddleware weightedApp.application)
+        `Exception.finally` releaseModelContext weightedApp.modelContext
 
 -- | Result of building the ToolServer application
 data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
     { application :: Wai.Application
     , frameworkConfig :: Config.FrameworkConfig
+    , modelContext :: ModelContext
     }
 
 -- | Builds the full ToolServer WAI application with all middlewares applied.
@@ -101,6 +104,8 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
             Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
             Nothing -> pure ()
 
+    modelContext <- Config.initModelContext frameworkConfig
+
     store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
     let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
@@ -114,6 +119,7 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
+                $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                 $ Websocket.websocketsOr
@@ -121,7 +127,7 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
                     (LiveReloadNotificationServer.app liveReloadClients)
                     innerApplication
 
-    pure ToolServerApplicationWithConfig { application, frameworkConfig }
+    pure ToolServerApplicationWithConfig { application, frameworkConfig, modelContext }
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
