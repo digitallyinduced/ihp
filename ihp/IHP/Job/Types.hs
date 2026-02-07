@@ -15,7 +15,7 @@ import IHP.Prelude
 import IHP.FrameworkConfig
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
-import Control.Concurrent.STM (TBQueue)
+import Control.Concurrent.STM (TBQueue, TVar)
 
 data BackoffStrategy
     = LinearBackoff { delayInSeconds :: !Int }
@@ -81,11 +81,12 @@ data JobStatus
 
 data JobWorkerProcess
     = JobWorkerProcess
-    { runners :: [(ReleaseKey, Async ())]
+    { dispatcher :: (ReleaseKey, Async ())
     , subscription :: PGListener.Subscription
     , pollerReleaseKey :: ReleaseKey
     , action :: TBQueue JobWorkerProcessMessage
     , staleRecoveryReleaseKey :: Maybe ReleaseKey
+    , activeCount :: TVar Int
     }
 
 data JobWorkerProcessMessage
