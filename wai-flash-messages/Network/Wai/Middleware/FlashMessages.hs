@@ -79,25 +79,31 @@ consumeFlashMessagesMiddleware :: SessionVaultKey -> FlashVaultKey -> Middleware
 consumeFlashMessagesMiddleware sessionVaultKey flashVaultKey next request respond =
     case Vault.lookup sessionVaultKey request.vault of
         Just (lookup, insert) -> do
-            let decodeAndClear name = do
-                    value <- lookup name
-                    case value of
-                        Just value -> do
-                            insert name "" -- Clear the flash message
-                            pure case Serialize.decode value of
-                                Left _ -> Nothing
-                                Right text -> Just text
-                        Nothing -> pure Nothing
+            rawSuccess <- lookup successMessageKey
+            rawError <- lookup errorMessageKey
 
+            case (rawSuccess, rawError) of
+                (Nothing, Nothing) ->
+                    -- No flash messages set, skip decoding/clearing/vault-insert
+                    next request respond
+                _ -> do
+                    let decodeAndClear name rawValue = do
+                            case rawValue of
+                                Just value -> do
+                                    insert name "" -- Clear the flash message
+                                    pure case Serialize.decode value of
+                                        Left _ -> Nothing
+                                        Right text -> Just text
+                                Nothing -> pure Nothing
 
-            successMessage <- decodeAndClear successMessageKey
-            errorMessage <- decodeAndClear errorMessageKey
+                    successMessage <- decodeAndClear successMessageKey rawSuccess
+                    errorMessage <- decodeAndClear errorMessageKey rawError
 
-            let
-                allFlashMessages = Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
-                request' = request { vault = Vault.insert flashVaultKey allFlashMessages request.vault }
+                    let
+                        allFlashMessages = Maybe.catMaybes ((fmap SuccessFlashMessage successMessage):(fmap ErrorFlashMessage errorMessage):[])
+                        request' = request { vault = Vault.insert flashVaultKey allFlashMessages request.vault }
 
-            next request' respond
+                    next request' respond
         Nothing -> next request respond
 
 requestFlashMessages :: FlashVaultKey -> Request -> Maybe [FlashMessage]

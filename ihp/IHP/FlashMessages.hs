@@ -66,7 +66,7 @@ consumeFlashMessagesMiddleware = FlashMessages.consumeFlashMessagesMiddleware se
 
 requestFlashMessages :: Request -> [FlashMessage]
 requestFlashMessages request =
-    fromMaybe (error "consumeFlashMessagesMiddleware was not called") $ FlashMessages.requestFlashMessages flashVaultKey request
+    fromMaybe [] $ FlashMessages.requestFlashMessages flashVaultKey request
 
 -- | Displays the flash messages for the current request.
 --
