@@ -50,6 +50,7 @@ setLayout layout =
 {-# INLINE setLayout #-}
 
 -- | Get the current layout. Returns the identity layout if none was set.
+{-# INLINE getLayout #-}
 getLayout :: (?request :: Request) => IO ViewLayout
 getLayout =
     case Vault.lookup viewLayoutVaultKey (vault ?request) of

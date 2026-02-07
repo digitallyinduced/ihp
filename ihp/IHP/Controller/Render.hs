@@ -90,7 +90,7 @@ data PolymorphicRender
 -- >     }
 --
 -- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
-{-# INLINABLE renderPolymorphic #-}
+{-# INLINE renderPolymorphic #-}
 renderPolymorphic :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let acceptHeader = lookup hAccept (Network.Wai.requestHeaders request)
