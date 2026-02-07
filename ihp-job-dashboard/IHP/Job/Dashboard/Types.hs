@@ -8,8 +8,6 @@ module IHP.Job.Dashboard.Types (
     JobsDashboardController(..),
     TableViewable(..),
     IncludeWrapper(..),
-    baseJobDecoder,
-    sqlIdentifier,
 ) where
 
 import IHP.Prelude
@@ -18,9 +16,6 @@ import IHP.ViewPrelude (Html)
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
 import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
 import IHP.Job.Queue () -- get FromField definition for JobStatus
-import qualified Hasql.Decoders as Decoders
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import qualified Data.Text as Text
 
 
 data BaseJob = BaseJob {
@@ -54,28 +49,6 @@ class TableViewable a where
 instance FromRow BaseJob where
     fromRow = BaseJob <$> field <*> field <*> field <*> field <*> field <*> field
 
-jobStatusDecoder :: Decoders.Value JobStatus
-jobStatusDecoder = Decoders.enum (Just "public") "job_status" \case
-    "job_status_not_started" -> Just JobStatusNotStarted
-    "job_status_running" -> Just JobStatusRunning
-    "job_status_failed" -> Just JobStatusFailed
-    "job_status_timed_out" -> Just JobStatusTimedOut
-    "job_status_succeeded" -> Just JobStatusSucceeded
-    "job_status_retry" -> Just JobStatusRetry
-    _ -> Nothing
-
-baseJobDecoder :: Decoders.Row BaseJob
-baseJobDecoder = BaseJob
-    <$> Decoders.column (Decoders.nonNullable Decoders.text)        -- table
-    <*> Decoders.column (Decoders.nonNullable Decoders.uuid)        -- id
-    <*> Decoders.column (Decoders.nonNullable jobStatusDecoder)     -- status
-    <*> Decoders.column (Decoders.nonNullable Decoders.timestamptz) -- updatedAt
-    <*> Decoders.column (Decoders.nonNullable Decoders.timestamptz) -- createdAt
-    <*> Decoders.column (Decoders.nullable Decoders.text)           -- lastError
-
--- | Safely quote a SQL identifier (table name) by escaping double quotes.
-sqlIdentifier :: Text -> Snippet.Snippet
-sqlIdentifier name = Snippet.sql ("\"" <> Text.replace "\"" "\"\"" name <> "\"")
 
 -- | Often, jobs are related to some model type. These relations are modeled through the type system.
 -- For example, the type 'Include "userId" UpdateUserJob' models an 'UpdateUserJob' type that can access

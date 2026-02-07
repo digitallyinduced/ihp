@@ -40,7 +40,7 @@ import IHP.Job.Queue ()
 import IHP.Pagination.Types
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
-import Database.PostgreSQL.Simple.Types (In(..))
+import Database.PostgreSQL.Simple.Types (In(..), Query(..))
 import qualified Network.Wai as Wai
 import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
@@ -212,7 +212,7 @@ instance JobsDashboard '[] where
                 let tableName = param "tableName"
                 withHasqlOrPgSimple
                     (\pool -> sqlExecHasql pool (Snippet.sql "INSERT INTO " <> sqlIdentifier tableName <> Snippet.sql " DEFAULT VALUES"))
-                    (sqlExec (cs $ "INSERT INTO " <> tableName <> " DEFAULT VALUES") () >> pure ())
+                    (sqlExec (Query (cs $ "INSERT INTO " <> tableName <> " DEFAULT VALUES")) () >> pure ())
 
     deleteJob = error "deleteJob: Requested job type not in JobsDashboard Type"
     deleteJob' _ = do
@@ -225,7 +225,7 @@ instance JobsDashboard '[] where
         where
             delete id table = withHasqlOrPgSimple
                 (\pool -> sqlExecHasql pool (Snippet.sql "DELETE FROM " <> sqlIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id))
-                (sqlExec (cs $ "DELETE FROM " <> table <> " WHERE id = ?") (Only id) >> pure ())
+                (sqlExec (Query (cs $ "DELETE FROM " <> table <> " WHERE id = ?")) (Only id) >> pure ())
 
     retryJob = error "retryJob: Requested job type not in JobsDashboard Type"
     retryJob' = do
@@ -238,7 +238,7 @@ instance JobsDashboard '[] where
         where
             retryJobById table id = withHasqlOrPgSimple
                 (\pool -> sqlExecHasql pool (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id))
-                (sqlExec (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?") (Only id) >> pure ())
+                (sqlExec (Query (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?")) (Only id) >> pure ())
 
 
 -- | Defines the default implementation for a dashboard of a list of job types.
@@ -357,7 +357,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
             table :: Text = param "tableName"
             retryJobById table id = withHasqlOrPgSimple
                 (\pool -> sqlExecHasql pool (Snippet.sql "UPDATE " <> sqlIdentifier table <> Snippet.sql " SET status = 'job_status_retry' WHERE id = " <> Snippet.param id))
-                (sqlExec (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?") (Only id) >> pure ())
+                (sqlExec (Query (cs $ "UPDATE " <> table <> " SET status = 'job_status_retry' WHERE id = ?")) (Only id) >> pure ())
         retryJobById table id
         setSuccessMessage (columnNameToFieldLabel table <> " record marked as 'retry'.")
         redirectTo ListJobsAction
@@ -367,6 +367,25 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
         if tableName @job == table
             then retryJob @(job:rest) table (param "id")
             else retryJob' @rest
+
+jobStatusDecoder :: Decoders.Value JobStatus
+jobStatusDecoder = Decoders.enum (Just "public") "job_status" \case
+    "job_status_not_started" -> Just JobStatusNotStarted
+    "job_status_running" -> Just JobStatusRunning
+    "job_status_failed" -> Just JobStatusFailed
+    "job_status_timed_out" -> Just JobStatusTimedOut
+    "job_status_succeeded" -> Just JobStatusSucceeded
+    "job_status_retry" -> Just JobStatusRetry
+    _ -> Nothing
+
+baseJobDecoder :: Decoders.Row BaseJob
+baseJobDecoder = BaseJob
+    <$> Decoders.column (Decoders.nonNullable Decoders.text)        -- table
+    <*> Decoders.column (Decoders.nonNullable Decoders.uuid)        -- id
+    <*> Decoders.column (Decoders.nonNullable jobStatusDecoder)     -- status
+    <*> Decoders.column (Decoders.nonNullable Decoders.timestamptz) -- updatedAt
+    <*> Decoders.column (Decoders.nonNullable Decoders.timestamptz) -- createdAt
+    <*> Decoders.column (Decoders.nullable Decoders.text)           -- lastError
 
 getNotIncludedTableNames :: (?modelContext :: ModelContext) => [Text] -> IO [Text]
 getNotIncludedTableNames includedNames = withHasqlOrPgSimple
@@ -384,7 +403,7 @@ buildBaseJobTable tableName = do
             (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
                 <> sqlIdentifier tableName <> Snippet.sql " ORDER BY created_at DESC LIMIT 10")
             (Decoders.rowList baseJobDecoder))
-        (sqlQuery (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> tableName <> " ORDER BY created_at DESC LIMIT 10") (Only tableName))
+        (sqlQuery (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> tableName <> " ORDER BY created_at DESC LIMIT 10")) (Only tableName))
     baseJobs
         |> renderBaseJobTable tableName
         |> HtmlView
@@ -415,7 +434,7 @@ queryBaseJob table id = withHasqlOrPgSimple
         (Decoders.singleRow baseJobDecoder))
     (do
         (job : _) <- sqlQuery
-            (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " WHERE id = ?")
+            (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " WHERE id = ?"))
             [table, tshow id]
         pure job)
 
@@ -426,7 +445,7 @@ queryBaseJobsFromTablePaginated table page pageSize = withHasqlOrPgSimple
             <> sqlIdentifier table <> Snippet.sql " OFFSET " <> Snippet.param (page * pageSize) <> Snippet.sql " LIMIT " <> Snippet.param pageSize)
         (Decoders.rowList baseJobDecoder))
     (sqlQuery
-        (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize)
+        (Query (cs $ "SELECT ?, id, status, updated_at, created_at, last_error FROM " <> table <> " OFFSET " <> tshow (page * pageSize) <> " LIMIT " <> tshow pageSize))
         (Only table))
 
 instance (JobsDashboard jobs, AuthenticationMethod authType) => Controller (JobsDashboardController authType jobs) where
