@@ -327,43 +327,25 @@ applyConstr parseIdType constructor query = let
 
 class Data controller => AutoRoute controller where
     autoRouteWithIdType :: (?request :: Request, ?respond :: Respond, Data idType) => (ByteString -> Maybe idType) -> Parser controller
-    autoRouteWithIdType parseIdFunc =
-        let
-            allConstructors :: [Constr]
-            allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
-
-            prefix :: ByteString
-            prefix = Text.encodeUtf8 (actionPrefixText @controller)
-
-            query :: Query
-            query = queryString ?request
-
-            paramValues :: [ByteString]
-            paramValues = catMaybes $ map snd query
-
-            parseAction :: Constr -> Parser controller
-            parseAction constr = let
-                    actionName = ByteString.pack (showConstr constr)
-
-                    actionPath :: ByteString
-                    actionPath = stripActionSuffixByteString actionName
-
-                    allowedMethods = allowedMethodsForAction @controller actionName
-
-                    checkRequestMethod action = do
-                            method <- getMethod
-                            unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
-                            pure action
-
-                    action = case applyConstr parseIdFunc constr query of
-                        Right parsedAction -> pure parsedAction
-                        Left e -> Exception.throw e
-
-                in do
-                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> action
-                    checkRequestMethod parsedAction
-
-        in choice (map parseAction allConstructors)
+    autoRouteWithIdType parseIdFunc = do
+        constr <- urlParser
+        let query = queryString ?request
+        case applyConstr parseIdFunc constr query of
+            Right parsedAction -> do
+                let actionName = ByteString.pack (showConstr constr)
+                let allowedMethods = allowedMethodsForAction @controller actionName
+                method <- getMethod
+                unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                pure parsedAction
+            Left e -> Exception.throw e
+      where
+        -- URL matching parser — does not capture ?request so GHC can float it to a CAF
+        urlParser = choice (map matchConstr allConstructors)
+        matchConstr constr =
+            let actionPath = stripActionSuffixByteString (ByteString.pack (showConstr constr))
+            in string prefix >> string actionPath <* endOfInput >> pure constr
+        allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+        prefix = Text.encodeUtf8 (actionPrefixText @controller)
     {-# INLINABLE autoRouteWithIdType #-}
 
     autoRoute :: (?request :: Request, ?respond :: Respond) => Parser controller
