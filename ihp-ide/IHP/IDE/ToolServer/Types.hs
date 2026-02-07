@@ -164,19 +164,19 @@ newtype WebControllers = WebControllers [Text]
 
 newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool
 
-availableAppsVaultKey :: Vault.Key (IORef AvailableApps)
+availableAppsVaultKey :: Vault.Key AvailableApps
 availableAppsVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE availableAppsVaultKey #-}
 
-webControllersVaultKey :: Vault.Key (IORef WebControllers)
+webControllersVaultKey :: Vault.Key WebControllers
 webControllersVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE webControllersVaultKey #-}
 
-appUrlVaultKey :: Vault.Key (IORef AppUrl)
+appUrlVaultKey :: Vault.Key AppUrl
 appUrlVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE appUrlVaultKey #-}
 
-databaseNeedsMigrationVaultKey :: Vault.Key (IORef DatabaseNeedsMigration)
+databaseNeedsMigrationVaultKey :: Vault.Key DatabaseNeedsMigration
 databaseNeedsMigrationVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE databaseNeedsMigrationVaultKey #-}
 
