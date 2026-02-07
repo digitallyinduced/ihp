@@ -10,18 +10,18 @@ import qualified IHP.ViewSupport as ViewSupport
 import qualified Data.Aeson
 import IHP.ControllerSupport
 import qualified Network.HTTP.Media as Accept
-import qualified Data.List as List
+
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-import IHP.Controller.Context (ControllerContext, putContext)
+import IHP.Controller.Context (ControllerContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/plain")] text
-{-# INLINABLE renderPlain #-}
+{-# INLINE renderPlain #-}
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html = do
@@ -33,7 +33,7 @@ respondHtml html = do
         -- message instead of our nice IHP error message design.
         _ <- evaluate (Data.ByteString.Lazy.length bs)
         respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
-{-# INLINABLE respondHtml #-}
+{-# INLINE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
@@ -50,28 +50,28 @@ renderHtml !view = do
 
     let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
     pure boundHtml
-{-# INLINABLE renderHtml #-}
+{-# INLINE renderHtml #-}
 
 renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExitWithHeaders $ responseFile status200 [(hContentType, contentType)] filePath Nothing
-{-# INLINABLE renderFile #-}
+{-# INLINE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = renderJsonWithStatusCode status200 json
-{-# INLINABLE renderJson #-}
+{-# INLINE renderJson #-}
 
 renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
 renderJsonWithStatusCode statusCode json = respondAndExitWithHeaders $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
-{-# INLINABLE renderJsonWithStatusCode #-}
+{-# INLINE renderJsonWithStatusCode #-}
 
 renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
 renderXml xml = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "application/xml")] xml
-{-# INLINABLE renderXml #-}
+{-# INLINE renderXml #-}
 
 -- | Use 'setHeader' instead
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExitWithHeaders $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
-{-# INLINABLE renderJson' #-}
+{-# INLINE renderJson' #-}
 
 data PolymorphicRender
     = PolymorphicRender
@@ -90,7 +90,7 @@ data PolymorphicRender
 -- >     }
 --
 -- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
-{-# INLINABLE renderPolymorphic #-}
+{-# INLINE renderPolymorphic #-}
 renderPolymorphic :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
     let acceptHeader = lookup hAccept (Network.Wai.requestHeaders request)
@@ -116,16 +116,13 @@ polymorphicRender :: PolymorphicRender
 polymorphicRender = PolymorphicRender Nothing Nothing
 
 
-{-# INLINABLE render #-}
+{-# INLINE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Network.Wai.Request, ?respond :: Respond) => view -> IO ()
 render !view = do
-    -- Get the current request from the context
     let !currentRequest = ?request
     renderPolymorphic PolymorphicRender
             { html = Just do
                     let next request respond = do
-                            -- Store the modified request (with flash messages in vault) in the context
-                            putContext request
                             let ?request = request in ((renderHtml view) >>= respondHtml)
                             error "unreachable"
                     _ <- consumeFlashMessagesMiddleware next currentRequest ?respond

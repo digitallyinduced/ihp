@@ -33,7 +33,7 @@ respondAndExitWithHeaders response = do
 --
 addResponseHeaders :: [Header] -> Response -> Response
 addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
-{-# INLINABLE addResponseHeaders #-}
+{-# INLINE addResponseHeaders #-}
 
 -- | Add headers to current response, getting the headers from ControllerContext
 -- | Returns a Response with headers
@@ -47,7 +47,7 @@ addResponseHeadersFromContext response = do
     let headers = fromMaybe [] maybeHeaders
     let responseWithHeaders = addResponseHeaders headers response
     pure responseWithHeaders
-{-# INLINABLE addResponseHeadersFromContext #-}
+{-# INLINE addResponseHeadersFromContext #-}
 
 -- Can be thrown from inside the action to abort the current action execution.
 -- Does not indicates a runtime error. It's just used for control flow management.

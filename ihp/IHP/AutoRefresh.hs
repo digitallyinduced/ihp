@@ -276,6 +276,7 @@ initAutoRefreshMiddleware pgListener = do
         let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer request.vault }
         app request' respond
 
+{-# INLINE autoRefreshServerFromRequest #-}
 autoRefreshServerFromRequest :: Request -> IORef AutoRefreshServer
 autoRefreshServerFromRequest request =
     case Vault.lookup autoRefreshVaultKey request.vault of

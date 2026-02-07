@@ -97,7 +97,7 @@ runAction' controller waiRequest waiRespond = do
     case contextOrErrorResponse of
         Left res -> res
         Right context -> let ?context = context in runAction controller
-{-# INLINABLE runAction' #-}
+{-# INLINE runAction' #-}
 
 class FrontController application where
     controllers
@@ -889,7 +889,7 @@ catchAll action = do
     string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
     pure (runAction' @application action)
-{-# INLINABLE catchAll #-}
+{-# INLINE catchAll #-}
 
 -- | This instances makes it possible to write @<a href={MyAction}/>@ in HSX
 instance {-# OVERLAPPABLE #-} (HasPath action) => ConvertibleStrings action Html5.AttributeValue where
