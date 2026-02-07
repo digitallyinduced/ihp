@@ -21,7 +21,7 @@ import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
 renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
 renderPlain text = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/plain")] text
-{-# INLINABLE renderPlain #-}
+{-# INLINE renderPlain #-}
 
 respondHtml :: (?context :: ControllerContext) => Html -> IO ()
 respondHtml html = do
@@ -33,7 +33,7 @@ respondHtml html = do
         -- message instead of our nice IHP error message design.
         _ <- evaluate (Data.ByteString.Lazy.length bs)
         respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
-{-# INLINABLE respondHtml #-}
+{-# INLINE respondHtml #-}
 
 respondSvg :: (?context :: ControllerContext) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
@@ -50,28 +50,28 @@ renderHtml !view = do
 
     let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
     pure boundHtml
-{-# INLINABLE renderHtml #-}
+{-# INLINE renderHtml #-}
 
 renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExitWithHeaders $ responseFile status200 [(hContentType, contentType)] filePath Nothing
-{-# INLINABLE renderFile #-}
+{-# INLINE renderFile #-}
 
 renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = renderJsonWithStatusCode status200 json
-{-# INLINABLE renderJson #-}
+{-# INLINE renderJson #-}
 
 renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
 renderJsonWithStatusCode statusCode json = respondAndExitWithHeaders $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
-{-# INLINABLE renderJsonWithStatusCode #-}
+{-# INLINE renderJsonWithStatusCode #-}
 
 renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
 renderXml xml = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "application/xml")] xml
-{-# INLINABLE renderXml #-}
+{-# INLINE renderXml #-}
 
 -- | Use 'setHeader' instead
 renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExitWithHeaders $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
-{-# INLINABLE renderJson' #-}
+{-# INLINE renderJson' #-}
 
 data PolymorphicRender
     = PolymorphicRender
