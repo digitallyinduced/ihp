@@ -91,6 +91,7 @@ common shared-properties
             , countable-inflections
             , ihp-migrate
             , hasql
+            , hasql-pool
             , hasql-dynamic-statements
             , hasql-implicits
     default-extensions:
