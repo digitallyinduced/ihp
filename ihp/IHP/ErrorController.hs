@@ -57,7 +57,7 @@ handleNoResponseReturned controller = do
     let title = [hsx|No response returned in {tshow controller}|]
     ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
-displayException :: (Show action, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -87,10 +87,7 @@ displayException exception action additionalInfo = do
     --
     when (?context.frameworkConfig.environment == Environment.Production) do
         let exceptionTracker = ?context.frameworkConfig.exceptionTracker.onException
-        let request = ?context.request
-
-
-        exceptionTracker (Just request) exception
+        exceptionTracker (Just ?request) exception
 
     supportingHandlers
         |> listToMaybe
@@ -205,11 +202,10 @@ patternMatchFailureHandler exception controller additionalInfo = do
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
 -- Only used in dev mode of the app.
 
-paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
-            let ?request = ?context.request
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
             let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]
@@ -315,11 +311,11 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->
-            Just (handleNotFound ?context.request ?respond)
+            Just (handleNotFound ?request ?respond)
         Nothing -> Nothing
 
 handleRouterException :: Environment.Environment -> SomeException -> Application
