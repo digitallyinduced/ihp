@@ -22,7 +22,7 @@ import qualified Network.Wai
 -- >             , setCookieValue = "exampleValue"
 -- >             }
 -- 
-setCookie :: (?context :: ControllerContext) => SetCookie -> IO ()
+setCookie :: (?request :: Network.Wai.Request) => SetCookie -> IO ()
 setCookie cookie = setHeader ("Set-Cookie", cookieString)
     where
         cookieString = cookie

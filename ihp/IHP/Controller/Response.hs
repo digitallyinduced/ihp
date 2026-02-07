@@ -4,15 +4,18 @@ module IHP.Controller.Response
 , addResponseHeaders
 , addResponseHeadersFromContext
 , ResponseException (..)
+, responseHeadersVaultKey
 )
 where
 
 import ClassyPrelude
 import Network.HTTP.Types.Header
-import qualified IHP.Controller.Context as Context
 import qualified Network.Wai
-import Network.Wai (Response)
+import Network.Wai (Response, Request)
 import qualified Control.Exception as Exception
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (lookupRequestVault)
 
 -- | Simple version - just throws the response, no context needed
 respondAndExit :: Response -> IO ()
@@ -20,7 +23,7 @@ respondAndExit response = Exception.throwIO (ResponseException response)
 {-# INLINE respondAndExit #-}
 
 -- | Version that adds headers from context (for render, etc.)
-respondAndExitWithHeaders :: (?context :: Context.ControllerContext) => Response -> IO ()
+respondAndExitWithHeaders :: (?request :: Request) => Response -> IO ()
 respondAndExitWithHeaders response = do
     responseWithHeaders <- addResponseHeadersFromContext response
     Exception.throwIO (ResponseException responseWithHeaders)
@@ -35,16 +38,15 @@ addResponseHeaders :: [Header] -> Response -> Response
 addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
 {-# INLINE addResponseHeaders #-}
 
--- | Add headers to current response, getting the headers from ControllerContext
+-- | Add headers to current response, getting the headers from the request vault
 -- | Returns a Response with headers
 --
 -- > addResponseHeadersFromContext response
 -- You probabaly want `setHeader`
 --
-addResponseHeadersFromContext :: (?context :: Context.ControllerContext) => Response -> IO Response
+addResponseHeadersFromContext :: (?request :: Request) => Response -> IO Response
 addResponseHeadersFromContext response = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
+    headers <- readIORef (lookupRequestVault responseHeadersVaultKey ?request)
     let responseWithHeaders = addResponseHeaders headers response
     pure responseWithHeaders
 {-# INLINE addResponseHeadersFromContext #-}
@@ -56,3 +58,7 @@ newtype ResponseException = ResponseException Response
 instance Show ResponseException where show _ = "ResponseException { .. }"
 
 instance Exception ResponseException
+
+responseHeadersVaultKey :: Vault.Key (IORef [Header])
+responseHeadersVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE responseHeadersVaultKey #-}

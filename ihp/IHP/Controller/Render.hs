@@ -19,11 +19,11 @@ import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
-renderPlain :: (?context :: ControllerContext) => LByteString -> IO ()
+renderPlain :: (?request :: Network.Wai.Request) => LByteString -> IO ()
 renderPlain text = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/plain")] text
 {-# INLINE renderPlain #-}
 
-respondHtml :: (?context :: ControllerContext) => Html -> IO ()
+respondHtml :: (?request :: Network.Wai.Request) => Html -> IO ()
 respondHtml html = do
         let !bs = Blaze.renderHtml html
         -- We force the full evaluation of the blaze html to catch any runtime errors
@@ -35,7 +35,7 @@ respondHtml html = do
         respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
 {-# INLINE respondHtml #-}
 
-respondSvg :: (?context :: ControllerContext) => Html -> IO ()
+respondSvg :: (?request :: Network.Wai.Request) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
 {-# INLINABLE respondSvg #-}
 
@@ -52,24 +52,24 @@ renderHtml !view = do
     pure boundHtml
 {-# INLINE renderHtml #-}
 
-renderFile :: (?context :: ControllerContext) => String -> ByteString -> IO ()
+renderFile :: (?request :: Network.Wai.Request) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExitWithHeaders $ responseFile status200 [(hContentType, contentType)] filePath Nothing
 {-# INLINE renderFile #-}
 
-renderJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderJson :: (?request :: Network.Wai.Request) => Data.Aeson.ToJSON json => json -> IO ()
 renderJson json = renderJsonWithStatusCode status200 json
 {-# INLINE renderJson #-}
 
-renderJsonWithStatusCode :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => Status -> json -> IO ()
+renderJsonWithStatusCode :: (?request :: Network.Wai.Request) => Data.Aeson.ToJSON json => Status -> json -> IO ()
 renderJsonWithStatusCode statusCode json = respondAndExitWithHeaders $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
 {-# INLINE renderJsonWithStatusCode #-}
 
-renderXml :: (?context :: ControllerContext) => LByteString -> IO ()
+renderXml :: (?request :: Network.Wai.Request) => LByteString -> IO ()
 renderXml xml = respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "application/xml")] xml
 {-# INLINE renderXml #-}
 
 -- | Use 'setHeader' instead
-renderJson' :: (?context :: ControllerContext) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
+renderJson' :: (?request :: Network.Wai.Request) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ()
 renderJson' additionalHeaders json = respondAndExitWithHeaders $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINE renderJson' #-}
 

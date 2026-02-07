@@ -25,9 +25,11 @@ module IHP.ControllerSupport
 , setHeader
 , getAppConfig
 , Respond
+, rlsContextVaultKey
 ) where
 
 import Prelude
+import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
@@ -57,6 +59,9 @@ import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
 import IHP.ActionType (setActionType)
+import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
 
@@ -134,12 +139,16 @@ runActionWithNewContext controller = do
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
 --
 -- If row leve security wasn't enabled, this will just return the current model context.
-prepareRLSIfNeeded :: (?context :: ControllerContext) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded :: (?request :: Network.Wai.Request) => ModelContext -> IO ModelContext
 prepareRLSIfNeeded modelContext = do
-    rowLevelSecurityContext <- Context.maybeFromContext
+    rowLevelSecurityContext <- readIORef (lookupRequestVault rlsContextVaultKey ?request)
     case rowLevelSecurityContext of
         Just context -> pure modelContext { rowLevelSecurity = Just context }
         Nothing -> pure modelContext
+
+rlsContextVaultKey :: Vault.Key (IORef (Maybe RowLevelSecurityContext))
+rlsContextVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE rlsContextVaultKey #-}
 
 {-# INLINE startWebSocketApp #-}
 startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
@@ -214,11 +223,10 @@ getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 --
 -- >>> setHeader ("Content-Language", "en")
 --
-setHeader :: (?context :: ControllerContext) => Header -> IO ()
+setHeader :: (?request :: Network.Wai.Request) => Header -> IO ()
 setHeader header = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
-    Context.putContext (header : headers)
+    let headersRef = lookupRequestVault responseHeadersVaultKey ?request
+    modifyIORef' headersRef (header :)
 {-# INLINABLE setHeader #-}
 
 -- | Returns the current HTTP request.

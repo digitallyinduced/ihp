@@ -36,6 +36,7 @@ import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.AutoRefresh as AutoRefresh
 import IHP.Controller.Context
+import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
@@ -51,6 +52,9 @@ import IHP.Controller.NotFound (handleNotFound)
 import IHP.Controller.Session (sessionVaultKey)
 import Paths_ihp_ide (getDataFileName)
 import IHP.RequestVault
+import qualified Data.Vault.Lazy as Vault
+import IHP.Controller.Response (responseHeadersVaultKey)
+import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
@@ -116,9 +120,28 @@ buildToolServerApplication toolServerApplication port liveReloadClients = do
     let innerApplication :: Wai.Application = \request respond -> do
             frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+
+    let toolServerVaultMiddleware app req respond = do
+            availableApps <- AvailableApps <$> findApplications
+            webControllers <- WebControllers <$> findWebControllers
+            let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
+            appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
+            databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
+            let req' = req { vault = Vault.insert availableAppsVaultKey availableApps
+                                   . Vault.insert webControllersVaultKey webControllers
+                                   . Vault.insert appUrlVaultKey appUrl
+                                   . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
+                                   $ req.vault }
+            app req' respond
+
     let application =
             methodOverridePost $ sessionMiddleware $ approotMiddleware
                 $ viewLayoutMiddleware
+                $ responseHeadersMiddleware
+                $ rlsContextMiddleware
+                $ toolServerVaultMiddleware
                 $ modelContextMiddleware modelContext
                 $ frameworkConfigMiddleware frameworkConfig
                 $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
@@ -174,23 +197,4 @@ instance FrontController ToolServerApplication where
 
 instance ControllerSupport.InitControllerContext ToolServerApplication where
     initContext = do
-        availableApps <- AvailableApps <$> findApplications
-        webControllers <- WebControllers <$> findWebControllers
-
-        appPort <- Helper.theAppPort
-        let defaultAppUrl = "http://localhost:" <> tshow appPort
-        appUrl :: Text <- EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
-
-        putContext availableApps
-        putContext webControllers
-        putContext (AppUrl appUrl)
         setLayout Layout.toolServerLayout
-
-        databaseNeedsMigration <- readDatabaseNeedsMigration
-        putContext (DatabaseNeedsMigration databaseNeedsMigration)
-
-
-readDatabaseNeedsMigration :: (?context :: ControllerContext) => IO Bool
-readDatabaseNeedsMigration = do
-    context <- fromContext @ToolServerApplication
-    readIORef context.databaseNeedsMigration

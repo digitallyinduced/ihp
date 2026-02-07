@@ -21,6 +21,8 @@ common shared-properties
         , ihp-hsx
         , text
         , blaze-html
+        , vault
+        , wai
     default-extensions:
         OverloadedStrings
         , ImplicitParams

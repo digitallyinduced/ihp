@@ -29,10 +29,11 @@ import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
+import IHP.RequestVault.Helper (lookupRequestVault)
 
-initAutoRefresh :: (?context :: ControllerContext) => IO ()
+initAutoRefresh :: (?request :: Request) => IO ()
 initAutoRefresh = do
-    putContext AutoRefreshDisabled
+    writeIORef (lookupRequestVault autoRefreshStateVaultKey ?request) AutoRefreshDisabled
 
 autoRefresh :: (
     ?theAction :: action
@@ -42,7 +43,7 @@ autoRefresh :: (
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    autoRefreshState <- fromContext @AutoRefreshState
+    autoRefreshState <- readIORef (lookupRequestVault autoRefreshStateVaultKey ?request)
     let autoRefreshServer = autoRefreshServerFromRequest request
 
     case autoRefreshState of
@@ -69,7 +70,7 @@ autoRefresh runAction = do
                     putContext waiRequest'
                     action ?theAction
 
-            putContext (AutoRefreshEnabled id)
+            writeIORef (lookupRequestVault autoRefreshStateVaultKey ?request) (AutoRefreshEnabled id)
 
             -- We save the allowed session ids to the session cookie to only grant a client access
             -- to sessions it initially opened itself
@@ -269,11 +270,18 @@ autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
 autoRefreshVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshVaultKey #-}
 
+autoRefreshStateVaultKey :: Vault.Key (IORef AutoRefreshState)
+autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE autoRefreshStateVaultKey #-}
+
 initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
 initAutoRefreshMiddleware pgListener = do
     autoRefreshServer <- newIORef (newAutoRefreshServer pgListener)
     pure \app request respond -> do
-        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer request.vault }
+        autoRefreshStateRef <- newIORef AutoRefreshDisabled
+        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer
+                                       . Vault.insert autoRefreshStateVaultKey autoRefreshStateRef
+                                       $ request.vault }
         app request' respond
 
 {-# INLINE autoRefreshServerFromRequest #-}
