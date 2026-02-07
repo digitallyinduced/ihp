@@ -93,19 +93,24 @@ data PolymorphicRender
 {-# INLINABLE renderPolymorphic #-}
 renderPolymorphic :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => PolymorphicRender -> IO ()
 renderPolymorphic PolymorphicRender { html, json } = do
-    let headers = Network.Wai.requestHeaders request
-    let acceptHeader = snd (fromMaybe (hAccept, "text/html") (List.find (\(headerName, _) -> headerName == hAccept) headers)) :: ByteString
-    let send406Error = respondAndExitWithHeaders $ responseLBS status406 [] "Could not find any acceptable response format"
-    let formats = concat [
-                case html of
-                    Just handler -> [("text/html", handler)]
-                    Nothing -> mempty
-                 ,
-                case json of
-                    Just handler -> [("application/json", handler)]
-                    Nothing -> mempty
-            ]
-    fromMaybe send406Error (Accept.mapAcceptMedia formats acceptHeader)
+    let acceptHeader = lookup hAccept (Network.Wai.requestHeaders request)
+    case acceptHeader of
+        -- Fast path: no Accept header or starts with text/html — dispatch directly
+        Nothing | Just handler <- html -> handler
+        Just h | "text/html" `isPrefixOf` h, Just handler <- html -> handler
+        _ -> do
+            let accept = fromMaybe "text/html" acceptHeader
+            let send406Error = respondAndExitWithHeaders $ responseLBS status406 [] "Could not find any acceptable response format"
+            let formats = concat [
+                        case html of
+                            Just handler -> [("text/html", handler)]
+                            Nothing -> mempty
+                         ,
+                        case json of
+                            Just handler -> [("application/json", handler)]
+                            Nothing -> mempty
+                    ]
+            fromMaybe send406Error (Accept.mapAcceptMedia formats accept)
 
 polymorphicRender :: PolymorphicRender
 polymorphicRender = PolymorphicRender Nothing Nothing
