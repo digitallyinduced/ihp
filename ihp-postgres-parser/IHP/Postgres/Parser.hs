@@ -229,20 +229,70 @@ parseColumn = do
     name <- identifier
     columnType <- sqlType
     space
-    defaultValue <- optional do
-        lexeme "DEFAULT"
-        expression
-    generator <- optional do
-        lexeme "GENERATED"
-        lexeme "ALWAYS"
-        lexeme "AS"
-        generate <- expression
-        stored <- isJust <$> optional (lexeme "STORED")
-        pure ColumnGenerator { generate, stored }
-    primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
-    notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
-    isUnique <- isJust <$> optional (lexeme "UNIQUE")
+    attributes <- many parseColumnAttribute
+    let defaultValues = [value | ParsedDefaultValue value <- attributes]
+    let generators = [value | ParsedGenerator value <- attributes]
+    let primaryKeyCount = length [() | ParsedPrimaryKey <- attributes]
+    let notNullCount = length [() | ParsedNotNull <- attributes]
+    let uniqueCount = length [() | ParsedUnique <- attributes]
+
+    when (length defaultValues > 1) (fail ("Multiple DEFAULT constraints on column " <> cs name))
+    when (length generators > 1) (fail ("Multiple GENERATED constraints on column " <> cs name))
+    when (primaryKeyCount > 1) (fail ("Multiple PRIMARY KEY constraints on column " <> cs name))
+    when (notNullCount > 1) (fail ("Multiple NOT NULL constraints on column " <> cs name))
+    when (uniqueCount > 1) (fail ("Multiple UNIQUE constraints on column " <> cs name))
+
+    let defaultValue = listToMaybe defaultValues
+    let generator = listToMaybe generators
+    let primaryKey = primaryKeyCount == 1
+    let notNull = notNullCount == 1
+    let isUnique = uniqueCount == 1
     pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique, generator })
+    where
+        parseColumnAttribute =
+            try parseDefaultValueAttribute
+            <|> try parseGeneratorAttribute
+            <|> try parsePrimaryKeyAttribute
+            <|> try parseNotNullAttribute
+            <|> parseUniqueAttribute
+
+        parseDefaultValueAttribute = do
+            lexeme "DEFAULT"
+            ParsedDefaultValue <$> expression
+
+        parseGeneratorAttribute = do
+            lexeme "GENERATED"
+            lexeme "ALWAYS"
+            lexeme "AS"
+            generate <- expression
+            stored <- isJust <$> optional (lexeme "STORED")
+            pure (ParsedGenerator ColumnGenerator { generate, stored })
+
+        parsePrimaryKeyAttribute = do
+            lexeme "PRIMARY"
+            lexeme "KEY"
+            pure ParsedPrimaryKey
+
+        parseNotNullAttribute = do
+            lexeme "NOT"
+            lexeme "NULL"
+            pure ParsedNotNull
+
+        parseUniqueAttribute = do
+            lexeme "UNIQUE"
+            pure ParsedUnique
+
+        listToMaybe = \case
+            value : _ -> Just value
+            [] -> Nothing
+
+data ParsedColumnAttribute
+    = ParsedDefaultValue Expression
+    | ParsedGenerator ColumnGenerator
+    | ParsedPrimaryKey
+    | ParsedNotNull
+    | ParsedUnique
+    deriving (Eq)
 
 sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
