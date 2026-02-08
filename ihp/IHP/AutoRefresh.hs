@@ -30,10 +30,10 @@ import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified Data.TMap as TypeMap
 
 initAutoRefresh :: (?request :: Request) => IO ()
-initAutoRefresh = do
-    writeIORef (lookupRequestVault autoRefreshStateVaultKey ?request) AutoRefreshDisabled
+initAutoRefresh = pure ()
 
 autoRefresh :: (
     ?theAction :: action
@@ -43,7 +43,7 @@ autoRefresh :: (
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    autoRefreshState <- readIORef (lookupRequestVault autoRefreshStateVaultKey ?request)
+    let autoRefreshState = lookupRequestVault autoRefreshStateVaultKey ?request
     let autoRefreshServer = autoRefreshServerFromRequest request
 
     case autoRefreshState of
@@ -51,6 +51,13 @@ autoRefresh runAction = do
             availableSessions <- getAvailableSessions autoRefreshServer
 
             id <- UUID.nextRandom
+
+            -- Update the vault with AutoRefreshEnabled so that autoRefreshMeta can read it
+            let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
+            let ?request = newRequest
+            -- Update request in controller context so freeze captures the updated state
+            let ControllerContext { customFieldsRef } = ?context
+            modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
 
             -- We save the current state of the controller context here. This includes e.g. all current
             -- flash messages, the current user, ...
@@ -69,8 +76,6 @@ autoRefresh runAction = do
                     let ?respond = waiRespond
                     putContext waiRequest'
                     action ?theAction
-
-            writeIORef (lookupRequestVault autoRefreshStateVaultKey ?request) (AutoRefreshEnabled id)
 
             -- We save the allowed session ids to the session cookie to only grant a client access
             -- to sessions it initially opened itself
@@ -270,7 +275,7 @@ autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
 autoRefreshVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshVaultKey #-}
 
-autoRefreshStateVaultKey :: Vault.Key (IORef AutoRefreshState)
+autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshStateVaultKey #-}
 
@@ -278,9 +283,8 @@ initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
 initAutoRefreshMiddleware pgListener = do
     autoRefreshServer <- newIORef (newAutoRefreshServer pgListener)
     pure \app request respond -> do
-        autoRefreshStateRef <- newIORef AutoRefreshDisabled
         let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer
-                                       . Vault.insert autoRefreshStateVaultKey autoRefreshStateRef
+                                       . Vault.insert autoRefreshStateVaultKey AutoRefreshDisabled
                                        $ request.vault }
         app request' respond
 
