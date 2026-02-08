@@ -1,0 +1,72 @@
+name: "ihp-app-test (devenv up)"
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: master
+jobs:
+  app-test:
+    runs-on: ARM64
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        path: IHP
+
+    - name: Clone ihp-boilerplate
+      uses: actions/checkout@v6
+      with:
+        repository: digitallyinduced/ihp-boilerplate
+        path: ihp-boilerplate
+
+    - name: Point boilerplate at local IHP checkout
+      working-directory: ihp-boilerplate
+      run: |
+        IHP_PATH="$(cd ../IHP && pwd)"
+        sed -i "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix
+        cat flake.nix
+        nix flake update
+
+    - name: Start devenv up and run smoke tests
+      working-directory: ihp-boilerplate
+      run: |
+        set -euo pipefail
+
+        devenv up &
+        DEVENV_PID=$!
+        trap "kill $DEVENV_PID 2>/dev/null; wait $DEVENV_PID 2>/dev/null" EXIT
+
+        echo "Waiting for IHP server to start..."
+        for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/ > /dev/null 2>&1; then
+                echo "IHP server is ready (after ~$((i * 2))s)"
+                break
+            fi
+            if [ "$i" -eq 60 ]; then
+                echo "FAIL: IHP server did not start within 120s"
+                LOG=".devenv/state/process-compose/process-compose.log"
+                echo "--- process-compose.log ---"
+                cat "$LOG" 2>/dev/null || echo "(log file not found)"
+                exit 1
+            fi
+            sleep 2
+        done
+
+        # Smoke test: the boilerplate default page should return 200
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/)
+        echo "GET / returned HTTP $HTTP_CODE"
+        if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "FAIL: Expected 200, got $HTTP_CODE"
+            exit 1
+        fi
+        echo "PASS: GET / returned 200"
+
+        # Check process-compose logs for successful compilation
+        LOG=".devenv/state/process-compose/process-compose.log"
+        if [ -f "$LOG" ]; then
+            echo "--- process-compose.log (last 50 lines) ---"
+            tail -50 "$LOG"
+        else
+            echo "WARNING: process-compose.log not found"
+        fi
+
+        echo "All devenv smoke tests passed!"
