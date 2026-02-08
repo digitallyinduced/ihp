@@ -69,6 +69,15 @@ that is defined in flake-module.nix
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
 
+            # HSX parser benchmark: build and run to catch performance regressions
+            // {
+                ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc.ihp-hsx).overrideAttrs (old: {
+                    postCheck = (old.postCheck or "") + ''
+                        ./Setup bench --benchmark-options='+RTS -T'
+                    '';
+                });
+            }
+
             # Integration test: a minimal IHP app that exercises controllers, views, models, HSX, and withIHPApp
             // {
                 integration-test = pkgs.stdenv.mkDerivation {
