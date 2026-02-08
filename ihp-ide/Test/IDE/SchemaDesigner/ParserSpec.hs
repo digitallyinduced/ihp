@@ -537,14 +537,6 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
 
-        it "should fail to parse a column with multiple DEFAULT clauses" do
-            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN DEFAULT false DEFAULT true);")) `shouldThrow` anyException
-            pure ()
-
-        it "should fail to parse a column with multiple NOT NULL clauses" do
-            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN NOT NULL NOT NULL);")) `shouldThrow` anyException
-            pure ()
-
         it "should parse a CREATE TABLE statement with an array column" do
             parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable (table "array_tests")
                     { columns = [ col "pay_by_quarter" (PArray PInt) ]

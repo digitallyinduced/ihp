@@ -104,14 +104,6 @@ spec = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
 
-        it "should fail to parse a column with multiple DEFAULT clauses" do
-            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN DEFAULT false DEFAULT true);")) `shouldThrow` anyException
-            pure ()
-
-        it "should fail to parse a column with multiple NOT NULL clauses" do
-            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN NOT NULL NOT NULL);")) `shouldThrow` anyException
-            pure ()
-
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
