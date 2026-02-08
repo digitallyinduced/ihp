@@ -526,6 +526,25 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
 
+        it "should parse a column with NOT NULL before DEFAULT" do
+            parseSql "CREATE TABLE tasks (is_completed BOOLEAN NOT NULL DEFAULT false);" `shouldBe` StatementCreateTable (table "tasks")
+                    { columns = [ (col "is_completed" PBoolean) { defaultValue = Just (VarExpression "false"), notNull = True } ]
+                    }
+
+        it "should parse column modifiers in mixed order" do
+            parseSql "CREATE TABLE orders (id UUID PRIMARY KEY DEFAULT uuid_generate_v4() NOT NULL);" `shouldBe` StatementCreateTable (table "orders")
+                    { columns = [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True } ]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    }
+
+        it "should fail to parse a column with multiple DEFAULT clauses" do
+            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN DEFAULT false DEFAULT true);")) `shouldThrow` anyException
+            pure ()
+
+        it "should fail to parse a column with multiple NOT NULL clauses" do
+            (evaluate (parseSql "CREATE TABLE tasks (is_completed BOOLEAN NOT NULL NOT NULL);")) `shouldThrow` anyException
+            pure ()
+
         it "should parse a CREATE TABLE statement with an array column" do
             parseSql "CREATE TABLE array_tests (\n    pay_by_quarter integer[]\n);\n" `shouldBe` StatementCreateTable (table "array_tests")
                     { columns = [ col "pay_by_quarter" (PArray PInt) ]
