@@ -40,6 +40,7 @@ library
         , ihp
         , blaze-html
         , blaze-markup
+        , wai
     hs-source-dirs: .
     exposed-modules:
         IHP.SEO.Sitemap.ControllerFunctions
