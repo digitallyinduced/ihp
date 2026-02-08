@@ -26,6 +26,7 @@ module IHP.ControllerSupport
 , getAppConfig
 , Respond
 , rlsContextVaultKey
+, setupActionContext
 ) where
 
 import Prelude
@@ -37,7 +38,7 @@ import Control.Exception.Safe (SomeException, fromException, try, catches, Handl
 import Data.Typeable (Typeable)
 import qualified Data.Text as Text
 import IHP.HaskellSupport
-import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders, vault)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -58,7 +59,7 @@ import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
-import IHP.ActionType (setActionType)
+import IHP.ActionType (setActionType, actionTypeVaultKey, ActionType(..))
 import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
@@ -121,6 +122,34 @@ newContextForAction controller = do
                 Just (ResponseException response) -> ?respond response
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
+
+-- | Shared request context setup, specialized once per application type.
+-- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
+-- NOINLINE ensures GHC compiles one copy shared across all controllers.
+--
+-- Returns @(controllerContext, Nothing)@ on success, or
+-- @(controllerContext, Just exception)@ if 'initContext' failed.
+-- The context is always returned so callers can use it for error rendering.
+{-# NOINLINE setupActionContext #-}
+setupActionContext
+    :: forall application
+     . ( InitControllerContext application
+       , ?application :: application
+       , Typeable application
+       )
+    => Typeable.TypeRep -> Network.Wai.Request -> Respond
+    -> IO (ControllerContext, Maybe SomeException)
+setupActionContext controllerTypeRep waiRequest waiRespond = do
+    let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
+    let ?request = request'
+    let ?respond = waiRespond
+    let ?modelContext = request'.modelContext
+    controllerContext <- Context.newControllerContext
+    let ?context = controllerContext
+    Context.putContext ?application
+    try (initContext @application) >>= \case
+        Left exception -> pure (?context, Just exception)
+        Right _ -> pure (?context, Nothing)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived

@@ -15,6 +15,10 @@ import IHP.SEO.Sitemap.Routes
 import IHP.SEO.Sitemap.ControllerFunctions
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.RequestVault
+import IHP.ModelSupport (createModelContext)
+import IHP.Log (newLogger)
+import IHP.Log.Types (LoggerSettings(..), LogLevel(..))
+import qualified IHP.Server as Server
 
 main :: IO ()
 main = hspec do
@@ -77,7 +81,10 @@ config = do
 
 makeApplication = do
     frameworkConfig <- buildFrameworkConfig config
-    pure $ frameworkConfigMiddleware frameworkConfig $ Server.application handleNotFound (\app -> app)
+    logger <- newLogger def { level = Warn }
+    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
+    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
+    pure (middleware $ Server.application handleNotFound (\app -> app))
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

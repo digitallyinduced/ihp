@@ -60,7 +60,7 @@ import IHP.ActionType (isActiveController)
 
 class View theView where
     -- | Hook which is called before the render is called
-    beforeRender :: (?context :: ControllerContext) => theView -> IO ()
+    beforeRender :: (?context :: ControllerContext, ?request :: Wai.Request) => theView -> IO ()
     beforeRender view = pure ()
 
     -- Renders the view as html
