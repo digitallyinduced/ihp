@@ -8,5 +8,10 @@ jobs:
   nix-flake-check:
     runs-on: ARM64
     steps:
+    # On macOS case-insensitive filesystem, directory names from previous
+    # workflows can persist with wrong case (e.g. IHP/ instead of ihp/).
+    # Git won't rename them because core.ignorecase=true.
+    # Delete and let checkout recreate with correct case from the git index.
+    - run: rm -rf ihp
     - uses: actions/checkout@v6
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
