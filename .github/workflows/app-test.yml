@@ -18,19 +18,23 @@ jobs:
         repository: digitallyinduced/ihp-boilerplate
         path: ihp-boilerplate
 
+    - name: Install devenv
+      run: nix profile install --accept-flake-config github:cachix/devenv/v1.11.2
+
     - name: Point boilerplate at local IHP checkout
       working-directory: ihp-boilerplate
       run: |
         IHP_PATH="$(cd ../IHP && pwd)"
         sed "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix > flake.nix.tmp && mv flake.nix.tmp flake.nix
         cat flake.nix
-        nix flake update
+        nix flake update --accept-flake-config
 
     - name: Start devenv up and run smoke tests
       working-directory: ihp-boilerplate
       run: |
         set -euo pipefail
 
+        direnv allow
         devenv up &
         DEVENV_PID=$!
         trap "kill $DEVENV_PID 2>/dev/null; wait $DEVENV_PID 2>/dev/null" EXIT
