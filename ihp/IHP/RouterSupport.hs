@@ -38,7 +38,7 @@ import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
 import Text.Read (readMaybe)
-import Control.Exception.Safe (SomeException)
+import Control.Exception.Safe (SomeException, fromException)
 import Control.Exception (evaluate)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
@@ -78,7 +78,7 @@ import IHP.Controller.Param
 import Data.Kind
 import IHP.Environment
 import qualified Data.TMap as TypeMap
-import IHP.ActionType (setActionType)
+import IHP.Controller.Response (ResponseException(..))
 
 runAction'
     :: forall application controller
@@ -90,13 +90,18 @@ runAction'
        )
      => controller -> Application
 runAction' controller waiRequest waiRespond = do
-    let ?request = setActionType controller waiRequest
+    (context, maybeException) <- setupActionContext @application (Typeable.typeOf controller) waiRequest waiRespond
+    let ?context = context
     let ?respond = waiRespond
-    let ?modelContext = ?request.modelContext
-    contextOrErrorResponse <- newContextForAction controller
-    case contextOrErrorResponse of
-        Left res -> res
-        Right context -> let ?context = context in runAction controller
+    let ?request = context.request
+    case maybeException of
+        Just exception ->
+            case fromException exception of
+                Just (ResponseException response) -> waiRespond response
+                Nothing -> ErrorController.displayException exception controller " while calling initContext"
+        Nothing -> do
+            let ?modelContext = ?request.modelContext
+            runAction controller
 {-# INLINE runAction' #-}
 
 class FrontController application where

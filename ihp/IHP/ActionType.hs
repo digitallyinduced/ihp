@@ -8,6 +8,7 @@ in the WAI request vault.
 -}
 module IHP.ActionType
 ( ActionType(..)
+, actionTypeVaultKey
 , requestActionType
 , setActionType
 , isActiveController
