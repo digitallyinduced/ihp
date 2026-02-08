@@ -18,13 +18,6 @@ jobs:
         repository: digitallyinduced/ihp-boilerplate
         path: ihp-boilerplate
 
-    - name: Point boilerplate at local IHP checkout
-      working-directory: ihp-boilerplate
-      run: |
-        IHP_PATH="$(cd ../IHP && pwd)"
-        sed -i "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix
-        cat flake.nix
-
     - uses: cachix/install-nix-action@v27
 
     - name: Cachix Init (digitallyinduced)
@@ -33,14 +26,15 @@ jobs:
         name: digitallyinduced
         skipPush: true
 
-    - name: Pre-build shell environment
+    - name: Install devenv
+      run: nix profile install --accept-flake-config github:cachix/devenv/v1.11.2
+
+    - name: Point boilerplate at local IHP checkout
       working-directory: ihp-boilerplate
       run: |
-        nix develop --impure --accept-flake-config --profile dev-profile -c true
-
-    - uses: HatsuneMiku3939/direnv-action@v1.1.0
-      with:
-        direnvVersion: 2.32.3
+        IHP_PATH="$(cd ../IHP && pwd)"
+        sed -i "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix
+        cat flake.nix
 
     - name: Start devenv up and run smoke tests
       working-directory: ihp-boilerplate
