@@ -7,6 +7,7 @@ import qualified Text.Blaze.Html5 as Html5
 import IHP.Controller.Context
 import IHP.AutoRefresh (autoRefreshStateVaultKey)
 import qualified Data.Vault.Lazy as Vault
+import Network.Wai (vault)
 
 autoRefreshMeta :: (?context :: ControllerContext) => Html5.Html
 autoRefreshMeta =

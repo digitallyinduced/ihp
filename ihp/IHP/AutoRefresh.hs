@@ -29,9 +29,23 @@ import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
-import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified Data.TMap as TypeMap
+import IHP.RequestVault (pgListenerVaultKey)
 
+{-# NOINLINE globalAutoRefreshServerVar #-}
+globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
+globalAutoRefreshServerVar = unsafePerformIO (MVar.newMVar Nothing)
+
+getOrCreateAutoRefreshServer :: (?request :: Request) => IO (IORef AutoRefreshServer)
+getOrCreateAutoRefreshServer =
+    MVar.modifyMVar globalAutoRefreshServerVar $ \case
+        Just server -> pure (Just server, server)
+        Nothing -> do
+            let pgListener = case Vault.lookup pgListenerVaultKey ?request.vault of
+                    Just pl -> pl
+                    Nothing -> error "getOrCreateAutoRefreshServer: PGListener not found in request vault"
+            server <- newIORef (newAutoRefreshServer pgListener)
+            pure (Just server, server)
 
 autoRefresh :: (
     ?theAction :: action
@@ -41,11 +55,15 @@ autoRefresh :: (
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    let autoRefreshState = lookupRequestVault autoRefreshStateVaultKey ?request
-    let autoRefreshServer = autoRefreshServerFromRequest request
+    let autoRefreshState = Vault.lookup autoRefreshStateVaultKey ?request.vault
+    autoRefreshServer <- getOrCreateAutoRefreshServer
 
     case autoRefreshState of
-        AutoRefreshDisabled -> do
+        Just (AutoRefreshEnabled {}) -> do
+            -- When this function calls the 'action ?theAction' in the other case
+            -- we will evaluate this branch
+            runAction
+        _ -> do
             availableSessions <- getAvailableSessions autoRefreshServer
 
             id <- UUID.nextRandom
@@ -112,10 +130,6 @@ autoRefresh runAction = do
                         _   -> error "Unimplemented WAI response type."
 
                 runAction `Exception.catch` handleResponse
-        AutoRefreshEnabled {} -> do
-            -- When this function calls the 'action ?theAction' in the other case
-            -- we will evaluate this branch
-            runAction
 
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
@@ -125,20 +139,21 @@ instance WSApp AutoRefreshWSApp where
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
-        availableSessions <- getAvailableSessions (autoRefreshServerFromRequest request)
+        autoRefreshServer <- getOrCreateAutoRefreshServer
+        availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById (autoRefreshServerFromRequest request) sessionId
+            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
 
             let handleResponseException (ResponseException response) = case response of
-                    Wai.ResponseBuilder status headers builder -> do                        
+                    Wai.ResponseBuilder status headers builder -> do
                         let html = ByteString.toLazyByteString builder
 
                         Log.info ("AutoRefresh: inner = " <> show (status, headers, builder) <> " END")
 
                         when (html /= lastResponse) do
                             sendTextData html
-                            updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastResponse = html })
+                            updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
 
             async $ forever do
@@ -158,12 +173,13 @@ instance WSApp AutoRefreshWSApp where
     onPing = do
         now <- getCurrentTime
         AutoRefreshActive { sessionId } <- getState
-        updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastPing = now })
+        autoRefreshServer <- getOrCreateAutoRefreshServer
+        updateSession autoRefreshServer sessionId (\session -> session { lastPing = now })
 
     onClose = do
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
-                let autoRefreshServer = autoRefreshServerFromRequest request
+                autoRefreshServer <- getOrCreateAutoRefreshServer
                 modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
@@ -269,26 +285,6 @@ notificationTrigger tableName = PG.Query [i|
         updateTriggerName = "ar_did_update_" <> tableName
         deleteTriggerName = "ar_did_delete_" <> tableName
 
-autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
-autoRefreshVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE autoRefreshVaultKey #-}
-
 autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshStateVaultKey #-}
-
-initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
-initAutoRefreshMiddleware pgListener = do
-    autoRefreshServer <- newIORef (newAutoRefreshServer pgListener)
-    pure \app request respond -> do
-        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServer
-                                       . Vault.insert autoRefreshStateVaultKey AutoRefreshDisabled
-                                       $ request.vault }
-        app request' respond
-
-{-# INLINE autoRefreshServerFromRequest #-}
-autoRefreshServerFromRequest :: Request -> IORef AutoRefreshServer
-autoRefreshServerFromRequest request =
-    case Vault.lookup autoRefreshVaultKey request.vault of
-        Just server -> server
-        Nothing -> error "AutoRefresh middleware not initialized. Please make sure you have added the AutoRefresh middleware to your application."

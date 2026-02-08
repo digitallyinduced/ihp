@@ -6,7 +6,7 @@
 
 ## Setup
 
-Auto Refresh is enabled by default in new IHP applications. If you've disabled it or are setting it up manually, you need these two components:
+Auto Refresh requires no global configuration. Just make sure these two components are in your layout:
 
 ### 1. Add Meta Tag to Layout
 
@@ -34,7 +34,7 @@ scripts = [hsx|
     |]
 ```
 
-Once these two components are in place, you can use `autoRefresh` on your actions.
+Once these two components are in place, you can use `autoRefresh` in your actions — no middleware setup needed. The auto-refresh server is created lazily on first use.
 
 ## Introduction
 
