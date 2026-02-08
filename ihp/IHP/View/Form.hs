@@ -25,8 +25,7 @@ import           IHP.ValidationSupport
 import           IHP.View.Classes ()
 import           IHP.View.Types
 import           IHP.ViewSupport
-import           Network.Wai (pathInfo)
-import qualified Network.Wai as Wai
+import           Network.Wai (Request, pathInfo)
 import qualified Text.Blaze.Html5 as Html5
 
 -- | Forms usually begin with a 'formFor' expression.
@@ -95,7 +94,7 @@ import qualified Text.Blaze.Html5 as Html5
 -- > </div>
 formFor :: forall record. (
     ?context :: ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -120,7 +119,7 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 --
 formForWithOptions :: forall record. (
     ?context :: ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -154,7 +153,7 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 --
 formForWithoutJavascript :: forall record. (
     ?context :: ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
@@ -186,7 +185,7 @@ formForWithoutJavascript record formBody = formForWithOptions @record record (\f
 --
 formFor' :: forall record. (
     ?context :: ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , HasField "meta" record MetaBag
     ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
 formFor' record action = buildForm (createFormContext record) { formAction = action }
@@ -194,7 +193,7 @@ formFor' record action = buildForm (createFormContext record) { formAction = act
 
 -- | Used by 'formFor' to make a new form context
 createFormContext :: forall record. (
-        ?request :: Wai.Request
+        ?request :: Request
         , HasField "meta" record MetaBag
         ) => record -> FormContext record
 createFormContext record =
@@ -913,7 +912,7 @@ instance ToHtml SubmitButton where
 
 -- | Returns the form's action attribute for a given record.
 class ModelFormAction record where
-    modelFormAction :: (?context :: ControllerContext, ?request :: Wai.Request) => record -> Text
+    modelFormAction :: (?context :: ControllerContext, ?request :: Request) => record -> Text
 
 instance
     ( HasField "id" record (Id' (GetTableName record))

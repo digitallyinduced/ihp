@@ -37,7 +37,7 @@ import IHP.ModelSupport.Types (PrimaryKey, Id'(..), Id)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import qualified Network.Wai as Wai
+import Network.Wai
 import qualified Data.Serialize as Serialize
 import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
@@ -71,7 +71,7 @@ data SessionError
 -- > action LogoutAction = do
 -- >     setSession @Text "userEmail" "hi@digitallyinduced.com"
 --
-setSession :: (?request :: Wai.Request, Serialize value)
+setSession :: (?request :: Request, Serialize value)
            => ByteString -> value -> IO ()
 setSession name value = sessionInsert name (Serialize.encode value)
 {-# INLINABLE setSession #-}
@@ -88,7 +88,7 @@ setSession name value = sessionInsert name (Serialize.encode value)
 --
 -- If an error occurs while getting the value, the result will be 'Nothing'.
 getSession :: forall value
-            . (?request :: Wai.Request, Serialize value)
+            . (?request :: Request, Serialize value)
            => ByteString -> IO (Maybe value)
 getSession name = getSessionEither name >>= \case
     Left _ -> pure Nothing
@@ -108,7 +108,7 @@ getSession name = getSessionEither name >>= \case
 -- >         Left NotFoundError -> ...
 -- >         Left VaultError -> ...
 getSessionEither :: forall value
-            . (?request :: Wai.Request, Serialize value)
+            . (?request :: Request, Serialize value)
            => ByteString -> IO (Either SessionError value)
 getSessionEither name = sessionLookup name >>= \case
         Nothing -> pure $ Left NotFoundError
@@ -133,7 +133,7 @@ getSessionEither name = sessionLookup name >>= \case
 -- >
 -- > deleteSession "userId"
 -- > userId <- getSession @Int "userId" -- Returns: Nothing
-deleteSession :: (?request :: Wai.Request) => ByteString -> IO ()
+deleteSession :: (?request :: Request) => ByteString -> IO ()
 deleteSession name = sessionInsert name ""
 
 -- | Returns a value from the session, and deletes it after retrieving:
@@ -141,7 +141,7 @@ deleteSession name = sessionInsert name ""
 -- > action SessionExampleAction = do
 -- >     notification <- getSessionAndClear @Text "notification"
 getSessionAndClear :: forall value
-                    . (?request :: Wai.Request, Serialize value)
+                    . (?request :: Request, Serialize value)
                    => ByteString -> IO (Maybe value)
 getSessionAndClear name = do
     value <- getSession @value name
@@ -157,18 +157,18 @@ instance (PrimaryKey table ~ UUID) => Serialize (Id' table) where
             Nothing -> fail "Failed to parse UUID"
             Just uuid -> pure (Id uuid)
 
-sessionInsert :: (?request :: Wai.Request) => ByteString -> ByteString -> IO ()
+sessionInsert :: (?request :: Request) => ByteString -> ByteString -> IO ()
 sessionInsert = snd sessionVault
 
-sessionLookup :: (?request :: Wai.Request) => ByteString -> IO (Maybe ByteString)
+sessionLookup :: (?request :: Request) => ByteString -> IO (Maybe ByteString)
 sessionLookup = fst sessionVault
 
-sessionVault :: (?request :: Wai.Request) => (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
+sessionVault :: (?request :: Request) => (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
 sessionVault = case lookupSessionVault ?request of
         Just session -> session
         Nothing -> error "sessionInsert: The session vault is missing in the request"
 
-lookupSessionVault :: Wai.Request -> Maybe (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
+lookupSessionVault :: Request -> Maybe (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
 lookupSessionVault request = Vault.lookup sessionVaultKey request.vault
 
 sessionVaultKey :: Vault.Key (Network.Wai.Session.Session IO ByteString ByteString)

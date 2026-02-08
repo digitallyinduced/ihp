@@ -3,12 +3,12 @@ module IHP.SEO.Sitemap.ControllerFunctions where
 import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.SEO.Sitemap.Types
-import qualified Network.Wai
+import Network.Wai (Request)
 import qualified Text.Blaze as Markup
 import qualified Text.Blaze.Internal as Markup
 import qualified Text.Blaze.Renderer.Utf8 as Markup
 
-renderXmlSitemap :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => Sitemap -> IO ()
+renderXmlSitemap :: (?context :: ControllerContext, ?request :: Request) => Sitemap -> IO ()
 renderXmlSitemap Sitemap { links } = do
     let sitemap = Markup.toMarkup [xmlDocument, sitemapLinks]
     renderXml $ Markup.renderMarkup sitemap

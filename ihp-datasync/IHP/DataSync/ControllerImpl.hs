@@ -2,7 +2,7 @@
 module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
-import qualified Network.Wai
+import Network.Wai (Request)
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
@@ -44,7 +44,7 @@ runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
-    , ?request :: Network.Wai.Request
+    , ?request :: Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -109,7 +109,7 @@ buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
-    , ?request :: Network.Wai.Request
+    , ?request :: Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord

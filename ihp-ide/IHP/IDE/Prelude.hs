@@ -31,11 +31,11 @@ import qualified IHP.Modal.ControllerFunctions as Modal
 import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport
 import IHP.ValidationSupport
-import qualified Network.Wai
+import Network.Wai (Request)
 
 -- | Renders a view and stores it as modal HTML in the context for later rendering.
 --
 -- > setModal MyModalView { .. }
 --
-setModal :: (?context :: ControllerContext, ?request :: Network.Wai.Request, View view) => view -> IO ()
+setModal :: (?context :: ControllerContext, ?request :: Request, View view) => view -> IO ()
 setModal view = let ?view = view in Modal.setModal (ViewSupport.html view)
