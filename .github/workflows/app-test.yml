@@ -18,42 +18,54 @@ jobs:
         repository: digitallyinduced/ihp-boilerplate
         path: ihp-boilerplate
 
-    - name: Install devenv
-      run: nix profile install --accept-flake-config github:cachix/devenv/v1.11.2
-
     - name: Point boilerplate at local IHP checkout
       working-directory: ihp-boilerplate
       run: |
         IHP_PATH="$(cd ../IHP && pwd)"
         sed "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix > flake.nix.tmp && mv flake.nix.tmp flake.nix
         cat flake.nix
-        nix flake update --accept-flake-config
+
+    - name: Cachix Init (digitallyinduced)
+      uses: cachix/cachix-action@v15
+      with:
+        name: digitallyinduced
+        skipPush: true
+
+    - name: Pre-build shell environment
+      working-directory: ihp-boilerplate
+      run: |
+        nix develop --impure --accept-flake-config --profile dev-profile -c true
+
+    - uses: HatsuneMiku3939/direnv-action@v1.1.0
+      with:
+        direnvVersion: 2.32.3
 
     - name: Start devenv up and run smoke tests
       working-directory: ihp-boilerplate
       run: |
         set -euo pipefail
 
-        direnv allow
         devenv up &
         DEVENV_PID=$!
         trap "kill $DEVENV_PID 2>/dev/null; wait $DEVENV_PID 2>/dev/null" EXIT
 
         echo "Waiting for IHP server to start..."
-        for i in $(seq 1 60); do
+        timeout=120
+        while [ $timeout -gt 0 ]; do
             if curl -sf http://localhost:8000/ > /dev/null 2>&1; then
-                echo "IHP server is ready (after ~$((i * 2))s)"
+                echo "IHP server is ready!"
                 break
             fi
-            if [ "$i" -eq 60 ]; then
-                echo "FAIL: IHP server did not start within 120s"
-                LOG=".devenv/state/process-compose/process-compose.log"
-                echo "--- process-compose.log ---"
-                cat "$LOG" 2>/dev/null || echo "(log file not found)"
-                exit 1
-            fi
-            sleep 2
+            sleep 1
+            timeout=$((timeout - 1))
         done
+        if [ $timeout -eq 0 ]; then
+            echo "FAIL: IHP server did not start within 120s"
+            LOG=".devenv/state/process-compose/process-compose.log"
+            echo "--- process-compose.log ---"
+            cat "$LOG" 2>/dev/null || echo "(log file not found)"
+            exit 1
+        fi
 
         # Smoke test: the boilerplate default page should return 200
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/)
