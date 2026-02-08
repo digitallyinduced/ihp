@@ -30,6 +30,7 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , QuasiQuotes
+        , OverloadedRecordDot
     ghc-options: -Werror=incomplete-patterns
 
 library
@@ -41,6 +42,8 @@ library
         , ihp-hsx
         , text
         , blaze-html
+        , vault
+        , wai
     exposed-modules:
         IHP.PageHead.Types
         , IHP.PageHead.ControllerFunctions

@@ -42,7 +42,7 @@ newControllerContext :: (?request :: Wai.Request) => IO ControllerContext
 newControllerContext = do
     customFieldsRef <- newIORef (TypeMap.insert ?request TypeMap.empty)
     pure ControllerContext { customFieldsRef }
-{-# INLINABLE newControllerContext #-}
+{-# INLINE newControllerContext #-}
 
 -- | Access request from the TMap
 --

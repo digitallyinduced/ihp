@@ -2,6 +2,7 @@
 module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
+import qualified Network.Wai
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
@@ -43,6 +44,7 @@ runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Network.Wai.Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -107,6 +109,7 @@ buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Network.Wai.Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -117,7 +120,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
     pure (handleMessage getRLSColumns)
     where
-            pgListener = ?context.request.pgListener
+            pgListener = ?request.pgListener
             handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
             handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)

@@ -29,15 +29,31 @@ frameworkConfigVaultKey :: Vault.Key FrameworkConfig
 frameworkConfigVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE frameworkConfigVaultKey #-}
 
-(frameworkConfigMiddleware, requestFrameworkConfig) = insertVaultMiddlewareAndGetter frameworkConfigVaultKey
+{-# INLINE frameworkConfigMiddleware #-}
+frameworkConfigMiddleware :: FrameworkConfig -> Middleware
+frameworkConfigMiddleware = insertVaultMiddleware frameworkConfigVaultKey
+
+{-# INLINE requestFrameworkConfig #-}
+requestFrameworkConfig :: Request -> FrameworkConfig
+requestFrameworkConfig = lookupRequestVault frameworkConfigVaultKey
 
 -- request.pgListener
 pgListenerVaultKey :: Vault.Key PGListener
 pgListenerVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE pgListenerVaultKey #-}
 
-(pgListenerMiddleware, requestPGListener) = insertVaultMiddlewareAndGetter pgListenerVaultKey
+{-# INLINE pgListenerMiddleware #-}
+pgListenerMiddleware :: PGListener -> Middleware
+pgListenerMiddleware = insertVaultMiddleware pgListenerVaultKey
+
+{-# INLINE requestPGListener #-}
+requestPGListener :: Request -> PGListener
+requestPGListener = lookupRequestVault pgListenerVaultKey
 
 -- Field access helpers
-instance HasField "frameworkConfig" Request FrameworkConfig where getField request = requestFrameworkConfig request
-instance HasField "pgListener" Request PGListener where getField request = requestPGListener request
+instance HasField "frameworkConfig" Request FrameworkConfig where
+    {-# INLINE getField #-}
+    getField request = requestFrameworkConfig request
+instance HasField "pgListener" Request PGListener where
+    {-# INLINE getField #-}
+    getField request = requestPGListener request

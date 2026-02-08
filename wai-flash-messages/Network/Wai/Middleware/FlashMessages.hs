@@ -75,6 +75,7 @@ successMessageKey = "flashSuccessMessage"
 errorMessageKey :: ByteString
 errorMessageKey = "flashErrorMessage"
 
+{-# INLINE consumeFlashMessagesMiddleware #-}
 consumeFlashMessagesMiddleware :: SessionVaultKey -> FlashVaultKey -> Middleware
 consumeFlashMessagesMiddleware sessionVaultKey flashVaultKey next request respond =
     case Vault.lookup sessionVaultKey request.vault of

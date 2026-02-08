@@ -25,9 +25,12 @@ module IHP.ControllerSupport
 , setHeader
 , getAppConfig
 , Respond
+, rlsContextVaultKey
+, setupActionContext
 ) where
 
 import Prelude
+import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
@@ -35,7 +38,7 @@ import Control.Exception.Safe (SomeException, fromException, try, catches, Handl
 import Data.Typeable (Typeable)
 import qualified Data.Text as Text
 import IHP.HaskellSupport
-import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders, vault)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai
 import IHP.ModelSupport
@@ -56,7 +59,10 @@ import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
-import IHP.ActionType (setActionType)
+import IHP.ActionType (setActionType, actionTypeVaultKey, ActionType(..))
+import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
 
@@ -117,6 +123,34 @@ newContextForAction controller = do
                 Nothing -> ErrorController.displayException exception controller " while calling initContext"
         Right _ -> pure $ Right ?context
 
+-- | Shared request context setup, specialized once per application type.
+-- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
+-- NOINLINE ensures GHC compiles one copy shared across all controllers.
+--
+-- Returns @(controllerContext, Nothing)@ on success, or
+-- @(controllerContext, Just exception)@ if 'initContext' failed.
+-- The context is always returned so callers can use it for error rendering.
+{-# NOINLINE setupActionContext #-}
+setupActionContext
+    :: forall application
+     . ( InitControllerContext application
+       , ?application :: application
+       , Typeable application
+       )
+    => Typeable.TypeRep -> Network.Wai.Request -> Respond
+    -> IO (ControllerContext, Maybe SomeException)
+setupActionContext controllerTypeRep waiRequest waiRespond = do
+    let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
+    let ?request = request'
+    let ?respond = waiRespond
+    let ?modelContext = request'.modelContext
+    controllerContext <- Context.newControllerContext
+    let ?context = controllerContext
+    Context.putContext ?application
+    try (initContext @application) >>= \case
+        Left exception -> pure (?context, Just exception)
+        Right _ -> pure (?context, Nothing)
+
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller = do
@@ -134,12 +168,16 @@ runActionWithNewContext controller = do
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
 --
 -- If row leve security wasn't enabled, this will just return the current model context.
-prepareRLSIfNeeded :: (?context :: ControllerContext) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded :: (?request :: Network.Wai.Request) => ModelContext -> IO ModelContext
 prepareRLSIfNeeded modelContext = do
-    rowLevelSecurityContext <- Context.maybeFromContext
+    rowLevelSecurityContext <- readIORef (lookupRequestVault rlsContextVaultKey ?request)
     case rowLevelSecurityContext of
         Just context -> pure modelContext { rowLevelSecurity = Just context }
         Nothing -> pure modelContext
+
+rlsContextVaultKey :: Vault.Key (IORef (Maybe RowLevelSecurityContext))
+rlsContextVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE rlsContextVaultKey #-}
 
 {-# INLINE startWebSocketApp #-}
 startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
@@ -214,11 +252,10 @@ getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 --
 -- >>> setHeader ("Content-Language", "en")
 --
-setHeader :: (?context :: ControllerContext) => Header -> IO ()
+setHeader :: (?request :: Network.Wai.Request) => Header -> IO ()
 setHeader header = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
-    Context.putContext (header : headers)
+    let headersRef = lookupRequestVault responseHeadersVaultKey ?request
+    modifyIORef' headersRef (header :)
 {-# INLINABLE setHeader #-}
 
 -- | Returns the current HTTP request.

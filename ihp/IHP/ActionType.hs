@@ -8,6 +8,7 @@ in the WAI request vault.
 -}
 module IHP.ActionType
 ( ActionType(..)
+, actionTypeVaultKey
 , requestActionType
 , setActionType
 , isActiveController
@@ -36,6 +37,7 @@ requestActionType req =
         Nothing -> error "requestActionType: ActionType not found in request vault"
 
 -- | Insert the ActionType into the request vault
+{-# INLINE setActionType #-}
 setActionType :: Typeable controller => controller -> Request -> Request
 setActionType controller req = req { vault = Vault.insert actionTypeVaultKey (ActionType (Typeable.typeOf controller)) req.vault }
 

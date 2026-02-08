@@ -32,6 +32,7 @@ import qualified Network.Wai as Wai
 import IHP.FlashMessages
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
+import IHP.RequestVault.Helper (lookupRequestVault)
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
@@ -159,6 +160,7 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 --
 enableRowLevelSecurityIfLoggedIn ::
     ( ?context :: ControllerContext
+    , ?request :: Wai.Request
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , HasField "id" CurrentUserRecord userId
@@ -170,5 +172,5 @@ enableRowLevelSecurityIfLoggedIn = do
             let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
             let rlsUserId = PG.toField user.id
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
-            putContext rlsContext
+            writeIORef (lookupRequestVault rlsContextVaultKey ?request) (Just rlsContext)
         Nothing -> pure ()
