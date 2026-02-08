@@ -216,7 +216,7 @@ runSnippetExec snippet = do
 fetchTableNames :: (?modelContext :: ModelContext) => IO [Text]
 fetchTableNames =
     runSnippetQuery
-        (Snippet.sql "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
+        (Snippet.sql "SELECT tablename::text FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
         (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 fetchTableCols :: (?modelContext :: ModelContext) => Text -> IO [ColumnDefinition]

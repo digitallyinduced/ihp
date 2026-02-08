@@ -16,7 +16,7 @@ import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
-import qualified IHP.AutoRefresh as AutoRefresh
+import IHP.AutoRefresh (AutoRefreshWSApp)
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
@@ -143,17 +143,13 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
 
 -- | Initialize the complete middleware stack
 --
--- Pass Nothing for PGListener in tests (auto-refresh will be disabled)
+-- Pass Nothing for PGListener in tests
 -- Pass Just pgListener in production for full functionality
 initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> IO Middleware
 initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     sessionMiddleware <- initSessionMiddleware frameworkConfig
     approotMiddleware <- Approot.envFallback
     assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware "IHP_ASSET_VERSION" "IHP_ASSET_BASEURL"
-
-    autoRefreshMiddleware <- case maybePgListener of
-        Just pgListener -> AutoRefresh.initAutoRefreshMiddleware pgListener
-        Nothing -> pure id
 
     let corsMiddleware = initCorsMiddleware frameworkConfig
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
@@ -170,7 +166,6 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . methodOverridePost
         . sessionMiddleware
         . approotMiddleware
-        . autoRefreshMiddleware
         . viewLayoutMiddleware
         . responseHeadersMiddleware
         . rlsContextMiddleware
@@ -184,7 +179,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
 application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
-    frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
+    frontControllerToWAIApp @RootApplication @AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
