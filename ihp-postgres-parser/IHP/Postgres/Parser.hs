@@ -229,20 +229,42 @@ parseColumn = do
     name <- identifier
     columnType <- sqlType
     space
-    defaultValue <- optional do
-        lexeme "DEFAULT"
-        expression
-    generator <- optional do
-        lexeme "GENERATED"
-        lexeme "ALWAYS"
-        lexeme "AS"
-        generate <- expression
-        stored <- isJust <$> optional (lexeme "STORED")
-        pure ColumnGenerator { generate, stored }
-    primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
-    notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
-    isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique, generator })
+    let
+        column = Column
+            { name
+            , columnType
+            , defaultValue = Nothing
+            , notNull = False
+            , isUnique = False
+            , generator = Nothing
+            }
+    parseColumnAttributes column False
+    where
+        parseColumnAttributes column primaryKey = choice
+            [ do
+                lexeme "DEFAULT"
+                value <- expression
+                parseColumnAttributes column { defaultValue = Just value } primaryKey
+            , do
+                lexeme "GENERATED"
+                lexeme "ALWAYS"
+                lexeme "AS"
+                generate <- expression
+                stored <- isJust <$> optional (lexeme "STORED")
+                parseColumnAttributes column { generator = Just ColumnGenerator { generate, stored } } primaryKey
+            , do
+                lexeme "PRIMARY"
+                lexeme "KEY"
+                parseColumnAttributes column True
+            , do
+                lexeme "NOT"
+                lexeme "NULL"
+                parseColumnAttributes column { notNull = True } primaryKey
+            , do
+                lexeme "UNIQUE"
+                parseColumnAttributes column { isUnique = True } primaryKey
+            , pure (primaryKey, column)
+            ]
 
 sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
