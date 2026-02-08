@@ -1,6 +1,6 @@
 { mkDerivation, base, blaze-html, blaze-markup, bytestring
-, containers, criterion, deepseq, ghc, hspec, lib, lucid2
-, megaparsec, mtl, string-conversions, template-haskell, text
+, containers, deepseq, ghc, hspec, lib, lucid2, megaparsec, mtl
+, string-conversions, tasty-bench, template-haskell, text
 , transformers, unordered-containers
 }:
 mkDerivation {
@@ -17,8 +17,8 @@ mkDerivation {
     string-conversions template-haskell text unordered-containers
   ];
   benchmarkHaskellDepends = [
-    base bytestring containers criterion deepseq megaparsec
-    string-conversions template-haskell text unordered-containers
+    base bytestring containers deepseq megaparsec string-conversions
+    tasty-bench template-haskell text unordered-containers
   ];
   doHaddock = false;
   description = "JSX-like but for Haskell";

@@ -154,7 +154,10 @@ benchmark ihp-hsx-parser-bench
     hs-source-dirs:      Test
     main-is:             ParserBench.hs
     default-language:    GHC2021
+    -- tasty-bench requires -fno-static-argument-transformation to prevent
+    -- GHC from defeating the re-evaluation trick used for measurement
+    ghc-options:         -fno-static-argument-transformation
     build-depends:
         , ihp-hsx
-        , criterion
+        , tasty-bench
         , deepseq
