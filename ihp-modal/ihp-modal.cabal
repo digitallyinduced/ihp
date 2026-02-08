@@ -29,6 +29,7 @@ common shared-properties
         , DataKinds
         , RecordWildCards
         , QuasiQuotes
+        , OverloadedRecordDot
     ghc-options: -Werror=incomplete-patterns
 
 library

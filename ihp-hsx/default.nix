@@ -1,7 +1,7 @@
 { mkDerivation, base, blaze-html, blaze-markup, bytestring
-, containers, ghc, hspec, lib, lucid2, megaparsec, mtl
-, string-conversions, template-haskell, text, transformers
-, unordered-containers
+, containers, criterion, deepseq, ghc, hspec, lib, lucid2
+, megaparsec, mtl, string-conversions, template-haskell, text
+, transformers, unordered-containers
 }:
 mkDerivation {
   pname = "ihp-hsx";
@@ -14,6 +14,10 @@ mkDerivation {
   ];
   testHaskellDepends = [
     base blaze-markup bytestring containers hspec lucid2 megaparsec mtl
+    string-conversions template-haskell text unordered-containers
+  ];
+  benchmarkHaskellDepends = [
+    base bytestring containers criterion deepseq megaparsec
     string-conversions template-haskell text unordered-containers
   ];
   doHaddock = false;

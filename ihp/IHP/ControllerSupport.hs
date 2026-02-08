@@ -25,6 +25,7 @@ module IHP.ControllerSupport
 , setHeader
 , getAppConfig
 , Respond
+, Request
 , rlsContextVaultKey
 , setupActionContext
 ) where
@@ -38,9 +39,8 @@ import Control.Exception.Safe (SomeException, fromException, try, catches, Handl
 import Data.Typeable (Typeable)
 import qualified Data.Text as Text
 import IHP.HaskellSupport
-import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders, vault)
+import Network.Wai
 import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
@@ -67,10 +67,10 @@ import System.IO.Unsafe (unsafePerformIO)
 type Action' = IO ResponseReceived
 
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => IO ()
+    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => controller -> IO ()
+    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ()
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => IO ()
@@ -137,7 +137,7 @@ setupActionContext
        , ?application :: application
        , Typeable application
        )
-    => Typeable.TypeRep -> Network.Wai.Request -> Respond
+    => Typeable.TypeRep -> Request -> Respond
     -> IO (ControllerContext, Maybe SomeException)
 setupActionContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
@@ -168,7 +168,7 @@ runActionWithNewContext controller = do
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
 --
 -- If row leve security wasn't enabled, this will just return the current model context.
-prepareRLSIfNeeded :: (?request :: Network.Wai.Request) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded :: (?request :: Request) => ModelContext -> IO ModelContext
 prepareRLSIfNeeded modelContext = do
     rowLevelSecurityContext <- readIORef (lookupRequestVault rlsContextVaultKey ?request)
     case rowLevelSecurityContext of
@@ -180,7 +180,7 @@ rlsContextVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE rlsContextVaultKey #-}
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Application
 startWebSocketApp initialState onHTTP waiRequest waiRespond = do
     let ?modelContext = requestModelContext ?request
     let ?request = waiRequest
@@ -207,30 +207,30 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
             Just response -> waiRespond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Application
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Network.Wai.Request) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ()
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
     action theAction
 
 {-# INLINE getRequestBody #-}
-getRequestBody :: (?request :: Network.Wai.Request) => IO LBS.ByteString
+getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =
     case ?request.parsedBody of
         JSONBody { rawPayload } -> pure rawPayload
-        _ -> Network.Wai.lazyRequestBody ?request
+        _ -> lazyRequestBody ?request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
-getRequestPath :: (?request :: Network.Wai.Request) => ByteString
+getRequestPath :: (?request :: Request) => ByteString
 getRequestPath = ?request.rawPathInfo
 {-# INLINABLE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
-getRequestPathAndQuery :: (?request :: Network.Wai.Request) => ByteString
+getRequestPathAndQuery :: (?request :: Request) => ByteString
 getRequestPathAndQuery = ?request.rawPathInfo <> ?request.rawQueryString
 {-# INLINABLE getRequestPathAndQuery #-}
 
@@ -244,7 +244,7 @@ getRequestPathAndQuery = ?request.rawPathInfo <> ?request.rawQueryString
 -- >>> getHeader "X-My-Custom-Header"
 -- Nothing
 --
-getHeader :: (?request :: Network.Wai.Request) => ByteString -> Maybe ByteString
+getHeader :: (?request :: Request) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 {-# INLINABLE getHeader #-}
 
@@ -252,7 +252,7 @@ getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 --
 -- >>> setHeader ("Content-Language", "en")
 --
-setHeader :: (?request :: Network.Wai.Request) => Header -> IO ()
+setHeader :: (?request :: Request) => Header -> IO ()
 setHeader header = do
     let headersRef = lookupRequestVault responseHeadersVaultKey ?request
     modifyIORef' headersRef (header :)
@@ -261,18 +261,18 @@ setHeader header = do
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
-request :: (?request :: Network.Wai.Request) => Network.Wai.Request
+request :: (?request :: Request) => Request
 request = ?request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
-getFiles :: (?request :: Network.Wai.Request) => [File Data.ByteString.Lazy.ByteString]
+getFiles :: (?request :: Request) => [File Data.ByteString.Lazy.ByteString]
 getFiles =
     case ?request.parsedBody of
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?request :: Network.Wai.Request) => Aeson.Value
+requestBodyJSON :: (?request :: Request) => Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> value

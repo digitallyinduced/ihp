@@ -15,7 +15,7 @@ import GHC.Err (error)
 import GHC.Show (show)
 import Data.Function (($))
 import qualified Data.Vault.Lazy as Vault
-import qualified Network.Wai as Wai
+import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 
 newtype PageTitle = PageTitle Text
@@ -49,8 +49,8 @@ pageHeadVaultKey :: Vault.Key (IORef PageHeadState)
 pageHeadVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE pageHeadVaultKey #-}
 
-lookupPageHeadVault :: forall value. Typeable value => Vault.Key value -> Wai.Request -> value
+lookupPageHeadVault :: forall value. Typeable value => Vault.Key value -> Request -> value
 lookupPageHeadVault key req =
-    case Vault.lookup key (Wai.vault req) of
+    case Vault.lookup key req.vault of
         Just v -> v
         Nothing -> error $ "lookupPageHeadVault: Could not find " <> show (typeRep (Proxy @value) ) <> " in request vault. Did you forget to add the PageHead middleware?"
