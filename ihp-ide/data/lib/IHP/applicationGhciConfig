@@ -41,6 +41,7 @@
 :set -XFunctionalDependencies
 :set -package ihp
 :set -fbyte-code
+:set -j
 :set -Wno-partial-type-signatures
 :set -XPartialTypeSignatures
 :set -XStandaloneDeriving

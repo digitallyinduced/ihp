@@ -387,6 +387,9 @@ ihpFlake:
 
                 env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
 
+                # Optimized RTS flags for GHCi: reduces GC overhead during module loading
+                env.GHCRTS = "-A256m -n4m -H256m -I0 --nonmoving-gc -N";
+
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
                         echo "usage: deploy-to-nixos <target-host>"
