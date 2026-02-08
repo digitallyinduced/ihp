@@ -2,7 +2,7 @@
 module IHP.DataSync.REST.Controller where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import qualified Network.Wai
+import Network.Wai (Request)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Data.Vector as Vector
@@ -193,7 +193,7 @@ instance ParamReader OrderByClause where
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
-renderErrorJson :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => ToJSON json => json -> IO ()
+renderErrorJson :: (?context :: ControllerContext, ?request :: Request) => ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 

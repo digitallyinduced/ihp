@@ -11,12 +11,12 @@ import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context
 import IHP.Hasql.FromRow (FromRowHasql)
-import qualified Network.Wai
+import Network.Wai (Request)
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user normalizedModel.
         ( ?context :: ControllerContext
-        , ?request :: Network.Wai.Request
+        , ?request :: Request
         , ?modelContext :: ModelContext
         , normalizedModel ~ NormalizeModel user
         , Typeable normalizedModel

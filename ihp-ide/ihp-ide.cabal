@@ -282,36 +282,42 @@ executable new-application
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/NewApplication.hs
+    ghc-options: -rtsopts
 
 executable new-controller
     import: shared-properties
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/NewController.hs
+    ghc-options: -rtsopts
 
 executable delete-controller
     import: shared-properties
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/DeleteController.hs
+    ghc-options: -rtsopts
 
 executable new-script
     import: shared-properties
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/NewScript.hs
+    ghc-options: -rtsopts
 
 executable new-migration
     import: shared-properties
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/NewMigration.hs
+    ghc-options: -rtsopts
 
 executable hash-password
     import: shared-properties
     build-depends: ihp, ihp-ide
     hs-source-dirs: exe
     main-is: IHP/CLI/HashPassword.hs
+    ghc-options: -rtsopts
 
 executable new-session-secret
     default-language: Haskell2010
@@ -319,7 +325,7 @@ executable new-session-secret
     build-depends: base >= 4.17.0 && < 4.22, clientsession, bytestring, with-utf8, base64-bytestring
     hs-source-dirs: exe
     main-is: IHP/CLI/NewSessionSecret.hs
-    ghc-options: -fsplit-sections
+    ghc-options: -fsplit-sections -rtsopts
 
 source-repository head
     type:     git
