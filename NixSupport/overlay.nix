@@ -4,14 +4,14 @@ let
 
     ihpOverrides = final: self: super:
         let
-            filter = inputs.nix-filter.lib;
             # Disable profiling and haddock for faster local builds
             fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
 
-            filteredSrc = name: filter {
-                root = "${toString flakeRoot}/${name}";
-                include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
-            };
+            # Use raw source directory instead of nix-filter. The nix-filter approach
+            # using builtins.path with a filter function produces different store paths
+            # on CI (GitHub Actions) vs local builds for the same commit, causing
+            # "can't find source for IHP/ActionType" errors on master push checks.
+            filteredSrc = name: "${flakeRoot}/${name}";
 
             # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
             # IFD causes nix to build cabal2nix during evaluation, making derivation
