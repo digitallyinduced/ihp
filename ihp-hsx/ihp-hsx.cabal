@@ -147,3 +147,14 @@ test-suite ihp-hsx-tests
         , template-haskell
         , lucid2
         , mtl
+
+benchmark ihp-hsx-parser-bench
+    import: common-extensions, common-flags, common-depends
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      Test
+    main-is:             ParserBench.hs
+    default-language:    GHC2021
+    build-depends:
+        , ihp-hsx
+        , criterion
+        , deepseq

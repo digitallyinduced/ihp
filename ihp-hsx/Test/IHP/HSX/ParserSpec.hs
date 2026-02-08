@@ -34,7 +34,7 @@ tests = do
                 Right _ -> fail "Expected parser to fail with invalid attribute name"
 
         it "should fail on unmatched tags" do
-            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^^^\nunexpected \"/sp\"\nexpecting \"!--\", closing tag </div> (to match opening <div> tag), identifier, or white space\n"
+            let errorText = "1:6:\n  |\n1 | <div></span>\n  |      ^^^^^\nunexpected \"</spa\"\nexpecting closing tag </div> (to match opening <div> tag) or white space\n"
             let (Left error) = parseHsx settings position extensions "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
@@ -121,7 +121,7 @@ tests = do
             p `shouldBe` (Right (Children [Node "div" [StaticAttribute "invalid-attribute" (TextValue "invalid")] [] False]))
 
         it "should fail on unmatched tags" do
-            let errorText = "1:7:\n  |\n1 | <div></span>\n  |       ^^^\nunexpected \"/sp\"\nexpecting \"!--\", closing tag </div> (to match opening <div> tag), identifier, or white space\n"
+            let errorText = "1:6:\n  |\n1 | <div></span>\n  |      ^^^^^\nunexpected \"</spa\"\nexpecting closing tag </div> (to match opening <div> tag) or white space\n"
             let (Left error) = parseHsx settings position extensions "<div></span>"
             (Megaparsec.errorBundlePretty error) `shouldBe` errorText
 
