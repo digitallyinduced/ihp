@@ -60,4 +60,5 @@ test-suite tests
         , wai-extra
         , http-types
         , ihp-hsx
+        , ihp-log
     hs-source-dirs: Test
