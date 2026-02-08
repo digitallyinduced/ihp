@@ -6,20 +6,9 @@
 
 ## Setup
 
-Auto Refresh is enabled by default in new IHP applications. If you've disabled it or are setting it up manually, you need these three components:
+Auto Refresh is enabled by default in new IHP applications. If you've disabled it or are setting it up manually, you need these two components:
 
-### 1. Initialize Auto Refresh in FrontController
-
-In your `Web/FrontController.hs`, add `initAutoRefresh` to the `InitControllerContext` instance:
-
-```haskell
-instance InitControllerContext WebApplication where
-    initContext = do
-        setLayout defaultLayout
-        initAutoRefresh  -- Add this line
-```
-
-### 2. Add Meta Tag to Layout
+### 1. Add Meta Tag to Layout
 
 In your `Web/View/Layout.hs`, add `{autoRefreshMeta}` inside the `<head>` section:
 
@@ -32,7 +21,7 @@ metaTags = [hsx|
 |]
 ```
 
-### 3. Include Required JavaScript
+### 2. Include Required JavaScript
 
 In your `Web/View/Layout.hs`, ensure these scripts are included (order matters - morphdom must come before ihp-auto-refresh):
 
@@ -45,7 +34,7 @@ scripts = [hsx|
     |]
 ```
 
-Once these three components are in place, you can use `autoRefresh` on your actions.
+Once these two components are in place, you can use `autoRefresh` on your actions.
 
 ## Introduction
 

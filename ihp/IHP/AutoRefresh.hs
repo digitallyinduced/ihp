@@ -32,8 +32,6 @@ import Network.Wai
 import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified Data.TMap as TypeMap
 
-initAutoRefresh :: (?request :: Request) => IO ()
-initAutoRefresh = pure ()
 
 autoRefresh :: (
     ?theAction :: action
