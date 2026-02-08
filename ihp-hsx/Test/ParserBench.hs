@@ -7,7 +7,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Control.DeepSeq (NFData(..), rnf)
-import Criterion.Main
+import Test.Tasty.Bench
 
 instance NFData Node where
     rnf (Node t as cs b) = rnf t `seq` rnf as `seq` rnf cs `seq` rnf b

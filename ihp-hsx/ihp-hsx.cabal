@@ -156,5 +156,5 @@ benchmark ihp-hsx-parser-bench
     default-language:    GHC2021
     build-depends:
         , ihp-hsx
-        , criterion
+        , tasty-bench
         , deepseq
