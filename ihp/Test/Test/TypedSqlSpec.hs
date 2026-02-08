@@ -148,6 +148,83 @@ tests = do
                 ghciOutput <- ghciLoadModule compileFailLiteralNonMaybeAnnotation
                 assertGhciFailure ghciOutput []
 
+        it "fails when arithmetic expression result is annotated as non-Maybe Int" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailArithmeticNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when CASE expression result is annotated as non-Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailCaseNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when EXISTS expression result is annotated as non-Maybe Bool" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailExistsNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when NULL literal result is annotated as non-Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailNullLiteralNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when CTE result is annotated as Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailCteMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when subquery result is annotated as Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailSubqueryMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when UNION result is annotated as non-Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailUnionNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when window function result is annotated as non-Maybe Integer" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailWindowNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when grouped COUNT(*) result is annotated as non-Maybe Integer" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailGroupedCountNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when array literal result is annotated as non-Maybe [Text]" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailArrayLiteralNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
+        it "fails when NULLIF expression result is annotated as non-Maybe Text" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciLoadModule compileFailNullIfNonMaybeAnnotation
+                assertGhciFailure ghciOutput []
+
     describe "TypedSql macro runtime execution" do
         it "executes typedSql queries end-to-end via ghci" do
             requirePostgresTestHook
@@ -377,12 +454,31 @@ compilePassModule = Text.unlines
     , "import IHP.Prelude"
     , "import IHP.ModelSupport (Id', PrimaryKey)"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import qualified Database.PostgreSQL.Simple.FromRow as PGFR"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
     , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
     , ""
+    , "data TypedSqlTestItem = TypedSqlTestItem"
+    , "    { typedSqlTestItemId :: Id' \"typed_sql_test_items\""
+    , "    , typedSqlTestItemAuthorId :: Maybe (Id' \"typed_sql_test_authors\")"
+    , "    , typedSqlTestItemName :: Text"
+    , "    , typedSqlTestItemViews :: Int"
+    , "    , typedSqlTestItemScore :: Maybe Double"
+    , "    , typedSqlTestItemTags :: [Text]"
+    , "    } deriving (Eq, Show)"
+    , ""
+    , "instance PGFR.FromRow TypedSqlTestItem where"
+    , "    fromRow = TypedSqlTestItem <$> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field"
+    , ""
     , "qName :: TypedQuery Text"
     , "qName = [typedSql| SELECT name FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qAllFields :: TypedQuery TypedSqlTestItem"
+    , "qAllFields = [typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qAllFieldsAlias :: TypedQuery TypedSqlTestItem"
+    , "qAllFieldsAlias = [typedSql| SELECT i.* FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
     , "qPrimaryKey :: TypedQuery (Id' \"typed_sql_test_items\")"
     , "qPrimaryKey = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"
@@ -431,6 +527,45 @@ compilePassModule = Text.unlines
     , ""
     , "qLiteralInt :: TypedQuery (Maybe Int)"
     , "qLiteralInt = [typedSql| SELECT 1 |]"
+    , ""
+    , "qArithmeticExpr :: TypedQuery (Maybe Int)"
+    , "qArithmeticExpr = [typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qCaseExpr :: TypedQuery (Maybe Text)"
+    , "qCaseExpr = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qExistsExpr :: TypedQuery (Maybe Bool)"
+    , "qExistsExpr = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
+    , ""
+    , "qNullLiteral :: TypedQuery (Maybe Text)"
+    , "qNullLiteral = [typedSql| SELECT NULL::text |]"
+    , ""
+    , "qCte :: TypedQuery Text"
+    , "qCte = [typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]"
+    , ""
+    , "qSubquery :: TypedQuery Text"
+    , "qSubquery = [typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]"
+    , ""
+    , "qUnion :: TypedQuery (Maybe Text)"
+    , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
+    , ""
+    , "qWindow :: TypedQuery (Maybe Integer)"
+    , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qGroupedCount :: TypedQuery (Text, Maybe Integer)"
+    , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
+    , ""
+    , "qArrayLiteral :: TypedQuery (Maybe [Text])"
+    , "qArrayLiteral = [typedSql| SELECT ARRAY['x','y']::text[] |]"
+    , ""
+    , "qNullIfExpr :: TypedQuery (Maybe Text)"
+    , "qNullIfExpr = [typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qSchemaQualified :: TypedQuery Text"
+    , "qSchemaQualified = [typedSql| SELECT name FROM public.typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "qQuotedIdentifiers :: TypedQuery Text"
+    , "qQuotedIdentifiers = [typedSql| SELECT \"name\" FROM \"typed_sql_test_items\" LIMIT 1 |]"
     , ""
     , "qInnerJoin :: TypedQuery (Text, Text)"
     , "qInnerJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
@@ -702,19 +837,191 @@ compileFailLiteralNonMaybeAnnotation = Text.unlines
     , "bad = [typedSql| SELECT 1 |]"
     ]
 
+compileFailArithmeticNonMaybeAnnotation :: Text
+compileFailArithmeticNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailArithmeticNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Int"
+    , "bad = [typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]"
+    ]
+
+compileFailCaseNonMaybeAnnotation :: Text
+compileFailCaseNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailCaseNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Text"
+    , "bad = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
+    ]
+
+compileFailExistsNonMaybeAnnotation :: Text
+compileFailExistsNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailExistsNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Bool"
+    , "bad = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
+    ]
+
+compileFailNullLiteralNonMaybeAnnotation :: Text
+compileFailNullLiteralNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailNullLiteralNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Text"
+    , "bad = [typedSql| SELECT NULL::text |]"
+    ]
+
+compileFailCteMaybeAnnotation :: Text
+compileFailCteMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailCteMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery (Maybe Text)"
+    , "bad = [typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]"
+    ]
+
+compileFailSubqueryMaybeAnnotation :: Text
+compileFailSubqueryMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailSubqueryMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery (Maybe Text)"
+    , "bad = [typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]"
+    ]
+
+compileFailUnionNonMaybeAnnotation :: Text
+compileFailUnionNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailUnionNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Text"
+    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
+    ]
+
+compileFailWindowNonMaybeAnnotation :: Text
+compileFailWindowNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailWindowNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Integer"
+    , "bad = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
+    ]
+
+compileFailGroupedCountNonMaybeAnnotation :: Text
+compileFailGroupedCountNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailGroupedCountNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery (Text, Integer)"
+    , "bad = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
+    ]
+
+compileFailArrayLiteralNonMaybeAnnotation :: Text
+compileFailArrayLiteralNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailArrayLiteralNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery [Text]"
+    , "bad = [typedSql| SELECT ARRAY['x','y']::text[] |]"
+    ]
+
+compileFailNullIfNonMaybeAnnotation :: Text
+compileFailNullIfNonMaybeAnnotation = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCompileFailNullIfNonMaybeAnnotation where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: TypedQuery Text"
+    , "bad = [typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]"
+    ]
+
 runtimeModule :: Text
 runtimeModule = Text.unlines
-    [ "{-# LANGUAGE ImplicitParams #-}"
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
     , "module Main where"
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import qualified Database.PostgreSQL.Simple.FromRow as PGFR"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "data TypedSqlTestItem = TypedSqlTestItem"
+    , "    { typedSqlTestItemId :: Id' \"typed_sql_test_items\""
+    , "    , typedSqlTestItemAuthorId :: Maybe (Id' \"typed_sql_test_authors\")"
+    , "    , typedSqlTestItemName :: Text"
+    , "    , typedSqlTestItemViews :: Int"
+    , "    , typedSqlTestItemScore :: Maybe Double"
+    , "    , typedSqlTestItemTags :: [Text]"
+    , "    } deriving (Eq, Show)"
+    , ""
+    , "instance PGFR.FromRow TypedSqlTestItem where"
+    , "    fromRow = TypedSqlTestItem <$> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field <*> PGFR.field"
     , ""
     , "main :: IO ()"
     , "main = do"
@@ -756,6 +1063,19 @@ runtimeModule = Text.unlines
     , "        when ((namesViaTypedSql :: [Text]) /= [\"First\", \"Second\"]) do"
     , "            error (\"unexpected names from typedSql second query: \" <> show namesViaTypedSql)"
     , ""
+    , "        allItems <- sqlQueryTyped [typedSql|"
+    , "            SELECT typed_sql_test_items.*"
+    , "            FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        let expectedItems ="
+    , "                [ TypedSqlTestItem (Id itemId1) (Just (Id authorId)) \"First\" 5 (Just 1.5) [\"red\", \"blue\"]"
+    , "                , TypedSqlTestItem (Id itemId2) (Just (Id authorId)) \"Second\" 8 (Just 2.0) [\"green\"]"
+    , "                ]"
+    , "        when ((allItems :: [TypedSqlTestItem]) /= expectedItems) do"
+    , "            error (\"unexpected rows from table.* query: \" <> show allItems)"
+    , ""
     , "        boolExprRows <- sqlQueryTyped [typedSql|"
     , "            SELECT author_id IS NULL"
     , "            FROM typed_sql_test_items"
@@ -774,6 +1094,92 @@ runtimeModule = Text.unlines
     , ""
     , "        when ((literalRows :: [Maybe Int]) /= [Just 1]) do"
     , "            error (\"unexpected rows from literal query: \" <> show literalRows)"
+    , ""
+    , "        arithmeticRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT views + 1 FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((arithmeticRows :: [Maybe Int]) /= [Just 6, Just 9]) do"
+    , "            error (\"unexpected rows from arithmetic query: \" <> show arithmeticRows)"
+    , ""
+    , "        caseRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT CASE WHEN views > 5 THEN name ELSE 'low' END"
+    , "            FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((caseRows :: [Maybe Text]) /= [Just \"low\", Just \"Second\"]) do"
+    , "            error (\"unexpected rows from CASE query: \" <> show caseRows)"
+    , ""
+    , "        existsRows <- sqlQueryTyped [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
+    , ""
+    , "        when ((existsRows :: [Maybe Bool]) /= [Just True]) do"
+    , "            error (\"unexpected rows from EXISTS query: \" <> show existsRows)"
+    , ""
+    , "        nullLiteralRows <- sqlQueryTyped [typedSql| SELECT NULL::text |]"
+    , ""
+    , "        when ((nullLiteralRows :: [Maybe Text]) /= [Nothing]) do"
+    , "            error (\"unexpected rows from NULL literal query: \" <> show nullLiteralRows)"
+    , ""
+    , "        cteRows <- sqlQueryTyped [typedSql|"
+    , "            WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6)"
+    , "            SELECT name FROM item_names ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((cteRows :: [Text]) /= [\"Second\"]) do"
+    , "            error (\"unexpected rows from CTE query: \" <> show cteRows)"
+    , ""
+    , "        subqueryRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((subqueryRows :: [Text]) /= [\"First\"]) do"
+    , "            error (\"unexpected rows from subquery: \" <> show subqueryRows)"
+    , ""
+    , "        unionRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items WHERE views > 6"
+    , "            UNION ALL"
+    , "            SELECT name FROM typed_sql_test_items WHERE views < 6"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((unionRows :: [Maybe Text]) /= [Just \"First\", Just \"Second\"]) do"
+    , "            error (\"unexpected rows from UNION: \" <> show unionRows)"
+    , ""
+    , "        windowRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT row_number() OVER (ORDER BY name)"
+    , "            FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((windowRows :: [Maybe Integer]) /= [Just 1, Just 2]) do"
+    , "            error (\"unexpected rows from window function: \" <> show windowRows)"
+    , ""
+    , "        groupedCountRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name, COUNT(*)"
+    , "            FROM typed_sql_test_items"
+    , "            GROUP BY name"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((groupedCountRows :: [(Text, Maybe Integer)]) /= [(\"First\", Just 1), (\"Second\", Just 1)]) do"
+    , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
+    , ""
+    , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
+    , ""
+    , "        when ((arrayLiteralRows :: [Maybe [Text]]) /= [Just [\"x\", \"y\"]]) do"
+    , "            error (\"unexpected rows from array literal: \" <> show arrayLiteralRows)"
+    , ""
+    , "        nullIfRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT NULLIF(name, 'First')"
+    , "            FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((nullIfRows :: [Maybe Text]) /= [Nothing, Just \"Second\"]) do"
+    , "            error (\"unexpected rows from NULLIF: \" <> show nullIfRows)"
     , ""
     , "        innerJoinRows <- sqlQueryTyped [typedSql|"
     , "            SELECT i.name, a.name"
