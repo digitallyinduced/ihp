@@ -47,7 +47,6 @@ import Text.Blaze.Html5 (Html)
 -- > instance InitControllerContext Web where
 -- >     initContext = do
 -- >         setLayout defaultLayout
--- >         initAutoRefresh
 -- >         setTitle "Jobs"
 --
 --

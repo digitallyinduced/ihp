@@ -159,7 +159,6 @@ At the end of the file, there is a line like:
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initAutoRefresh
 ```
 
 We need to extend this function with a [`initAuthentication @User`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Middleware.html#v:initAuthentication) like this:
@@ -168,7 +167,6 @@ We need to extend this function with a [`initAuthentication @User`](https://ihp.
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initAutoRefresh
         initAuthentication @User
 ```
 

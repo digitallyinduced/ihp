@@ -486,7 +486,6 @@ instance InitControllerContext WebApplication where
         currentTime <- getCurrentTime
         -- Pass it to the default layout.
         setLayout (defaultLayout currentTime)
-        initAutoRefresh
 ```
 
 This means that the `defaultLayout` in the file `Layout.hs` will now get the `UTCTime` as its first argument. Rendering the footer with the copyright could look like this:

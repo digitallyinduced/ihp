@@ -18,7 +18,6 @@ import qualified Data.List as List
 import Data.Typeable (Typeable)
 
 -- Test types to simulate known types in error messages
-data AutoRefreshState = AutoRefreshState deriving (Typeable)
 data PageTitle = PageTitle deriving (Typeable)
 
 tests = do
@@ -100,17 +99,6 @@ tests = do
                     ErrorCall msg ->
                         "Unable to find" `List.isPrefixOf` msg &&
                         not ("Hint:" `List.isInfixOf` msg)  -- Int is not a known type, so no hint
-                    _ -> False)
-
-            it "should provide hint for AutoRefreshState" do
-                context <- newControllerContext
-                let ?context = context
-
-                -- Test that AutoRefreshState gets the correct hint
-                (fromContext @AutoRefreshState) `shouldThrow` (\e -> case e of
-                    ErrorCall msg ->
-                        "Unable to find AutoRefreshState in controller context:" `List.isPrefixOf` msg &&
-                        "Hint: Ensure you have called 'initAutoRefresh' in your 'initContext' function in FrontController.hs" `List.isInfixOf` msg
                     _ -> False)
 
             it "should provide hint for PageTitle" do

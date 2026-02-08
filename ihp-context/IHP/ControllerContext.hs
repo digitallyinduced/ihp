@@ -163,8 +163,7 @@ buildNotFoundMessage typeRep customFields =
   where
     -- Map of type names to helpful hints for initialization
     knownTypes =
-        [ ("AutoRefreshState", "Ensure you have called 'initAutoRefresh' in your 'initContext' function in FrontController.hs")
-        , ("Maybe User", "Ensure you have called 'initAuthentication @User' in your 'initContext' function in FrontController.hs")
+        [ ("Maybe User", "Ensure you have called 'initAuthentication @User' in your 'initContext' function in FrontController.hs")
         , ("Maybe Admin", "Ensure you have called 'initAuthentication @Admin' in your 'initContext' function in FrontController.hs")
         , ("PageTitle", "Use 'setTitle' to set the page title (imported from IHP.PageHead.ControllerFunctions)")
         ]
