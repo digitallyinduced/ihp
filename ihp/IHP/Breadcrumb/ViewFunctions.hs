@@ -12,13 +12,13 @@ import IHP.Breadcrumb.Types
 import IHP.ControllerSupport
 
 import Text.Blaze.Html (Html)
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 
 import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude
 
-renderBreadcrumb :: (?request :: Wai.Request) => [BreadcrumbItem] -> Html
+renderBreadcrumb :: (?request :: Request) => [BreadcrumbItem] -> Html
 renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView

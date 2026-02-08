@@ -43,7 +43,7 @@ module IHP.Controller.Param
 import IHP.Prelude
 import qualified Data.Either as Either
 import Wai.Request.Params.Middleware (RequestBody (..))
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 import qualified Data.UUID as UUID
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Char8 as Char8
@@ -123,7 +123,7 @@ import Wai.Request.Params (ParamReader(..), ParamException(..), enumParamReaderJ
 -- 'ParamNotFoundException' to be thrown with:
 --
 -- > param: Parameter 'firstname' not found
-param :: (?request :: Wai.Request) => (ParamReader valueType) => ByteString -> valueType
+param :: (?request :: Request) => (ParamReader valueType) => ByteString -> valueType
 param !name = Params.param ?request.parsedBody ?request name
 {-# INLINABLE param #-}
 
@@ -146,7 +146,7 @@ param !name = Params.param ?request.parsedBody ?request name
 -- When a value cannot be parsed, this function will fail similiar to 'param'.
 --
 -- Related: https://stackoverflow.com/questions/63875081/how-can-i-pass-list-params-in-ihp-forms/63879113
-paramList :: forall valueType. (?request :: Wai.Request, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [valueType]
+paramList :: forall valueType. (?request :: Request, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [valueType]
 paramList name = Params.paramList ?request.parsedBody ?request name
 {-# INLINABLE paramList #-}
 
@@ -168,32 +168,32 @@ paramList name = Params.paramList ?request.parsedBody ?request name
 -- []
 --
 --
-paramListOrNothing :: forall valueType. (?request :: Wai.Request, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [Maybe valueType]
+paramListOrNothing :: forall valueType. (?request :: Request, DeepSeq.NFData valueType, ParamReader valueType) => ByteString -> [Maybe valueType]
 paramListOrNothing name = Params.paramListOrNothing ?request.parsedBody ?request name
 {-# INLINABLE paramListOrNothing #-}
 
 -- | Specialized version of param for 'Text'.
 --
 -- This way you don't need to know about the type application syntax.
-paramText :: (?request :: Wai.Request) => ByteString -> Text
+paramText :: (?request :: Request) => ByteString -> Text
 paramText = param @Text
 
 -- | Specialized version of param for 'Int'.
 --
 -- This way you don't need to know about the type application syntax.
-paramInt :: (?request :: Wai.Request) => ByteString -> Int
+paramInt :: (?request :: Request) => ByteString -> Int
 paramInt = param @Int
 
 -- | Specialized version of param for 'Bool'.
 --
 -- This way you don't need to know about the type application syntax.
-paramBool :: (?request :: Wai.Request) => ByteString -> Bool
+paramBool :: (?request :: Request) => ByteString -> Bool
 paramBool = param @Bool
 
 -- | Specialized version of param for 'UUID'.
 --
 -- This way you don't need to know about the type application syntax.
-paramUUID :: (?request :: Wai.Request) => ByteString -> UUID
+paramUUID :: (?request :: Request) => ByteString -> UUID
 paramUUID = param @UUID
 
 -- | Returns @True@ when a parameter is given in the request via the query or request body.
@@ -210,7 +210,7 @@ paramUUID = param @UUID
 -- >         else renderPlain "Please provide your firstname"
 --
 -- This will render @Please provide your firstname@ because @hasParam "firstname"@ returns @False@
-hasParam :: (?request :: Wai.Request) => ByteString -> Bool
+hasParam :: (?request :: Request) => ByteString -> Bool
 hasParam = Params.hasParam ?request.parsedBody ?request
 {-# INLINABLE hasParam #-}
 
@@ -227,7 +227,7 @@ hasParam = Params.hasParam ?request.parsedBody ?request
 -- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
-paramOrDefault :: (?request :: Wai.Request) => ParamReader a => a -> ByteString -> a
+paramOrDefault :: (?request :: Request) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue name = Params.paramOrDefault ?request.parsedBody ?request defaultValue name
 {-# INLINABLE paramOrDefault #-}
 
@@ -244,22 +244,22 @@ paramOrDefault !defaultValue name = Params.paramOrDefault ?request.parsedBody ?r
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
-paramOrNothing :: forall paramType. (?request :: Wai.Request) => ParamReader (Maybe paramType) => ByteString -> Maybe paramType
+paramOrNothing :: forall paramType. (?request :: Request) => ParamReader (Maybe paramType) => ByteString -> Maybe paramType
 paramOrNothing !name = Params.paramOrNothing ?request.parsedBody ?request name
 {-# INLINABLE paramOrNothing #-}
 
 -- | Like 'param', but returns @Left "Some error message"@ if the parameter is missing or invalid
-paramOrError :: forall paramType. (?request :: Wai.Request) => ParamReader paramType => ByteString -> Either ParamException paramType
+paramOrError :: forall paramType. (?request :: Request) => ParamReader paramType => ByteString -> Either ParamException paramType
 paramOrError !name = Params.paramOrError ?request.parsedBody ?request name
 {-# INLINABLE paramOrError #-}
 
 -- | Returns a parameter without any parsing. Returns @Nothing@ when the parameter is missing.
-queryOrBodyParam :: (?request :: Wai.Request) => ByteString -> Maybe ByteString
+queryOrBodyParam :: (?request :: Request) => ByteString -> Maybe ByteString
 queryOrBodyParam !name = Params.queryOrBodyParam ?request.parsedBody ?request name
 {-# INLINABLE queryOrBodyParam #-}
 
 -- | Returns all params available in the current request
-allParams :: (?request :: Wai.Request) => [(ByteString, Maybe ByteString)]
+allParams :: (?request :: Request) => [(ByteString, Maybe ByteString)]
 allParams = Params.allParams ?request.parsedBody ?request
 
 -- IHP-specific ParamReader instances
@@ -351,7 +351,7 @@ enumParamReader string =
 -- This code will read the firstname, lastname and email from the request and assign them to the user.
 class FillParams (params :: [Symbol]) record where
     fill :: (
-        ?request :: Wai.Request
+        ?request :: Request
         , HasField "meta" record ModelSupport.MetaBag
         , SetField "meta" record ModelSupport.MetaBag
         ) => record -> record

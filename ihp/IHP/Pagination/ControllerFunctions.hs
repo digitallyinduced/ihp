@@ -19,7 +19,7 @@ import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 
 import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
 
@@ -50,7 +50,7 @@ paginate :: forall controller table queryBuilderProvider joinRegister .
     (?context::ControllerContext
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister) =>
     queryBuilderProvider table
@@ -82,7 +82,7 @@ paginateWithOptions :: forall controller table queryBuilderProvider joinRegister
     (?context::ControllerContext
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister) =>
     Options
@@ -124,7 +124,7 @@ paginateWithOptions options query = do
 -- >    render IndexView { .. }
 filterList :: forall name table model queryBuilderProvider joinRegister .
     (?context::ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol name
     , HasField name model Text
     , model ~ GetModelByTableName table
@@ -181,7 +181,7 @@ paginatedSqlQuery
      , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
-     , ?request :: Wai.Request
+     , ?request :: Request
      )
   => Query -> parameters -> IO ([model], Pagination)
 paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
@@ -205,7 +205,7 @@ paginatedSqlQueryWithOptions
      , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
-     , ?request :: Wai.Request
+     , ?request :: Request
      )
   => Options -> Query -> parameters -> IO ([model], Pagination)
 paginatedSqlQueryWithOptions options sql placeholders = do
@@ -228,11 +228,11 @@ paginatedSqlQueryWithOptions options sql placeholders = do
 -- We limit the page size to a maximum of 200, to prevent users from
 -- passing in query params with a value that could overload the
 -- database (e.g. maxItems=100000)
-pageSize' :: (?request :: Wai.Request) => Options -> Int
+pageSize' :: (?request :: Request) => Options -> Int
 pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
 
 -- Page and page size shouldn't be lower than 1.
-page :: (?request :: Wai.Request) => Int
+page :: (?request :: Request) => Int
 page = max 1 $ paramOrDefault @Int 1 "page"
 
 offset' :: Int -> Int -> Int
