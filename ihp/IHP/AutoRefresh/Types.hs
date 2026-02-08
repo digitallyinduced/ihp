@@ -11,7 +11,7 @@ import Control.Concurrent.MVar (MVar)
 import qualified IHP.PGListener as PGListener
 import Network.Wai (Request)
 
-data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
+data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
