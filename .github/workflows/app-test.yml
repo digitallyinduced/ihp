@@ -6,7 +6,7 @@ on:
     branches: master
 jobs:
   app-test:
-    runs-on: ARM64
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
       with:
@@ -22,8 +22,10 @@ jobs:
       working-directory: ihp-boilerplate
       run: |
         IHP_PATH="$(cd ../IHP && pwd)"
-        sed "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix > flake.nix.tmp && mv flake.nix.tmp flake.nix
+        sed -i "s|ihp.url = .*|ihp.url = \"path:${IHP_PATH}\";|" flake.nix
         cat flake.nix
+
+    - uses: cachix/install-nix-action@v27
 
     - name: Cachix Init (digitallyinduced)
       uses: cachix/cachix-action@v15
