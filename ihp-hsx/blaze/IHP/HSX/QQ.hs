@@ -18,25 +18,21 @@ import           IHP.HSX.Parser
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
-import           Text.Blaze.Html5              ((!))
 import qualified Text.Blaze.Html5              as Html5
 import Text.Blaze.Html (Html)
-import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
+import Text.Blaze.Internal (MarkupM (Parent, Leaf), StaticString (..), unsafeByteString, textComment, attribute, (!))
 import Data.String.Conversions
 import IHP.HSX.ToHtml
 import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.List (foldl')
 import IHP.HSX.Attribute
-import qualified Text.Blaze.Html5.Attributes as Attributes
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 
 hsx :: QuasiQuoter
-hsx = customHsx 
-        (HsxSettings 
+hsx = customHsx
+        (HsxSettings
             { checkMarkup = True
             , additionalTagNames = Set.empty
             , additionalAttributeNames = Set.empty
@@ -45,7 +41,7 @@ hsx = customHsx
 
 uncheckedHsx :: QuasiQuoter
 uncheckedHsx = customHsx
-        (HsxSettings 
+        (HsxSettings
             { checkMarkup = False
             , additionalTagNames = Set.empty
             , additionalAttributeNames = Set.empty
@@ -53,8 +49,8 @@ uncheckedHsx = customHsx
         )
 
 customHsx :: HsxSettings -> QuasiQuoter
-customHsx settings = 
-    QuasiQuoter 
+customHsx settings =
+    QuasiQuoter
         { quoteExp = quoteHsxExpression settings
         , quotePat = error "quotePat: not defined"
         , quoteDec = error "quoteDec: not defined"
@@ -77,30 +73,76 @@ quoteHsxExpression settings code = do
             pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
 
 compileToHaskell :: Node -> TH.ExpQ
--- Pre-render fully static subtrees to a single preEscapedText at compile time
+-- Pre-render fully static subtrees to a single unsafeByteString at compile time
 compileToHaskell node
     | isStaticTree node, isNonTrivialStaticNode node =
-        let html = renderStaticHtml node
-        in [| Html5.preEscapedText $(TH.lift html) |]
+        let bs = Text.encodeUtf8 (renderStaticHtml node)
+        in [| unsafeByteString $(TH.lift bs) |]
+-- Elements with only static attributes: flatten to Parts for merging
 compileToHaskell (Node name attributes children isLeaf)
-    | isLeaf = applyAttrs element attributes
-    | otherwise = applyAttrs [| $element $(compileChildList children) |] attributes
-    where element = if isLeaf then nodeToBlazeLeaf name else nodeToBlazeElement name
+    | all isStaticAttribute attributes =
+        emitParts (flattenNode name attributes children isLeaf)
+    | otherwise =
+        -- Has dynamic/spread attributes: use Parent/Leaf + AddAttribute
+        let element = if isLeaf then makeLeaf name else makeParentEl name
+        in if isLeaf
+            then applyDynAttrs element attributes
+            else applyDynAttrs [| $element $(compileChildList children) |] attributes
 compileToHaskell (Children children) = compileChildList children
-compileToHaskell (TextNode value) = [| Html5.preEscapedText value |]
-compileToHaskell (PreEscapedTextNode value) = [| Html5.preEscapedText value |]
+compileToHaskell (TextNode value) =
+    let bs = Text.encodeUtf8 value
+    in [| unsafeByteString $(TH.lift bs) |]
+compileToHaskell (PreEscapedTextNode value) =
+    let bs = Text.encodeUtf8 value
+    in [| unsafeByteString $(TH.lift bs) |]
 compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
-compileToHaskell (CommentNode value) = [| Html5.textComment value |]
+compileToHaskell (CommentNode value) = [| textComment value |]
 compileToHaskell (NoRenderCommentNode) = [| mempty |]
 
--- | Apply attributes to an element expression. No-op when the list is empty.
-applyAttrs :: TH.ExpQ -> [Attribute] -> TH.ExpQ
-applyAttrs element [] = element
-applyAttrs element attributes =
+-- | A part is either static text (merged at compile time) or a dynamic expression.
+data Part = S !Text | D TH.ExpQ
+
+-- | Flatten a static-attribute node into parts, recursing into children.
+-- Adjacent static parts are merged into single ByteString literals.
+flattenNode :: Text -> [Attribute] -> [Node] -> Bool -> [Part]
+flattenNode "!DOCTYPE" _ _ _ = [S "<!DOCTYPE HTML>\n"]
+flattenNode name attributes children isLeaf
+    | isLeaf    = [S ("<" <> name <> attrs <> ">")]
+    | otherwise = S ("<" <> name <> attrs <> ">") : concatMap flattenChild children ++ [S ("</" <> name <> ">")]
+    where attrs = foldMap renderStaticAttribute attributes
+
+-- | Flatten a child node into parts.
+flattenChild :: Node -> [Part]
+flattenChild node | isStaticTree node = [S (renderStaticHtml node)]
+flattenChild (SplicedNode expression) = [D [| toHtml $(pure expression) |]]
+flattenChild (CommentNode value) = [D [| textComment value |]]
+flattenChild (NoRenderCommentNode) = []
+flattenChild (Children children) = concatMap flattenChild children
+flattenChild (Node name attributes children isLeaf)
+    | all isStaticAttribute attributes = flattenNode name attributes children isLeaf
+    | otherwise = [D (compileToHaskell (Node name attributes children isLeaf))]
+flattenChild node = [S (renderStaticHtml node)]
+
+-- | Merge adjacent S parts and emit as a chain of @<>@.
+emitParts :: [Part] -> TH.ExpQ
+emitParts parts = case mergeParts parts of
+    []      -> [| mempty |]
+    [single] -> single
+    exprs   -> foldl1 (\a b -> [| $a <> $b |]) exprs
+  where
+    mergeParts [] = []
+    mergeParts (S a : S b : rest) = mergeParts (S (a <> b) : rest)
+    mergeParts (S t : rest) = let bs = Text.encodeUtf8 t in [| unsafeByteString $(TH.lift bs) |] : mergeParts rest
+    mergeParts (D e : rest) = e : mergeParts rest
+
+-- | Apply dynamic attributes to an element using the AddAttribute approach.
+applyDynAttrs :: TH.ExpQ -> [Attribute] -> TH.ExpQ
+applyDynAttrs element [] = element
+applyDynAttrs element attributes =
     let stringAttributes = TH.listE $ map toStringAttribute attributes
     in [| applyAttributes $element $stringAttributes |]
 
--- | Compile a child list to a single expression, coalescing static siblings.
+-- | Compile a child list to a single expression.
 compileChildList :: [Node] -> TH.ExpQ
 compileChildList children = case compileChildren children of
     []      -> [| mempty |]
@@ -124,15 +166,14 @@ isStaticAttribute (StaticAttribute _ (ExpressionValue _)) = False
 isStaticAttribute (SpreadAttributes _)                    = False
 
 -- | Returns True if a node is worth pre-rendering.
--- Bare TextNode/PreEscapedTextNode already compile to preEscapedText.
+-- Bare TextNode/PreEscapedTextNode already compile to unsafeByteString.
 isNonTrivialStaticNode :: Node -> Bool
 isNonTrivialStaticNode (TextNode _)          = False
 isNonTrivialStaticNode (PreEscapedTextNode _) = False
 isNonTrivialStaticNode (NoRenderCommentNode) = False
 isNonTrivialStaticNode _                     = True
 
--- | Render a static Node tree to HTML Text at compile time,
--- matching Blaze's runtime output format.
+-- | Render a static Node tree to HTML Text at compile time.
 renderStaticHtml :: Node -> Text
 renderStaticHtml (Node "!DOCTYPE" _ _ _) = "<!DOCTYPE HTML>\n"
 renderStaticHtml (Node name attributes children isLeaf) =
@@ -153,7 +194,7 @@ renderStaticAttribute (StaticAttribute name (TextValue value)) =
 renderStaticAttribute _ = error "renderStaticAttribute: unexpected dynamic attribute"
 
 -- | Compile a list of children, coalescing adjacent static siblings
--- into single preEscapedText chunks.
+-- into single unsafeByteString chunks.
 compileChildren :: [Node] -> [TH.ExpQ]
 compileChildren [] = []
 compileChildren nodes =
@@ -163,372 +204,30 @@ compileChildren nodes =
         -- Leading static batch worth coalescing
         (statics, rest)
             | any isNonTrivialStaticNode statics ->
-                let html = foldMap renderStaticHtml statics
-                in [| Html5.preEscapedText $(TH.lift html) |] : compileChildren rest
+                let bs = Text.encodeUtf8 (foldMap renderStaticHtml statics)
+                in [| unsafeByteString $(TH.lift bs) |] : compileChildren rest
             -- Trivial statics (bare text nodes): compile individually
             | otherwise ->
                 map compileToHaskell statics ++ compileChildren rest
 
-nodeToBlazeElement :: Text -> TH.Q TH.Exp
-nodeToBlazeElement name =
-    HashMap.findWithDefault (nodeToBlazeElementGeneric name) name knownElements
+-- | Create a Parent element for the AddAttribute approach.
+makeParentEl :: Text -> TH.ExpQ
+makeParentEl name =
+    [| makeParent (textToStaticString $(TH.lift name)) (textToStaticString $(TH.lift ("<" <> name))) (textToStaticString $(TH.lift ("</" <> name <> ">"))) |]
 
-knownElements :: HashMap.HashMap Text TH.ExpQ
-knownElements =
-    HashMap.fromList
-        [ ("a", [| Html5.a |])
-        , ("abbr", [| Html5.abbr |])
-        , ("address", [| Html5.address |])
-        , ("article", [| Html5.article |])
-        , ("aside", [| Html5.aside |])
-        , ("audio", [| Html5.audio |])
-        , ("b", [| Html5.b |])
-        , ("blockquote", [| Html5.blockquote |])
-        , ("body", [| Html5.body |])
-        , ("button", [| Html5.button |])
-        , ("canvas", [| Html5.canvas |])
-        , ("caption", [| Html5.caption |])
-        , ("cite", [| Html5.cite |])
-        , ("code", [| Html5.code |])
-        , ("colgroup", [| Html5.colgroup |])
-        , ("datalist", [| Html5.datalist |])
-        , ("dd", [| Html5.dd |])
-        , ("del", [| Html5.del |])
-        , ("details", [| Html5.details |])
-        , ("dfn", [| Html5.dfn |])
-        , ("div", [| Html5.div |])
-        , ("dl", [| Html5.dl |])
-        , ("dt", [| Html5.dt |])
-        , ("em", [| Html5.em |])
-        , ("fieldset", [| Html5.fieldset |])
-        , ("figcaption", [| Html5.figcaption |])
-        , ("figure", [| Html5.figure |])
-        , ("footer", [| Html5.footer |])
-        , ("form", [| Html5.form |])
-        , ("h1", [| Html5.h1 |])
-        , ("h2", [| Html5.h2 |])
-        , ("h3", [| Html5.h3 |])
-        , ("h4", [| Html5.h4 |])
-        , ("h5", [| Html5.h5 |])
-        , ("h6", [| Html5.h6 |])
-        , ("head", [| Html5.head |])
-        , ("header", [| Html5.header |])
-        , ("hgroup", [| Html5.hgroup |])
-        , ("html", [| Html5.html |])
-        , ("i", [| Html5.i |])
-        , ("iframe", [| Html5.iframe |])
-        , ("ins", [| Html5.ins |])
-        , ("kbd", [| Html5.kbd |])
-        , ("label", [| Html5.label |])
-        , ("legend", [| Html5.legend |])
-        , ("li", [| Html5.li |])
-        , ("main", [| Html5.main |])
-        , ("map", [| Html5.map |])
-        , ("mark", [| Html5.mark |])
-        , ("menu", [| Html5.menu |])
-        , ("menuitem", [| Html5.menuitem |])
-        , ("meter", [| Html5.meter |])
-        , ("nav", [| Html5.nav |])
-        , ("noscript", [| Html5.noscript |])
-        , ("object", [| Html5.object |])
-        , ("ol", [| Html5.ol |])
-        , ("optgroup", [| Html5.optgroup |])
-        , ("option", [| Html5.option |])
-        , ("output", [| Html5.output |])
-        , ("p", [| Html5.p |])
-        , ("pre", [| Html5.pre |])
-        , ("progress", [| Html5.progress |])
-        , ("q", [| Html5.q |])
-        , ("rp", [| Html5.rp |])
-        , ("rt", [| Html5.rt |])
-        , ("ruby", [| Html5.ruby |])
-        , ("s", [| Html5.s |])
-        , ("samp", [| Html5.samp |])
-        , ("script", [| Html5.script |])
-        , ("section", [| Html5.section |])
-        , ("select", [| Html5.select |])
-        , ("small", [| Html5.small |])
-        , ("span", [| Html5.span |])
-        , ("strong", [| Html5.strong |])
-        , ("style", [| Html5.style |])
-        , ("sub", [| Html5.sub |])
-        , ("summary", [| Html5.summary |])
-        , ("sup", [| Html5.sup |])
-        , ("table", [| Html5.table |])
-        , ("tbody", [| Html5.tbody |])
-        , ("td", [| Html5.td |])
-        , ("textarea", [| Html5.textarea |])
-        , ("tfoot", [| Html5.tfoot |])
-        , ("th", [| Html5.th |])
-        , ("thead", [| Html5.thead |])
-        , ("time", [| Html5.time |])
-        , ("title", [| Html5.title |])
-        , ("tr", [| Html5.tr |])
-        , ("u", [| Html5.u |])
-        , ("ul", [| Html5.ul |])
-        , ("var", [| Html5.var |])
-        , ("video", [| Html5.video |])
-        ]
-
-nodeToBlazeLeaf :: Text -> TH.Q TH.Exp
-nodeToBlazeLeaf name =
-    HashMap.findWithDefault (nodeToBlazeLeafGeneric name) name knownLeafs
-
-knownLeafs :: HashMap.HashMap Text TH.ExpQ
-knownLeafs =
-    HashMap.fromList
-        [ ("area", [| Html5.area |])
-        , ("base", [| Html5.base |])
-        , ("br", [| Html5.br |])
-        , ("col", [| Html5.col |])
-        , ("embed", [| Html5.embed |])
-        , ("hr", [| Html5.hr |])
-        , ("img", [| Html5.img |])
-        , ("input", [| Html5.input |])
-        , ("keygen", [| Html5.keygen |])
-        , ("link", [| Html5.link |])
-        , ("meta", [| Html5.meta |])
-        , ("param", [| Html5.param |])
-        , ("source", [| Html5.source |])
-        , ("track", [| Html5.track |])
-        , ("wbr", [| Html5.wbr |])
-        ]
-
-nodeToBlazeElementGeneric :: Text -> TH.Q TH.Exp
-nodeToBlazeElementGeneric name =
-    let
-        openTag :: Text
-        openTag = "<" <> tag
-        
-        tag :: Text
-        tag = cs name
-
-        closeTag :: Text
-        closeTag = "</" <> tag <> ">"
-    in
-        [| makeParent (textToStaticString $(TH.lift name)) (textToStaticString $(TH.lift openTag)) (textToStaticString $(TH.lift closeTag)) |]
-
-nodeToBlazeLeafGeneric :: Text -> TH.Q TH.Exp
-nodeToBlazeLeafGeneric name =
-    let
-        openTag :: Text
-        openTag = "<" <> tag
-
-        closeTag :: Text
-        closeTag = ">"
-        
-        tag :: Text
-        tag = cs name
-    in
-        [| (Leaf (textToStaticString $(TH.lift tag)) (textToStaticString $(TH.lift openTag)) (textToStaticString $(TH.lift closeTag)) ()) |]
+-- | Create a Leaf element for the AddAttribute approach.
+makeLeaf :: Text -> TH.ExpQ
+makeLeaf name =
+    [| (Leaf (textToStaticString $(TH.lift name)) (textToStaticString $(TH.lift ("<" <> name))) (textToStaticString $(TH.lift (">" :: Text))) ()) |]
 
 toStringAttribute :: Attribute -> TH.ExpQ
 toStringAttribute (StaticAttribute name (TextValue value)) =
-    attributeFromName name value
-
+    let nameWithSuffix = " " <> name <> "=\""
+    in if Text.null value
+        then [| (! attribute (Html5.textTag name) (Html5.textTag nameWithSuffix) mempty) |]
+        else [| (! attribute (Html5.textTag name) (Html5.textTag nameWithSuffix) (Html5.preEscapedTextValue value)) |]
 toStringAttribute (StaticAttribute name (ExpressionValue expression)) = let nameWithSuffix = " " <> name <> "=\"" in [| applyAttribute name nameWithSuffix $(pure expression) |]
 toStringAttribute (SpreadAttributes expression) = [| spreadAttributes $(pure expression) |]
-
-attributeFromName :: Text -> Text -> TH.ExpQ
-attributeFromName name value =
-    let
-        value' :: TH.ExpQ
-        value' = if Text.null value then [| mempty |] else [| Html5.preEscapedTextValue value |] 
-
-        attr = attributeFromName' name
-    in
-        [| (! $attr $value') |]
-
-attributeFromName' :: Text -> TH.ExpQ
-attributeFromName' name =
-    HashMap.findWithDefault (attributeFromNameGeneric name) name knownAttributes
-
-knownAttributes :: HashMap.HashMap Text TH.ExpQ
-knownAttributes =
-    HashMap.fromList
-        [ ("accept", [| Attributes.accept |])
-        , ( "accept-charset", [| Attributes.acceptCharset |])
-        , ( "accesskey", [| Attributes.accesskey |])
-        , ( "action", [| Attributes.action |])
-        , ( "alt", [| Attributes.alt |])
-        , ( "async", [| Attributes.async |])
-        , ( "autocomplete", [| Attributes.autocomplete |])
-        , ( "autofocus", [| Attributes.autofocus |])
-        , ( "autoplay", [| Attributes.autoplay |])
-        , ( "challenge", [| Attributes.challenge |])
-        , ( "charset", [| Attributes.charset |])
-        , ( "checked", [| Attributes.checked |])
-        , ( "cite", [| Attributes.cite |])
-        , ( "class", [| Attributes.class_ |])
-        , ( "cols", [| Attributes.cols |])
-        , ( "colspan", [| Attributes.colspan |])
-        , ( "content", [| Attributes.content |])
-        , ( "contenteditable", [| Attributes.contenteditable |])
-        , ( "contextmenu", [| Attributes.contextmenu |])
-        , ( "controls", [| Attributes.controls |])
-        , ( "coords", [| Attributes.coords |])
-        , ( "data", [| Attributes.data_ |])
-        , ( "datetime", [| Attributes.datetime |])
-        , ( "defer", [| Attributes.defer |])
-        , ( "dir", [| Attributes.dir |])
-        , ( "disabled", [| Attributes.disabled |])
-        , ( "download", [| Attributes.download |])
-        , ( "draggable", [| Attributes.draggable |])
-        , ( "enctype", [| Attributes.enctype |])
-        , ( "for", [| Attributes.for |])
-        , ( "form", [| Attributes.form |])
-        , ( "formaction", [| Attributes.formaction |])
-        , ( "formenctype", [| Attributes.formenctype |])
-        , ( "formmethod", [| Attributes.formmethod |])
-        , ( "formnovalidate", [| Attributes.formnovalidate |])
-        , ( "formtarget", [| Attributes.formtarget |])
-        , ( "headers", [| Attributes.headers |])
-        , ( "height", [| Attributes.height |])
-        , ( "hidden", [| Attributes.hidden |])
-        , ( "high", [| Attributes.high |])
-        , ( "href", [| Attributes.href |])
-        , ( "hreflang", [| Attributes.hreflang |])
-        , ( "http-equiv", [| Attributes.httpEquiv |])
-        , ( "icon", [| Attributes.icon |])
-        , ( "id", [| Attributes.id |])
-        , ( "ismap", [| Attributes.ismap |])
-        , ( "item", [| Attributes.item |])
-        , ( "itemprop", [| Attributes.itemprop |])
-        , ( "itemscope", [| Attributes.itemscope |])
-        , ( "itemtype", [| Attributes.itemtype |])
-        , ( "keytype", [| Attributes.keytype |])
-        , ( "label", [| Attributes.label |])
-        , ( "lang", [| Attributes.lang |])
-        , ( "list", [| Attributes.list |])
-        , ( "loop", [| Attributes.loop |])
-        , ( "low", [| Attributes.low |])
-        , ( "manifest", [| Attributes.manifest |])
-        , ( "max", [| Attributes.max |])
-        , ( "maxlength", [| Attributes.maxlength |])
-        , ( "media", [| Attributes.media |])
-        , ( "method", [| Attributes.method |])
-        , ( "min", [| Attributes.min |])
-        , ( "minlength", [| Attributes.minlength |])
-        , ( "multiple", [| Attributes.multiple |])
-        , ( "muted", [| Attributes.muted |])
-        , ( "name", [| Attributes.name |])
-        , ( "novalidate", [| Attributes.novalidate |])
-        , ( "onbeforeonload", [| Attributes.onbeforeonload |])
-        , ( "onbeforeprint", [| Attributes.onbeforeprint |])
-        , ( "onblur", [| Attributes.onblur |])
-        , ( "oncanplay", [| Attributes.oncanplay |])
-        , ( "oncanplaythrough", [| Attributes.oncanplaythrough |])
-        , ( "onchange", [| Attributes.onchange |])
-        , ( "onclick", [| Attributes.onclick |])
-        , ( "oncontextmenu", [| Attributes.oncontextmenu |])
-        , ( "ondblclick", [| Attributes.ondblclick |])
-        , ( "ondrag", [| Attributes.ondrag |])
-        , ( "ondragend", [| Attributes.ondragend |])
-        , ( "ondragenter", [| Attributes.ondragenter |])
-        , ( "ondragleave", [| Attributes.ondragleave |])
-        , ( "ondragover", [| Attributes.ondragover |])
-        , ( "ondragstart", [| Attributes.ondragstart |])
-        , ( "ondrop", [| Attributes.ondrop |])
-        , ( "ondurationchange", [| Attributes.ondurationchange |])
-        , ( "onemptied", [| Attributes.onemptied |])
-        , ( "onended", [| Attributes.onended |])
-        , ( "onerror", [| Attributes.onerror |])
-        , ( "onfocus", [| Attributes.onfocus |])
-        , ( "onformchange", [| Attributes.onformchange |])
-        , ( "onforminput", [| Attributes.onforminput |])
-        , ( "onhaschange", [| Attributes.onhaschange |])
-        , ( "oninput", [| Attributes.oninput |])
-        , ( "oninvalid", [| Attributes.oninvalid |])
-        , ( "onkeydown", [| Attributes.onkeydown |])
-        , ( "onkeypress", [| Attributes.onkeypress |])
-        , ( "onkeyup", [| Attributes.onkeyup |])
-        , ( "onload", [| Attributes.onload |])
-        , ( "onloadeddata", [| Attributes.onloadeddata |])
-        , ( "onloadedmetadata", [| Attributes.onloadedmetadata |])
-        , ( "onloadstart", [| Attributes.onloadstart |])
-        , ( "onmessage", [| Attributes.onmessage |])
-        , ( "onmousedown", [| Attributes.onmousedown |])
-        , ( "onmousemove", [| Attributes.onmousemove |])
-        , ( "onmouseout", [| Attributes.onmouseout |])
-        , ( "onmouseover", [| Attributes.onmouseover |])
-        , ( "onmouseup", [| Attributes.onmouseup |])
-        , ( "onmousewheel", [| Attributes.onmousewheel |])
-        , ( "ononline", [| Attributes.ononline |])
-        , ( "onpagehide", [| Attributes.onpagehide |])
-        , ( "onpageshow", [| Attributes.onpageshow |])
-        , ( "onpause", [| Attributes.onpause |])
-        , ( "onplay", [| Attributes.onplay |])
-        , ( "onplaying", [| Attributes.onplaying |])
-        , ( "onprogress", [| Attributes.onprogress |])
-        , ( "onpropstate", [| Attributes.onpropstate |])
-        , ( "onratechange", [| Attributes.onratechange |])
-        , ( "onreadystatechange", [| Attributes.onreadystatechange |])
-        , ( "onredo", [| Attributes.onredo |])
-        , ( "onresize", [| Attributes.onresize |])
-        , ( "onscroll", [| Attributes.onscroll |])
-        , ( "onseeked", [| Attributes.onseeked |])
-        , ( "onseeking", [| Attributes.onseeking |])
-        , ( "onselect", [| Attributes.onselect |])
-        , ( "onstalled", [| Attributes.onstalled |])
-        , ( "onstorage", [| Attributes.onstorage |])
-        , ( "onsubmit", [| Attributes.onsubmit |])
-        , ( "onsuspend", [| Attributes.onsuspend |])
-        , ( "ontimeupdate", [| Attributes.ontimeupdate |])
-        , ( "onundo", [| Attributes.onundo |])
-        , ( "onunload", [| Attributes.onunload |])
-        , ( "onvolumechange", [| Attributes.onvolumechange |])
-        , ( "onwaiting", [| Attributes.onwaiting |])
-        , ( "open", [| Attributes.open |])
-        , ( "optimum", [| Attributes.optimum |])
-        , ( "pattern", [| Attributes.pattern |])
-        , ( "ping", [| Attributes.ping |])
-        , ( "placeholder", [| Attributes.placeholder |])
-        , ( "poster", [| Attributes.poster |])
-        , ( "preload", [| Attributes.preload |])
-        , ( "property", [| Attributes.property |])
-        , ( "pubdate", [| Attributes.pubdate |])
-        , ( "radiogroup", [| Attributes.radiogroup |])
-        , ( "readonly", [| Attributes.readonly |])
-        , ( "rel", [| Attributes.rel |])
-        , ( "required", [| Attributes.required |])
-        , ( "reversed", [| Attributes.reversed |])
-        , ( "role", [| Attributes.role |])
-        , ( "rows", [| Attributes.rows |])
-        , ( "rowspan", [| Attributes.rowspan |])
-        , ( "sandbox", [| Attributes.sandbox |])
-        , ( "scope", [| Attributes.scope |])
-        , ( "scoped", [| Attributes.scoped |])
-        , ( "seamless", [| Attributes.seamless |])
-        , ( "selected", [| Attributes.selected |])
-        , ( "shape", [| Attributes.shape |])
-        , ( "size", [| Attributes.size |])
-        , ( "sizes", [| Attributes.sizes |])
-        , ( "span", [| Attributes.span |])
-        , ( "spellcheck", [| Attributes.spellcheck |])
-        , ( "src", [| Attributes.src |])
-        , ( "srcdoc", [| Attributes.srcdoc |])
-        , ( "start", [| Attributes.start |])
-        , ( "step", [| Attributes.step |])
-        , ( "style", [| Attributes.style |])
-        , ( "subject", [| Attributes.subject |])
-        , ( "summary", [| Attributes.summary |])
-        , ( "tabindex", [| Attributes.tabindex |])
-        , ( "target", [| Attributes.target |])
-        , ( "title", [| Attributes.title |])
-        , ( "type", [| Attributes.type_ |])
-        , ( "usemap", [| Attributes.usemap |])
-        , ( "value", [| Attributes.value |])
-        , ( "width", [| Attributes.width |])
-        , ( "wrap", [| Attributes.wrap |])
-        , ( "xmlns", [| Attributes.xmlns |])
-        ]
-
-attributeFromNameGeneric :: Text -> TH.ExpQ
-attributeFromNameGeneric name =
-    let
-        nameWithSuffix = " " <> name <> "=\""
-    in
-        [| attribute (Html5.textTag name) (Html5.textTag nameWithSuffix) |]
 
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Html5.Html -> Html5.Html
 spreadAttributes attributes html = applyAttributes html $ map (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value) attributes
