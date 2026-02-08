@@ -49,6 +49,7 @@ executable generate-datasync-types
     build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, neat-interpolation, with-utf8, text
     hs-source-dirs: .
     main-is: exe/GenerateDataSyncTypes.hs
+    ghc-options: -rtsopts
 
 test-suite spec
     import: shared-properties
