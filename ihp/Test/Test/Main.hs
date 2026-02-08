@@ -22,6 +22,7 @@ import qualified Test.PGListenerSpec
 import qualified Test.MockingSpec
 import qualified Test.HasqlEncoderSpec
 import qualified Test.AutoRefreshSpec
+import qualified Test.TypedSqlSpec
 
 main :: IO ()
 main = hspec do
@@ -44,3 +45,4 @@ main = hspec do
     Test.MockingSpec.tests
     Test.HasqlEncoderSpec.tests
     Test.AutoRefreshSpec.tests
+    Test.TypedSqlSpec.tests
