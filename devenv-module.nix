@@ -73,7 +73,22 @@ that is defined in flake-module.nix
             // {
                 ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc.ihp-hsx).overrideAttrs (old: {
                     postCheck = (old.postCheck or "") + ''
-                        ./Setup bench --benchmark-options='+RTS -T'
+                        ./Setup bench --benchmark-options='+RTS -T -RTS --csv bench-results.csv'
+
+                        # Compare allocations (column 4) against baseline.
+                        # Allocations are deterministic — same code = same count — so
+                        # any increase signals a real regression, not noise.
+                        ${pkgs.gawk}/bin/awk -F, '
+                          NR==FNR && FNR>1 { baseline[$1]=$4; next }
+                          FNR>1 {
+                            name=$1; alloc=$4; base=baseline[name]
+                            if (base > 0 && alloc > base * 1.1) {
+                              printf "REGRESSION: %s allocates %d bytes (baseline %d, +%.0f%%)\n", name, alloc, base, (alloc-base)/base*100
+                              fail=1
+                            }
+                          }
+                          END { if (fail) exit 1 }
+                        ' bench-baseline.csv bench-results.csv
                     '';
                 });
             }
