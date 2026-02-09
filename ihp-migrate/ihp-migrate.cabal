@@ -37,7 +37,7 @@ library
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, postgresql-simple
     hs-source-dirs: .
     main-is: Migrate.hs
 
