@@ -15,7 +15,7 @@ import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
 import IHP.FrameworkConfig (findOptionOrNothing, configIO, defaultDatabaseUrl)
-import IHP.FrameworkConfig.Types (DatabaseUrl(..), DBPoolMaxConnections(..), CustomMiddleware(..), RLSAuthenticatedRole(..))
+import IHP.FrameworkConfig.Types (DBPoolMaxConnections(..), CustomMiddleware(..), RLSAuthenticatedRole(..))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
 import qualified Control.Concurrent as Concurrent
@@ -79,9 +79,7 @@ initHasqlPoolWithRLS = do
 -- | Shared implementation: creates the pool, installs the middleware, returns the pool.
 initHasqlPoolImpl :: State.StateT TMap.TMap IO Hasql.Pool.Pool
 initHasqlPoolImpl = do
-    databaseUrl <- findOptionOrNothing @DatabaseUrl >>= \case
-        Just (DatabaseUrl url) -> pure url
-        Nothing -> configIO defaultDatabaseUrl
+    databaseUrl <- configIO defaultDatabaseUrl
     maxConnections <- findOptionOrNothing @DBPoolMaxConnections >>= \case
         Just (DBPoolMaxConnections n) -> pure n
         Nothing -> configIO $ max 20 <$> Concurrent.getNumCapabilities
