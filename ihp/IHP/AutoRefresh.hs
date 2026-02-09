@@ -32,6 +32,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault (pgListenerVaultKey)
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Environment (Environment(..))
 
 {-# NOINLINE globalAutoRefreshServerVar #-}
