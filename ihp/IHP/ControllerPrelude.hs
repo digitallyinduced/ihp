@@ -59,7 +59,7 @@ import IHP.Fetch
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo(..))
-import qualified Network.Wai
+import Network.Wai (Request)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Database.PostgreSQL.Simple.Types (Only (..))
@@ -74,7 +74,7 @@ import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
-import IHP.AutoRefresh (initAutoRefresh, autoRefresh)
+import IHP.AutoRefresh (autoRefresh)
 
 import IHP.LoginSupport.Helper.Controller
 import IHP.PageHead.ControllerFunctions
@@ -93,5 +93,5 @@ import IHP.HSX.ToHtml ()
 --
 -- > setModal MyModalView { .. }
 --
-setModal :: (?context :: ControllerContext, ?request :: Network.Wai.Request, View view) => view -> IO ()
+setModal :: (?context :: ControllerContext, ?request :: Request, View view) => view -> IO ()
 setModal view = let ?view = view in Modal.setModal (ViewSupport.html view)

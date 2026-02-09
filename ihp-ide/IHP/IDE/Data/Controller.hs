@@ -216,7 +216,7 @@ runSnippetExec snippet = do
 fetchTableNames :: (?modelContext :: ModelContext) => IO [Text]
 fetchTableNames =
     runSnippetQuery
-        (Snippet.sql "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
+        (Snippet.sql "SELECT tablename::text FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
         (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 fetchTableCols :: (?modelContext :: ModelContext) => Text -> IO [ColumnDefinition]
@@ -266,7 +266,7 @@ jsonFieldToDynamicField (key, val) = DynamicField
 tablePrimaryKeyFields :: (?modelContext :: ModelContext) => Text -> IO [Text]
 tablePrimaryKeyFields tableName =
     runSnippetQuery
-        (Snippet.sql "SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indrelid = " <> Snippet.param tableName <> Snippet.sql "::regclass AND i.indisprimary")
+        (Snippet.sql "SELECT a.attname::text FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) WHERE i.indrelid = " <> Snippet.param tableName <> Snippet.sql "::regclass AND i.indisprimary")
         (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 fetchRows :: (?modelContext :: ModelContext) => Text -> IO [[DynamicField]]

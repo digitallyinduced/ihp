@@ -20,7 +20,7 @@ import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
 import Wai.Request.Params.Middleware (Respond)
-import qualified Network.Wai
+import Network.Wai (Request)
 import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Displays the login form.
@@ -29,7 +29,7 @@ import IHP.Hasql.FromRow (FromRowHasql)
 newSessionAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
-    , ?request :: Network.Wai.Request
+    , ?request :: Request
     , ?respond :: Respond
     , HasNewSessionUrl record
     , ?modelContext :: ModelContext
@@ -56,7 +56,7 @@ newSessionAction = do
 createSessionAction :: forall record action.
     (?theAction :: action
     , ?context :: ControllerContext
-    , ?request :: Network.Wai.Request
+    , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
@@ -112,7 +112,7 @@ createSessionAction = do
 deleteSessionAction :: forall record action id.
     ( ?theAction :: action
     , ?context :: ControllerContext
-    , ?request :: Network.Wai.Request
+    , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
@@ -183,13 +183,13 @@ class ( Typeable record
     -- >     unless (user.isConfirmed) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Network.Wai.Request) => record -> IO ()
+    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
     beforeLogin _ = pure ()
 
     -- | Callback that is executed just before the user is logged out
     --
     -- This is called only if user session exists
-    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Network.Wai.Request) => record -> IO ()
+    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
     beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.

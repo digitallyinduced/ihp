@@ -24,7 +24,7 @@ import qualified Data.Maybe as Maybe
 import qualified Control.Exception.Safe as Exception
 import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 
 import qualified IHP.Log as Log
 
@@ -33,13 +33,13 @@ import qualified Network.WebSockets.Connection as WebSocket
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Wai.Request) => IO ()
+    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Wai.Request) => IO ()
+    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Wai.Request) => IO ()
+    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     onClose = pure ()
 
     -- | Provide WebSocket Connection Options

@@ -10,7 +10,7 @@ let
 
             filteredSrc = name: filter {
                 root = "${toString flakeRoot}/${name}";
-                include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
+                include = [ (filter.matchExt "hs") (filter.matchExt "cabal") (filter.matchExt "csv") (filter.matchExt "md") filter.isDirectory "LICENSE" "data" ];
             };
 
             # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
