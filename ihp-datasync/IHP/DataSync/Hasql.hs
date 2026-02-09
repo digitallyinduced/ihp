@@ -11,7 +11,6 @@ import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import qualified Hasql.Errors as Hasql
-import qualified Data.Text as Text
 
 -- | Run a composed Session against the pool. Throws 'Hasql.Pool.UsageError' on failure.
 runSession :: Hasql.Pool.Pool -> Session.Session a -> IO a
@@ -38,13 +37,7 @@ runSessionOnConnection conn session = do
 -- action completes (normally or via exception).
 withDedicatedConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withDedicatedConnection databaseUrl action = do
-    -- Normalize for hasql's connection string parser:
-    -- 1. postgres:// → postgresql://
-    -- 2. Strip empty password (user:@host) → (user@host) — parser chokes on empty password
-    let hasqlDatabaseUrl = cs databaseUrl
-            |> Text.replace "postgres://" "postgresql://"
-            |> Text.replace ":@" "@"
-    connResult <- Hasql.acquire (HasqlSettings.connectionString hasqlDatabaseUrl)
+    connResult <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
     case connResult of
         Right conn -> action conn `Exception.finally` Hasql.release conn
         Left err -> error (Hasql.toDetailedText err)
