@@ -29,9 +29,10 @@ data AutoRefreshSession = AutoRefreshSession
 data AutoRefreshServer = AutoRefreshServer
         { subscriptions :: [PGListener.Subscription]
         , sessions :: ![AutoRefreshSession]
-        , subscribedTables :: !(Set ByteString)
         , pgListener :: PGListener.PGListener
+        -- | Installs the database trigger for a table and subscribes to its change notifications.
+        -- The first argument is the table name, the second is the IO action to create the SQL trigger.
+        -- This is memoized per table and automatically clears the cache when the database reconnects,
+        -- ensuring triggers are recreated after `make db`.
+        , installTableTrigger :: !(ByteString -> IO () -> IO ())
         }
-
-newAutoRefreshServer :: PGListener.PGListener -> AutoRefreshServer
-newAutoRefreshServer pgListener = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty, pgListener }

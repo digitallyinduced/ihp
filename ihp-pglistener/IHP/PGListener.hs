@@ -19,6 +19,7 @@ module IHP.PGListener
 , subscribe
 , subscribeJSON
 , unsubscribe
+, runOncePerConnection
 ) where
 
 import Prelude hiding (init, show, error)
@@ -30,7 +31,7 @@ import Data.IORef
 import Data.String.Conversions (cs)
 import Data.UUID (UUID)
 import qualified Data.UUID.V4 as UUID
-import Control.Monad (forever, unless, void, forM_)
+import Control.Monad (forever, unless, void, forM_, when)
 import GHC.Records (HasField)
 import Data.Maybe (fromMaybe)
 import Control.Exception (SomeException, displayException, uninterruptibleMask_)
@@ -99,6 +100,7 @@ data PGListener = PGListener
     , listenTo :: !(MVar Channel)
     , subscriptions :: !(IORef (HashMap Channel [Subscription]))
     , notifyLoopAsync :: !(Async ())
+    , connectionEpoch :: !(IORef Int)
     }
 
 -- | Creates a new 'PGListener' object
@@ -113,9 +115,10 @@ init databaseUrl logger = do
     listeningTo <- MVar.newMVar Set.empty
     subscriptions <- newIORef HashMap.empty
     listenTo <- MVar.newEmptyMVar
+    connectionEpoch <- newIORef 0
 
-    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions)
-    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync }
+    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions connectionEpoch)
+    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync, connectionEpoch }
 
 -- | Stops the database listener async and releases the database connection
 --
@@ -230,8 +233,8 @@ acquireConnection databaseUrl = do
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
 -- Todo: What happens when the connection dies?
-notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
-notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
+notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IORef Int -> IO ()
+notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions connectionEpochRef = do
     -- Wait until the first LISTEN is requested before opening a database connection
     MVar.readMVar listenToVar
 
@@ -244,6 +247,10 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
                 -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
                 listeningTo <- MVar.readMVar listeningToVar
                 forM_ listeningTo (listenToChannel connection)
+
+                -- Increment epoch after reconnect so that runOncePerConnection caches can detect stale state
+                -- This handles the case where the database was recreated (e.g., via `make db`) and triggers need to be reinstalled
+                modifyIORef' connectionEpochRef (+ 1)
 
                 -- We use 'race' to alternate between waiting for notifications and
                 -- processing new LISTEN requests. This avoids a deadlock: both
@@ -327,6 +334,44 @@ printTimeToNextRetry microseconds
 listenToChannel :: Hasql.Connection -> Channel -> IO ()
 listenToChannel connection channel = do
     HasqlNotifications.listen connection (HasqlNotifications.toPgIdentifier (cs channel))
+
+-- | Returns a memoized function that:
+--
+-- 1. Only runs the action once per key
+-- 2. Automatically clears the cache when PGListener reconnects (e.g., after @make db@ recreates the database)
+--
+-- This is useful for installing database triggers that need to be recreated after the database is reset.
+--
+-- > installTrigger <- runOncePerConnection pgListener \tableName -> do
+-- >     -- This only runs once per table, and again after reconnect
+-- >     sqlExec (createTriggerSQL tableName) ()
+-- >
+-- > installTrigger "users"  -- Creates trigger
+-- > installTrigger "users"  -- No-op (cached)
+-- > -- ... database reconnects ...
+-- > installTrigger "users"  -- Creates trigger again (cache cleared)
+--
+-- The second variant allows passing an action at call time rather than at setup time:
+--
+-- > runOnce <- runOncePerConnection pgListener
+-- > runOnce "users" (sqlExec createUsersTrigger ())  -- Runs the action
+-- > runOnce "users" (sqlExec createUsersTrigger ())  -- No-op (cached)
+runOncePerConnection :: (Ord key) => PGListener -> IO (key -> IO () -> IO ())
+runOncePerConnection pgListener = do
+    initialEpoch <- readIORef pgListener.connectionEpoch
+    -- MVar holds (lastKnownEpoch, cachedKeys)
+    -- Using MVar ensures atomic check-and-update for thread safety
+    cacheVar <- MVar.newMVar (initialEpoch, Set.empty)
+    pure \key action -> do
+        currentEpoch <- readIORef pgListener.connectionEpoch
+        shouldRun <- MVar.modifyMVar cacheVar \(storedEpoch, cache) -> do
+            let cache' = if currentEpoch /= storedEpoch
+                         then Set.empty  -- Clear on epoch change
+                         else cache
+            if Set.member key cache'
+                then pure ((currentEpoch, cache'), False)
+                else pure ((currentEpoch, Set.insert key cache'), True)
+        when shouldRun action
 
 logError :: PGListener -> Text -> IO ()
 logError pgListener message = let ?context = LogContext pgListener.logger in Log.error message
