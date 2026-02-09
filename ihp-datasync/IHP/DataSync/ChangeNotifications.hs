@@ -228,7 +228,7 @@ retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
 retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
     payload <- runSession pool (retrieveChangesSession largePgNotificationId)
-    case eitherDecodeStrict' (cs payload) of
+    case eitherDecodeStrictText payload of
         Left e -> fail e
         Right changes -> pure changes
 
