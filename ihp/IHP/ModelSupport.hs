@@ -24,7 +24,7 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, catch, Exception)
+import Control.Exception (finally, throwIO, catch, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
@@ -81,6 +81,10 @@ import qualified Data.Text.Encoding as Text
 import qualified Hasql.Transaction as Tx
 import qualified Hasql.Transaction.Sessions as Tx
 import Data.Functor.Contravariant (contramap)
+import Control.Concurrent (forkIO, MVar, newEmptyMVar, putMVar, takeMVar)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Error.Class (catchError)
+import qualified Hasql.Errors as HasqlErrors
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -89,6 +93,7 @@ notConnectedModelContext logger = ModelContext
     { connectionPool = error "Not connected"
     , hasqlPool = Nothing
     , transactionConnection = Nothing
+    , transactionRunner = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
@@ -115,6 +120,7 @@ createModelContext idleTime maxConnections databaseUrl logger = do
 
     let trackTableReadCallback = Nothing
     let transactionConnection = Nothing
+    let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
     let hasqlPool = Just hasqlPoolInstance
     pure ModelContext { .. }
@@ -426,18 +432,23 @@ sqlQueryHasql pool snippet decoder = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet decoder
-    let session = case ?modelContext.rowLevelSecurity of
-            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Just _, _) ->
+                -- In transaction: RLS already configured at BEGIN time
+                Hasql.statement () statement
+            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement
-            Nothing ->
+            _ ->
                 Hasql.statement () statement
-    let runQuery = do
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right a -> pure a
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> do
+                result <- HasqlPool.use pool session
+                case result of
+                    Left err -> throwIO (HasqlError err)
+                    Right a -> pure a
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
@@ -458,18 +469,22 @@ sqlExecHasql pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet Decoders.noResult
-    let session = case ?modelContext.rowLevelSecurity of
-            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Just _, _) ->
+                Hasql.statement () statement
+            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement
-            Nothing ->
+            _ ->
                 Hasql.statement () statement
-    let runQuery = do
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right () -> pure ()
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> do
+                result <- HasqlPool.use pool session
+                case result of
+                    Left err -> throwIO (HasqlError err)
+                    Right () -> pure ()
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
@@ -490,18 +505,22 @@ sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet Decoders.rowsAffected
-    let session = case ?modelContext.rowLevelSecurity of
-            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Just _, _) ->
+                Hasql.statement () statement
+            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement
-            Nothing ->
+            _ ->
                 Hasql.statement () statement
-    let runQuery = do
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right count -> pure count
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> do
+                result <- HasqlPool.use pool session
+                case result of
+                    Left err -> throwIO (HasqlError err)
+                    Right count -> pure count
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
@@ -526,11 +545,13 @@ runSessionHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Hasql.Se
 runSessionHasql pool session = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let runQuery = do
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right () -> pure ()
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> do
+                result <- HasqlPool.use pool session
+                case result of
+                    Left err -> throwIO (HasqlError err)
+                    Right () -> pure ()
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
@@ -561,6 +582,22 @@ data HasqlError = HasqlError HasqlPool.UsageError
     deriving (Show)
 
 instance Exception HasqlError
+
+-- | Existential wrapper for sub-session requests in a transaction
+data SessionRequest where
+    SessionRequest :: Hasql.Session a -> MVar (Either HasqlErrors.SessionError a) -> SessionRequest
+
+-- | Loop that reads sub-session requests from an MVar and executes them
+-- on the current transaction's connection. Stops when it receives 'Nothing'.
+processRequests :: MVar (Maybe SessionRequest) -> Hasql.Session ()
+processRequests requestMVar = do
+    req <- liftIO (takeMVar requestMVar)
+    case req of
+        Just (SessionRequest session responseVar) -> do
+            result <- catchError (Right <$> session) (pure . Left)
+            liftIO (putMVar responseVar result)
+            processRequests requestMVar
+        Nothing -> pure ()
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
@@ -609,12 +646,60 @@ sqlQueryScalarOrNothing theQuery theParameters = do
 -- >        |> set #ownerId user.id
 -- >        |> updateRecord
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransaction block = withTransactionConnection do
-    let connection = ?modelContext.transactionConnection
-            |> \case
-                Just connection -> connection
-                Nothing -> error "withTransaction: transactionConnection not set as expected"
-    PG.withTransaction connection block
+withTransaction block = case ?modelContext.hasqlPool of
+    Just pool -> do
+        requestMVar <- newEmptyMVar
+
+        let runner :: forall a. Hasql.Session a -> IO a
+            runner session = do
+                responseVar <- newEmptyMVar
+                putMVar requestMVar (Just (SessionRequest session responseVar))
+                result <- takeMVar responseVar
+                case result of
+                    Left err -> throwIO (HasqlSessionError err)
+                    Right a -> pure a
+
+        let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
+
+        let transactionSession = do
+                Hasql.script "BEGIN"
+                case ?modelContext.rowLevelSecurity of
+                    Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                        Hasql.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Nothing -> pure ()
+
+                -- Fork the user's block in a separate thread
+                blockResultVar <- liftIO $ do
+                    resultVar <- newEmptyMVar
+                    _ <- forkIO $ mask \restore -> do
+                        result <- try @SomeException (restore block)
+                        putMVar requestMVar Nothing   -- Signal processRequests to stop
+                        putMVar resultVar result
+                    pure resultVar
+
+                processRequests requestMVar
+
+                blockResult <- liftIO (takeMVar blockResultVar)
+                case blockResult of
+                    Left exc -> do
+                        catchError (Hasql.script "ROLLBACK") (\_ -> pure ())
+                        liftIO (throwIO exc)
+                    Right a -> do
+                        Hasql.script "COMMIT"
+                        pure a
+
+        result <- HasqlPool.use pool transactionSession
+        case result of
+            Left err -> throwIO (HasqlError err)
+            Right a -> pure a
+    Nothing ->
+        -- pg-simple fallback (for tests / no hasql pool)
+        withTransactionConnection do
+            let connection = ?modelContext.transactionConnection
+                    |> \case
+                        Just connection -> connection
+                        Nothing -> error "withTransaction: transactionConnection not set as expected"
+            PG.withTransaction connection block
 {-# INLINABLE withTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
@@ -648,11 +733,15 @@ transactionConnectionOrError = ?modelContext.transactionConnection
                 Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
 
 commitTransaction :: (?modelContext :: ModelContext) => IO ()
-commitTransaction = PG.commit transactionConnectionOrError
+commitTransaction = case ?modelContext.transactionRunner of
+    Just (TransactionRunner runner) -> runner (Hasql.script "COMMIT")
+    Nothing -> PG.commit transactionConnectionOrError
 {-# INLINABLE commitTransaction #-}
 
 rollbackTransaction :: (?modelContext :: ModelContext) => IO ()
-rollbackTransaction = PG.rollback transactionConnectionOrError
+rollbackTransaction = case ?modelContext.transactionRunner of
+    Just (TransactionRunner runner) -> runner (Hasql.script "ROLLBACK")
+    Nothing -> PG.rollback transactionConnectionOrError
 {-# INLINABLE rollbackTransaction #-}
 
 withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a

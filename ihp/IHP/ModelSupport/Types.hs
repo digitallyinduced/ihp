@@ -15,6 +15,7 @@ module IHP.ModelSupport.Types
 ( -- * Model Context
   ModelContext (..)
 , RowLevelSecurityContext (..)
+, TransactionRunner (..)
   -- * Type Families
 , GetModelById
 , GetTableName
@@ -39,6 +40,7 @@ module IHP.ModelSupport.Types
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, HasqlSessionError (..)
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
@@ -57,6 +59,8 @@ import Database.PostgreSQL.Simple.ToField (Action) -- used by RecordNotFoundExce
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Pool as Pool
 import qualified Hasql.Pool as Hasql
+import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
 import GHC.Types
 import Data.Data
@@ -64,11 +68,22 @@ import Data.Dynamic
 import Data.Proxy
 import IHP.Log.Types (Logger)
 
+-- | Runner that executes a hasql Session on the current transaction's connection
+newtype TransactionRunner = TransactionRunner
+    { runInTransaction :: forall a. HasqlSession.Session a -> IO a }
+
+-- | Wrapper to make 'HasqlErrors.SessionError' an 'Exception', since it doesn't have one by default
+data HasqlSessionError = HasqlSessionError HasqlErrors.SessionError
+    deriving (Show)
+
+instance Exception HasqlSessionError
+
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
     , hasqlPool :: Maybe Hasql.Pool -- ^ Optional hasql pool for prepared statement-based fetch queries (better performance)
     , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
+    , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
