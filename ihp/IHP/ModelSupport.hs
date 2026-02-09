@@ -103,8 +103,14 @@ createModelContext idleTime maxConnections databaseUrl logger = do
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
+    -- Normalize for hasql's connection string parser:
+    -- 1. postgres:// → postgresql://
+    -- 2. Strip empty password (user:@host) → (user@host) — parser chokes on empty password
+    let hasqlDatabaseUrl = cs databaseUrl
+            |> Text.replace "postgres://" "postgresql://"
+            |> Text.replace ":@" "@"
     let hasqlPoolSettings =
-            [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
+            [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString hasqlDatabaseUrl)
             ]
             <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
