@@ -21,5 +21,5 @@ instance (
     run = do
         let hasqlPool = requestHasqlPool ?request
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool
+        installTableChangeTriggers <- ChangeNotifications.makeInstallTableChangeTriggers ?context.frameworkConfig.environment hasqlPool
         runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)

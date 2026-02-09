@@ -31,6 +31,23 @@ import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 import qualified Data.TMap as TypeMap
+import IHP.RequestVault (pgListenerVaultKey)
+import IHP.Environment (Environment(..))
+
+{-# NOINLINE globalAutoRefreshServerVar #-}
+globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
+globalAutoRefreshServerVar = unsafePerformIO (MVar.newMVar Nothing)
+
+getOrCreateAutoRefreshServer :: (?request :: Request) => IO (IORef AutoRefreshServer)
+getOrCreateAutoRefreshServer =
+    MVar.modifyMVar globalAutoRefreshServerVar $ \case
+        Just server -> pure (Just server, server)
+        Nothing -> do
+            let pgListener = case Vault.lookup pgListenerVaultKey ?request.vault of
+                    Just pl -> pl
+                    Nothing -> error "getOrCreateAutoRefreshServer: PGListener not found in request vault"
+            server <- newIORef (newAutoRefreshServer pgListener)
+            pure (Just server, server)
 
 autoRefresh :: (
     ?theAction :: action
@@ -41,7 +58,7 @@ autoRefresh :: (
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
     let autoRefreshState = Vault.lookup autoRefreshStateVaultKey ?request.vault
-    let autoRefreshServer = autoRefreshServerFromRequest request
+    autoRefreshServer <- getOrCreateAutoRefreshServer
 
     case autoRefreshState of
         Just (AutoRefreshEnabled {}) -> do
@@ -124,10 +141,11 @@ instance WSApp AutoRefreshWSApp where
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
-        availableSessions <- getAvailableSessions (autoRefreshServerFromRequest request)
+        autoRefreshServer <- getOrCreateAutoRefreshServer
+        availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById (autoRefreshServerFromRequest request) sessionId
+            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
 
             let handleResponseException (ResponseException response) = case response of
                     Wai.ResponseBuilder status headers builder -> do
@@ -135,7 +153,7 @@ instance WSApp AutoRefreshWSApp where
 
                         when (html /= lastResponse) do
                             sendTextData html
-                            updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastResponse = html })
+                            updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
 
             let handleOtherException :: SomeException -> IO ()
@@ -158,32 +176,59 @@ instance WSApp AutoRefreshWSApp where
     onPing = do
         now <- getCurrentTime
         AutoRefreshActive { sessionId } <- getState
-        updateSession (autoRefreshServerFromRequest request) sessionId (\session -> session { lastPing = now })
+        autoRefreshServer <- getOrCreateAutoRefreshServer
+        updateSession autoRefreshServer sessionId (\session -> session { lastPing = now })
 
     onClose = do
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
-                let autoRefreshServer = autoRefreshServerFromRequest request
+                autoRefreshServer <- getOrCreateAutoRefreshServer
                 modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    server <- readIORef autoRefreshServer
+    subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
 
-    forM_ touchedTables \table -> do
+    let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
+
+    -- In development, always re-run trigger SQL for all touched tables because
+    -- `make db` drops and recreates the database, destroying triggers that were
+    -- previously installed. The trigger SQL is idempotent so re-running is safe.
+    -- In production, only install triggers for newly seen tables.
+    let isDevelopment = ?context.frameworkConfig.environment == Development
+
+    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
+
+    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
+    subscriptions <- subscriptionRequired |> mapM (\table -> do
         let createTriggerSql = notificationTrigger table
+
         -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
-        let installTriggerSQL = withRowLevelSecurityDisabled do
-                _ <- sqlExec createTriggerSql ()
-                pure ()
+        withRowLevelSecurityDisabled do
+            sqlExec createTriggerSql ()
 
-        -- installTableTrigger handles memoization and automatically clears the cache
-        -- when the database reconnects (e.g., after `make db`)
-        server.installTableTrigger table installTriggerSQL
+        pgListener |> PGListener.subscribe (channelName table) \notification -> do
+                sessions <- (.sessions) <$> readIORef autoRefreshServer
+                sessions
+                    |> filter (\session -> table `Set.member` session.tables)
+                    |> map (\session -> session.event)
+                    |> mapM (\event -> MVar.tryPutMVar event ())
+                pure ())
+
+    -- Re-run trigger SQL for already-subscribed tables in dev mode
+    when isDevelopment do
+        let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
+        forM_ alreadySubscribed \table -> do
+            let createTriggerSql = notificationTrigger table
+            withRowLevelSecurityDisabled do
+                sqlExec createTriggerSql ()
+
+    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
+    pure ()
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]
@@ -262,42 +307,3 @@ notificationTrigger tableName = PG.Query [i|
 autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshStateVaultKey #-}
-
-autoRefreshVaultKey :: Vault.Key (IORef AutoRefreshServer)
-autoRefreshVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE autoRefreshVaultKey #-}
-
-initAutoRefreshMiddleware :: PGListener.PGListener -> IO Middleware
-initAutoRefreshMiddleware pgListener = do
-    autoRefreshServerRef <- newIORef (undefined :: AutoRefreshServer)
-
-    -- Create a memoized trigger installer that automatically clears its cache when the database reconnects
-    -- This ensures triggers are recreated after `make db` drops and recreates the database
-    runOnce <- PGListener.runOncePerConnection pgListener
-
-    let installTableTrigger table installTriggerSQL = do
-            -- Always re-install triggers (idempotent SQL — handles make db)
-            installTriggerSQL
-
-            -- Only subscribe once per table (avoids duplicate callbacks)
-            runOnce table do
-                server <- readIORef autoRefreshServerRef
-                subscription <- server.pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                    sessions <- (.sessions) <$> readIORef autoRefreshServerRef
-                    sessions
-                        |> filter (\session -> table `Set.member` session.tables)
-                        |> map (\session -> session.event)
-                        |> mapM (\event -> MVar.tryPutMVar event ())
-                    pure ()
-                modifyIORef' autoRefreshServerRef (\s -> s { subscriptions = s.subscriptions <> [subscription] })
-
-    writeIORef autoRefreshServerRef AutoRefreshServer { subscriptions = [], sessions = [], pgListener, installTableTrigger }
-    pure \app request respond -> do
-        let request' = request { vault = Vault.insert autoRefreshVaultKey autoRefreshServerRef request.vault }
-        app request' respond
-
-autoRefreshServerFromRequest :: Request -> IORef AutoRefreshServer
-autoRefreshServerFromRequest request =
-    case Vault.lookup autoRefreshVaultKey request.vault of
-        Just server -> server
-        Nothing -> error "AutoRefresh middleware not initialized. Please make sure you have added the AutoRefresh middleware to your application."
