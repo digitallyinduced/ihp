@@ -98,9 +98,11 @@ let
                 url = "https://hackage.haskell.org/package/postgresql-binary-0.15/postgresql-binary-0.15.tar.gz";
                 sha256 = "11ysy91rsvdx9n7cjpyhp23ikv3h9b40k6rdggykhjkdv7vdvhj3";
             }) {}));
+            # Patched to fix parsing of empty password in URI format (user:@host)
+            # See: https://github.com/nikita-volkov/postgresql-connection-string/pull/3
             postgresql-connection-string = fastBuild (self.callCabal2nix "postgresql-connection-string" (builtins.fetchTarball {
-                url = "https://hackage.haskell.org/package/postgresql-connection-string-0.1/postgresql-connection-string-0.1.tar.gz";
-                sha256 = "071m8xzqak2b0l27zplfknsdq8x91k0iwimqikszdvdcj6mp1c6r";
+                url = "https://github.com/mpscholten/postgresql-connection-string/archive/bb9bfb8cfff39e0e87aa24208d0e34a0cefb13cc.tar.gz";
+                sha256 = "1jw3ka11anvx9prr5iliqwi42h5jlwbq8i0xlarzq2hgg3sc0sqp";
             }) {});
 
             hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (fastBuild (self.callCabal2nix "hasql" (builtins.fetchTarball {
