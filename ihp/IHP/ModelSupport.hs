@@ -25,7 +25,7 @@ import Data.IORef (IORef, newIORef, modifyIORef')
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (finally, throwIO, catch, Exception, SomeException, try, mask)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
 import Data.String (IsString(..))
@@ -646,7 +646,10 @@ sqlQueryScalarOrNothing theQuery theParameters = do
 -- >        |> set #ownerId user.id
 -- >        |> updateRecord
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransaction block = case ?modelContext.hasqlPool of
+withTransaction block
+    | isJust ?modelContext.transactionRunner || isJust ?modelContext.transactionConnection =
+        error "withTransaction: Nested transactions are not supported. withTransaction was called inside an existing transaction."
+    | otherwise = case ?modelContext.hasqlPool of
     Just pool -> do
         requestMVar <- newEmptyMVar
 
@@ -661,6 +664,7 @@ withTransaction block = case ?modelContext.hasqlPool of
 
         let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
 
+        let ?context = ?modelContext
         let transactionSession = do
                 Hasql.script "BEGIN"
                 case ?modelContext.rowLevelSecurity of
@@ -682,7 +686,8 @@ withTransaction block = case ?modelContext.hasqlPool of
                 blockResult <- liftIO (takeMVar blockResultVar)
                 case blockResult of
                     Left exc -> do
-                        catchError (Hasql.script "ROLLBACK") (\_ -> pure ())
+                        catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
+                            Log.warn ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)))
                         liftIO (throwIO exc)
                     Right a -> do
                         Hasql.script "COMMIT"
