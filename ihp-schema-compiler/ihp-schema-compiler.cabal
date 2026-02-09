@@ -86,7 +86,6 @@ executable build-generated-code
     build-depends: ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
-    ghc-options: -rtsopts
 
 source-repository head
     type:     git

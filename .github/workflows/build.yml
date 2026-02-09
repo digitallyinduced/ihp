@@ -12,12 +12,6 @@ jobs:
         os: [ubuntu-latest, macos-latest, ARM64]
     runs-on: ${{ matrix.os }}
     steps:
-    # On macOS case-insensitive filesystem, directory names from previous
-    # workflows can persist with wrong case (e.g. IHP/ instead of ihp/).
-    # Git won't rename them because core.ignorecase=true.
-    # Delete and let checkout recreate with correct case from the git index.
-    - run: rm -rf ihp
-      if: matrix.os == 'ARM64'
     - uses: actions/checkout@v6
     - uses: wimpysworld/nothing-but-nix@main
       with:
