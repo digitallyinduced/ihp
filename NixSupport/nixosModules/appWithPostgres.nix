@@ -63,6 +63,7 @@ in
     # Postgres
     services.postgresql = {
         enable = true;
+        package = pkgs.postgresql_18;
         initialScript = pkgs.writeText "ihp-initScript" ''
             CREATE USER ${cfg.databaseUser};
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};

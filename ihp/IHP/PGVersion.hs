@@ -9,6 +9,6 @@ import Text.Read (readMaybe)
 -- Otherwise returns @"uuid_generate_v4"@ (requires uuid-ossp extension).
 defaultUuidFunction :: IO Text
 defaultUuidFunction = do
-    pgVersion <- fromMaybe "17" <$> Env.lookupEnv "IHP_POSTGRES_VERSION"
-    let version = fromMaybe 17 (readMaybe pgVersion :: Maybe Int)
+    pgVersion <- fromMaybe "18" <$> Env.lookupEnv "IHP_POSTGRES_VERSION"
+    let version = fromMaybe 18 (readMaybe pgVersion :: Maybe Int)
     pure if version >= 18 then "uuidv7" else "uuid_generate_v4"
