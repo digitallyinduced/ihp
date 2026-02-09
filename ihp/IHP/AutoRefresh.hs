@@ -32,6 +32,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault (pgListenerVaultKey)
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
+import IHP.Environment (Environment(..))
 
 {-# NOINLINE globalAutoRefreshServerVar #-}
 globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
@@ -186,30 +188,30 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
 
+    -- In development, always re-run trigger SQL for all touched tables because
+    -- `make db` drops and recreates the database, destroying triggers that were
+    -- previously installed. The trigger SQL is idempotent so re-running is safe.
+    -- In production, only install triggers for newly seen tables.
+    let isDevelopment = ?context.frameworkConfig.environment == Development
+
     modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-
-    -- Always re-run trigger SQL for ALL touched tables. The SQL is idempotent
-    -- (CREATE OR REPLACE / DROP IF EXISTS / CREATE) so re-running is safe.
-    -- This ensures triggers are restored after `make db` drops and recreates
-    -- the database, even though subscribedTables still remembers them.
-    forM_ touchedTables \table -> do
+    subscriptions <- subscriptionRequired |> mapM (\table -> do
         let createTriggerSql = notificationTrigger table
-        -- We need to add the trigger from the main IHP database role otherwise we get:
+
+        -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
             sqlExec createTriggerSql ()
 
-    -- Only subscribe to PGListener for genuinely new tables (avoids duplicate callbacks)
-    subscriptions <- subscriptionRequired |> mapM (\table -> do
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
                 sessions
@@ -217,6 +219,14 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                     |> map (\session -> session.event)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
+
+    -- Re-run trigger SQL for already-subscribed tables in dev mode
+    when isDevelopment do
+        let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
+        forM_ alreadySubscribed \table -> do
+            let createTriggerSql = notificationTrigger table
+            withRowLevelSecurityDisabled do
+                sqlExec createTriggerSql ()
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
