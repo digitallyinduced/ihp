@@ -5,7 +5,7 @@
 , data-default, deepseq, directory, fast-logger, filepath, ghc-prim
 , hashable, haskell-src-exts, haskell-src-meta, hasql
 , hasql-dynamic-statements, hasql-implicits, hasql-mapping
-, hasql-pool, hasql-postgresql-types, hspec, http-client
+, hasql-pool, hasql-postgresql-types, hasql-transaction, hspec, http-client
 , http-client-tls, http-media, http-types, ihp-context, ihp-hsx
 , ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead, ihp-pglistener
 , ihp-postgresql-simple-extra, inflections, interpolate, ip, lens
@@ -34,16 +34,16 @@ mkDerivation {
     cookie countable-inflections data-default deepseq directory
     fast-logger filepath ghc-prim hashable haskell-src-exts
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
-    hasql-mapping hasql-pool hasql-postgresql-types hspec http-client
-    http-client-tls http-media http-types ihp-context ihp-hsx
-    ihp-imagemagick ihp-log ihp-modal ihp-pagehead ihp-pglistener
-    ihp-postgresql-simple-extra inflections interpolate ip lens
-    mime-types minio-hs mono-traversable mtl neat-interpolation network
-    network-uri parser-combinators postgresql-simple postgresql-types
-    process pwstore-fast random random-strings regex-tdfa resource-pool
-    resourcet safe-exceptions scientific slugger split stm
-    string-conversions template-haskell temporary text time
-    transformers typerep-map unagi-chan unix unliftio
+    hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
+    hspec http-client http-client-tls http-media http-types ihp-context
+    ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
+    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
+    ip lens mime-types minio-hs mono-traversable mtl neat-interpolation
+    network network-uri parser-combinators postgresql-simple
+    postgresql-types process pwstore-fast random random-strings
+    regex-tdfa resource-pool resourcet safe-exceptions scientific
+    slugger split stm string-conversions template-haskell temporary
+    text time transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
     wai-request-params wai-session wai-session-clientsession wai-util
@@ -57,16 +57,16 @@ mkDerivation {
     cookie countable-inflections data-default deepseq directory
     fast-logger filepath ghc-prim hashable haskell-src-exts
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
-    hasql-mapping hasql-pool hasql-postgresql-types hspec http-client
-    http-client-tls http-media http-types ihp-context ihp-hsx
-    ihp-imagemagick ihp-log ihp-modal ihp-pagehead ihp-pglistener
-    ihp-postgresql-simple-extra inflections interpolate ip lens
-    mime-types minio-hs mono-traversable mtl neat-interpolation network
-    network-uri parser-combinators postgresql-simple postgresql-types
-    process pwstore-fast random random-strings regex-tdfa resource-pool
-    resourcet safe-exceptions scientific slugger split stm
-    string-conversions template-haskell temporary text time
-    transformers typerep-map unagi-chan unix unliftio
+    hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
+    hspec http-client http-client-tls http-media http-types ihp-context
+    ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
+    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
+    ip lens mime-types minio-hs mono-traversable mtl neat-interpolation
+    network network-uri parser-combinators postgresql-simple
+    postgresql-types process pwstore-fast random random-strings
+    regex-tdfa resource-pool resourcet safe-exceptions scientific
+    slugger split stm string-conversions template-haskell temporary
+    text time transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
     wai-request-params wai-session wai-session-clientsession wai-util

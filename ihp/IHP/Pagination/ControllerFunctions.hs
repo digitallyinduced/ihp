@@ -19,6 +19,7 @@ import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
+import IHP.Hasql.FromRow (FromRowHasql)
 import Network.Wai (Request)
 
 import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
@@ -178,6 +179,7 @@ defaultPaginationOptions =
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQuery
   :: ( FromRow model
+     , FromRowHasql model
      , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
@@ -202,6 +204,7 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQueryWithOptions
   :: ( FromRow model
+     , FromRowHasql model
      , ToRow parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext

@@ -78,8 +78,10 @@ import Data.Scientific
 import GHC.Stack
 import qualified Numeric
 import qualified Data.Text.Encoding as Text
-import qualified Data.ByteString.Builder as Builder
-import Data.ByteString.Builder (toLazyByteString)
+import qualified Hasql.Transaction as Tx
+import qualified Hasql.Transaction.Sessions as Tx
+import Data.Functor.Contravariant (contramap)
+import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
@@ -296,10 +298,18 @@ measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = d
 --
 -- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
 --
-sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
+sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, FromRowHasql r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+    withHasqlOrPgSimple
+        (\pool -> do
+            -- Format query using pg-simple's safe escaping, then send via hasql
+            formattedSql <- withDatabaseConnection \conn ->
+                PG.formatQuery conn theQuery theParameters
+            sqlQueryHasql pool (Snippet.sql (cs formattedSql)) (Decoders.rowList hasqlRowDecoder)
+        )
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+        )
 {-# INLINABLE sqlQuery #-}
 
 
@@ -315,7 +325,7 @@ sqlQuery theQuery theParameters = do
 --
 -- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
-sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record) => Query -> query -> IO record
+sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record, FromRowHasql record) => Query -> query -> IO record
 sqlQuerySingleRow theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     case result of
@@ -331,8 +341,16 @@ sqlQuerySingleRow theQuery theParameters = do
 -- > sqlExec "CREATE TABLE users ()" ()
 sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "💾" connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+    withHasqlOrPgSimple
+        (\pool -> do
+            -- Format query using pg-simple's safe escaping, then send via hasql
+            formattedSql <- withDatabaseConnection \conn ->
+                PG.formatQuery conn theQuery theParameters
+            sqlExecHasqlCount pool (Snippet.sql (cs formattedSql))
+        )
+        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
+            withRLSParams (\q p -> measureTimeIfLogging "💾" connection (PG.execute connection q p) q p) theQuery theParameters
+        )
 {-# INLINABLE sqlExec #-}
 
 -- | Runs a sql statement (like a CREATE statement), but doesn't return any result
@@ -370,19 +388,34 @@ withRLSParams runQuery query params = do
 withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
 withDatabaseConnection block =
     let
-        ModelContext { connectionPool, transactionConnection, rowLevelSecurity } = ?modelContext
+        ModelContext { connectionPool, transactionConnection } = ?modelContext
     in case transactionConnection of
         Just transactionConnection -> block transactionConnection
         Nothing -> Pool.withResource connectionPool block
 {-# INLINABLE withDatabaseConnection #-}
+
+-- | Prepared statement that sets the RLS role and user id using set_config().
+--
+-- Uses @set_config(setting, value, is_local)@ which is a regular SQL function
+-- that supports parameterized values in the extended query protocol, unlike
+-- @SET LOCAL@ which is a utility command that cannot be parameterized.
+--
+-- The third argument @true@ makes the setting local to the current transaction,
+-- equivalent to @SET LOCAL@.
+setRLSConfigStatement :: Hasql.Statement (Text, Text) ()
+setRLSConfigStatement = Hasql.preparable
+    "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
+    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
+     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
+    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
 
 -- | Runs a query using the hasql pool with prepared statements
 --
 -- This function executes a query using hasql's prepared statement mechanism,
 -- which provides better performance than postgresql-simple for repeated queries.
 --
--- Note: This function does not support RLS. When RLS is enabled, the fetch functions
--- automatically fall back to postgresql-simple instead of using hasql.
+-- When RLS is enabled, the query is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
 --
 -- __Example:__
 --
@@ -393,8 +426,14 @@ sqlQueryHasql pool snippet decoder = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet decoder
+    let session = case ?modelContext.rowLevelSecurity of
+            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                Tx.transaction Tx.ReadCommitted Tx.Read $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement () statement
+            Nothing ->
+                Hasql.statement () statement
     let runQuery = do
-            let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
             case result of
                 Left err -> throwIO (HasqlError err)
@@ -411,13 +450,22 @@ sqlQueryHasql pool snippet decoder = do
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
+--
+-- When RLS is enabled, the statement is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
 sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
 sqlExecHasql pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet Decoders.noResult
+    let session = case ?modelContext.rowLevelSecurity of
+            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                Tx.transaction Tx.ReadCommitted Tx.Write $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement () statement
+            Nothing ->
+                Hasql.statement () statement
     let runQuery = do
-            let session = Hasql.statement () statement
             result <- HasqlPool.use pool session
             case result of
                 Left err -> throwIO (HasqlError err)
@@ -432,6 +480,38 @@ sqlExecHasql pool snippet = do
                 Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE sqlExecHasql #-}
+
+-- | Like 'sqlExecHasql' but returns the number of affected rows
+--
+-- When RLS is enabled, the statement is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
+sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO Int64
+sqlExecHasqlCount pool snippet = do
+    let ?context = ?modelContext
+    let currentLogLevel = ?modelContext.logger.level
+    let statement = Snippet.toStatement snippet Decoders.rowsAffected
+    let session = case ?modelContext.rowLevelSecurity of
+            Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                Tx.transaction Tx.ReadCommitted Tx.Write $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement () statement
+            Nothing ->
+                Hasql.statement () statement
+    let runQuery = do
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right count -> pure count
+    if currentLogLevel == Debug
+        then do
+            start <- getCurrentTime
+            runQuery `finally` do
+                end <- getCurrentTime
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
+                let sqlText = Hasql.toSql statement
+                Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+        else runQuery
+{-# INLINABLE sqlExecHasqlCount #-}
 
 -- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
 --
@@ -463,12 +543,16 @@ runSessionHasql pool session = do
 
 -- | Routes between hasql and pg-simple based on context
 --
--- Uses hasql when there's no transaction, a hasql pool is available, and no RLS.
--- Falls back to pg-simple otherwise.
+-- Uses hasql when there's no transaction and a hasql pool is available.
+-- Falls back to pg-simple otherwise (in a transaction or no hasql pool).
+--
+-- RLS is handled transparently by the hasql functions themselves
+-- (sqlQueryHasql, sqlExecHasql, sqlExecHasqlCount) which wrap queries in
+-- a transaction with 'setRLSConfigStatement' when RLS is enabled.
 withHasqlOrPgSimple :: (?modelContext :: ModelContext) => (HasqlPool.Pool -> IO a) -> IO a -> IO a
 withHasqlOrPgSimple hasqlAction pgSimpleAction =
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
-        (Nothing, Just pool, Nothing) -> hasqlAction pool
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
+        (Nothing, Just pool) -> hasqlAction pool
         _ -> pgSimpleAction
 {-# INLINABLE withHasqlOrPgSimple #-}
 
@@ -485,7 +569,7 @@ instance Exception HasqlError
 -- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
+sqlQueryScalar :: (?modelContext :: ModelContext, PG.ToRow q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -500,7 +584,7 @@ sqlQueryScalar theQuery theParameters = do
 -- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, PG.ToRow q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -680,8 +764,7 @@ logQuery logPrefix connection query parameters time = do
         let queryTimeInMs = round (realToFrac time * 1000 :: Double)
         let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
         let rlsInfo = case ?context.rowLevelSecurity of
-                Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
-                Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (Text.pack (show rlsUserId))
+                Just RowLevelSecurityContext { rlsUserId } -> formatRLSInfo rlsUserId
                 Nothing -> ""
 
         formatted <- PG.formatQuery connection query parameters

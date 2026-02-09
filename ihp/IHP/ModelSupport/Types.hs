@@ -53,7 +53,7 @@ import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.ToField (Action)
+import Database.PostgreSQL.Simple.ToField (Action) -- used by RecordNotFoundException, EnhancedSqlError
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Pool as Pool
 import qualified Hasql.Pool as Hasql
@@ -81,7 +81,7 @@ data ModelContext = ModelContext
 -- logged in user and the postgresql role to switch to.
 data RowLevelSecurityContext = RowLevelSecurityContext
     { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
-    , rlsUserId :: Action -- ^ The user id of the current logged in user
+    , rlsUserId :: Text -- ^ The user id of the current logged in user
     }
 
 type family GetModelById id :: Type where

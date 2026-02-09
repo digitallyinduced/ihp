@@ -124,7 +124,7 @@ tests = do
             it "should add the RLS boilerplate if RLS is enabled" do
                 let query = "select ?"
                 let params = [PG.toField (1337 :: Int)]
-                let rowLevelSecurity = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = PG.toField ("userId" :: Text) }
+                let rowLevelSecurity = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = "userId" }
                 let ?modelContext = (notConnectedModelContext undefined) { rowLevelSecurity = Just rowLevelSecurity }
                 (withRLSParams (\query params -> (query, params)) query params) `shouldBe`
                         ( "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; select ?"

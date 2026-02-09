@@ -35,7 +35,7 @@ import Database.PostgreSQL.Simple.ToField
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport
 import IHP.QueryBuilder
-import IHP.Hasql.FromRow
+import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.QueryBuilder.HasqlCompiler (buildSnippet)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
@@ -89,9 +89,8 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
     fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
-instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
+instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, HasqlDecodeColumn value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
     type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
-    -- fetch needs to return a list of labeled data. LabeledData doesn't use hasql path currently
     {-# INLINE fetch #-}
     fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
@@ -115,15 +114,15 @@ commonFetch :: forall model table queryBuilderProvider joinRegister. (Table mode
 commonFetch !queryBuilder = do
     trackTableRead (tableNameByteString @model)
     let !sqlQuery' = buildQuery queryBuilder
-    -- Use hasql when available, not in a transaction, and RLS is disabled
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
-        (Nothing, Just pool, Nothing) -> do
-            -- Use hasql (not in transaction, pool available, no RLS)
+    -- Use hasql when available and not in a transaction
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
+        (Nothing, Just pool) -> do
+            -- Use hasql (not in transaction, pool available)
             let snippet = buildSnippet sqlQuery'
             let decoder = Decoders.rowList (hasqlRowDecoder @model)
             sqlQueryHasql pool snippet decoder
         _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool OR RLS enabled)
+            -- Use pg-simple (in transaction OR no hasql pool)
             let !(theQuery, theParameters) = toSQL' sqlQuery'
             sqlQuery (Query $ cs theQuery) theParameters
 
@@ -132,15 +131,15 @@ commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister.
 commonFetchOneOrNothing !queryBuilder = do
     trackTableRead (tableNameByteString @model)
     let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
-    -- Use hasql when available, not in a transaction, and RLS is disabled
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
-        (Nothing, Just pool, Nothing) -> do
-            -- Use hasql (not in transaction, pool available, no RLS)
+    -- Use hasql when available and not in a transaction
+    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
+        (Nothing, Just pool) -> do
+            -- Use hasql (not in transaction, pool available)
             let snippet = buildSnippet limitedQuery
             let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
             sqlQueryHasql pool snippet decoder
         _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool OR RLS enabled)
+            -- Use pg-simple (in transaction OR no hasql pool)
             let !(theQuery, theParameters) = toSQL' limitedQuery
             results <- sqlQuery (Query $ cs theQuery) theParameters
             pure $ listToMaybe results

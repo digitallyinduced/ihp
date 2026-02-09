@@ -34,7 +34,6 @@ import qualified IHP.DataSync.Role as Role
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HashMap
 import IHP.DataSync.Hasql (runSession)
-import Data.Functor.Contravariant (contramap)
 
 -- Statements
 
@@ -43,23 +42,6 @@ hasRLSEnabledStatement = Statement.preparable
     "SELECT relrowsecurity FROM pg_class WHERE oid = quote_ident($1)::regclass"
     (Encoders.param (Encoders.nonNullable Encoders.text))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-
--- | Prepared statement that sets the RLS role and user id using set_config().
---
--- Uses @set_config(setting, value, is_local)@ which is a regular SQL function
--- that supports parameterized values in the extended query protocol, unlike
--- @SET LOCAL@ which is a utility command that cannot be parameterized.
---
--- The third argument @true@ makes the setting local to the current transaction,
--- equivalent to @SET LOCAL@.
-setRLSConfigStatement :: Statement.Statement (Text, Text) ()
-setRLSConfigStatement = Statement.preparable
-    "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
-    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
-     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
-    -- set_config returns a row with text columns; read and discard them
-    -- (Decoders.noResult errors in hasql 1.10 when rows are present)
-    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
 
 -- Sessions
 

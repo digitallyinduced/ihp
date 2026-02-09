@@ -10,6 +10,7 @@ import qualified System.Directory.OsPath as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
+import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Data.Char as Char
 import IHP.Log.Types
 import IHP.EnvVar
@@ -88,7 +89,7 @@ findOpenMigrations !minimumRevision = do
 -- [ 1604850570, 1604850660 ]
 --
 findMigratedRevisions :: (?modelContext :: ModelContext) => IO [Int]
-findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revision FROM schema_migrations ORDER BY revision" ()
+findMigratedRevisions = map (\(PG.Only revision) -> revision) <$> sqlQuery "SELECT revision FROM schema_migrations ORDER BY revision" ()
 
 -- | Returns all migrations found in @Application/Migration@
 --
