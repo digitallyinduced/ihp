@@ -505,15 +505,19 @@ instance Exception HasqlError
 
 -- | Detects errors caused by stale schema after @make db@ recreates the database.
 --
--- Matches three categories:
+-- Matches four categories:
 --
 -- 1. PostgreSQL \"cached plan must not change result type\" (error code 0A000) —
 --    the server rejects a prepared statement whose result columns changed.
 --
--- 2. Hasql 'MissingTypesSessionError' — custom enum types (e.g. @JOB_STATUS@)
+-- 2. PostgreSQL \"cache lookup failed for type\" (error code XX000) —
+--    a prepared statement references a type OID that no longer exists after
+--    schema recreation (types get new OIDs).
+--
+-- 3. Hasql 'MissingTypesSessionError' — custom enum types (e.g. @JOB_STATUS@)
 --    get new OIDs after schema recreation, and hasql's type registry can't find them.
 --
--- 3. Hasql 'UnexpectedColumnTypeStatementError' — the column's type OID no longer
+-- 4. Hasql 'UnexpectedColumnTypeStatementError' — the column's type OID no longer
 --    matches the OID cached in the prepared statement / decoder.
 isCachedPlanError :: HasqlPool.UsageError -> Bool
 isCachedPlanError (HasqlPool.SessionUsageError sessionError) = isCachedPlanSessionError sessionError
@@ -521,7 +525,9 @@ isCachedPlanError _ = False
 
 isCachedPlanSessionError :: HasqlErrors.SessionError -> Bool
 isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "0A000" _ _ _ _))) = True
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "XX000" _ _ _ _))) = True
 isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "0A000" _ _ _ _)) = True
+isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "XX000" _ _ _ _)) = True
 isCachedPlanSessionError (HasqlErrors.MissingTypesSessionError _) = True
 isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.UnexpectedColumnTypeStatementError _ _ _)) = True
 isCachedPlanSessionError _ = False
