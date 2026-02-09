@@ -275,20 +275,21 @@ initAutoRefreshMiddleware pgListener = do
     -- This ensures triggers are recreated after `make db` drops and recreates the database
     runOnce <- PGListener.runOncePerConnection pgListener
 
-    let installTableTrigger table installTriggerSQL = runOnce table do
-            -- Install the SQL trigger in the database
+    let installTableTrigger table installTriggerSQL = do
+            -- Always re-install triggers (idempotent SQL — handles make db)
             installTriggerSQL
 
-            -- Subscribe to PGListener for this table's change notifications
-            server <- readIORef autoRefreshServerRef
-            subscription <- server.pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                sessions <- (.sessions) <$> readIORef autoRefreshServerRef
-                sessions
-                    |> filter (\session -> table `Set.member` session.tables)
-                    |> map (\session -> session.event)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
-                pure ()
-            modifyIORef' autoRefreshServerRef (\s -> s { subscriptions = s.subscriptions <> [subscription] })
+            -- Only subscribe once per table (avoids duplicate callbacks)
+            runOnce table do
+                server <- readIORef autoRefreshServerRef
+                subscription <- server.pgListener |> PGListener.subscribe (channelName table) \notification -> do
+                    sessions <- (.sessions) <$> readIORef autoRefreshServerRef
+                    sessions
+                        |> filter (\session -> table `Set.member` session.tables)
+                        |> map (\session -> session.event)
+                        |> mapM (\event -> MVar.tryPutMVar event ())
+                    pure ()
+                modifyIORef' autoRefreshServerRef (\s -> s { subscriptions = s.subscriptions <> [subscription] })
 
     writeIORef autoRefreshServerRef AutoRefreshServer { subscriptions = [], sessions = [], pgListener, installTableTrigger }
     pure \app request respond -> do

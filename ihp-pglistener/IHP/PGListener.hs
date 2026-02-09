@@ -272,6 +272,7 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions connectio
                                     -- runs to completion even if race cancels us with an async exception.
                                     -- Without this, a notification could be lost: dequeued from libpq
                                     -- but never delivered to the subscription's inChan.
+
                                     let notification = Notification { notificationChannel = channel, notificationData = payload }
 
                                     allSubscriptions <- readIORef subscriptions
