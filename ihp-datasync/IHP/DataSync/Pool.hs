@@ -1,6 +1,5 @@
 module IHP.DataSync.Pool
-( requestHasqlPool
-, initHasqlPool
+( initHasqlPool
 , initHasqlPoolWithRLS
 ) where
 
@@ -12,10 +11,6 @@ import IHP.ModelSupport.Types (ModelContext(..))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
 import qualified IHP.DataSync.Role as Role
-
--- | Returns the hasql pool from the model context.
-requestHasqlPool :: (?modelContext :: ModelContext) => Hasql.Pool.Pool
-requestHasqlPool = ?modelContext.hasqlPool
 
 -- | No-op for backwards compatibility. The hasql pool is now always created
 -- as part of the ModelContext. You can remove this call from your Config.hs.

@@ -174,23 +174,23 @@ instance DefaultParamEncoder (Maybe Polygon) where
                 Just pg -> pg
                 Nothing -> error "Polygon must have at least 3 points"
 
--- | Encode 'PGInterval' as PostgreSQL interval (sent as text)
--- PGInterval wraps the raw ByteString from postgresql-simple's interval representation
+-- | Encode 'PGInterval' as PostgreSQL interval
+-- Uses 'unknown' OID so PostgreSQL coerces the text representation to interval
 instance DefaultParamEncoder PGInterval where
-    defaultParam = Encoders.nonNullable (contramap (\(PGInterval bs) -> Text.decodeUtf8 bs) Encoders.text)
+    defaultParam = Encoders.nonNullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
 
 -- | Encode 'Maybe PGInterval' as nullable PostgreSQL interval
 instance DefaultParamEncoder (Maybe PGInterval) where
-    defaultParam = Encoders.nullable (contramap (\(PGInterval bs) -> Text.decodeUtf8 bs) Encoders.text)
+    defaultParam = Encoders.nullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
 
--- | Encode 'TSVector' as PostgreSQL tsvector (sent as text)
--- Serializes to the standard tsvector text format: 'word1':1A,2B 'word2':3C
+-- | Encode 'TSVector' as PostgreSQL tsvector
+-- Uses 'unknown' OID so PostgreSQL coerces the text representation to tsvector
 instance DefaultParamEncoder TSVector where
-    defaultParam = Encoders.nonNullable (contramap serializeTSVectorText Encoders.text)
+    defaultParam = Encoders.nonNullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
 
 -- | Encode 'Maybe TSVector' as nullable PostgreSQL tsvector
 instance DefaultParamEncoder (Maybe TSVector) where
-    defaultParam = Encoders.nullable (contramap serializeTSVectorText Encoders.text)
+    defaultParam = Encoders.nullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
 
 -- | Serialize a TSVector to its text representation
 serializeTSVectorText :: TSVector -> Text
