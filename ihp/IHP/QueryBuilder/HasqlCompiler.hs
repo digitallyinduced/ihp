@@ -18,9 +18,10 @@ import IHP.Prelude
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.QueryBuilder.Types
-import IHP.QueryBuilder.Compiler (buildQuery, compileJoinClause)
+import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.Text as Text
 import qualified Data.List as List
+import Data.Int (Int32)
 
 -- | Compile a QueryBuilder to a Hasql Snippet
 toSnippet :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet
@@ -31,31 +32,36 @@ toSnippet queryBuilderProvider = buildSnippet (buildQuery queryBuilderProvider)
 buildSnippet :: SQLQuery -> Snippet
 buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
     Snippet.sql "SELECT"
-    <> optionalSnippet distinctClause
-    <> optionalSnippet distinctOnClause
+    <> distinctSnippet distinctClause
+    <> distinctOnSnippet distinctOnClause
     <> Snippet.sql " " <> selectorsSnippet
     <> Snippet.sql " FROM"
     <> Snippet.sql " " <> Snippet.sql selectFrom
-    <> optionalSnippet joinClause
+    <> joinSnippet (reverse (joins sqlQuery))
     <> whereSnippet (whereCondition sqlQuery)
     <> orderBySnippet orderByClause
     <> limitSnippet limitClause
     <> offsetSnippet offsetClause
     where
+        distinctSnippet :: Bool -> Snippet
+        distinctSnippet False = mempty
+        distinctSnippet True = Snippet.sql " DISTINCT"
+        {-# INLINE distinctSnippet #-}
+
+        distinctOnSnippet :: Maybe Text -> Snippet
+        distinctOnSnippet Nothing = mempty
+        distinctOnSnippet (Just col) = Snippet.sql " DISTINCT ON (" <> Snippet.sql col <> Snippet.sql ")"
+        {-# INLINE distinctOnSnippet #-}
+
         limitSnippet :: Maybe Int -> Snippet
         limitSnippet Nothing = mempty
-        limitSnippet (Just n) = Snippet.sql " LIMIT " <> Snippet.sql (tshow n)
+        limitSnippet (Just n) = Snippet.sql " LIMIT " <> Snippet.param (fromIntegral n :: Int32)
         {-# INLINE limitSnippet #-}
 
         offsetSnippet :: Maybe Int -> Snippet
         offsetSnippet Nothing = mempty
-        offsetSnippet (Just n) = Snippet.sql " OFFSET " <> Snippet.sql (tshow n)
+        offsetSnippet (Just n) = Snippet.sql " OFFSET " <> Snippet.param (fromIntegral n :: Int32)
         {-# INLINE offsetSnippet #-}
-
-        optionalSnippet :: Maybe Text -> Snippet
-        optionalSnippet Nothing = mempty
-        optionalSnippet (Just t) = Snippet.sql " " <> Snippet.sql t
-        {-# INLINE optionalSnippet #-}
 
         selectorsSnippet :: Snippet
         selectorsSnippet =
@@ -65,8 +71,9 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
                 columnParts = map (\column -> Snippet.sql selectFrom <> Snippet.sql "." <> Snippet.sql column) columns
             in mconcat $ List.intersperse (Snippet.sql ", ") (indexParts <> columnParts)
 
-        joinClause :: Maybe Text
-        joinClause = compileJoinClause $ reverse $ joins sqlQuery
+        joinSnippet :: [Join] -> Snippet
+        joinSnippet [] = mempty
+        joinSnippet (j:js) = Snippet.sql " INNER JOIN " <> Snippet.sql (table j) <> Snippet.sql " ON " <> Snippet.sql (tableJoinColumn j) <> Snippet.sql " = " <> Snippet.sql (table j) <> Snippet.sql "." <> Snippet.sql (otherJoinColumn j) <> joinSnippet js
 -- buildSnippet takes monomorphic SQLQuery — no specialization benefit from INLINE.
 -- Removing INLINE prevents duplicating the snippet compilation logic at every call site.
 

@@ -11,7 +11,6 @@ module IHP.QueryBuilder.Compiler
 , buildQuery
 , compileOperator
 , negateFilterOperator
-, compileJoinClause
 , compileSQLQuery
 , qualifiedColumnName
 ) where
@@ -99,7 +98,7 @@ compileSQLQuery qIndex NewQueryBuilder { selectFrom, columns } =
     SQLQuery
         {     queryIndex = qIndex
             , selectFrom = selectFrom
-            , distinctClause = Nothing
+            , distinctClause = False
             , distinctOnClause = Nothing
             , whereCondition = Nothing
             , joins = []
@@ -110,10 +109,10 @@ compileSQLQuery qIndex NewQueryBuilder { selectFrom, columns } =
             }
 compileSQLQuery qIndex (DistinctQueryBuilder { queryBuilder }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #distinctClause "DISTINCT"
+        |> set #distinctClause True
 compileSQLQuery qIndex (DistinctOnQueryBuilder { queryBuilder, distinctOnColumn }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
+        |> setJust #distinctOnClause distinctOnColumn
 compileSQLQuery qIndex (FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, snippet), applyLeft, applyRight }) =
             let
                 applyFn fn val = case fn of
@@ -163,14 +162,6 @@ compileSQLQuery qIndex (JoinQueryBuilder { queryBuilder, joinData }) =
     let
         firstQuery = compileSQLQuery qIndex queryBuilder
      in firstQuery { joins = joinData:joins firstQuery }
-
--- | Compile a list of joins into a SQL JOIN clause.
---
--- Defined at the top level so that it is shared across all inlined call sites
--- of 'compileSQLQuery' instead of being duplicated at each one.
-compileJoinClause :: [Join] -> Maybe Text
-compileJoinClause [] = Nothing
-compileJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (compileJoinClause js)
 
 -- | Build a qualified column name like @tablename.column_name@ from a table name
 -- and a camelCase field name. The field name is converted to snake_case via

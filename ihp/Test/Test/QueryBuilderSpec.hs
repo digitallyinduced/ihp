@@ -537,14 +537,14 @@ tests = do
                 let theQuery = query @Post
                         |> limit 1337
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT 1337")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT $1")
 
         describe "offset" do
             it "should add an OFFSET" do
                 let theQuery = query @Post
                         |> offset 1337
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts OFFSET 1337")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts OFFSET $1")
 
         describe "distinct" do
             it "should add a DISTINCT" do
@@ -566,7 +566,7 @@ tests = do
                         |> offset 20
                         |> limit 50
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT 50 OFFSET 20")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT $1 OFFSET $2")
 
             it "should work with multiple complex conditions" do
                 let theQuery = query @Post
@@ -582,4 +582,4 @@ tests = do
                         |> limit 10
 
                 -- Note: hasql uses parameterized null ($3) rather than literal NULL
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (((posts.title = $1) AND (posts.public = $2)) AND (posts.external_url IS $3)) OR (posts.created_by = $4) ORDER BY posts.created_at,posts.title LIMIT 10")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (((posts.title = $1) AND (posts.public = $2)) AND (posts.external_url IS $3)) OR (posts.created_by = $4) ORDER BY posts.created_at,posts.title LIMIT $5")

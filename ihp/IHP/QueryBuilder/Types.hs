@@ -221,7 +221,7 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, Dee
 data SQLQuery = SQLQuery
     { queryIndex :: !(Maybe Text)
     , selectFrom :: !Text
-    , distinctClause :: !(Maybe Text)
+    , distinctClause :: !Bool
     , distinctOnClause :: !(Maybe Text)
     , whereCondition :: !(Maybe Condition)
     , joins :: ![Join]
@@ -234,7 +234,7 @@ data SQLQuery = SQLQuery
 
 instance SetField "queryIndex" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { queryIndex = value }
 instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }
-instance SetField "distinctClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctClause = value }
+instance SetField "distinctClause" SQLQuery Bool where setField value sqlQuery = sqlQuery { distinctClause = value }
 instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
 instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
