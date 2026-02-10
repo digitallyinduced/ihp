@@ -90,7 +90,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColum
     {-# INLINE fetch #-}
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
-        trackTableRead (tableNameByteString @model)
+        trackTableRead (tableName @model)
         let pool = ?modelContext.hasqlPool
         let snippet = buildSnippet (buildQuery queryBuilderProvider)
         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
@@ -108,7 +108,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColum
 {-# INLINE commonFetch #-}
 commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
-    trackTableRead (tableNameByteString @model)
+    trackTableRead (tableName @model)
     let !sqlQuery' = buildQuery queryBuilder
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet sqlQuery'
@@ -118,8 +118,8 @@ commonFetch !queryBuilder = do
 {-# INLINE commonFetchOneOrNothing #-}
 commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
-    trackTableRead (tableNameByteString @model)
-    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
+    trackTableRead (tableName @model)
+    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause 1
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet limitedQuery
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
@@ -150,7 +150,7 @@ commonFetchOne !queryBuilder = do
 fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
 fetchCount !queryBuilder = do
     let snippet = Snippet.sql "SELECT COUNT(*) FROM (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _count_values"
-    trackTableRead (symbolToByteString @table)
+    trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
     fromIntegral <$> sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 {-# INLINE fetchCount #-}
@@ -168,7 +168,7 @@ fetchCount !queryBuilder = do
 fetchExists :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Bool
 fetchExists !queryBuilder = do
     let snippet = Snippet.sql "SELECT EXISTS (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _exists_values"
-    trackTableRead (symbolToByteString @table)
+    trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
     sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 {-# INLINE fetchExists #-}
@@ -240,7 +240,7 @@ instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, G
 
 fetchSQLQuery :: (FromRowHasql model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
 fetchSQLQuery theQuery = do
-    trackTableRead (theQuery.selectFrom)
+    trackTableRead theQuery.selectFrom
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet theQuery
     sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)

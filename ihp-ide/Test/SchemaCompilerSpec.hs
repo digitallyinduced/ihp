@@ -200,7 +200,6 @@ tests = do
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
 
@@ -298,7 +297,6 @@ tests = do
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
 
@@ -395,7 +393,6 @@ tests = do
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
 
@@ -528,7 +525,6 @@ tests = do
 
                     instance IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
                         tableName = "landing_pages"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
                         primaryKeyColumnNames = ["id"]
 
@@ -656,7 +652,6 @@ tests = do
                 getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (Thing' others) where
                         tableName = "things"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
 
@@ -717,7 +712,6 @@ tests = do
                 getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
                         tableName = "bit_part_refs"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
 
@@ -796,7 +790,6 @@ tests = do
 
                     instance IHP.ModelSupport.Table (Post') where
                         tableName = "posts"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "posts"
                         columnNames = ["id","title","user_id"]
                         primaryKeyColumnNames = ["id"]
 

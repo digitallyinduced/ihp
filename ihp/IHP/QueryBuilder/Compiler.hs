@@ -11,7 +11,6 @@ module IHP.QueryBuilder.Compiler
 , buildQuery
 , compileOperator
 , negateFilterOperator
-, compileJoinClause
 , compileSQLQuery
 , qualifiedColumnName
 ) where
@@ -20,15 +19,12 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.NameSupport (fieldNameToColumnName)
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LByteString
-import qualified Data.Text.Encoding as Text
 
 
 -- | Compiles a 'FilterOperator' to its SQL representation
 --
 -- For InOp and NotInOp, uses = ANY(?) and <> ALL(?) with array parameters.
-compileOperator :: FilterOperator -> ByteString
+compileOperator :: FilterOperator -> Text
 compileOperator EqOp = "="
 compileOperator NotEqOp = "!="
 compileOperator InOp = "= ANY"
@@ -84,7 +80,7 @@ negateFilterOperator SqlOp = SqlOp
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
 query :: forall model table. (table ~ GetTableName model, Table model) => DefaultScope table => QueryBuilder table
-query = (defaultScope @table) NewQueryBuilder { selectFrom = tableNameByteString @model, columns = columnNames @model }
+query = (defaultScope @table) NewQueryBuilder { selectFrom = tableName @model, columns = columnNames @model }
 {-# INLINE query #-}
 
 {-# INLINE buildQuery #-}
@@ -97,12 +93,12 @@ buildQuery queryBuilderProvider = compileSQLQuery (getQueryIndex queryBuilderPro
 -- all inlined call sites of 'buildQuery'. The tiny 'buildQuery' wrapper
 -- stays INLINE to resolve the 'HasQueryBuilder' dictionary, then hands off
 -- to this shared worker.
-compileSQLQuery :: Maybe ByteString -> QueryBuilder table -> SQLQuery
+compileSQLQuery :: Maybe Text -> QueryBuilder table -> SQLQuery
 compileSQLQuery qIndex NewQueryBuilder { selectFrom, columns } =
     SQLQuery
         {     queryIndex = qIndex
             , selectFrom = selectFrom
-            , distinctClause = Nothing
+            , distinctClause = False
             , distinctOnClause = Nothing
             , whereCondition = Nothing
             , joins = []
@@ -113,10 +109,10 @@ compileSQLQuery qIndex NewQueryBuilder { selectFrom, columns } =
             }
 compileSQLQuery qIndex (DistinctQueryBuilder { queryBuilder }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #distinctClause "DISTINCT"
+        |> set #distinctClause True
 compileSQLQuery qIndex (DistinctOnQueryBuilder { queryBuilder, distinctOnColumn }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
+        |> setJust #distinctOnClause distinctOnColumn
 compileSQLQuery qIndex (FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, snippet), applyLeft, applyRight }) =
             let
                 applyFn fn val = case fn of
@@ -142,18 +138,10 @@ compileSQLQuery qIndex (OrderByQueryBuilder { queryBuilder, queryOrderByClause }
 compileSQLQuery qIndex (LimitQueryBuilder { queryBuilder, queryLimit }) =
                 queryBuilder
                 |> compileSQLQuery qIndex
-                |> setJust #limitClause (
-                        (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
-                        |> Builder.toLazyByteString
-                        |> LByteString.toStrict
-                    )
+                |> setJust #limitClause queryLimit
 compileSQLQuery qIndex (OffsetQueryBuilder { queryBuilder, queryOffset }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #offsetClause (
-                (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
-                |> Builder.toLazyByteString
-                |> LByteString.toStrict
-            )
+        |> setJust #offsetClause queryOffset
 compileSQLQuery qIndex (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }) =
             let
                 firstQuery = compileSQLQuery qIndex firstQueryBuilder
@@ -175,22 +163,14 @@ compileSQLQuery qIndex (JoinQueryBuilder { queryBuilder, joinData }) =
         firstQuery = compileSQLQuery qIndex queryBuilder
      in firstQuery { joins = joinData:joins firstQuery }
 
--- | Compile a list of joins into a SQL JOIN clause.
---
--- Defined at the top level so that it is shared across all inlined call sites
--- of 'compileSQLQuery' instead of being duplicated at each one.
-compileJoinClause :: [Join] -> Maybe ByteString
-compileJoinClause [] = Nothing
-compileJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (compileJoinClause js)
-
 -- | Build a qualified column name like @tablename.column_name@ from a table name
--- ByteString and a camelCase field name Text. The field name is converted to
--- snake_case via 'fieldNameToColumnName'.
+-- and a camelCase field name. The field name is converted to snake_case via
+-- 'fieldNameToColumnName'.
 --
 -- This is intentionally NOINLINE: the call sites in filterWhere, orderBy, etc.
 -- are always lifted to CAFs (evaluated once at program start), so inlining
--- only duplicates the Text.Inflections parsing logic (~69 Core terms per call
--- site) and ByteString concatenation (~224 Core terms) without any runtime benefit.
-qualifiedColumnName :: ByteString -> Text -> ByteString
-qualifiedColumnName tableName fieldName = tableName <> "." <> Text.encodeUtf8 (fieldNameToColumnName fieldName)
+-- only duplicates the Text.Inflections parsing logic and Text concatenation
+-- without any runtime benefit.
+qualifiedColumnName :: Text -> Text -> Text
+qualifiedColumnName tableName fieldName = tableName <> "." <> fieldNameToColumnName fieldName
 {-# NOINLINE qualifiedColumnName #-}

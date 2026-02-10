@@ -29,7 +29,7 @@ import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import IHP.Hasql.Encoders ()
-import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.Text as Text
 import Control.Concurrent.STM (TBQueue, atomically, writeTBQueue, STM)
 import Control.Concurrent.STM.TBQueue (isFullTBQueue)
 
@@ -55,7 +55,7 @@ fetchNextJob :: forall job.
     ) => UUID -> IO (Maybe job)
 fetchNextJob workerId = do
     let tableNameText = tableName @job
-    let returningColumns = ByteString.intercalate ", " (columnNames @job)
+    let returningColumns = Text.intercalate ", " (columnNames @job)
     let snippet =
             Snippet.sql "UPDATE " <> Snippet.sql tableNameText
             <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning
@@ -64,7 +64,7 @@ fetchNextJob workerId = do
             <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameText
             <> Snippet.sql " WHERE " <> pendingJobCondition
             <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
-            <> Snippet.sql " RETURNING " <> Snippet.sql (cs returningColumns)
+            <> Snippet.sql " RETURNING " <> Snippet.sql returningColumns
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
 
     pool <- getHasqlPool
