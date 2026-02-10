@@ -9,7 +9,6 @@ This module provides functions to compile a QueryBuilder into SQL.
 module IHP.QueryBuilder.Compiler
 ( query
 , buildQuery
-, compileOperator
 , negateFilterOperator
 , compileSQLQuery
 , qualifiedColumnName
@@ -20,29 +19,6 @@ import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.NameSupport (fieldNameToColumnName)
 
-
--- | Compiles a 'FilterOperator' to its SQL representation
---
--- For InOp and NotInOp, uses = ANY(?) and <> ALL(?) with array parameters.
-compileOperator :: FilterOperator -> Text
-compileOperator EqOp = "="
-compileOperator NotEqOp = "!="
-compileOperator InOp = "= ANY"
-compileOperator NotInOp = "<> ALL"
-compileOperator IsOp = "IS"
-compileOperator IsNotOp = "IS NOT"
-compileOperator (LikeOp CaseSensitive) = "LIKE"
-compileOperator (LikeOp CaseInsensitive) = "ILIKE"
-compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
-compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
-compileOperator (MatchesOp CaseSensitive) = " ~ "
-compileOperator (MatchesOp CaseInsensitive) = " ~* "
-compileOperator GreaterThanOp = ">"
-compileOperator GreaterThanOrEqualToOp = ">="
-compileOperator LessThanOp = "<"
-compileOperator LessThanOrEqualToOp = "<="
-compileOperator SqlOp = ""
-{-# INLINE compileOperator #-}
 
 -- | Returns the "NOT" version of an operator
 --
@@ -114,18 +90,7 @@ compileSQLQuery qIndex (DistinctOnQueryBuilder { queryBuilder, distinctOnColumn 
         |> compileSQLQuery qIndex
         |> setJust #distinctOnClause distinctOnColumn
 compileSQLQuery qIndex (FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, snippet), applyLeft, applyRight }) =
-            let
-                applyFn fn val = case fn of
-                        Just fn' -> fn' <> "(" <> val <> ")"
-                        Nothing -> val
-
-                paramPlaceholder = case operator of
-                    InOp -> "(?)"     -- column = ANY(?)
-                    NotInOp -> "(?)"  -- column <> ALL(?)
-                    _ -> applyFn applyRight "?"
-                template = applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> paramPlaceholder
-
-                condition = VarCondition template snippet
+            let condition = ColumnCondition columnName operator snippet applyLeft applyRight
             in
                 queryBuilder
                     |> compileSQLQuery qIndex
