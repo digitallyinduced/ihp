@@ -139,10 +139,10 @@ compileSQLQuery qIndex (OrderByQueryBuilder { queryBuilder, queryOrderByClause }
 compileSQLQuery qIndex (LimitQueryBuilder { queryBuilder, queryLimit }) =
                 queryBuilder
                 |> compileSQLQuery qIndex
-                |> setJust #limitClause ("LIMIT " <> tshow queryLimit)
+                |> setJust #limitClause queryLimit
 compileSQLQuery qIndex (OffsetQueryBuilder { queryBuilder, queryOffset }) = queryBuilder
         |> compileSQLQuery qIndex
-        |> setJust #offsetClause ("OFFSET " <> tshow queryOffset)
+        |> setJust #offsetClause queryOffset
 compileSQLQuery qIndex (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }) =
             let
                 firstQuery = compileSQLQuery qIndex firstQueryBuilder

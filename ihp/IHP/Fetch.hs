@@ -120,7 +120,7 @@ commonFetch !queryBuilder = do
 commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     trackTableRead (tableName @model)
-    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
+    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause 1
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet limitedQuery
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)

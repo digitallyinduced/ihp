@@ -39,9 +39,19 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
     <> optionalSnippet joinClause
     <> whereSnippet (whereCondition sqlQuery)
     <> orderBySnippet orderByClause
-    <> optionalSnippet limitClause
-    <> optionalSnippet offsetClause
+    <> limitSnippet limitClause
+    <> offsetSnippet offsetClause
     where
+        limitSnippet :: Maybe Int -> Snippet
+        limitSnippet Nothing = mempty
+        limitSnippet (Just n) = Snippet.sql " LIMIT " <> Snippet.sql (tshow n)
+        {-# INLINE limitSnippet #-}
+
+        offsetSnippet :: Maybe Int -> Snippet
+        offsetSnippet Nothing = mempty
+        offsetSnippet (Just n) = Snippet.sql " OFFSET " <> Snippet.sql (tshow n)
+        {-# INLINE offsetSnippet #-}
+
         optionalSnippet :: Maybe Text -> Snippet
         optionalSnippet Nothing = mempty
         optionalSnippet (Just t) = Snippet.sql " " <> Snippet.sql t

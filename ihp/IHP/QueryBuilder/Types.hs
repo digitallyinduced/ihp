@@ -226,8 +226,8 @@ data SQLQuery = SQLQuery
     , whereCondition :: !(Maybe Condition)
     , joins :: ![Join]
     , orderByClause :: ![OrderByClause]
-    , limitClause :: !(Maybe Text)
-    , offsetClause :: !(Maybe Text)
+    , limitClause :: !(Maybe Int)
+    , offsetClause :: !(Maybe Int)
     , columns :: ![Text]
     } deriving (Show)
 
@@ -238,8 +238,8 @@ instance SetField "distinctClause" SQLQuery (Maybe Text) where setField value sq
 instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
 instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
-instance SetField "limitClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { limitClause = value }
-instance SetField "offsetClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { offsetClause = value }
+instance SetField "limitClause" SQLQuery (Maybe Int) where setField value sqlQuery = sqlQuery { limitClause = value }
+instance SetField "offsetClause" SQLQuery (Maybe Int) where setField value sqlQuery = sqlQuery { offsetClause = value }
 
 -- | Type class for default scoping of queries
 class DefaultScope table where
