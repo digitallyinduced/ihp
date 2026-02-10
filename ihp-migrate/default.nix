@@ -1,6 +1,6 @@
 { mkDerivation, base, directory, filepath, hasql
-, hasql-dynamic-statements, hasql-transaction, hspec
-, lib, string-conversions, temporary, text, with-utf8
+, hasql-dynamic-statements, hasql-transaction, hspec, lib
+, string-conversions, temporary, text, with-utf8
 }:
 mkDerivation {
   pname = "ihp-migrate";
@@ -13,7 +13,8 @@ mkDerivation {
     hasql-transaction string-conversions text with-utf8
   ];
   executableHaskellDepends = [
-    base directory filepath hasql string-conversions text with-utf8
+    base directory filepath hasql hasql-dynamic-statements
+    hasql-transaction string-conversions text with-utf8
   ];
   testHaskellDepends = [
     base directory filepath hspec temporary with-utf8
