@@ -341,7 +341,7 @@ buildComment comment = comment
     |> fill @'["postId", "body", "commentModeration"]
 ```
 
-We'll start with the `postId`. Once a comment is refernecing a post it will never have the reference change. So it means we should fill it only upon creation.
+We'll start with the `postId`. Once a comment is referencing a post it will never have the reference change. So it means we should fill it only upon creation.
 
 ```haskell
 buildComment comment = comment
