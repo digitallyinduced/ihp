@@ -16,7 +16,6 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (query)
-import Database.PostgreSQL.Simple.ToField (Action(..))
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 
 -- | Merges the results of two query builders.
@@ -55,7 +54,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >      render IndexView { .. }
 queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
 -- For empty list, create a condition that is always false: id <> id (which is always false for non-null)
-queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Plain mempty, Snippet.sql "id"), applyLeft = Nothing, applyRight = Nothing }
+queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Snippet.sql "id"), applyLeft = Nothing, applyRight = Nothing }
 queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
 queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
 

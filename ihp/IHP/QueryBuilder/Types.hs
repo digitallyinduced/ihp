@@ -32,9 +32,7 @@ module IHP.QueryBuilder.Types
 ) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
-import qualified Data.ByteString.Builder as Builder
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
@@ -143,7 +141,7 @@ data QueryBuilder (table :: Symbol) =
     NewQueryBuilder { selectFrom :: !ByteString, columns :: ![ByteString] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
     | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Action, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
+    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
     | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
@@ -151,10 +149,8 @@ data QueryBuilder (table :: Symbol) =
     | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
 
 -- | Represents a WHERE condition
--- Stores templates for both backends: pg-simple template (with IN/NOT IN), hasql template (with = ANY/<> ALL)
--- Also stores both Action (for postgresql-simple) and Snippet (for hasql)
-data Condition = VarCondition !ByteString !ByteString !Action !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
---                             ^pgTemplate ^hasqlTemplate
+data Condition = VarCondition !ByteString !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+--                             ^hasqlTemplate
 
 -- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
 instance Show Snippet where
@@ -162,8 +158,7 @@ instance Show Snippet where
 
 -- | Snippet is an opaque type with no Eq instance. We compare snippets by their
 -- rendered SQL template via 'Snippet.toSql'. This only compares the SQL structure
--- (e.g. @col = $1@), not the parameter values. Parameter value equality is covered
--- by the Action field that always accompanies a Snippet in QueryBuilder/Condition.
+-- (e.g. @col = $1@), not the parameter values.
 snippetEq :: Snippet -> Snippet -> Bool
 snippetEq a b = Snippet.toSql a == Snippet.toSql b
 
@@ -175,7 +170,7 @@ conditionTag OrCondition {} = 1
 conditionTag AndCondition {} = 2
 
 instance Eq Condition where
-    (VarCondition t1 h1 a1 s1) == (VarCondition t2 h2 a2 s2) = t1 == t2 && h1 == h2 && a1 == a2 && snippetEq s1 s2
+    (VarCondition h1 s1) == (VarCondition h2 s2) = h1 == h2 && snippetEq s1 s2
     (OrCondition l1 r1) == (OrCondition l2 r2) = l1 == l2 && r1 == r2
     (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
     a == b = conditionTag a == conditionTag b
@@ -197,7 +192,7 @@ instance Eq (QueryBuilder table) where
     (NewQueryBuilder s1 c1) == (NewQueryBuilder s2 c2) = s1 == s2 && c1 == c2
     (DistinctQueryBuilder q1) == (DistinctQueryBuilder q2) = q1 == q2
     (DistinctOnQueryBuilder q1 d1) == (DistinctOnQueryBuilder q2 d2) = q1 == q2 && d1 == d2
-    (FilterByQueryBuilder q1 (b1, op1, a1, sn1) l1 r1) == (FilterByQueryBuilder q2 (b2, op2, a2, sn2) l2 r2) = q1 == q2 && b1 == b2 && op1 == op2 && a1 == a2 && snippetEq sn1 sn2 && l1 == l2 && r1 == r2
+    (FilterByQueryBuilder q1 (b1, op1, sn1) l1 r1) == (FilterByQueryBuilder q2 (b2, op2, sn2) l2 r2) = q1 == q2 && b1 == b2 && op1 == op2 && snippetEq sn1 sn2 && l1 == l2 && r1 == r2
     (OrderByQueryBuilder q1 o1) == (OrderByQueryBuilder q2 o2) = q1 == q2 && o1 == o2
     (LimitQueryBuilder q1 l1) == (LimitQueryBuilder q2 l2) = q1 == q2 && l1 == l2
     (OffsetQueryBuilder q1 o1) == (OffsetQueryBuilder q2 o2) = q1 == q2 && o1 == o2
@@ -237,12 +232,6 @@ data SQLQuery = SQLQuery
     , columns :: ![ByteString]
     } deriving (Show)
 
--- | Needed for the 'Eq Action' instance used in tests
-deriving instance Eq Action
-
--- | Need for the 'Eq Builder.Builder' instance used in tests
-instance Eq Builder.Builder where
-    a == b = (Builder.toLazyByteString a) == (Builder.toLazyByteString b)
 
 instance SetField "queryIndex" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { queryIndex = value }
 instance SetField "selectFrom" SQLQuery ByteString where setField value sqlQuery = sqlQuery { selectFrom = value }

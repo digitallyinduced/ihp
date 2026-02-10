@@ -1075,40 +1075,13 @@ instance #{instanceHead} where
     tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
     primaryKeyColumnNames = #{primaryKeyColumnNames}
-    primaryKeyConditionForId (#{pattern}) = #{condition}
-    {-# INLINABLE primaryKeyConditionForId #-}
 |]
     where
         instanceHead :: Text
-        instanceHead = instanceConstraints <> " => IHP.ModelSupport.Table (" <> compileTypePattern table <> ")"
-            where
-                instanceConstraints =
-                    table
-                    |> primaryKeyColumns
-                    |> map (.name)
-                    |> map columnNameToFieldName
-                    |> filter (\field -> field `elem` (dataTypeArguments table))
-                    |> map (\field -> "ToField " <> field)
-                    |> intercalate ", "
-                    |> \inner -> "(" <> inner <> ")"
+        instanceHead = "IHP.ModelSupport.Table (" <> compileTypePattern table <> ")"
 
         primaryKeyColumnNames :: [Text]
         primaryKeyColumnNames = primaryKeyColumns table |> map (.name)
-
-        primaryKeyFieldNames :: [Text]
-        primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
-
-        pattern :: Text
-        pattern = "Id (" <> intercalate ", " primaryKeyFieldNames <> ")"
-
-        condition :: Text
-        condition = case primaryKeyColumns table of
-                            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                            [column] -> primaryKeyToCondition column
-                            cols -> "Many [Plain \"(\", " <> intercalate ", Plain \",\", " (map primaryKeyToCondition cols)<> ", Plain \")\"]"
-
-        primaryKeyToCondition :: Column -> Text
-        primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
         columnNames = columns
                 |> map (.name)
