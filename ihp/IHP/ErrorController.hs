@@ -29,7 +29,7 @@ import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Database.PostgreSQL.Simple as PG
+import Database.PostgreSQL.Simple (SqlError(..))
 import qualified Data.ByteString.Char8 as ByteString
 
 import IHP.HSX.QQ (hsx)
@@ -161,22 +161,20 @@ postgresHandler exception controller additionalInfo = do
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
     case fromException exception of
-        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
-        Nothing -> case fromException exception of
-            -- Catching  `relation "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A table is missing.")
+        -- Catching  `relation "..." does not exist`
+        Just exception@ModelSupport.EnhancedSqlError { sqlError }
+            |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+            && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+            -> Just (handlePostgresOutdatedError exception "A table is missing.")
 
-            -- Catching  `columns "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A column is missing.")
-            -- Catching other SQL Errors
-            Just exception -> Just (handleSqlError exception)
-            Nothing -> Nothing
+        -- Catching  `columns "..." does not exist`
+        Just exception@ModelSupport.EnhancedSqlError { sqlError }
+            |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
+            && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
+            -> Just (handlePostgresOutdatedError exception "A column is missing.")
+        -- Catching other SQL Errors
+        Just exception -> Just (handleSqlError exception)
+        Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do
