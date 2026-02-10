@@ -388,7 +388,7 @@ sqlQueryHasql pool snippet decoder = do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 let sqlText = Hasql.toSql statement
-                Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                Log.debug ("🔍 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE sqlQueryHasql #-}
 
@@ -424,7 +424,7 @@ sqlExecHasql pool snippet = do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
                 let sqlText = Hasql.toSql statement
-                Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                Log.debug ("💾 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 {-# INLINABLE sqlExecHasql #-}
 
@@ -743,6 +743,10 @@ primaryKeyConditionColumnSelector =
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
 primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
+truncateQuery :: Text -> Text
+truncateQuery query
+    | Text.length query > 2000 = Text.take 2000 query <> "... (truncated)"
+    | otherwise = query
 
 -- | Runs a @DELETE@ query for a record.
 --
