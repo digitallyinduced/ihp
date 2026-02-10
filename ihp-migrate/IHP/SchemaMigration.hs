@@ -9,11 +9,21 @@ import IHP.Prelude
 import qualified System.Directory.OsPath as Directory
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import IHP.ModelSupport hiding (withTransaction)
+import IHP.ModelSupport (ModelContext (..), withoutQueryLogging, sqlQueryHasql, runSessionHasql)
 import qualified Data.Char as Char
 import IHP.Log.Types
 import IHP.EnvVar
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
+
+import qualified Hasql.Pool as HasqlPool
+import qualified Hasql.Session as Hasql
+import qualified Hasql.Statement as Statement
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Transaction as Transaction
+import qualified Hasql.Transaction.Sessions as Sessions
+import Data.Int (Int64)
 
 data Migration = Migration
     { revision :: Int
@@ -23,6 +33,11 @@ data Migration = Migration
 data MigrateOptions = MigrateOptions
     { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
     }
+
+getHasqlPool :: (?modelContext :: ModelContext) => HasqlPool.Pool
+getHasqlPool = case ?modelContext.hasqlPool of
+    Just pool -> pool
+    Nothing -> error "IHP.SchemaMigration: hasql pool not available"
 
 -- | Migrates the database schema to the latest version
 migrate :: (?modelContext :: ModelContext) => MigrateOptions -> IO ()
@@ -43,31 +58,33 @@ runMigration migration@Migration { revision, migrationFile } = do
     migrationFilePath <- migrationPath migration
     migrationSql <- Text.readFile (cs migrationFilePath)
 
-    let fullSql = [trimming|
-        BEGIN;
-            ${migrationSql};
-            INSERT INTO schema_migrations (revision) VALUES (?);
-        COMMIT;
-    |]
-    sqlExec (fromString . cs $ fullSql) [revision]
+    let pool = getHasqlPool
+    let transaction = do
+            Transaction.sql (cs migrationSql)
+            Transaction.statement (fromIntegral revision :: Int64) insertRevisionStatement
+    runSessionHasql pool (Sessions.transaction Sessions.ReadCommitted Sessions.Write transaction)
 
-    pure ()
+insertRevisionStatement :: Statement.Statement Int64 ()
+insertRevisionStatement =
+    Statement.preparable
+        "INSERT INTO schema_migrations (revision) VALUES ($1)"
+        (Encoders.param (Encoders.nonNullable Encoders.int8))
+        Decoders.noResult
 
 -- | Creates the @schema_migrations@ table if it doesn't exist yet
 createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
 createSchemaMigrationsTable = do
     -- Hide this query from the log
     withoutQueryLogging do
+        let pool = getHasqlPool
         -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
         -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
         -- https://github.com/digitallyinduced/ihp/issues/818
-        maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
+        maybeTableName :: Maybe Text <- sqlQueryHasql pool (Snippet.sql "SELECT (to_regclass('schema_migrations')) :: text") (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text)))
         let schemaMigrationTableExists = isJust maybeTableName
 
         unless schemaMigrationTableExists do
-            let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-            _ <- sqlExec ddl ()
-            pure ()
+            runSessionHasql pool (Hasql.script "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)")
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
 findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
@@ -88,7 +105,10 @@ findOpenMigrations !minimumRevision = do
 -- [ 1604850570, 1604850660 ]
 --
 findMigratedRevisions :: (?modelContext :: ModelContext) => IO [Int]
-findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revision FROM schema_migrations ORDER BY revision" ()
+findMigratedRevisions = do
+    let pool = getHasqlPool
+    revisions <- sqlQueryHasql pool (Snippet.sql "SELECT revision FROM schema_migrations ORDER BY revision") (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.int8)))
+    pure (map fromIntegral revisions)
 
 -- | Returns all migrations found in @Application/Migration@
 --
@@ -136,4 +156,3 @@ migrationPath Migration { migrationFile } = do
 detectMigrationDir :: IO Text
 detectMigrationDir =
     envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
-

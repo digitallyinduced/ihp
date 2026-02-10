@@ -137,8 +137,9 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
         emptyListIfTablesDoesntExists operation = do
             result <- Exception.try operation
             case result of
-                Left (EnhancedSqlError { sqlError }) | sqlError.sqlErrorMsg == "relation \"schema_migrations\" does not exist" -> pure []
-                Left error -> Exception.throwIO error
+                Left (exception :: SomeException)
+                    | "schema_migrations" `isInfixOf` tshow exception -> pure []
+                    | otherwise -> Exception.throwIO exception
                 Right result -> pure result
 
 withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result

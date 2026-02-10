@@ -31,15 +31,16 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, hasql, hasql-pool, hasql-dynamic-statements, hasql-transaction
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, hasql, hasql-pool, hasql-dynamic-statements, hasql-transaction
     hs-source-dirs: .
     main-is: Migrate.hs
+    ghc-options: -threaded
 
 test-suite tests
     import: ihp-std
