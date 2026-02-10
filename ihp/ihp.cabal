@@ -257,6 +257,7 @@ library
         , IHP.EnvVar
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
+        , IHP.PGSimpleCompat
         , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
