@@ -188,51 +188,149 @@ CABAL_EOF
         else
             [];
 
+    # Generate .cabal file for the app library package.
+    # build-depends is populated at derivation build time by querying ghc-pkg
+    # for all registered package names, ensuring all transitive deps of ihp are available.
+    appLibSrc = pkgs.stdenv.mkDerivation {
+        name = "${appName}-lib-src";
+        src = appSrc;
+        nativeBuildInputs = [ pkgs.findutils allHaskellPackages ];
+        buildPhase = ''
+            # Find all .hs modules excluding entry points and tests
+            # Modules under Config/ are found via the "Config" source dir,
+            # so their module names are relative to Config/ (e.g. Config/Config.hs -> Config)
+            CONFIG_MODULES=""
+            if [ -d Config ]; then
+                CONFIG_MODULES=$(find Config -name '*.hs' \
+                    | sed 's|^Config/||' \
+                    | sed 's|\.hs$||' \
+                    | sed 's|/|.|g' \
+                    | sort)
+            fi
 
-    mkScript =
-        scriptName:
-            pkgs.stdenv.mkDerivation {
-                name = "${appName}-script-${scriptName}";
-                src = appSrc;
+            # All other modules are relative to "." source dir
+            OTHER_MODULES=$(find . -name '*.hs' \
+                -not -name 'Main.hs' \
+                -not -name 'Setup.hs' \
+                -not -path './build/*' \
+                -not -path './Config/*' \
+                -not -path './Test/*' \
+                | sed 's|^\./||' \
+                | sed 's|\.hs$||' \
+                | sed 's|/|.|g' \
+                | sort)
 
-                buildInputs = commonBuildInputs;
-                nativeBuildInputs = commonNativeBuildInputs;
+            # Get all registered package names from the GHC environment
+            # This includes ihp and ALL its transitive deps (aeson, bytestring, lens, etc.)
+            # Filter out internal sub-libraries (z-* prefixed names) as they are private
+            ALL_PKG_NAMES=$(ghc-pkg list --simple-output | tr ' ' '\n' | sed 's/-[0-9].*//' | sort -u | grep -v '^$' | grep -v '^z-')
 
-                buildPhase = ''
-                    mkdir -p build/bin
-                    ${ihpEnvSetup}
+            cat > ${appName}-lib.cabal <<'CABAL_HEADER'
+cabal-version: 2.2
+name: ${appName}-lib
+version: 0.1.0
+build-type: Simple
 
-                    mkdir -p build/Script/Main
-                    cat > build/Script/Main/${scriptName}.hs <<'EOF'
-                    module Main (main) where
-                    import IHP.ScriptSupport
-                    import qualified Config
-                    import Application.Script.${scriptName} (run)
-                    main = runScript Config.config run
-                    EOF
+library
+    default-language: GHC2021
+    hs-source-dirs: . Config
+    build-depends:
+CABAL_HEADER
 
-                    mkdir -p build/RunScript/${scriptName}
+            # Add all registered packages as build-depends
+            FIRST=true
+            for pkg in $ALL_PKG_NAMES; do
+                if [ "$FIRST" = true ]; then
+                    echo "        $pkg" >> ${appName}-lib.cabal
+                    FIRST=false
+                else
+                    echo "        , $pkg" >> ${appName}-lib.cabal
+                fi
+            done
 
-                    ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                        $(make print-ghc-options) \
-                        ${if optimized then prodGhcOptions else ""} \
-                        build/Script/Main/${scriptName}.hs \
-                        -o build/bin/${scriptName} \
-                        -odir build/RunScript/${scriptName} \
-                        -hidir build/RunScript/${scriptName}
-                '';
+            echo "    exposed-modules:" >> ${appName}-lib.cabal
 
-                installPhase = ''
-                    mkdir -p $out/bin
-                    mv build/bin/${scriptName} $out/bin/${scriptName}
-                '';
+            for mod in $OTHER_MODULES $CONFIG_MODULES; do
+                echo "        $mod" >> ${appName}-lib.cabal
+            done
 
-                enableParallelBuilding = true;
-                disallowedReferences = [ ihp ];
-            };
+            cat >> ${appName}-lib.cabal <<'CABAL_EOF'
+    default-extensions:
+        GHC2021
+        OverloadedStrings
+        NoImplicitPrelude
+        ImplicitParams
+        Rank2Types
+        DisambiguateRecordFields
+        NamedFieldPuns
+        DuplicateRecordFields
+        OverloadedLabels
+        FlexibleContexts
+        TypeSynonymInstances
+        FlexibleInstances
+        QuasiQuotes
+        TypeFamilies
+        PackageImports
+        ScopedTypeVariables
+        RecordWildCards
+        TypeApplications
+        DataKinds
+        InstanceSigs
+        DeriveGeneric
+        MultiParamTypeClasses
+        TypeOperators
+        DeriveDataTypeable
+        MultiWayIf
+        UndecidableInstances
+        BlockArguments
+        PartialTypeSignatures
+        LambdaCase
+        DefaultSignatures
+        EmptyDataDeriving
+        BangPatterns
+        FunctionalDependencies
+        StandaloneDeriving
+        DerivingVia
+        TemplateHaskell
+        DeepSubsumption
+        OverloadedRecordDot
+    ghc-options:
+        -Wno-unsafe
+        -Wno-name-shadowing
+        -Wno-monomorphism-restriction
+        -Wno-safe
+        -Wno-missing-local-signatures
+        -Wno-missing-home-modules
+        -Wno-partial-type-signatures
+        -Werror=missing-fields
+        -fwarn-incomplete-patterns
+CABAL_EOF
+        '';
+        installPhase = ''
+            mkdir -p $out
 
-    scriptPackages = map mkScript scriptNames;
-    allScripts = pkgs.symlinkJoin { name = "${appName}-scripts"; paths = scriptPackages; };
+            # Copy all source files preserving directory structure (excluding entry points and tests)
+            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './Test/*' | while read f; do
+                mkdir -p "$out/$(dirname "$f")"
+                cp "$f" "$out/$f"
+            done
+
+            cp ${appName}-lib.cabal $out/
+        '';
+        disallowedReferences = [ ihp ];
+    };
+
+    appLibPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+        ghc.callPackage ({ mkDerivation, base }: mkDerivation {
+            pname = "${appName}-lib";
+            version = "0.1.0";
+            src = appLibSrc;
+            libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+            license = pkgs.lib.licenses.free;
+        }) {}
+    ));
+
+    allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
     hasJobs =
         let
@@ -260,18 +358,32 @@ CABAL_EOF
         in
             anyJobHsIn projectPath;
 
-    runJobs =
+    binaries =
         pkgs.stdenv.mkDerivation {
-            name = "${appName}-run-jobs";
+            name = "${appName}-binaries";
             src = appSrc;
 
-            buildInputs = commonBuildInputs;
+            buildInputs = [ allHaskellPackagesWithAppLib ];
             nativeBuildInputs = commonNativeBuildInputs;
 
             buildPhase = ''
-                mkdir -p build/bin build/RunProdServer
+                mkdir -p build/bin build/obj
                 ${ihpEnvSetup}
 
+                # Delete all .hs files except Main.hs so GHC uses the library package
+                # instead of recompiling from source
+                find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -delete
+
+                # Build RunProdServer from Main.hs
+                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
+                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    $(make print-ghc-options) \
+                    ${if optimized then prodGhcOptions else ""} \
+                    Main.hs -o build/bin/RunProdServer \
+                    -odir build/obj -hidir build/obj
+
+            '' + pkgs.lib.optionalString hasJobs ''
+                # Generate and build RunJobs
                 cat > build/RunJobs.hs <<'EOF'
                 module RunJobs (main) where
                 import Application.Script.Prelude
@@ -283,51 +395,41 @@ CABAL_EOF
                 main = runScript Config.config (runJobWorkers (workers RootApplication))
                 EOF
 
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
+                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                     -main-is 'RunJobs.main' \
                     $(make print-ghc-options) \
                     ${if optimized then prodGhcOptions else ""} \
                     build/RunJobs.hs -o build/bin/RunJobs \
-                    -odir build/RunProdServer -hidir build/RunProdServer
-            '';
+                    -odir build/obj -hidir build/obj
+
+            '' + builtins.concatStringsSep "" (map (scriptName: ''
+                # Build script: ${scriptName}
+                mkdir -p build/Script/Main
+                cat > build/Script/Main/${scriptName}.hs <<'EOF'
+                module Main (main) where
+                import IHP.ScriptSupport
+                import qualified Config
+                import Application.Script.${scriptName} (run)
+                main = runScript Config.config run
+                EOF
+
+                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
+                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    $(make print-ghc-options) \
+                    ${if optimized then prodGhcOptions else ""} \
+                    build/Script/Main/${scriptName}.hs -o build/bin/${scriptName} \
+                    -odir build/obj -hidir build/obj
+
+            '') scriptNames);
 
             installPhase = ''
                 mkdir -p $out/bin
-                mv build/bin/RunJobs $out/bin/RunJobs
+                cp build/bin/* $out/bin/
             '';
 
             enableParallelBuilding = true;
             disallowedReferences = [ ihp ];
-        };
-
-    runServer =
-        pkgs.stdenv.mkDerivation {
-            name = appName + "-binaries";
-            src = appSrc;
-
-            buildInputs = commonBuildInputs;
-            nativeBuildInputs = commonNativeBuildInputs;
-
-            buildPhase = ''
-                mkdir -p build/bin build/RunProdServer
-                ${ihpEnvSetup}
-
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
-            '';
-
-            installPhase = ''
-                mkdir -p $out/bin
-                mv build/bin/RunProdServer $out/bin/RunProdServer
-            '';
-
-            enableParallelBuilding = true;
-            disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
-        };
-
-    binaries =
-        pkgs.symlinkJoin {
-            name = "${appName}-binaries";
-            paths = [ runServer allScripts ] ++ pkgs.lib.optional hasJobs runJobs;
         };
 in
     pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
@@ -349,7 +451,7 @@ in
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
-            find ${binaries}/bin/ -type l -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
+            find ${binaries}/bin/ -maxdepth 1 -type f -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
                 while read -d $'\0' binary; do
                     binary_basename=$(basename "$binary")
                     cp "$binary" "$out/bin/$binary_basename";
