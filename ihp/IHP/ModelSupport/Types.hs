@@ -54,7 +54,6 @@ import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.ToField (Action) -- used by RecordNotFoundException, EnhancedSqlError
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Hasql.Pool as Hasql
 import qualified Hasql.Session as HasqlSession
@@ -186,7 +185,7 @@ data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
+    = RecordNotFoundException { queryAndParams :: Text }
     deriving (Show)
 
 instance Exception RecordNotFoundException
@@ -197,7 +196,7 @@ instance Exception RecordNotFoundException
 data EnhancedSqlError
     = EnhancedSqlError
     { sqlErrorQuery :: Query
-    , sqlErrorQueryParams :: [Action]
+    , sqlErrorQueryParams :: Text
     , sqlError :: PG.SqlError
     } deriving (Show)
 

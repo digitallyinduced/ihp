@@ -752,20 +752,6 @@ class
     --
     primaryKeyColumnNames :: [ByteString]
 
-    -- | Returns the parameters for a WHERE conditions to match an entity by it's primary key, given the entities id
-    --
-    -- For tables with a simple primary key this simply the id:
-    --
-    -- >>> primaryKeyConditionForId project.id
-    -- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
-    --
-    -- If the table has a composite primary key, this returns multiple elements:
-    --
-    -- >>> primaryKeyConditionForId postTag.id
-    -- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-    -- 
-    -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
-    primaryKeyConditionForId :: Id record -> PG.Action
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
 -- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
@@ -783,19 +769,6 @@ primaryKeyConditionColumnSelector =
             [s] -> qualifyColumnName s
             conds -> "(" <> BS8.intercalate ", " (map qualifyColumnName conds) <> ")"
 
--- | Returns WHERE conditions to match an entity by it's primary key
---
--- For tables with a simple primary key this returns a tuple with the id:
---
--- >>> primaryKeyCondition project
--- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
---
--- If the table has a composite primary key, this returns multiple elements:
---
--- >>> primaryKeyCondition postTag
--- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
-primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
 truncateQuery :: Text -> Text
 truncateQuery query

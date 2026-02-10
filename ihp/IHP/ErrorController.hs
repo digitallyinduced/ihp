@@ -270,16 +270,12 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
             let errorMessage = [hsx|
                     <p>
                         The following SQL was executed:
-                        <pre class="ihp-error-code">{query}</pre>
-                    </p>
-                    <p>
-                        These query parameters have been used:
-                        <pre class="ihp-error-code">{params}</pre>
+                        <pre class="ihp-error-code">{queryAndParams}</pre>
                     </p>
 
                     <p>

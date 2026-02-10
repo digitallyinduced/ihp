@@ -6,11 +6,7 @@ Description: Compile QueryBuilder to Hasql Snippet
 Copyright: (c) digitally induced GmbH, 2025
 
 This module compiles QueryBuilder queries to Hasql's Snippet type for execution
-with prepared statements. This provides better performance than the text-based
-postgresql-simple approach.
-
-The compilation is parallel to 'IHP.QueryBuilder.Compiler.toSQL' but produces
-Snippet values instead of (ByteString, [Action]) tuples.
+with prepared statements.
 -}
 module IHP.QueryBuilder.HasqlCompiler
 ( toSnippet
@@ -35,10 +31,6 @@ sqlBS = Snippet.sql . cs
 {-# INLINE sqlBS #-}
 
 -- | Compile a QueryBuilder to a Hasql Snippet
---
--- This is the hasql equivalent of 'toSQL' from IHP.QueryBuilder.Compiler.
--- Note: When RLS is enabled, the fetch functions fall back to postgresql-simple
--- instead of using hasql, so this function doesn't need to handle RLS.
 toSnippet :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet
 toSnippet queryBuilderProvider = buildSnippet (buildQuery queryBuilderProvider)
 {-# INLINE toSnippet #-}
@@ -86,10 +78,10 @@ whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet cond
 --
 -- Uses the hasql-specific template (with = ANY/<> ALL for IN/NOT IN).
 conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (VarCondition _ hasqlTemplate _ snippet) =
-    -- VarCondition stores hasql template (e.g., "id = ANY(?)") and a snippet parameter
+conditionToSnippet (VarCondition template snippet) =
+    -- VarCondition stores template (e.g., "id = ANY(?)") and a snippet parameter
     -- We substitute the ? with the actual parameter
-    substituteSnippet hasqlTemplate snippet
+    substituteSnippet template snippet
 conditionToSnippet (OrCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
 conditionToSnippet (AndCondition a b) =
