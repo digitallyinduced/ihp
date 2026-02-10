@@ -205,7 +205,6 @@ tests = do
                         primaryKeyColumnNames = ["id"]
 
 
-
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
                     instance FromRow Generated.ActualTypes.User where
@@ -304,7 +303,6 @@ tests = do
                         primaryKeyColumnNames = ["id"]
 
 
-
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
 
                     instance FromRow Generated.ActualTypes.User where
@@ -400,7 +398,6 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
-
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -536,7 +533,6 @@ tests = do
                         primaryKeyColumnNames = ["id"]
 
 
-
                     instance InputValue Generated.ActualTypes.LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
 
                     instance FromRow Generated.ActualTypes.LandingPage where
@@ -657,7 +653,7 @@ tests = do
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "() => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (Thing' others) where
                         tableName = "things"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
@@ -718,7 +714,7 @@ tests = do
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "(ToField bitRef, ToField partRef) => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
                         tableName = "bit_part_refs"
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
@@ -803,7 +799,6 @@ tests = do
                         tableNameByteString = Data.Text.Encoding.encodeUtf8 "posts"
                         columnNames = ["id","title","user_id"]
                         primaryKeyColumnNames = ["id"]
-
 
 
                     instance InputValue Generated.ActualTypes.Post where inputValue = IHP.ModelSupport.recordToInputValue
