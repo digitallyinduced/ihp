@@ -1072,7 +1072,6 @@ compileTableInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions)
 compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance #{instanceHead} where
     tableName = \"#{name}\"
-    tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
     primaryKeyColumnNames = #{primaryKeyColumnNames}
 |]

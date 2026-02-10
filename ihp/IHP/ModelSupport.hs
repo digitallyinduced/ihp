@@ -720,17 +720,6 @@ class
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
-    -- | Returns the table name of a given model as a bytestring.
-    --
-    -- __Example:__
-    --
-    -- >>> tableNameByteString @User
-    -- "users"
-    --
-    tableNameByteString :: ByteString
-    tableNameByteString = symbolToByteString @(GetTableName record)
-    {-# INLINE tableNameByteString #-}
-
     -- | Returns the list of column names for a given model
     --
     -- __Example:__
@@ -738,7 +727,7 @@ class
     -- >>> columnNames @User
     -- ["id", "email", "created_at"]
     --
-    columnNames :: [ByteString]
+    columnNames :: [Text]
 
     -- | Returns the list of column names, that are contained in the primary key for a given model
     --
@@ -750,7 +739,7 @@ class
     -- >>> primaryKeyColumnNames @PostTagging
     -- ["post_id", "tag_id"]
     --
-    primaryKeyColumnNames :: [ByteString]
+    primaryKeyColumnNames :: [Text]
 
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
@@ -759,15 +748,15 @@ class
 -- "(post_tags.post_id, post_tags.tag_id)"
 -- >>> primaryKeyColumnSelector @Post
 -- "post_tags.post_id"
-primaryKeyConditionColumnSelector :: forall record. (Table record) => ByteString
-primaryKeyConditionColumnSelector = 
-    let 
-        qualifyColumnName col = tableNameByteString @record <> "." <> col
+primaryKeyConditionColumnSelector :: forall record. (Table record) => Text
+primaryKeyConditionColumnSelector =
+    let
+        qualifyColumnName col = tableName @record <> "." <> col
     in
     case primaryKeyColumnNames @record of
             [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
             [s] -> qualifyColumnName s
-            conds -> "(" <> BS8.intercalate ", " (map qualifyColumnName conds) <> ")"
+            conds -> "(" <> Text.intercalate ", " (map qualifyColumnName conds) <> ")"
 
 
 truncateQuery :: Text -> Text
@@ -798,7 +787,7 @@ deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table r
 deleteRecordById id = do
     let pool = ?modelContext.hasqlPool
     sqlExecHasql pool $
-        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ")
         <> Snippet.param id
 {-# INLINABLE deleteRecordById #-}
 
@@ -822,7 +811,7 @@ deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (
 deleteRecordByIds ids = do
     let pool = ?modelContext.hasqlPool
     sqlExecHasql pool $
-        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ANY(")
         <> Snippet.param ids
         <> Snippet.sql ")"
 {-# INLINABLE deleteRecordByIds #-}
@@ -834,7 +823,7 @@ deleteRecordByIds ids = do
 deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
 deleteAll = do
     let pool = ?modelContext.hasqlPool
-    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> cs (tableName @record))
+    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> tableName @record)
 {-# INLINABLE deleteAll #-}
 
 instance Default NominalDiffTime where
@@ -1072,7 +1061,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 -- >     render MyView { .. }
 --
 --
-trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
     Just callback -> callback tableName
     Nothing -> pure ()
@@ -1091,7 +1080,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set ByteString)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
@@ -1190,7 +1179,7 @@ copyRecord existingRecord =
         fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
 
         meta :: MetaBag
-        meta = def { touchedFields = map (IHP.NameSupport.columnNameToFieldName . cs) fieldsExceptId }
+        meta = def { touchedFields = map IHP.NameSupport.columnNameToFieldName fieldsExceptId }
     in
         existingRecord
             |> set #id def

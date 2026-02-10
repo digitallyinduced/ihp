@@ -35,7 +35,6 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
-import qualified Data.Text.Encoding as Text
 import qualified GHC.Generics
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
@@ -65,7 +64,7 @@ data FilterOperator
 -- | Represents an ORDER BY clause component
 data OrderByClause =
     OrderByClause
-    { orderByColumn :: !ByteString
+    { orderByColumn :: !Text
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
 
@@ -94,7 +93,7 @@ instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsMod
 class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
     getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
     injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
-    getQueryIndex :: queryBuilderProvider table -> Maybe ByteString
+    getQueryIndex :: queryBuilderProvider table -> Maybe Text
     getQueryIndex _ = Nothing
     {-# INLINABLE getQueryIndex #-}
 
@@ -133,15 +132,15 @@ instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTa
     {-# INLINABLE getQueryBuilder #-}
     injectQueryBuilder = LabeledQueryBuilderWrapper
     {-# INLINABLE injectQueryBuilder #-}
-    getQueryIndex _ = Just $ symbolToByteString @foreignTable <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @indexColumn)
+    getQueryIndex _ = Just $ symbolToText @foreignTable <> "." <> fieldNameToColumnName (symbolToText @indexColumn)
     {-# INLINABLE getQueryIndex #-}
 
 -- | The main QueryBuilder data type, representing different query operations
 data QueryBuilder (table :: Symbol) =
-    NewQueryBuilder { selectFrom :: !ByteString, columns :: ![ByteString] }
+    NewQueryBuilder { selectFrom :: !Text, columns :: ![Text] }
     | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
-    | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !ByteString }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(ByteString, FilterOperator, Snippet), applyLeft :: !(Maybe ByteString), applyRight :: !(Maybe ByteString) }
+    | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !Text }
+    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(Text, FilterOperator, Snippet), applyLeft :: !(Maybe Text), applyRight :: !(Maybe Text) }
     | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
     | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
@@ -149,7 +148,7 @@ data QueryBuilder (table :: Symbol) =
     | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
 
 -- | Represents a WHERE condition
-data Condition = VarCondition !ByteString !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
+data Condition = VarCondition !Text !Snippet | OrCondition !Condition !Condition | AndCondition !Condition !Condition
 --                             ^hasqlTemplate
 
 -- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
@@ -208,11 +207,11 @@ instance KnownSymbol table => ToHtml (QueryBuilder table) where
     toHtml queryBuilder = toHtml (toSQLQueryBuilder queryBuilder)
       where
         -- Inline SQL generation for ToHtml to avoid circular imports
-        toSQLQueryBuilder :: QueryBuilder table -> ByteString
-        toSQLQueryBuilder qb = "QueryBuilder<" <> symbolToByteString @table <> ">"
+        toSQLQueryBuilder :: QueryBuilder table -> Text
+        toSQLQueryBuilder qb = "QueryBuilder<" <> symbolToText @table <> ">"
 
 -- | Represents a JOIN clause
-data Join = Join { table :: ByteString, tableJoinColumn :: ByteString, otherJoinColumn :: ByteString }
+data Join = Join { table :: Text, tableJoinColumn :: Text, otherJoinColumn :: Text }
     deriving (Show, Eq)
 
 -- | ORDER BY direction
@@ -220,27 +219,27 @@ data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, Dee
 
 -- | Represents a complete SQL query after building
 data SQLQuery = SQLQuery
-    { queryIndex :: !(Maybe ByteString)
-    , selectFrom :: !ByteString
-    , distinctClause :: !(Maybe ByteString)
-    , distinctOnClause :: !(Maybe ByteString)
+    { queryIndex :: !(Maybe Text)
+    , selectFrom :: !Text
+    , distinctClause :: !(Maybe Text)
+    , distinctOnClause :: !(Maybe Text)
     , whereCondition :: !(Maybe Condition)
     , joins :: ![Join]
     , orderByClause :: ![OrderByClause]
-    , limitClause :: !(Maybe ByteString)
-    , offsetClause :: !(Maybe ByteString)
-    , columns :: ![ByteString]
+    , limitClause :: !(Maybe Text)
+    , offsetClause :: !(Maybe Text)
+    , columns :: ![Text]
     } deriving (Show)
 
 
-instance SetField "queryIndex" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { queryIndex = value }
-instance SetField "selectFrom" SQLQuery ByteString where setField value sqlQuery = sqlQuery { selectFrom = value }
-instance SetField "distinctClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctClause = value }
-instance SetField "distinctOnClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
+instance SetField "queryIndex" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { queryIndex = value }
+instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }
+instance SetField "distinctClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctClause = value }
+instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
 instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
-instance SetField "limitClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { limitClause = value }
-instance SetField "offsetClause" SQLQuery (Maybe ByteString) where setField value sqlQuery = sqlQuery { offsetClause = value }
+instance SetField "limitClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { limitClause = value }
+instance SetField "offsetClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { offsetClause = value }
 
 -- | Type class for default scoping of queries
 class DefaultScope table where
@@ -252,7 +251,7 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = NewQueryBuilder { selectFrom = tableNameByteString @(GetModelByTableName table), columns = columnNames @(GetModelByTableName table) }
+    def = NewQueryBuilder { selectFrom = tableName @(GetModelByTableName table), columns = columnNames @(GetModelByTableName table) }
 
 -- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator

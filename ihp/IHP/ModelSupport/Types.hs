@@ -82,7 +82,7 @@ data ModelContext = ModelContext
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }

@@ -187,7 +187,7 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
@@ -273,27 +273,27 @@ isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
-channelName :: ByteString -> ByteString
-channelName tableName = "ar_did_change_" <> tableName
+channelName :: Text -> ByteString
+channelName tableName = "ar_did_change_" <> cs tableName
 
 -- | Returns individual SQL statements to set up a database trigger.
 -- Split into separate statements because hasql's extended query protocol
 -- only supports single statements per execution.
-notificationTriggerStatements :: ByteString -> [Text]
+notificationTriggerStatements :: Text -> [Text]
 notificationTriggerStatements tableName =
         [ "BEGIN"
-        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+        , "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
             <> "BEGIN\n"
-            <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+            <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
             <> "    RETURN new;\n"
             <> "END;\n"
             <> "$$ language plpgsql"
-        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
-        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
-        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , cs $ "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
-        , cs $ "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
         , "COMMIT"
         ]
     where
