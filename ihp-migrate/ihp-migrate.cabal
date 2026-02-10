@@ -28,13 +28,13 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, string-conversions, hasql, hasql-dynamic-statements, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, string-conversions, hasql, hasql-transaction
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, string-conversions, hasql, hasql-dynamic-statements, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, string-conversions, hasql, hasql-transaction
     hs-source-dirs: .
     main-is: Migrate.hs
     ghc-options: -threaded

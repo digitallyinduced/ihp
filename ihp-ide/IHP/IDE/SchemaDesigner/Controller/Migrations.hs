@@ -126,9 +126,9 @@ findMigrationByRevision migrationRevision = do
     pure migration
 
 migrateAppDB :: Int -> IO ()
-migrateAppDB revision = withMigrateConnection do
+migrateAppDB revision = withMigrateConnection \connection -> do
     let minimumRevision = Just (revision - 1)
-    SchemaMigration.migrate SchemaMigration.MigrateOptions { minimumRevision }
+    SchemaMigration.migrate connection SchemaMigration.MigrateOptions { minimumRevision }
 
 findMigratedRevisions :: IO [Int]
 findMigratedRevisions = emptyListIfTablesDoesntExists (withMigrateConnection SchemaMigration.findMigratedRevisions)
@@ -143,11 +143,10 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withMigrateConnection Sch
                     | otherwise -> Exception.throwIO exception
                 Right result -> pure result
 
-withMigrateConnection :: ((?connection :: Connection.Connection) => IO result) -> IO result
-withMigrateConnection inner = Exception.bracket acquire Connection.release use
+withMigrateConnection :: (Connection.Connection -> IO result) -> IO result
+withMigrateConnection inner = Exception.bracket acquire Connection.release inner
     where
         acquire = do
             frameworkConfig <- buildFrameworkConfig (pure ())
             Connection.acquire (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
                 >>= either (\e -> error ("DB connect failed: " <> show e)) pure
-        use conn = let ?connection = conn in inner
