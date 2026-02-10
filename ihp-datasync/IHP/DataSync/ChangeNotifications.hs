@@ -6,6 +6,7 @@ module IHP.DataSync.ChangeNotifications
 , createNotificationFunction
 , installTableChangeTriggers
 , makeCachedInstallTableChangeTriggers
+, makeInstallTableChangeTriggers
 , retrieveChanges
 , installTableChangeTriggersSession
 , retrieveChangesSession
@@ -28,6 +29,7 @@ import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 import IHP.PGVersion (defaultUuidFunction)
+import IHP.Environment (Environment(..))
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -175,6 +177,15 @@ installTableChangeTriggers pool tableNameRLS = do
     runSession pool (installTableChangeTriggersSession uuidFunction tableNameRLS)
     pure ()
 
+-- | In development, always re-run trigger SQL because @make db@ drops and
+-- recreates the database, destroying previously installed triggers.
+-- In production, cache per table to avoid unnecessary work.
+makeInstallTableChangeTriggers :: Environment -> Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
+makeInstallTableChangeTriggers Development pool = pure (installTableChangeTriggers pool)
+makeInstallTableChangeTriggers Production pool = makeCachedInstallTableChangeTriggers pool
+
+-- | Wraps 'installTableChangeTriggers' with a per-table cache so each table's
+-- triggers are only installed once per process lifetime.
 makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
 makeCachedInstallTableChangeTriggers pool = do
     tables <- newIORef Set.empty
@@ -183,7 +194,6 @@ makeCachedInstallTableChangeTriggers pool = do
             if Set.member tableName set
                 then (set, False)
                 else (Set.insert tableName set, True)
-
         when shouldInstall do
             installTableChangeTriggers pool tableName
 

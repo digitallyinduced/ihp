@@ -58,6 +58,7 @@ import qualified Hasql.Pool.Config as HasqlPoolConfig
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Hasql
 import qualified Hasql.Statement as Hasql
+import qualified Hasql.Errors as HasqlErrors
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
@@ -379,7 +380,15 @@ sqlQueryHasql pool snippet decoder = do
             Nothing -> do
                 result <- HasqlPool.use pool session
                 case result of
-                    Left err -> throwIO (HasqlError err)
+                    Left err
+                        | isCachedPlanError err -> do
+                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                            HasqlPool.release pool
+                            retryResult <- HasqlPool.use pool session
+                            case retryResult of
+                                Left retryErr -> throwIO (HasqlError retryErr)
+                                Right a -> pure a
+                        | otherwise -> throwIO (HasqlError err)
                     Right a -> pure a
     if currentLogLevel == Debug
         then do
@@ -415,7 +424,15 @@ sqlExecHasql pool snippet = do
             Nothing -> do
                 result <- HasqlPool.use pool session
                 case result of
-                    Left err -> throwIO (HasqlError err)
+                    Left err
+                        | isCachedPlanError err -> do
+                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                            HasqlPool.release pool
+                            retryResult <- HasqlPool.use pool session
+                            case retryResult of
+                                Left retryErr -> throwIO (HasqlError retryErr)
+                                Right () -> pure ()
+                        | otherwise -> throwIO (HasqlError err)
                     Right () -> pure ()
     if currentLogLevel == Debug
         then do
@@ -482,7 +499,15 @@ runSessionHasql pool session = do
             Nothing -> do
                 result <- HasqlPool.use pool session
                 case result of
-                    Left err -> throwIO (HasqlError err)
+                    Left err
+                        | isCachedPlanError err -> do
+                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
+                            HasqlPool.release pool
+                            retryResult <- HasqlPool.use pool session
+                            case retryResult of
+                                Left retryErr -> throwIO (HasqlError retryErr)
+                                Right () -> pure ()
+                        | otherwise -> throwIO (HasqlError err)
                     Right () -> pure ()
     if currentLogLevel == Debug
         then do
@@ -516,6 +541,35 @@ processRequests requestMVar = do
             liftIO (putMVar responseVar result)
             processRequests requestMVar
         Nothing -> pure ()
+
+-- | Detects errors caused by stale schema after @make db@ recreates the database.
+--
+-- Matches four categories:
+--
+-- 1. PostgreSQL \"cached plan must not change result type\" (error code 0A000) —
+--    the server rejects a prepared statement whose result columns changed.
+--
+-- 2. PostgreSQL \"cache lookup failed for type\" (error code XX000) —
+--    a prepared statement references a type OID that no longer exists after
+--    schema recreation (types get new OIDs).
+--
+-- 3. Hasql 'MissingTypesSessionError' — custom enum types (e.g. @JOB_STATUS@)
+--    get new OIDs after schema recreation, and hasql's type registry can't find them.
+--
+-- 4. Hasql 'UnexpectedColumnTypeStatementError' — the column's type OID no longer
+--    matches the OID cached in the prepared statement / decoder.
+isCachedPlanError :: HasqlPool.UsageError -> Bool
+isCachedPlanError (HasqlPool.SessionUsageError sessionError) = isCachedPlanSessionError sessionError
+isCachedPlanError _ = False
+
+isCachedPlanSessionError :: HasqlErrors.SessionError -> Bool
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "0A000" _ _ _ _))) = True
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "XX000" _ _ _ _))) = True
+isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "0A000" _ _ _ _)) = True
+isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "XX000" _ _ _ _)) = True
+isCachedPlanSessionError (HasqlErrors.MissingTypesSessionError _) = True
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.UnexpectedColumnTypeStatementError _ _ _)) = True
+isCachedPlanSessionError _ = False
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
