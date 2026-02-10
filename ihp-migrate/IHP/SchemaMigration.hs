@@ -29,8 +29,6 @@ import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
-import qualified Hasql.Transaction as Transaction
-import qualified Hasql.Transaction.Sessions as Sessions
 
 data Migration = Migration
     { revision :: Int
@@ -58,15 +56,24 @@ migrate connection options = do
 -- | The sql statements contained in the migration file are executed. Then the revision is inserted into the @schema_migrations@ table.
 --
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
+--
+-- We split the migration SQL into individual statements and execute each one
+-- separately via 'Session.script'. This is necessary because hasql 1.10's
+-- 'Session.script' uses @PQsendQuery@ + @singleResult@ internally, which only
+-- handles a single result. Multi-statement SQL produces multiple results and
+-- leaves unconsumed results on the connection, causing subsequent operations
+-- to fail with "cannot enter pipeline mode, connection not idle".
 runMigration :: Connection.Connection -> Migration -> IO ()
 runMigration connection Migration { revision, migrationFile } = do
     migrationFilePath <- migrationPath Migration { revision, migrationFile }
     migrationSql <- Text.readFile (cs migrationFilePath)
 
-    let transaction = do
-            Transaction.sql (cs migrationSql)
-            Transaction.statement (fromIntegral revision :: Int64) insertRevisionStatement
-    runSession connection (Sessions.transaction Sessions.ReadCommitted Sessions.Write transaction)
+    let statements = splitStatements migrationSql
+    runSession connection do
+        Session.script "BEGIN"
+        forM_ statements Session.script
+        Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
+        Session.script "COMMIT"
 
 insertRevisionStatement :: Statement.Statement Int64 ()
 insertRevisionStatement =
@@ -168,3 +175,56 @@ detectMigrationDir :: IO Text
 detectMigrationDir = do
     envValue <- lookupEnv "IHP_MIGRATION_DIR"
     pure (maybe "Application/Migration/" cs envValue)
+
+-- | Split SQL text into individual statements by unquoted semicolons.
+--
+-- Respects single-quoted string literals (with @''@ escapes) and
+-- @--@ line comments so that semicolons inside those are not treated
+-- as statement separators.
+splitStatements :: Text -> [Text]
+splitStatements = filter (not . Text.null) . map Text.strip . splitOnUnquotedSemicolons
+  where
+    splitOnUnquotedSemicolons :: Text -> [Text]
+    splitOnUnquotedSemicolons sql = case nextSemicolon sql of
+        Nothing -> [sql]
+        Just (before, after) -> before : splitOnUnquotedSemicolons after
+
+    -- | Find the next unquoted semicolon. Returns the text before it
+    -- and the text after it, or Nothing if there is no unquoted semicolon.
+    nextSemicolon :: Text -> Maybe (Text, Text)
+    nextSemicolon = go ""
+      where
+        go acc sql
+            | Text.null sql = Nothing
+            | otherwise =
+                -- Skip ahead to the next interesting character
+                let (chunk, rest) = Text.break (\c -> c == ';' || c == '\'' || c == '-') sql
+                    acc' = acc <> chunk
+                in case Text.uncons rest of
+                    Nothing -> Nothing
+                    Just (';', rest') -> Just (acc', rest')
+                    Just ('\'', rest') ->
+                        let (str, after) = spanString rest'
+                        in go (acc' <> "'" <> str <> "'") after
+                    Just ('-', rest') -> case Text.uncons rest' of
+                        Just ('-', rest'') ->
+                            let (comment, after) = Text.break (== '\n') rest''
+                            in go (acc' <> "--" <> comment) after
+                        _ -> go (acc' <> "-") rest'
+                    _ -> Nothing -- unreachable
+
+    -- | Consume a single-quoted string body (after the opening quote).
+    -- Returns the string contents (without quotes) and the remaining text
+    -- after the closing quote.
+    spanString :: Text -> (Text, Text)
+    spanString sql =
+        let (chunk, rest) = Text.break (== '\'') sql
+        in case Text.uncons rest of
+            Nothing -> (chunk, "") -- unterminated string
+            Just ('\'', rest') -> case Text.uncons rest' of
+                Just ('\'', rest'') ->
+                    -- Escaped quote ''
+                    let (more, after) = spanString rest''
+                    in (chunk <> "''" <> more, after)
+                _ -> (chunk, rest') -- end of string
+            _ -> (chunk, rest) -- unreachable
