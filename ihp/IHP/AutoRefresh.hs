@@ -24,8 +24,7 @@ import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response
 import qualified IHP.PGListener as PGListener
-import qualified Database.PostgreSQL.Simple.Types as PG
-import Data.String.Interpolate.IsString
+import qualified Hasql.Session as HasqlSession
 import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
@@ -205,12 +204,11 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
     subscriptions <- subscriptionRequired |> mapM (\table -> do
-        let createTriggerSql = notificationTrigger table
-
         -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
-            sqlExec createTriggerSql ()
+            let pool = ?modelContext.hasqlPool
+            runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
@@ -224,9 +222,9 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     when isDevelopment do
         let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
         forM_ alreadySubscribed \table -> do
-            let createTriggerSql = notificationTrigger table
             withRowLevelSecurityDisabled do
-                sqlExec createTriggerSql ()
+                let pool = ?modelContext.hasqlPool
+                runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
@@ -278,27 +276,26 @@ isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPi
 channelName :: ByteString -> ByteString
 channelName tableName = "ar_did_change_" <> tableName
 
--- | Returns the sql code to set up a database trigger
-notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query [i|
-        BEGIN;
-            CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
-                BEGIN
-                    PERFORM pg_notify('#{channelName tableName}', '');
-                    RETURN new;
-                END;
-            $$ language plpgsql;
-            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
-            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
-            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
-            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-        COMMIT;
-    |]
+-- | Returns individual SQL statements to set up a database trigger.
+-- Split into separate statements because hasql's extended query protocol
+-- only supports single statements per execution.
+notificationTriggerStatements :: ByteString -> [Text]
+notificationTriggerStatements tableName =
+        [ "BEGIN"
+        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+            <> "BEGIN\n"
+            <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
+            <> "    RETURN new;\n"
+            <> "END;\n"
+            <> "$$ language plpgsql"
+        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , cs $ "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
+        , cs $ "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "COMMIT"
+        ]
     where
         functionName = "ar_notify_did_change_" <> tableName
         insertTriggerName = "ar_did_insert_" <> tableName
