@@ -15,11 +15,12 @@ import qualified IHP.SchemaMigration as SchemaMigration
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
-import IHP.Log.Types
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
 import qualified Database.PostgreSQL.Simple as PG
 import System.OsPath (encodeUtf)
+import qualified Hasql.Connection as Connection
+import qualified Hasql.Connection.Settings as ConnectionSettings
 
 instance Controller MigrationsController where
     beforeAction = setLayout schemaDesignerLayout
@@ -125,12 +126,12 @@ findMigrationByRevision migrationRevision = do
     pure migration
 
 migrateAppDB :: Int -> IO ()
-migrateAppDB revision = withAppModelContext do
+migrateAppDB revision = withMigrateConnection do
     let minimumRevision = Just (revision - 1)
     SchemaMigration.migrate SchemaMigration.MigrateOptions { minimumRevision }
 
 findMigratedRevisions :: IO [Int]
-findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext SchemaMigration.findMigratedRevisions)
+findMigratedRevisions = emptyListIfTablesDoesntExists (withMigrateConnection SchemaMigration.findMigratedRevisions)
     where
         -- The schema_migrations table might not have been created yet
         -- In that case there cannot be any migrations that have been run yet
@@ -142,22 +143,11 @@ findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext Schem
                     | otherwise -> Exception.throwIO exception
                 Right result -> pure result
 
-withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result
-withAppModelContext inner =
-        Exception.bracket initModelContext cleanupModelContext callback
+withMigrateConnection :: ((?connection :: Connection.Connection) => IO result) -> IO result
+withMigrateConnection inner = Exception.bracket acquire Connection.release use
     where
-        callback (frameworkConfig, logger, modelContext) = let ?modelContext = modelContext in inner
-        initModelContext = do
+        acquire = do
             frameworkConfig <- buildFrameworkConfig (pure ())
-            logger <- defaultLogger
-
-            modelContext <- createModelContext
-                (frameworkConfig.dbPoolIdleTime)
-                (frameworkConfig.dbPoolMaxConnections)
-                (frameworkConfig.databaseUrl)
-                logger
-
-            pure (frameworkConfig, logger, modelContext)
-
-        cleanupModelContext (frameworkConfig, logger, modelContext) = do
-            logger |> cleanup
+            Connection.acquire (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
+                >>= either (\e -> error ("DB connect failed: " <> show e)) pure
+        use conn = let ?connection = conn in inner

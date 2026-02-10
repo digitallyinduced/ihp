@@ -14,14 +14,11 @@ build-type:          Simple
 common ihp-std
     default-language: GHC2021
     default-extensions:
-        NoImplicitPrelude
         OverloadedLabels
         OverloadedRecordDot
         DuplicateRecordFields
         DisambiguateRecordFields
         TypeApplications
-        TemplateHaskell
-        QuasiQuotes
         PackageImports
         ScopedTypeVariables
         BlockArguments
@@ -31,13 +28,13 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, hasql, hasql-pool, hasql-dynamic-statements, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, string-conversions, hasql, hasql-dynamic-statements, hasql-transaction
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, hasql, hasql-pool, hasql-dynamic-statements, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, string-conversions, hasql
     hs-source-dirs: .
     main-is: Migrate.hs
     ghc-options: -threaded
@@ -46,5 +43,5 @@ test-suite tests
     import: ihp-std
     type: exitcode-stdio-1.0
     main-is: SchemaMigrationSpec.hs
-    build-depends: base >= 4.17.0 && < 4.22, hspec, ihp, with-utf8, directory >= 1.3.8.0, ihp-migrate, filepath >= 1.5, temporary
+    build-depends: base >= 4.17.0 && < 4.22, hspec, with-utf8, directory >= 1.3.8.0, ihp-migrate, filepath >= 1.5, temporary
     hs-source-dirs: Test
