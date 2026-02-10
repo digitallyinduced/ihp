@@ -60,7 +60,7 @@ instance Controller MigrationsController where
                 case result of
                     Left (exception :: SomeException) -> do
                         let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                                Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
                                 Nothing -> tshow exception
 
                         setErrorMessage errorMessage
@@ -101,7 +101,7 @@ instance Controller MigrationsController where
         case result of
             Left (exception :: SomeException) -> do
                 let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                        Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
                         Nothing -> tshow exception
 
                 setErrorMessage errorMessage

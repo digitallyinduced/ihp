@@ -40,6 +40,7 @@ module IHP.ModelSupport.Types
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, enhancedSqlErrorMessage
 , HasqlSessionError (..)
   -- * Type Classes
 , CanCreate (..)
@@ -50,6 +51,7 @@ module IHP.ModelSupport.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Text.Encoding
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
@@ -201,6 +203,14 @@ data EnhancedSqlError
     } deriving (Show)
 
 instance Exception EnhancedSqlError
+
+-- | Extract the SQL error message as Text from an EnhancedSqlError.
+--
+-- This avoids downstream packages needing to import postgresql-simple
+-- to access the 'sqlErrorMsg' field on 'PG.SqlError'.
+enhancedSqlErrorMessage :: EnhancedSqlError -> Text
+enhancedSqlErrorMessage e = Data.Text.Encoding.decodeUtf8 e.sqlError.sqlErrorMsg
+{-# INLINE enhancedSqlErrorMessage #-}
 
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a
