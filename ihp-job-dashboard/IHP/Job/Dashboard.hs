@@ -175,7 +175,7 @@ instance JobsDashboard '[] where
         render $ SomeView tables
         where
             getAllTableNames = sqlQueryHasql getHasqlPool
-                (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
+                (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
                 (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
@@ -378,7 +378,7 @@ baseJobDecoder = BaseJob
 
 getNotIncludedTableNames :: (?modelContext :: ModelContext) => [Text] -> IO [Text]
 getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
-    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
+    (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
     (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO SomeView
