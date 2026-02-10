@@ -103,7 +103,7 @@ ShowPostAction { postId :: !(Id Post) }
 
 The `!` marks the `postId` field as strict. Strict means that the value of `postId` is not stored as a lazy value. So instead of only computing the `postId` field when needed, it will already be fully computed when the `ShowPostAction` value is constructed. Basically we tell haskell that we're sure that this field is always needed. This makes the action data structures more memory efficient.
 
-[You can learn more about strictness and lazyness in haskell in this blog post.](https://www.fpcomplete.com/blog/2017/09/all-about-strictness/)
+[You can learn more about strictness and laziness in haskell in this blog post.](https://www.fpcomplete.com/blog/2017/09/all-about-strictness/)
 
 ### The `\case`
 

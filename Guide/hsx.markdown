@@ -78,7 +78,7 @@ This will not render the attribute, [as specified in the HTML standard](https://
 
 #### Boolean data attributes
 
-This behavior of omiting a attribute when it's set to `False` does not apply to `data-` attributes.
+This behavior of omitting a attribute when it's set to `False` does not apply to `data-` attributes.
 
 You can write
 
@@ -471,7 +471,7 @@ html = [hsx|
         style = "someClassName&" :: Text
 ```
 
-The above code will generate the following HTML, where the `&` symbol has been replaced with it's escpaed form `&amp;`:
+The above code will generate the following HTML, where the `&` symbol has been replaced with it's escaped form `&amp;`:
 
 ```html
 <div class="someClassName&amp;">Hello World</div>

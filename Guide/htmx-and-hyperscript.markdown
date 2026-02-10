@@ -29,7 +29,7 @@ This makes sure that htmx and hyperscript code does not stop working after a Tur
 
 ## htmx
 
-htmx gives you access to AJAX, as a way to update views locally with an API conviently residing in HTML attributes.
+htmx gives you access to AJAX, as a way to update views locally with an API conveniently residing in HTML attributes.
 
 Instead of the typical Single Page Application pattern parsing JSON and turning into html in the DOM, the API endpoints simply just return HTML to be patched into the DOM.
 
@@ -65,7 +65,7 @@ data CounterController
 
 Add `parseRoute @CounterController` to the list of `instance FrontController WebApplication` in `FrontController.hs` (or you'll get a 404 on calling it), and add an `instance AutoRoute CounterController` to `Routes.hs` (or you'll get a compilation error about it not being an instance of AutoRoute).
 
-Instead of using the `render` function, htmx routes are better used with `respondHtml` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as upating.
+Instead of using the `render` function, htmx routes are better used with `respondHtml` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as updating.
 
 ```haskell
 module Web.Controller.Counter where

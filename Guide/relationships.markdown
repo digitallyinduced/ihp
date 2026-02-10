@@ -59,7 +59,7 @@ The `post.comments` returns a list of the comments belonging to the post.
 
 The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
-It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convinient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convenient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
 
 Note that for the above example, it is expected that the query will change as-well:
 
@@ -260,7 +260,7 @@ To add `WHERE` clauses involving a joined table, there is a family of functions 
 
 ### Many-to-many relationships and labeled results
 
-Joins are also useful when it comes to many-to-many relationships. An example is the realationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
+Joins are also useful when it comes to many-to-many relationships. An example is the relationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
 
 ```haskell
 query @Post
@@ -383,7 +383,7 @@ fetchPostWithRecords postId = do
     post <- fetch postId
 
     -- Fetch Comments referencing the post ID.
-    -- Eventhough we haven't used `fetchRelated` on the Post we still have the `post.comments` field.
+    -- Even though we haven't used `fetchRelated` on the Post we still have the `post.comments` field.
     -- This field field is a query builder with the right `WHERE` condition already applied (referencing the Post ID),
     -- so we only need to `fetch` and don't have to use the more verbose `query`:
     -- comments <- query @Comment

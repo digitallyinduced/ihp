@@ -151,7 +151,7 @@ Now open the view in the browser. You should see `Hello from react!` on the page
 
 ### Building a Realtime SPA with IHP DataSync
 
-*The following section asumes that your app already has a login as described in the [Authentication](https://ihp.digitallyinduced.com/Guide/authentication.html#setup) section.*
+*The following section assumes that your app already has a login as described in the [Authentication](https://ihp.digitallyinduced.com/Guide/authentication.html#setup) section.*
 
 IHP DataSync is an IHP API that allows your to query your app's database from within JS. Basically it provides functions like `query`, `fetchOne` or `createRecord`, which you're already familiar with from the Haskell side, but makes them available in JavaScript land.
 
@@ -163,7 +163,7 @@ const posts = await query('posts')
     .fetch()
 ```
 
-This is very similiar to how you would do it on the Haskell backend side:
+This is very similar to how you would do it on the Haskell backend side:
 
 ```haskell
 posts <- query @Post
@@ -473,7 +473,7 @@ Next we're going to add a todo form to create new todos:
 
 Our todo app is already realtime. Open the app again and enter a new todo. You will now see it showing up instantly. You can also open a second browser window (keep in mind that you need to be logged in), and changes will appear in both windows at the same time.
 
-The `useQuery(query('todos'))` call in our `TodoList` has set up a subscription behind the scences. Whenever the result set of our `query('todos')` we fired here changes, it will trigger a re-render of our component.
+The `useQuery(query('todos'))` call in our `TodoList` has set up a subscription behind the scenes. Whenever the result set of our `query('todos')` we fired here changes, it will trigger a re-render of our component.
 
 ##### Checking off Todos
 
@@ -498,7 +498,7 @@ function TodoItem({ todo }) {
 }
 ```
 
-This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similiar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
+This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
 
 Now we need to use this new `TodoItem` component inside our `TodoList`. Change the `render()` function of the `TodoList` to this:
 
