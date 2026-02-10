@@ -42,7 +42,7 @@ import Data.Int (Int16, Int32, Int64)
 import Data.Scientific (Scientific)
 import qualified Data.Aeson as Aeson
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport.Types (LabeledData(..))
+import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -139,6 +139,7 @@ instance HasqlDecodeValue Scientific where hasqlDecodeValue = Decoders.numeric
 instance HasqlDecodeValue Double where hasqlDecodeValue = Decoders.float8
 instance HasqlDecodeValue Float where hasqlDecodeValue = Decoders.float4
 instance HasqlDecodeValue Aeson.Value where hasqlDecodeValue = Decoders.jsonb
+instance PrimaryKey table ~ UUID => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> Decoders.uuid
 
 -- | Typeclass for building column-level row decoders, handling nullable/non-nullable
 class HasqlDecodeColumn a where
