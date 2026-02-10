@@ -219,7 +219,7 @@ fetchTableNames =
 fetchTableCols :: (?modelContext :: ModelContext) => Text -> IO [ColumnDefinition]
 fetchTableCols tableName =
     runSnippetQuery
-        (Snippet.sql "SELECT column_name, data_type, column_default, CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns WHERE table_name = " <> Snippet.param tableName <> Snippet.sql " ORDER BY ordinal_position")
+        (Snippet.sql "SELECT column_name::text, data_type::text, column_default::text, CASE WHEN is_nullable='YES' THEN true ELSE false END FROM information_schema.columns WHERE table_name = " <> Snippet.param tableName <> Snippet.sql " ORDER BY ordinal_position")
         columnDefinitionDecoder
 
 fetchRow :: (?modelContext :: ModelContext) => Text -> [Text] -> IO [[DynamicField]]
@@ -315,7 +315,7 @@ isQuery sql = T.isInfixOf "SELECT" u
 fetchForeignKeyInfo :: (?modelContext :: ModelContext) => Text -> Text -> IO (Maybe (Text, Text))
 fetchForeignKeyInfo tableName columnName = do
     let snippet =
-            Snippet.sql "SELECT ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name FROM information_schema.table_constraints AS tc JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = "
+            Snippet.sql "SELECT ccu.table_name::text AS foreign_table_name, ccu.column_name::text AS foreign_column_name FROM information_schema.table_constraints AS tc JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = "
             <> Snippet.param tableName
             <> Snippet.sql " AND kcu.column_name = "
             <> Snippet.param columnName
