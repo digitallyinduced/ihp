@@ -15,9 +15,7 @@ import qualified IHP.DataSync.Role as Role
 
 -- | Returns the hasql pool from the model context.
 requestHasqlPool :: (?modelContext :: ModelContext) => Hasql.Pool.Pool
-requestHasqlPool = case ?modelContext.hasqlPool of
-    Just pool -> pool
-    Nothing -> error "requestHasqlPool: No hasql pool available in ModelContext"
+requestHasqlPool = ?modelContext.hasqlPool
 
 -- | No-op for backwards compatibility. The hasql pool is now always created
 -- as part of the ModelContext. You can remove this call from your Config.hs.
@@ -38,6 +36,4 @@ initHasqlPoolWithRLS = do
         Just (RLSAuthenticatedRole role) -> pure role
         Nothing -> pure "ihp_authenticated"
     addInitializer do
-        case ?modelContext.hasqlPool of
-            Just pool -> Role.ensureAuthenticatedRoleExistsWithRole pool rlsRole
-            Nothing -> pure ()
+        Role.ensureAuthenticatedRoleExistsWithRole ?modelContext.hasqlPool rlsRole
