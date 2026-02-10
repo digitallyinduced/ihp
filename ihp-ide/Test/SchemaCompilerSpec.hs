@@ -231,69 +231,39 @@ tests = do
                         createRecordDiscardResult = createRecordDiscardResultUser
 
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUser model = withHasqlOrPgSimple (createUserHasql model) (createUserPgSimple model)
-
-                    createUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    createUserHasql model pool = do
+                    createUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ") RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUserPgSimple model = do
-                        sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
-
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
-                    createManyUser models = withHasqlOrPgSimple (createManyUserHasql models) (createManyUserPgSimple models)
-
-                    createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
-                    createManyUserHasql models pool = do
+                    createManyUser models = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
-                    createManyUserPgSimple models = do
-                        sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUser model = withHasqlOrPgSimple (createRecordDiscardResultUserHasql model) (createRecordDiscardResultUserPgSimple model)
-
-                    createRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    createRecordDiscardResultUserHasql model pool = do
+                    createRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")"
                         sqlExecHasql pool snippet
-
-                    createRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
                         updateRecordDiscardResult = updateRecordDiscardResultUser
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUser model = withHasqlOrPgSimple (updateRecordUserHasql model) (updateRecordUserPgSimple model)
-
-                    updateRecordUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    updateRecordUserHasql model pool = do
+                    updateRecordUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    updateRecordUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUserPgSimple model = do
-                        sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
-
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUser model = withHasqlOrPgSimple (updateRecordDiscardResultUserHasql model) (updateRecordDiscardResultUserPgSimple model)
-
-                    updateRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    updateRecordDiscardResultUserHasql model pool = do
+                    updateRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
                         sqlExecHasql pool snippet
-
-                    updateRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -361,69 +331,39 @@ tests = do
                         createRecordDiscardResult = createRecordDiscardResultUser
 
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUser model = withHasqlOrPgSimple (createUserHasql model) (createUserPgSimple model)
-
-                    createUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    createUserHasql model pool = do
+                    createUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ") RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUserPgSimple model = do
-                        sqlQuerySingleRow "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?) RETURNING id, ids, electricity_unit_price" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
-
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
-                    createManyUser models = withHasqlOrPgSimple (createManyUserHasql models) (createManyUserPgSimple models)
-
-                    createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
-                    createManyUserHasql models pool = do
+                    createManyUser models = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
-                    createManyUserPgSimple models = do
-                        sqlQuery (Query $ "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ? :: UUID[], ?)") models)) <> " RETURNING id, ids, electricity_unit_price") (List.concat $ List.map (\model -> [toField (model.id), toField (model.ids), toField (fieldWithDefault #electricityUnitPrice model)]) models)
-
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUser model = withHasqlOrPgSimple (createRecordDiscardResultUserHasql model) (createRecordDiscardResultUserPgSimple model)
-
-                    createRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    createRecordDiscardResultUserHasql model pool = do
+                    createRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")"
                         sqlExecHasql pool snippet
-
-                    createRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "INSERT INTO users (id, ids, electricity_unit_price) VALUES (?, ? :: UUID[], ?)" ((model.id, model.ids, fieldWithDefault #electricityUnitPrice model))
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
                         updateRecordDiscardResult = updateRecordDiscardResultUser
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUser model = withHasqlOrPgSimple (updateRecordUserHasql model) (updateRecordUserPgSimple model)
-
-                    updateRecordUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    updateRecordUserHasql model pool = do
+                    updateRecordUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    updateRecordUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUserPgSimple model = do
-                        sqlQuerySingleRow "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ? RETURNING id, ids, electricity_unit_price" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
-
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUser model = withHasqlOrPgSimple (updateRecordDiscardResultUserHasql model) (updateRecordDiscardResultUserPgSimple model)
-
-                    updateRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    updateRecordDiscardResultUserHasql model pool = do
+                    updateRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
                         sqlExecHasql pool snippet
-
-                    updateRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "UPDATE users SET id = ?, ids = ? :: UUID[], electricity_unit_price = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #ids model, fieldWithUpdate #electricityUnitPrice model, model.id))
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -488,69 +428,39 @@ tests = do
                         createRecordDiscardResult = createRecordDiscardResultUser
 
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUser model = withHasqlOrPgSimple (createUserHasql model) (createUserPgSimple model)
-
-                    createUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    createUserHasql model pool = do
+                    createUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id) VALUES (" <> Snippet.param model.id <> Snippet.sql ") RETURNING id, ts"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    createUserPgSimple model = do
-                        sqlQuerySingleRow "INSERT INTO users (id) VALUES (?) RETURNING id, ts" (Only (model.id))
-
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
-                    createManyUser models = withHasqlOrPgSimple (createManyUserHasql models) (createManyUserPgSimple models)
-
-                    createManyUserHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> HasqlPool.Pool -> IO [Generated.ActualTypes.User]
-                    createManyUserHasql models pool = do
+                    createManyUser models = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ts"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    createManyUserPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
-                    createManyUserPgSimple models = do
-                        sqlQuery (Query $ "INSERT INTO users (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id, ts") (List.concat $ List.map (\model -> [toField (model.id)]) models)
-
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUser model = withHasqlOrPgSimple (createRecordDiscardResultUserHasql model) (createRecordDiscardResultUserPgSimple model)
-
-                    createRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    createRecordDiscardResultUserHasql model pool = do
+                    createRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO users (id) VALUES (" <> Snippet.param model.id <> Snippet.sql ")"
                         sqlExecHasql pool snippet
-
-                    createRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    createRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "INSERT INTO users (id) VALUES (?)" (Only (model.id))
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
                         updateRecordDiscardResult = updateRecordDiscardResultUser
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUser model = withHasqlOrPgSimple (updateRecordUserHasql model) (updateRecordUserPgSimple model)
-
-                    updateRecordUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO Generated.ActualTypes.User
-                    updateRecordUserHasql model pool = do
+                    updateRecordUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ts"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
 
-                    updateRecordUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
-                    updateRecordUserPgSimple model = do
-                        sqlQuerySingleRow "UPDATE users SET id = ? WHERE id = ? RETURNING id, ts" ((fieldWithUpdate #id model, model.id))
-
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUser model = withHasqlOrPgSimple (updateRecordDiscardResultUserHasql model) (updateRecordDiscardResultUserPgSimple model)
-
-                    updateRecordDiscardResultUserHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> HasqlPool.Pool -> IO ()
-                    updateRecordDiscardResultUserHasql model pool = do
+                    updateRecordDiscardResultUser model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
                         sqlExecHasql pool snippet
-
-                    updateRecordDiscardResultUserPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
-                    updateRecordDiscardResultUserPgSimple model = do
-                        sqlExecDiscardResult "UPDATE users SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -651,69 +561,39 @@ tests = do
                         createRecordDiscardResult = createRecordDiscardResultLandingPage
 
                     createLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
-                    createLandingPage model = withHasqlOrPgSimple (createLandingPageHasql model) (createLandingPagePgSimple model)
-
-                    createLandingPageHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> HasqlPool.Pool -> IO Generated.ActualTypes.LandingPage
-                    createLandingPageHasql model pool = do
+                    createLandingPage model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ") RETURNING id"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
 
-                    createLandingPagePgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
-                    createLandingPagePgSimple model = do
-                        sqlQuerySingleRow "INSERT INTO landing_pages (id) VALUES (?) RETURNING id" (Only (fieldWithDefault #id model))
-
                     createManyLandingPage :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
                     createManyLandingPage [] = pure []
-                    createManyLandingPage models = withHasqlOrPgSimple (createManyLandingPageHasql models) (createManyLandingPagePgSimple models)
-
-                    createManyLandingPageHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> HasqlPool.Pool -> IO [Generated.ActualTypes.LandingPage]
-                    createManyLandingPageHasql models pool = do
+                    createManyLandingPage models = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
 
-                    createManyLandingPagePgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
-                    createManyLandingPagePgSimple models = do
-                        sqlQuery (Query $ "INSERT INTO landing_pages (id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?)") models)) <> " RETURNING id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model)]) models)
-
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
-                    createRecordDiscardResultLandingPage model = withHasqlOrPgSimple (createRecordDiscardResultLandingPageHasql model) (createRecordDiscardResultLandingPagePgSimple model)
-
-                    createRecordDiscardResultLandingPageHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> HasqlPool.Pool -> IO ()
-                    createRecordDiscardResultLandingPageHasql model pool = do
+                    createRecordDiscardResultLandingPage model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")"
                         sqlExecHasql pool snippet
-
-                    createRecordDiscardResultLandingPagePgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
-                    createRecordDiscardResultLandingPagePgSimple model = do
-                        sqlExecDiscardResult "INSERT INTO landing_pages (id) VALUES (?)" (Only (fieldWithDefault #id model))
 
                     instance CanUpdate Generated.ActualTypes.LandingPage where
                         updateRecord = updateRecordLandingPage
                         updateRecordDiscardResult = updateRecordDiscardResultLandingPage
 
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
-                    updateRecordLandingPage model = withHasqlOrPgSimple (updateRecordLandingPageHasql model) (updateRecordLandingPagePgSimple model)
-
-                    updateRecordLandingPageHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> HasqlPool.Pool -> IO Generated.ActualTypes.LandingPage
-                    updateRecordLandingPageHasql model pool = do
+                    updateRecordLandingPage model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE landing_pages SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
 
-                    updateRecordLandingPagePgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
-                    updateRecordLandingPagePgSimple model = do
-                        sqlQuerySingleRow "UPDATE landing_pages SET id = ? WHERE id = ? RETURNING id" ((fieldWithUpdate #id model, model.id))
-
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
-                    updateRecordDiscardResultLandingPage model = withHasqlOrPgSimple (updateRecordDiscardResultLandingPageHasql model) (updateRecordDiscardResultLandingPagePgSimple model)
-
-                    updateRecordDiscardResultLandingPageHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> HasqlPool.Pool -> IO ()
-                    updateRecordDiscardResultLandingPageHasql model pool = do
+                    updateRecordDiscardResultLandingPage model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE landing_pages SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
                         sqlExecHasql pool snippet
-
-                    updateRecordDiscardResultLandingPagePgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
-                    updateRecordDiscardResultLandingPagePgSimple model = do
-                        sqlExecDiscardResult "UPDATE landing_pages SET id = ? WHERE id = ?" ((fieldWithUpdate #id model, model.id))
 
                     instance Record Generated.ActualTypes.LandingPage where
                         {-# INLINE newRecord #-}
@@ -957,69 +837,39 @@ tests = do
                         createRecordDiscardResult = createRecordDiscardResultPost
 
                     createPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
-                    createPost model = withHasqlOrPgSimple (createPostHasql model) (createPostPgSimple model)
-
-                    createPostHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> HasqlPool.Pool -> IO Generated.ActualTypes.Post
-                    createPostHasql model pool = do
+                    createPost model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ") RETURNING id, title, user_id"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.Post))
 
-                    createPostPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
-                    createPostPgSimple model = do
-                        sqlQuerySingleRow "INSERT INTO posts (id, title, user_id) VALUES (?, ?, ?) RETURNING id, title, user_id" ((fieldWithDefault #id model, model.title, model.userId))
-
                     createManyPost :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
                     createManyPost [] = pure []
-                    createManyPost models = withHasqlOrPgSimple (createManyPostHasql models) (createManyPostPgSimple models)
-
-                    createManyPostHasql :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> HasqlPool.Pool -> IO [Generated.ActualTypes.Post]
-                    createManyPostHasql models pool = do
+                    createManyPost models = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, title, user_id"
                         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.Post))
 
-                    createManyPostPgSimple :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
-                    createManyPostPgSimple models = do
-                        sqlQuery (Query $ "INSERT INTO posts (id, title, user_id) VALUES " <> (ByteString.intercalate ", " (List.map (\_ -> "(?, ?, ?)") models)) <> " RETURNING id, title, user_id") (List.concat $ List.map (\model -> [toField (fieldWithDefault #id model), toField (model.title), toField (model.userId)]) models)
-
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
-                    createRecordDiscardResultPost model = withHasqlOrPgSimple (createRecordDiscardResultPostHasql model) (createRecordDiscardResultPostPgSimple model)
-
-                    createRecordDiscardResultPostHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> HasqlPool.Pool -> IO ()
-                    createRecordDiscardResultPostHasql model pool = do
+                    createRecordDiscardResultPost model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")"
                         sqlExecHasql pool snippet
-
-                    createRecordDiscardResultPostPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
-                    createRecordDiscardResultPostPgSimple model = do
-                        sqlExecDiscardResult "INSERT INTO posts (id, title, user_id) VALUES (?, ?, ?)" ((fieldWithDefault #id model, model.title, model.userId))
 
                     instance CanUpdate Generated.ActualTypes.Post where
                         updateRecord = updateRecordPost
                         updateRecordDiscardResult = updateRecordDiscardResultPost
 
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
-                    updateRecordPost model = withHasqlOrPgSimple (updateRecordPostHasql model) (updateRecordPostPgSimple model)
-
-                    updateRecordPostHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> HasqlPool.Pool -> IO Generated.ActualTypes.Post
-                    updateRecordPostHasql model pool = do
+                    updateRecordPost model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE posts SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "title = " <> fieldWithUpdateSnippet #title model <> Snippet.sql ", " <> Snippet.sql "user_id = " <> fieldWithUpdateSnippet #userId model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, title, user_id"
                         sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.Post))
 
-                    updateRecordPostPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
-                    updateRecordPostPgSimple model = do
-                        sqlQuerySingleRow "UPDATE posts SET id = ?, title = ?, user_id = ? WHERE id = ? RETURNING id, title, user_id" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #userId model, model.id))
-
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
-                    updateRecordDiscardResultPost model = withHasqlOrPgSimple (updateRecordDiscardResultPostHasql model) (updateRecordDiscardResultPostPgSimple model)
-
-                    updateRecordDiscardResultPostHasql :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> HasqlPool.Pool -> IO ()
-                    updateRecordDiscardResultPostHasql model pool = do
+                    updateRecordDiscardResultPost model = do
+                        let pool = ?modelContext.hasqlPool
                         let snippet = Snippet.sql "UPDATE posts SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "title = " <> fieldWithUpdateSnippet #title model <> Snippet.sql ", " <> Snippet.sql "user_id = " <> fieldWithUpdateSnippet #userId model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
                         sqlExecHasql pool snippet
-
-                    updateRecordDiscardResultPostPgSimple :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
-                    updateRecordDiscardResultPostPgSimple model = do
-                        sqlExecDiscardResult "UPDATE posts SET id = ?, title = ?, user_id = ? WHERE id = ?" ((fieldWithUpdate #id model, fieldWithUpdate #title model, fieldWithUpdate #userId model, model.id))
 
                     instance Record Generated.ActualTypes.Post where
                         {-# INLINE newRecord #-}

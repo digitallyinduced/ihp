@@ -17,16 +17,21 @@ module IHP.QueryBuilder.Compiler
 , compileOperator
 , compileOperatorHasql
 , negateFilterOperator
+, compileJoinClause
+, compileSQLQuery
+, qualifiedColumnName
 ) where
 
 import IHP.Prelude
 import Database.PostgreSQL.Simple.ToField (Action(..))
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
+import IHP.NameSupport (fieldNameToColumnName)
 import qualified Data.List as List
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import qualified Data.Text.Encoding as Text
 import Hasql.DynamicStatements.Snippet (Snippet)
 
 
@@ -109,90 +114,96 @@ query = (defaultScope @table) NewQueryBuilder { selectFrom = tableNameByteString
 
 {-# INLINE buildQuery #-}
 buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery queryBuilderProvider = buildQueryHelper $ getQueryBuilder queryBuilderProvider
-    where
-    buildQueryHelper NewQueryBuilder { selectFrom, columns } =
-        SQLQuery
-            {     queryIndex = getQueryIndex queryBuilderProvider
-                , selectFrom = selectFrom
-                , distinctClause = Nothing
-                , distinctOnClause = Nothing
-                , whereCondition = Nothing
-                , joins = []
-                , orderByClause = []
-                , limitClause = Nothing
-                , offsetClause = Nothing
-                , columns
-                }
-    buildQueryHelper DistinctQueryBuilder { queryBuilder } = queryBuilder
-            |> buildQueryHelper
-            |> setJust #distinctClause "DISTINCT"
-    buildQueryHelper DistinctOnQueryBuilder { queryBuilder, distinctOnColumn } = queryBuilder
-            |> buildQueryHelper
-            |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
-    buildQueryHelper FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, action, snippet), applyLeft, applyRight } =
-                let
-                    applyFn fn val = case fn of
-                            Just fn' -> fn' <> "(" <> val <> ")"
-                            Nothing -> val
+buildQuery queryBuilderProvider = compileSQLQuery (getQueryIndex queryBuilderProvider) (getQueryBuilder queryBuilderProvider)
 
-                    -- pg-simple: use standard placeholder, In type expands arrays
-                    pgSimpleParamPlaceholder = applyFn applyRight "?"
-                    pgSimpleTemplate = applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> pgSimpleParamPlaceholder
+-- | Traverse a 'QueryBuilder' tree and produce an 'SQLQuery'.
+--
+-- Defined at the top level so the recursive case analysis is shared across
+-- all inlined call sites of 'buildQuery'. The tiny 'buildQuery' wrapper
+-- stays INLINE to resolve the 'HasQueryBuilder' dictionary, then hands off
+-- to this shared worker.
+compileSQLQuery :: Maybe ByteString -> QueryBuilder table -> SQLQuery
+compileSQLQuery qIndex NewQueryBuilder { selectFrom, columns } =
+    SQLQuery
+        {     queryIndex = qIndex
+            , selectFrom = selectFrom
+            , distinctClause = Nothing
+            , distinctOnClause = Nothing
+            , whereCondition = Nothing
+            , joins = []
+            , orderByClause = []
+            , limitClause = Nothing
+            , offsetClause = Nothing
+            , columns
+            }
+compileSQLQuery qIndex (DistinctQueryBuilder { queryBuilder }) = queryBuilder
+        |> compileSQLQuery qIndex
+        |> setJust #distinctClause "DISTINCT"
+compileSQLQuery qIndex (DistinctOnQueryBuilder { queryBuilder, distinctOnColumn }) = queryBuilder
+        |> compileSQLQuery qIndex
+        |> setJust #distinctOnClause ("DISTINCT ON (" <> distinctOnColumn <> ")")
+compileSQLQuery qIndex (FilterByQueryBuilder { queryBuilder, queryFilter = (columnName, operator, action, snippet), applyLeft, applyRight }) =
+            let
+                applyFn fn val = case fn of
+                        Just fn' -> fn' <> "(" <> val <> ")"
+                        Nothing -> val
 
-                    -- hasql: use = ANY(?)/(<> ALL(?) for IN/NOT IN with array parameters
-                    hasqlParamPlaceholder = case operator of
-                        InOp -> "(?)"     -- column = ANY(?)
-                        NotInOp -> "(?)"  -- column <> ALL(?)
-                        _ -> applyFn applyRight "?"
-                    hasqlTemplate = applyFn applyLeft columnName <> " " <> compileOperatorHasql operator <> " " <> hasqlParamPlaceholder
+                -- pg-simple: use standard placeholder, In type expands arrays
+                pgSimpleParamPlaceholder = applyFn applyRight "?"
+                pgSimpleTemplate = applyFn applyLeft columnName <> " " <> compileOperator operator <> " " <> pgSimpleParamPlaceholder
 
-                    condition = VarCondition pgSimpleTemplate hasqlTemplate action snippet
-                in
-                    queryBuilder
-                        |> buildQueryHelper
-                        |> modify #whereCondition \case
-                                Just c -> Just (AndCondition c condition)
-                                Nothing -> Just condition
-    buildQueryHelper OrderByQueryBuilder { queryBuilder, queryOrderByClause } = queryBuilder
-            |> buildQueryHelper
-            |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
-    buildQueryHelper LimitQueryBuilder { queryBuilder, queryLimit } =
-                    queryBuilder
-                    |> buildQueryHelper
-                    |> setJust #limitClause (
-                            (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
-                            |> Builder.toLazyByteString
-                            |> LByteString.toStrict
-                        )
-    buildQueryHelper OffsetQueryBuilder { queryBuilder, queryOffset } = queryBuilder
-            |> buildQueryHelper
-            |> setJust #offsetClause (
-                    (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
-                    |> Builder.toLazyByteString
-                    |> LByteString.toStrict
-                )
-    buildQueryHelper UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder } =
-                let
-                    firstQuery = buildQueryHelper firstQueryBuilder
-                    secondQuery = buildQueryHelper secondQueryBuilder
-                    isSimpleQuery query = null (orderByClause query) && isNothing (limitClause query) && isNothing (offsetClause query) && null (joins query)
-                    isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
-                    unionWhere =
-                        case (whereCondition firstQuery, whereCondition secondQuery) of
-                            (Nothing, whereCondition) -> whereCondition
-                            (whereCondition, Nothing) -> whereCondition
-                            (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
-                in
-                    if isSimpleUnion then
-                        firstQuery { whereCondition = unionWhere }
-                    else
-                        error "buildQuery: Union of complex queries not supported yet"
+                -- hasql: use = ANY(?)/(<> ALL(?) for IN/NOT IN with array parameters
+                hasqlParamPlaceholder = case operator of
+                    InOp -> "(?)"     -- column = ANY(?)
+                    NotInOp -> "(?)"  -- column <> ALL(?)
+                    _ -> applyFn applyRight "?"
+                hasqlTemplate = applyFn applyLeft columnName <> " " <> compileOperatorHasql operator <> " " <> hasqlParamPlaceholder
 
-    buildQueryHelper JoinQueryBuilder { queryBuilder, joinData } =
-        let
-            firstQuery = buildQueryHelper queryBuilder
-         in firstQuery { joins = joinData:joins firstQuery }
+                condition = VarCondition pgSimpleTemplate hasqlTemplate action snippet
+            in
+                queryBuilder
+                    |> compileSQLQuery qIndex
+                    |> modify #whereCondition \case
+                            Just c -> Just (AndCondition c condition)
+                            Nothing -> Just condition
+compileSQLQuery qIndex (OrderByQueryBuilder { queryBuilder, queryOrderByClause }) = queryBuilder
+        |> compileSQLQuery qIndex
+        |> modify #orderByClause (\value -> value <> [queryOrderByClause] ) -- although adding to the end of a list is bad form, these lists are very short
+compileSQLQuery qIndex (LimitQueryBuilder { queryBuilder, queryLimit }) =
+                queryBuilder
+                |> compileSQLQuery qIndex
+                |> setJust #limitClause (
+                        (Builder.byteString "LIMIT " <> Builder.intDec queryLimit)
+                        |> Builder.toLazyByteString
+                        |> LByteString.toStrict
+                    )
+compileSQLQuery qIndex (OffsetQueryBuilder { queryBuilder, queryOffset }) = queryBuilder
+        |> compileSQLQuery qIndex
+        |> setJust #offsetClause (
+                (Builder.byteString "OFFSET " <> Builder.intDec queryOffset)
+                |> Builder.toLazyByteString
+                |> LByteString.toStrict
+            )
+compileSQLQuery qIndex (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }) =
+            let
+                firstQuery = compileSQLQuery qIndex firstQueryBuilder
+                secondQuery = compileSQLQuery qIndex secondQueryBuilder
+                isSimpleQuery q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q) && null (joins q)
+                isSimpleUnion = isSimpleQuery firstQuery && isSimpleQuery secondQuery
+                unionWhere =
+                    case (whereCondition firstQuery, whereCondition secondQuery) of
+                        (Nothing, wc) -> wc
+                        (wc, Nothing) -> wc
+                        (Just firstWhere, Just secondWhere) -> Just $ OrCondition firstWhere secondWhere
+            in
+                if isSimpleUnion then
+                    firstQuery { whereCondition = unionWhere }
+                else
+                    error "buildQuery: Union of complex queries not supported yet"
+compileSQLQuery qIndex (JoinQueryBuilder { queryBuilder, joinData }) =
+    let
+        firstQuery = compileSQLQuery qIndex queryBuilder
+     in firstQuery { joins = joinData:joins firstQuery }
 
 -- | Transforms a @query @@User |> ..@ expression into a SQL Query. Returns a tuple with the sql query template and it's placeholder values.
 --
@@ -254,12 +265,18 @@ toSQL' sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnCla
                 [] -> Nothing
                 xs -> Just ("ORDER BY " <> ByteString.intercalate "," ((map (\OrderByClause { orderByColumn, orderByDirection } -> orderByColumn <> (if orderByDirection == Desc then " DESC" else mempty)) xs)))
         joinClause :: Maybe ByteString
-        joinClause = buildJoinClause $ reverse $ joins sqlQuery
-        buildJoinClause :: [Join] -> Maybe ByteString
-        buildJoinClause [] = Nothing
-        buildJoinClause (joinClause:joinClauses) = Just $ "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <> " = " <>table joinClause <> "." <> otherJoinColumn joinClause <> maybe "" (" " <>) (buildJoinClause joinClauses)
+        joinClause = compileJoinClause $ reverse $ joins sqlQuery
 
-{-# INLINE toSQL' #-}
+-- toSQL' takes monomorphic SQLQuery — no specialization benefit from INLINE.
+-- Removing INLINE prevents duplicating the SQL compilation logic at every call site.
+
+-- | Compile a list of joins into a SQL JOIN clause.
+--
+-- Defined at the top level so that it is shared across all inlined call sites
+-- of 'toSQL'' instead of being duplicated at each one.
+compileJoinClause :: [Join] -> Maybe ByteString
+compileJoinClause [] = Nothing
+compileJoinClause (j:js) = Just $ "INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> maybe "" (" " <>) (compileJoinClause js)
 
 {-# INLINE compileConditionQuery #-}
 -- | Compile condition to SQL template for postgresql-simple
@@ -281,3 +298,15 @@ compileConditionSnippets :: Condition -> [Snippet]
 compileConditionSnippets (VarCondition _ _ _ snippet) = [snippet]
 compileConditionSnippets (OrCondition a b) = compileConditionSnippets a <> compileConditionSnippets b
 compileConditionSnippets (AndCondition a b) = compileConditionSnippets a <> compileConditionSnippets b
+
+-- | Build a qualified column name like @tablename.column_name@ from a table name
+-- ByteString and a camelCase field name Text. The field name is converted to
+-- snake_case via 'fieldNameToColumnName'.
+--
+-- This is intentionally NOINLINE: the call sites in filterWhere, orderBy, etc.
+-- are always lifted to CAFs (evaluated once at program start), so inlining
+-- only duplicates the Text.Inflections parsing logic (~69 Core terms per call
+-- site) and ByteString concatenation (~224 Core terms) without any runtime benefit.
+qualifiedColumnName :: ByteString -> Text -> ByteString
+qualifiedColumnName tableName fieldName = tableName <> "." <> Text.encodeUtf8 (fieldNameToColumnName fieldName)
+{-# NOINLINE qualifiedColumnName #-}

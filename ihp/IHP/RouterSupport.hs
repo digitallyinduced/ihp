@@ -263,7 +263,7 @@ parseFuncs parseIdType = [
                         Nothing -> Left BadType { field = "", value = Just queryValue, expectedType = "UUID" }
                 Nothing -> Left NotMatched
             ]
-{-# INLINABLE parseFuncs #-}
+{-# NOINLINE parseFuncs #-}
 
 -- | As we fold over a constructor, we want the values parsed from the query string
 -- to be in the same order as they are in the constructor.
@@ -279,7 +279,7 @@ querySortedByFields :: Query -> Constr -> Query
 querySortedByFields query constructor = constrFields constructor
         |> map cs
         |> map (\field -> (field, join $ List.lookup field query))
-{-# INLINABLE querySortedByFields #-}
+{-# NOINLINE querySortedByFields #-}
 
 -- | Given a constructor and a parsed query string, attempt to construct a value of the constructor's type.
 -- For example, given the controller
@@ -328,47 +328,24 @@ applyConstr parseIdType constructor query = let
         Right (x, []) -> pure x
         Right (_) -> Left TooFewArguments
         Left e -> Left e  -- runtime type error
-{-# INLINABLE applyConstr #-}
+{-# NOINLINE applyConstr #-}
 
 class Data controller => AutoRoute controller where
     autoRouteWithIdType :: (?request :: Request, ?respond :: Respond, Data idType) => (ByteString -> Maybe idType) -> Parser controller
     autoRouteWithIdType parseIdFunc =
         let
-            allConstructors :: [Constr]
-            allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
-
-            prefix :: ByteString
-            prefix = Text.encodeUtf8 (actionPrefixText @controller)
-
             query :: Query
             query = queryString ?request
-
-            paramValues :: [ByteString]
-            paramValues = catMaybes $ map snd query
-
-            parseAction :: Constr -> Parser controller
-            parseAction constr = let
-                    actionName = ByteString.pack (showConstr constr)
-
-                    actionPath :: ByteString
-                    actionPath = stripActionSuffixByteString actionName
-
-                    allowedMethods = allowedMethodsForAction @controller actionName
-
-                    checkRequestMethod action = do
-                            method <- getMethod
-                            unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
-                            pure action
-
-                    action = case applyConstr parseIdFunc constr query of
-                        Right parsedAction -> pure parsedAction
-                        Left e -> Exception.throw e
-
-                in do
-                    parsedAction <- string prefix >> (string actionPath <* endOfInput) *> action
-                    checkRequestMethod parsedAction
-
-        in choice (map parseAction allConstructors)
+        in do
+            -- routeMatchParser is a CAF (no ?request dependency), computed once per controller type.
+            -- It handles the static string matching against URL paths.
+            (constr, allowedMethods) <- routeMatchParser @controller
+            action <- case applyConstr parseIdFunc constr query of
+                    Right parsedAction -> pure parsedAction
+                    Left e -> Exception.throw e
+            method <- getMethod
+            unless (allowedMethods |> includes method) (Exception.throw UnexpectedMethodException { allowedMethods, method })
+            pure action
     {-# INLINABLE autoRouteWithIdType #-}
 
     autoRoute :: (?request :: Request, ?respond :: Respond) => Parser controller
@@ -446,6 +423,27 @@ class Data controller => AutoRoute controller where
     customPathTo :: controller -> Maybe Text
     customPathTo _ = Nothing
     {-# INLINE customPathTo #-}
+
+-- | Static route-matching parser that becomes a CAF when specialized for a concrete
+-- controller type. It only does string matching against URL paths and returns the
+-- matched constructor and its allowed HTTP methods. Since it doesn't reference
+-- @?request@ or @?respond@, GHC can float this out as a top-level constant.
+routeMatchParser :: forall controller. (Data controller, AutoRoute controller) => Parser (Constr, [StdMethod])
+routeMatchParser = choice (map parseAction allConstructors)
+    where
+        allConstructors :: [Constr]
+        allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+
+        prefix :: ByteString
+        prefix = Text.encodeUtf8 (actionPrefixText @controller)
+
+        parseAction :: Constr -> Parser (Constr, [StdMethod])
+        parseAction constr =
+            let actionName = ByteString.pack (showConstr constr)
+                actionPath = stripActionSuffixByteString actionName
+                allowedMethods = allowedMethodsForAction @controller actionName
+            in string prefix *> string actionPath *> endOfInput *> pure (constr, allowedMethods)
+{-# NOINLINE routeMatchParser #-}
 
 -- | Returns the url prefix for a controller. The prefix is based on the
 -- module where the controller is defined.

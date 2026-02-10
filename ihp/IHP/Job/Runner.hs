@@ -177,9 +177,12 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     activeWorkers <- liftIO $ newTVarIO ([] :: [Async ()])
 
     let runJobLoop = do
-            maybeJob <- Queue.fetchNextJob @job workerId
-            case maybeJob of
-                Just job -> do
+            fetchResult <- Exception.tryAny (Queue.fetchNextJob @job workerId)
+            case fetchResult of
+                Left exception -> do
+                    Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
+                    Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
+                Right (Just job) -> do
                     Log.info ("Starting job: " <> tshow job)
 
                     let ?job = job
@@ -193,7 +196,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                         Right (Just _) -> Queue.jobDidSucceed job
 
                     runJobLoop -- try next job immediately
-                Nothing -> pure ()
+                Right Nothing -> pure ()
 
     let dispatcherLoop = do
             msg <- atomically $ readTBQueue action

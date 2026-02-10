@@ -19,9 +19,11 @@ import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
+import IHP.Hasql.FromRow (FromRowHasql)
+import IHP.Hasql.Encoders (ToSnippetParams(..))
 import Network.Wai (Request)
 
-import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
+import Database.PostgreSQL.Simple (Query(..), Only(Only), (:.)(..))
 
 -- | Paginate a query, with the following default options:
 --
@@ -177,8 +179,9 @@ defaultPaginationOptions =
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQuery
-  :: ( FromRow model
-     , ToRow parameters
+  :: ( FromRowHasql model
+     , ToSnippetParams parameters
+     , ToSnippetParams (parameters :. Only Int :. Only Int)
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Request
@@ -201,8 +204,9 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQueryWithOptions
-  :: ( FromRow model
-     , ToRow parameters
+  :: ( FromRowHasql model
+     , ToSnippetParams parameters
+     , ToSnippetParams (parameters :. Only Int :. Only Int)
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Request

@@ -137,6 +137,7 @@ common shared-properties
             , hasql-implicits
             , hasql-mapping
             , hasql-postgresql-types
+            , hasql-transaction
             , postgresql-types
             , contravariant
             , wide-word

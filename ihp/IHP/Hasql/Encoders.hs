@@ -13,16 +13,26 @@ fixed-width integer types ('Int16', 'Int32', 'Int64'), not Haskell's
 platform-dependent 'Int'. Since most IHP applications use 'Int' for
 integer columns, we provide these instances to make the transition seamless.
 -}
-module IHP.Hasql.Encoders () where
+module IHP.Hasql.Encoders
+( ToSnippetParams(..)
+, sqlToSnippet
+) where
 
 import Prelude
 import Data.Int (Int64)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Word (Word32, Word8)
 import Data.Bits (shiftR)
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import Database.PostgreSQL.Simple (Only(..), (:.)(..))
 import Data.Functor.Contravariant (contramap, (>$<))
 import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
@@ -37,6 +47,8 @@ import qualified PostgresqlTypes.Polygon as PgPolygon
 import qualified PostgresqlTypes.Inet as PgInet
 import IHP.Postgres.Point (Point(..))
 import IHP.Postgres.Polygon (Polygon(..))
+import IHP.Postgres.TimeParser (PGInterval(..))
+import IHP.Postgres.TSVector (TSVector(..), Lexeme(..), LexemeRanking(..))
 import qualified Net.IP
 import qualified Net.IPv4
 import qualified Net.IPv6
@@ -162,6 +174,35 @@ instance DefaultParamEncoder (Maybe Polygon) where
                 Just pg -> pg
                 Nothing -> error "Polygon must have at least 3 points"
 
+-- | Encode 'PGInterval' as PostgreSQL interval
+-- Uses 'unknown' OID so PostgreSQL coerces the text representation to interval
+instance DefaultParamEncoder PGInterval where
+    defaultParam = Encoders.nonNullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
+
+-- | Encode 'Maybe PGInterval' as nullable PostgreSQL interval
+instance DefaultParamEncoder (Maybe PGInterval) where
+    defaultParam = Encoders.nullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
+
+-- | Encode 'TSVector' as PostgreSQL tsvector
+-- Uses 'unknown' OID so PostgreSQL coerces the text representation to tsvector
+instance DefaultParamEncoder TSVector where
+    defaultParam = Encoders.nonNullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
+
+-- | Encode 'Maybe TSVector' as nullable PostgreSQL tsvector
+instance DefaultParamEncoder (Maybe TSVector) where
+    defaultParam = Encoders.nullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
+
+-- | Serialize a TSVector to its text representation
+serializeTSVectorText :: TSVector -> Text
+serializeTSVectorText (TSVector lexemes) = Text.intercalate " " (map serializeLexeme lexemes)
+  where
+    serializeLexeme :: Lexeme -> Text
+    serializeLexeme Lexeme { token, ranking } =
+        "'" <> token <> "':" <> Text.intercalate "," (map serializeRanking ranking)
+    serializeRanking :: LexemeRanking -> Text
+    serializeRanking LexemeRanking { position, weight } =
+        Text.pack (show position) <> (if weight == 'D' then "" else Text.singleton weight)
+
 -- | Encode 'Net.IP.IP' as PostgreSQL inet via postgresql-types binary encoder
 instance DefaultParamEncoder Net.IP.IP where
     defaultParam = Encoders.nonNullable (contramap ipToInet Mapping.encoder)
@@ -186,3 +227,66 @@ ipToInet ip = Net.IP.case_ ipv4ToInet ipv6ToInet ip
             c = fromIntegral (lo `shiftR` 32)
             d = fromIntegral lo
         in PgInet.normalizeFromV6 a b c d 128
+
+-- | Converts parameter tuples into a list of hasql 'Snippet' values.
+--
+-- This mirrors postgresql-simple's 'ToRow' typeclass, allowing @sqlQuery@ and @sqlExec@
+-- to use hasql's native parameterized queries instead of 'PG.formatQuery'.
+class ToSnippetParams a where
+    toSnippetParams :: a -> [Snippet]
+
+instance ToSnippetParams () where
+    toSnippetParams () = []
+
+instance DefaultParamEncoder a => ToSnippetParams (Only a) where
+    toSnippetParams (Only a) = [Snippet.param a]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b) => ToSnippetParams (a, b) where
+    toSnippetParams (a, b) = [Snippet.param a, Snippet.param b]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c) => ToSnippetParams (a, b, c) where
+    toSnippetParams (a, b, c) = [Snippet.param a, Snippet.param b, Snippet.param c]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d) => ToSnippetParams (a, b, c, d) where
+    toSnippetParams (a, b, c, d) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e) => ToSnippetParams (a, b, c, d, e) where
+    toSnippetParams (a, b, c, d, e) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f) => ToSnippetParams (a, b, c, d, e, f) where
+    toSnippetParams (a, b, c, d, e, f) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g) => ToSnippetParams (a, b, c, d, e, f, g) where
+    toSnippetParams (a, b, c, d, e, f, g) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h) => ToSnippetParams (a, b, c, d, e, f, g, h) where
+    toSnippetParams (a, b, c, d, e, f, g, h) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h, DefaultParamEncoder i) => ToSnippetParams (a, b, c, d, e, f, g, h, i) where
+    toSnippetParams (a, b, c, d, e, f, g, h, i) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h, Snippet.param i]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h, DefaultParamEncoder i, DefaultParamEncoder j) => ToSnippetParams (a, b, c, d, e, f, g, h, i, j) where
+    toSnippetParams (a, b, c, d, e, f, g, h, i, j) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h, Snippet.param i, Snippet.param j]
+
+-- | Append two parameter lists (mirrors postgresql-simple's ':.' operator)
+instance (ToSnippetParams a, ToSnippetParams b) => ToSnippetParams (a :. b) where
+    toSnippetParams (a :. b) = toSnippetParams a <> toSnippetParams b
+
+-- | Converts a SQL query with @?@ placeholders and a list of 'Snippet' parameters
+-- into a single 'Snippet' with native hasql @$1, $2, ...@ parameterization.
+--
+-- This mirrors postgresql-simple's @?@ placeholder convention.
+--
+-- __Example:__
+--
+-- > sqlToSnippet "SELECT * FROM users WHERE id = ? AND name = ?" [Snippet.param id, Snippet.param name]
+-- > -- becomes: Snippet.sql "SELECT * FROM users WHERE id = " <> Snippet.param id <> Snippet.sql " AND name = " <> Snippet.param name
+--
+sqlToSnippet :: ByteString -> [Snippet] -> Snippet
+sqlToSnippet sql params = mconcat (interleave sqlParts params)
+  where
+    sqlParts = map (Snippet.sql . Text.decodeUtf8) (BS8.split '?' sql)
+    interleave (s:ss) (p:ps) = s : p : interleave ss ps
+    interleave ss [] = ss
+    interleave [] _ = []
+{-# INLINE sqlToSnippet #-}

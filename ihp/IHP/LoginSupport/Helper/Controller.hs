@@ -37,7 +37,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import Data.Typeable
 
 currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
@@ -164,13 +163,13 @@ enableRowLevelSecurityIfLoggedIn ::
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , HasField "id" CurrentUserRecord userId
-    , PG.ToField userId
+    , Show userId
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
     case currentUserOrNothing of
         Just user -> do
             let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
-            let rlsUserId = PG.toField user.id
+            let rlsUserId = tshow user.id
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             writeIORef (lookupRequestVault rlsContextVaultKey ?request) (Just rlsContext)
         Nothing -> pure ()

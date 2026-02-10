@@ -15,6 +15,7 @@ module IHP.QueryBuilder.Join
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
+import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 import qualified Data.Text.Encoding as Text
 
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
@@ -39,7 +40,7 @@ innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBui
     where
         baseTableName = symbolToByteString @table
         joinTableName = symbolToByteString @table'
-        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
+        leftJoinColumn = qualifiedColumnName baseTableName (symbolToText @name)
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
 {-# INLINE innerJoin #-}
 
@@ -96,6 +97,6 @@ innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ Jo
      where
         baseTableName = symbolToByteString @table'
         joinTableName = symbolToByteString @table
-        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
+        leftJoinColumn = qualifiedColumnName baseTableName (symbolToText @name')
         rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
 {-# INLINE innerJoinThirdTable #-}

@@ -16,12 +16,13 @@ import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
+import Control.Exception (SomeException)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
 import IHP.Controller.Context
-import IHP.Controller.Response 
+import IHP.Controller.Response
 import qualified IHP.PGListener as PGListener
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.String.Interpolate.IsString
@@ -31,6 +32,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault (pgListenerVaultKey)
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
+import IHP.Environment (Environment(..))
 
 {-# NOINLINE globalAutoRefreshServerVar #-}
 globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
@@ -149,12 +152,13 @@ instance WSApp AutoRefreshWSApp where
                     Wai.ResponseBuilder status headers builder -> do
                         let html = ByteString.toLazyByteString builder
 
-                        Log.info ("AutoRefresh: inner = " <> show (status, headers, builder) <> " END")
-
                         when (html /= lastResponse) do
                             sendTextData html
                             updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
+
+            let handleOtherException :: SomeException -> IO ()
+                handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
 
             async $ forever do
                 MVar.takeMVar event
@@ -162,7 +166,7 @@ instance WSApp AutoRefreshWSApp where
                 -- Create a dummy respond function that does nothing, since actual response
                 -- is handled by the handleResponseException handler
                 let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-                (renderView currentRequest dummyRespond) `catch` handleResponseException
+                ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
                 pure ()
 
             pure ()
@@ -184,16 +188,23 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
 
     let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
+
+    -- In development, always re-run trigger SQL for all touched tables because
+    -- `make db` drops and recreates the database, destroying triggers that were
+    -- previously installed. The trigger SQL is idempotent so re-running is safe.
+    -- In production, only install triggers for newly seen tables.
+    let isDevelopment = ?context.frameworkConfig.environment == Development
+
     modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-    subscriptions <-  subscriptionRequired |> mapM (\table -> do
+    subscriptions <- subscriptionRequired |> mapM (\table -> do
         let createTriggerSql = notificationTrigger table
 
         -- We need to add the trigger from the main IHP database role other we will get this error:
@@ -208,6 +219,15 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                     |> map (\session -> session.event)
                     |> mapM (\event -> MVar.tryPutMVar event ())
                 pure ())
+
+    -- Re-run trigger SQL for already-subscribed tables in dev mode
+    when isDevelopment do
+        let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
+        forM_ alreadySubscribed \table -> do
+            let createTriggerSql = notificationTrigger table
+            withRowLevelSecurityDisabled do
+                sqlExec createTriggerSql ()
+
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
 
@@ -270,13 +290,13 @@ notificationTrigger tableName = PG.Query [i|
             $$ language plpgsql;
             DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
             CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-            
+
             DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
             CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
 
             DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
             CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-        
+
         COMMIT;
     |]
     where

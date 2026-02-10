@@ -22,7 +22,7 @@ import IHP.Prelude
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.QueryBuilder.Types
-import IHP.QueryBuilder.Compiler (buildQuery)
+import IHP.QueryBuilder.Compiler (buildQuery, compileJoinClause)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.List as List
@@ -72,15 +72,9 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
             in mconcat $ List.intersperse (Snippet.sql ", ") (indexParts <> columnParts)
 
         joinClause :: Maybe ByteString
-        joinClause = buildJoinClause $ reverse $ joins sqlQuery
-
-        buildJoinClause :: [Join] -> Maybe ByteString
-        buildJoinClause [] = Nothing
-        buildJoinClause (joinClause:joinClauses) = Just $
-            "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <>
-            " = " <> table joinClause <> "." <> otherJoinColumn joinClause <>
-            maybe "" (" " <>) (buildJoinClause joinClauses)
-{-# INLINE buildSnippet #-}
+        joinClause = compileJoinClause $ reverse $ joins sqlQuery
+-- buildSnippet takes monomorphic SQLQuery — no specialization benefit from INLINE.
+-- Removing INLINE prevents duplicating the snippet compilation logic at every call site.
 
 -- | Convert a WHERE condition to a Snippet
 whereSnippet :: Maybe Condition -> Snippet
