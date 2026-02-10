@@ -330,14 +330,14 @@ tests = do
                 let theQuery = query @Post
                         |> filterWherePast #createdAt
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at  <= NOW()")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at <= NOW()")
 
         describe "filterWhereFuture" do
             it "should produce a SQL with the correct WHERE condition" do
                 let theQuery = query @Post
                         |> filterWhereFuture #createdAt
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at  > NOW()")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at > NOW()")
 
         describe "filterWhereGreaterThan" do
             it "should produce a SQL with a WHERE > condition" do
@@ -418,8 +418,7 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereSql (#createdAt, "< current_timestamp - interval '1 day'")
 
-                -- Note: there's an extra space between column name and operator (consistent with postgresql-simple path)
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at  < current_timestamp - interval '1 day'")
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at < current_timestamp - interval '1 day'")
 
         describe "queryOr" do
             it "should merge two conditions" do
