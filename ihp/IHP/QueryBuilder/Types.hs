@@ -39,6 +39,7 @@ import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified Data.Text.Encoding as Text
 import qualified GHC.Generics
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Prelude
 
@@ -158,6 +159,51 @@ data Condition = VarCondition !ByteString !ByteString !Action !Snippet | OrCondi
 -- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
 instance Show Snippet where
     showsPrec _ _ = Prelude.showString "<Snippet>"
+
+-- | Snippet is an opaque type with no Eq instance. We compare snippets by their
+-- rendered SQL template via 'Snippet.toSql'. This only compares the SQL structure
+-- (e.g. @col = $1@), not the parameter values. Parameter value equality is covered
+-- by the Action field that always accompanies a Snippet in QueryBuilder/Condition.
+snippetEq :: Snippet -> Snippet -> Bool
+snippetEq a b = Snippet.toSql a == Snippet.toSql b
+
+-- | Returns a numeric tag for each Condition constructor.
+-- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
+conditionTag :: Condition -> Int
+conditionTag VarCondition {} = 0
+conditionTag OrCondition {} = 1
+conditionTag AndCondition {} = 2
+
+instance Eq Condition where
+    (VarCondition t1 h1 a1 s1) == (VarCondition t2 h2 a2 s2) = t1 == t2 && h1 == h2 && a1 == a2 && snippetEq s1 s2
+    (OrCondition l1 r1) == (OrCondition l2 r2) = l1 == l2 && r1 == r2
+    (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
+    a == b = conditionTag a == conditionTag b
+
+-- | Returns a numeric tag for each QueryBuilder constructor.
+-- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
+queryBuilderTag :: QueryBuilder table -> Int
+queryBuilderTag NewQueryBuilder {} = 0
+queryBuilderTag DistinctQueryBuilder {} = 1
+queryBuilderTag DistinctOnQueryBuilder {} = 2
+queryBuilderTag FilterByQueryBuilder {} = 3
+queryBuilderTag OrderByQueryBuilder {} = 4
+queryBuilderTag LimitQueryBuilder {} = 5
+queryBuilderTag OffsetQueryBuilder {} = 6
+queryBuilderTag UnionQueryBuilder {} = 7
+queryBuilderTag JoinQueryBuilder {} = 8
+
+instance Eq (QueryBuilder table) where
+    (NewQueryBuilder s1 c1) == (NewQueryBuilder s2 c2) = s1 == s2 && c1 == c2
+    (DistinctQueryBuilder q1) == (DistinctQueryBuilder q2) = q1 == q2
+    (DistinctOnQueryBuilder q1 d1) == (DistinctOnQueryBuilder q2 d2) = q1 == q2 && d1 == d2
+    (FilterByQueryBuilder q1 (b1, op1, a1, sn1) l1 r1) == (FilterByQueryBuilder q2 (b2, op2, a2, sn2) l2 r2) = q1 == q2 && b1 == b2 && op1 == op2 && a1 == a2 && snippetEq sn1 sn2 && l1 == l2 && r1 == r2
+    (OrderByQueryBuilder q1 o1) == (OrderByQueryBuilder q2 o2) = q1 == q2 && o1 == o2
+    (LimitQueryBuilder q1 l1) == (LimitQueryBuilder q2 l2) = q1 == q2 && l1 == l2
+    (OffsetQueryBuilder q1 o1) == (OffsetQueryBuilder q2 o2) = q1 == q2 && o1 == o2
+    (UnionQueryBuilder f1 s1) == (UnionQueryBuilder f2 s2) = f1 == f2 && s1 == s2
+    (JoinQueryBuilder q1 j1) == (JoinQueryBuilder q2 j2) = q1 == q2 && j1 == j2
+    a == b = queryBuilderTag a == queryBuilderTag b
 
 deriving instance Show Condition
 deriving instance Show (QueryBuilder table)
