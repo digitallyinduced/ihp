@@ -17,7 +17,6 @@ import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
-import qualified Database.PostgreSQL.Simple as PG
 import System.OsPath (encodeUtf)
 import qualified Hasql.Connection as Connection
 import qualified Hasql.Connection.Settings as ConnectionSettings
@@ -61,7 +60,7 @@ instance Controller MigrationsController where
                 case result of
                     Left (exception :: SomeException) -> do
                         let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                                Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
                                 Nothing -> tshow exception
 
                         setErrorMessage errorMessage
@@ -102,7 +101,7 @@ instance Controller MigrationsController where
         case result of
             Left (exception :: SomeException) -> do
                 let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
+                        Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
                         Nothing -> tshow exception
 
                 setErrorMessage errorMessage

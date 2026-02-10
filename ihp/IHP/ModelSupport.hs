@@ -86,6 +86,7 @@ import Control.Monad.Error.Class (catchError)
 import qualified Hasql.Errors as HasqlErrors
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
@@ -197,22 +198,6 @@ recordToInputValue entity =
     |> Text.pack . show
 {-# INLINE recordToInputValue #-}
 
-instance FromField (PrimaryKey model) => FromField (Id' model) where
-    {-# INLINE fromField #-}
-    fromField value metaData = do
-        fieldValue <- fromField value metaData
-        pure (Id fieldValue)
-
-instance ToField (PrimaryKey model) => ToField (Id' model) where
-    {-# INLINE toField #-}
-    toField = toField . unpackId
-
--- | ToField instance for composite primary keys (tuples of two Id' types)
--- Used by filterWhereIdIn for tables with composite primary keys
-instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
-    {-# INLINE toField #-}
-    toField (a, b) = PG.Many [PG.Plain "(", toField a, PG.Plain ",", toField b, PG.Plain ")"]
-
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . unpackId
@@ -232,9 +217,6 @@ packId uuid = Id uuid
 --
 unpackId :: Id' model -> PrimaryKey model
 unpackId (Id uuid) = uuid
-
-instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
-    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
@@ -948,10 +930,6 @@ didTouchField field record =
     record.meta.touchedFields
     |> includes (symbolToText @fieldName)
 
-instance ToField valueType => ToField (FieldWithDefault valueType) where
-  toField Default = Plain "DEFAULT"
-  toField (NonDefault a) = toField a
-
 -- | Construct a 'FieldWithDefault'
 --
 --   Use the default SQL value when the field hasn't been touched since the
@@ -969,11 +947,6 @@ fieldWithDefault name model
   | cs (symbolVal name) `elem` model.meta.touchedFields =
     NonDefault (get name model)
   | otherwise = Default
-
-instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
-  toField (NoUpdate name) =
-    Plain (Data.String.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
-  toField (Update a) = toField a
 
 -- | Construct a 'FieldWithUpdate'
 --
@@ -1036,16 +1009,6 @@ instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
 
 instance Default Aeson.Value where
     def = Aeson.Null
-
--- | This instance allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance ToField value => ToField [value] where
-    toField list = toField (PG.PGArray list)
-
--- | This instancs allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance (FromField value, Typeable value) => FromField [value] where
-    fromField field value = PG.fromPGArray <$> (fromField field value)
 
 -- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
 --
