@@ -188,6 +188,13 @@ tests = do
                     -- Note: hasql uses parameterized null ($1) rather than literal NULL
                     (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS $1")
 
+        describe "filterWhereInCaseInsensitive" do
+            it "should produce a SQL with a WHERE LOWER() condition" do
+                let theQuery = query @Post
+                        |> filterWhereInCaseInsensitive (#title, ["Test" :: Text, "Test 1" :: Text])
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE LOWER(posts.title) = ANY ($1)")
+
         describe "filterWhereNotIn" do
             it "should use <> ALL for NOT IN clause" do
                 let theValues :: [Text] = ["first", "second"]
@@ -244,6 +251,30 @@ tests = do
                     -- Empty list still uses the same pattern but with empty array
                     (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.id = ANY ($1)")
 
+            describe "with weird primary key name" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id WeirdPkTag] = ["b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"]
+                    let theQuery = query @WeirdPkTag
+                            |> filterWhereIdIn theValues
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT weird_tags.tag_iden, weird_tags.tag_text FROM weird_tags WHERE weird_tags.tag_iden = ANY ($1)"
+
+            describe "with composite keys" do
+                it "should produce a SQL with a WHERE condition" do
+                    let theValues :: [Id CompositeTagging] = [Id ("b80e37a8-41d4-4731-b050-a716879ef1d1", "629b7ee0-3675-4b02-ba3e-cdbd7b513553"), Id ("8e2ef0ef-f680-4fcf-837d-7e3171385621", "95096f81-8ca6-407f-a263-cbc33546a828")]
+                    let theQuery = query @CompositeTagging
+                            |> filterWhereIdIn theValues
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) = ANY ($1)"
+
+                describe "with empty values" do
+                    it "should produce a SQL with a WHERE condition" do
+                        let theValues :: [Id CompositeTagging] = []
+                        let theQuery = query @CompositeTagging
+                                |> filterWhereIdIn theValues
+
+                        (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) = ANY ($1)"
+
         describe "filterWhereCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
                 let theQuery = query @Post
@@ -259,6 +290,55 @@ tests = do
 
                 (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.title ILIKE $1")
 
+        describe "filterWhereILikeJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let searchTerm = "louis"
+                let theQuery = query @Post
+                     |> innerJoin @User (#createdBy, #id)
+                     |> filterWhereILikeJoinedTable @User (#name, "%" <> searchTerm <> "%")
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE $1")
+
+        describe "filterWhereInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereInJoinedTable @Post (#title, theValues)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title = ANY ($1)"
+
+        describe "filterWhereNotInJoinedTable" do
+            it "should produce a SQL with a WHERE condition" do
+                let theValues :: [Text] = ["first", "second"]
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title <> ALL ($1)"
+
+            it "should ignore an empty value list" do
+                let theValues :: [Text] = []
+                let theQuery = query @User
+                        |> innerJoin @Post (#name, #title)
+                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title"
+
+        describe "filterWherePast" do
+            it "should produce a SQL with the correct WHERE condition" do
+                let theQuery = query @Post
+                        |> filterWherePast #createdAt
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at  <= NOW()")
+
+        describe "filterWhereFuture" do
+            it "should produce a SQL with the correct WHERE condition" do
+                let theQuery = query @Post
+                        |> filterWhereFuture #createdAt
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.created_at  > NOW()")
+
         describe "filterWhereGreaterThan" do
             it "should produce a SQL with a WHERE > condition" do
                 let theQuery = query @FavoriteTitle
@@ -272,6 +352,66 @@ tests = do
                         |> filterWhereLessThan (#likes, 50 :: Int)
 
                 (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < $1"
+
+        describe "filterWhereLarger" do
+            it "should produce a SQL with a WHERE > condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereLarger (#likes, 100 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes > $1"
+
+        describe "filterWhereSmaller" do
+            it "should produce a SQL with a WHERE < condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereSmaller (#likes, 50 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes < $1"
+
+        describe "filterWhereGreaterThanOrEqualTo" do
+            it "should produce a SQL with a WHERE >= condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereGreaterThanOrEqualTo (#likes, 80 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= $1"
+
+        describe "filterWhereAtLeast" do
+            it "should produce a SQL with a WHERE >= condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereAtLeast (#likes, 80 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes >= $1"
+
+        describe "filterWhereLessThanOrEqualTo" do
+            it "should produce a SQL with a WHERE <= condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereLessThanOrEqualTo (#likes, 60 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= $1"
+
+        describe "filterWhereAtMost" do
+            it "should produce a SQL with a WHERE <= condition" do
+                let theQuery = query @FavoriteTitle
+                        |> filterWhereAtMost (#likes, 60 :: Int)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= $1"
+
+        describe "filterWhereJoinedTable" do
+            it "should produce a SQL with a WHERE condition on joined table" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = $1")
+
+        describe "filterWhereNotJoinedTable" do
+            it "should produce a SQL with a WHERE NOT condition on joined table" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != $1")
 
         describe "filterWhereSql" do
             it "should produce a SQL with a raw WHERE condition" do
@@ -298,18 +438,99 @@ tests = do
 
                 (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title")
 
+        describe "innerJoinThirdTable" do
+            it "should provide an inner join sql query" do
+                let theQuery = query @Post
+                        |> innerJoin @User (#createdBy, #id)
+                        |> innerJoin @FavoriteTitle (#title, #title)
+                        |> innerJoinThirdTable @User @FavoriteTitle (#name, #title)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name")
+
+        describe "labelResults" do
+            it "should provide a query with index field" do
+                let theQuery = query @Tag
+                        |> innerJoin @Tagging (#id, #tagId)
+                        |> innerJoinThirdTable @Post @Tagging (#id, #postId)
+                        |> labelResults @Post #id
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` "SELECT posts.id, tags.id, tags.tag_text FROM tags INNER JOIN taggings ON tags.id = taggings.tag_id INNER JOIN posts ON taggings.post_id = posts.id"
+
         describe "orderBy" do
-            it "should add a ORDER BY" do
-                let theQuery = query @Post
-                        |> orderByAsc #createdAt
+            describe "orderByAsc" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> orderByAsc #createdAt
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at")
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at")
 
-            it "should add a ORDER BY DESC" do
-                let theQuery = query @Post
-                        |> orderByDesc #createdAt
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> orderByAsc #createdAt
+                            |> orderByAsc #title
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at DESC")
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at,posts.title")
+
+            describe "orderByDesc" do
+                it "should add a ORDER BY DESC" do
+                    let theQuery = query @Post
+                            |> orderByDesc #createdAt
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at DESC")
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> orderByDesc #createdAt
+                            |> orderByDesc #title
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at DESC,posts.title DESC")
+
+            describe "orderByJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByJoinedTable @User #name
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name")
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByJoinedTable @User #name
+                            |> orderByJoinedTable @User #id
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id")
+
+            describe "orderByAscJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByAscJoinedTable @User #name
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name")
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByAscJoinedTable @User #name
+                            |> orderByAscJoinedTable @User #id
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id")
+
+            describe "orderByDescJoinedTable" do
+                it "should add a ORDER BY" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByDescJoinedTable @User #name
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC")
+
+                it "should accumulate multiple ORDER BY's" do
+                    let theQuery = query @Post
+                            |> innerJoin @User (#createdBy, #id)
+                            |> orderByDescJoinedTable @User #name
+                            |> orderByDescJoinedTable @User #id
+
+                    (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC,users.id DESC")
 
         describe "limit" do
             it "should add a LIMIT" do
