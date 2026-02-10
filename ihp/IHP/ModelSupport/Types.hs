@@ -53,11 +53,9 @@ import Data.Text (Text)
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
-import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query)
 import Database.PostgreSQL.Simple.ToField (Action) -- used by RecordNotFoundException, EnhancedSqlError
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.Pool as Pool
 import qualified Hasql.Pool as Hasql
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Errors as HasqlErrors
@@ -80,9 +78,7 @@ instance Exception HasqlSessionError
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
-    { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
-    , hasqlPool :: Maybe Hasql.Pool -- ^ Optional hasql pool for prepared statement-based fetch queries (better performance)
-    , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
+    { hasqlPool :: Hasql.Pool -- ^ Hasql pool for prepared statement-based queries
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     -- | Logs all queries to this logger at log level info
     , logger :: Logger

@@ -367,9 +367,7 @@ instance DefaultParamEncoder JobStatus where
     defaultParam = Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
 
 getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
-getHasqlPool = case ?modelContext.hasqlPool of
-    Just pool -> pure pool
-    Nothing -> error "getHasqlPool: No hasql pool available in ModelContext"
+getHasqlPool = pure ?modelContext.hasqlPool
 
 -- | Non-blocking write to a TBQueue. Returns True if the value was written,
 -- False if the queue was full.

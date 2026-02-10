@@ -24,13 +24,12 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, catch, Exception, SomeException, try, mask)
+import Control.Exception (finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
 import Data.String (IsString(..))
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query)
+import Database.PostgreSQL.Simple.Types (Query(..))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
 import Data.Default
@@ -54,7 +53,6 @@ import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
-import qualified Data.Pool as Pool
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Pool.Config as HasqlPoolConfig
 import qualified Hasql.Connection.Settings as HasqlSettings
@@ -86,13 +84,12 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
 import qualified Hasql.Errors as HasqlErrors
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
+import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
 notConnectedModelContext logger = ModelContext
-    { connectionPool = error "Not connected"
-    , hasqlPool = Nothing
-    , transactionConnection = Nothing
+    { hasqlPool = error "Not connected"
     , transactionRunner = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
@@ -101,36 +98,27 @@ notConnectedModelContext logger = ModelContext
 
 createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
 createModelContext idleTime maxConnections databaseUrl logger = do
-    -- Create postgresql-simple pool
-    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
-    connectionPool <- Pool.newPool poolConfig
-
-    -- Create hasql pool for better fetch performance with prepared statements
-    -- HASQL_POOL_SIZE: pool size (default: 3). Set to 1 for consistent prepared statement caching.
+    -- Create hasql pool for prepared statement-based queries
+    -- HASQL_POOL_SIZE: pool size (default: maxConnections). Set to 1 for consistent prepared statement caching.
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
             ]
-            <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [HasqlPoolConfig.size maxConnections] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
-    hasqlPoolInstance <- HasqlPool.acquire hasqlPoolConfig
+    hasqlPool <- HasqlPool.acquire hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
-    let transactionConnection = Nothing
     let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
-    let hasqlPool = Just hasqlPoolInstance
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext = do
-    Pool.destroyAllResources modelContext.connectionPool
-    case modelContext.hasqlPool of
-        Just pool -> HasqlPool.release pool
-        Nothing -> pure ()
+    HasqlPool.release modelContext.hasqlPool
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -278,19 +266,6 @@ textToId text = case parsePrimaryKey (cs text) of
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
 {-# INLINE textToId #-}
 
--- | Measure and log the query time for a given query action if the log level is Debug.
--- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => Text -> PG.Connection -> IO a -> Query -> q -> IO a
-measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = do
-    let currentLogLevel = ?modelContext.logger.level
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            queryAction `finally` do
-                end <- getCurrentTime
-                let theTime = end `diffUTCTime` start
-                logQuery logPrefix connection theQuery theParameters theTime
-        else queryAction
 
 -- | Runs a raw sql query
 --
@@ -304,18 +279,11 @@ measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = d
 --
 -- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
 --
-sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r, FromRowHasql r) => Query -> q -> IO [r]
+sqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
 sqlQuery theQuery theParameters = do
-    withHasqlOrPgSimple
-        (\pool -> do
-            -- Format query using pg-simple's safe escaping, then send via hasql
-            formattedSql <- withDatabaseConnection \conn ->
-                PG.formatQuery conn theQuery theParameters
-            sqlQueryHasql pool (Snippet.sql (cs formattedSql)) (Decoders.rowList hasqlRowDecoder)
-        )
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
-        )
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
 {-# INLINABLE sqlQuery #-}
 
 
@@ -331,7 +299,7 @@ sqlQuery theQuery theParameters = do
 --
 -- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
-sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record, FromRowHasql record) => Query -> query -> IO record
+sqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
 sqlQuerySingleRow theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     case result of
@@ -345,18 +313,11 @@ sqlQuerySingleRow theQuery theParameters = do
 -- __Example:__
 --
 -- > sqlExec "CREATE TABLE users ()" ()
-sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
+sqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
 sqlExec theQuery theParameters = do
-    withHasqlOrPgSimple
-        (\pool -> do
-            -- Format query using pg-simple's safe escaping, then send via hasql
-            formattedSql <- withDatabaseConnection \conn ->
-                PG.formatQuery conn theQuery theParameters
-            sqlExecHasqlCount pool (Snippet.sql (cs formattedSql))
-        )
-        (withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-            withRLSParams (\q p -> measureTimeIfLogging "💾" connection (PG.execute connection q p) q p) theQuery theParameters
-        )
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlExecHasqlCount pool snippet
 {-# INLINABLE sqlExec #-}
 
 -- | Runs a sql statement (like a CREATE statement), but doesn't return any result
@@ -364,41 +325,12 @@ sqlExec theQuery theParameters = do
 -- __Example:__
 --
 -- > sqlExecDiscardResult "CREATE TABLE users ()" ()
-sqlExecDiscardResult :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO ()
+sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
 sqlExecDiscardResult theQuery theParameters = do
     _ <- sqlExec theQuery theParameters
     pure ()
 {-# INLINABLE sqlExecDiscardResult #-}
 
--- | Wraps the query with Row level security boilerplate, if a row level security context was provided
---
--- __Example:__
---
--- If a row level security context is given, this will turn a query like the following
---
--- > withRLSParams runQuery "SELECT * FROM projects WHERE id = ?" (Only "..")
---
--- Into the following equivalent:
---
--- > runQuery "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; SELECT * FROM projects WHERE id = ?" ["ihp_authenticated", "<user id>", .."]
---
-withRLSParams :: (?modelContext :: ModelContext, PG.ToRow params) => (PG.Query -> [PG.Action] -> result) -> PG.Query -> params -> result
-withRLSParams runQuery query params = do
-    case ?modelContext.rowLevelSecurity of
-        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> do
-            let query' = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query
-            let params' = [PG.toField (PG.Identifier rlsAuthenticatedRole), PG.toField rlsUserId] <> PG.toRow params
-            runQuery query' params'
-        Nothing -> runQuery query (PG.toRow params)
-
-withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
-withDatabaseConnection block =
-    let
-        ModelContext { connectionPool, transactionConnection } = ?modelContext
-    in case transactionConnection of
-        Just transactionConnection -> block transactionConnection
-        Nothing -> Pool.withResource connectionPool block
-{-# INLINABLE withDatabaseConnection #-}
 
 -- | Prepared statement that sets the RLS role and user id using set_config().
 --
@@ -562,20 +494,6 @@ runSessionHasql pool session = do
         else runQuery
 {-# INLINABLE runSessionHasql #-}
 
--- | Routes between hasql and pg-simple based on context
---
--- Uses hasql when there's no transaction and a hasql pool is available.
--- Falls back to pg-simple otherwise (in a transaction or no hasql pool).
---
--- RLS is handled transparently by the hasql functions themselves
--- (sqlQueryHasql, sqlExecHasql, sqlExecHasqlCount) which wrap queries in
--- a transaction with 'setRLSConfigStatement' when RLS is enabled.
-withHasqlOrPgSimple :: (?modelContext :: ModelContext) => (HasqlPool.Pool -> IO a) -> IO a -> IO a
-withHasqlOrPgSimple hasqlAction pgSimpleAction =
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
-        (Nothing, Just pool) -> hasqlAction pool
-        _ -> pgSimpleAction
-{-# INLINABLE withHasqlOrPgSimple #-}
 
 -- | Exception type for hasql errors
 data HasqlError = HasqlError HasqlPool.UsageError
@@ -606,7 +524,7 @@ processRequests requestMVar = do
 -- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext, PG.ToRow q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO value
+sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -621,7 +539,7 @@ sqlQueryScalar theQuery theParameters = do
 -- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, PG.ToRow q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -647,64 +565,56 @@ sqlQueryScalarOrNothing theQuery theParameters = do
 -- >        |> updateRecord
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
 withTransaction block
-    | isJust ?modelContext.transactionRunner || isJust ?modelContext.transactionConnection =
+    | isJust ?modelContext.transactionRunner =
         error "withTransaction: Nested transactions are not supported. withTransaction was called inside an existing transaction."
-    | otherwise = case ?modelContext.hasqlPool of
-    Just pool -> do
-        requestMVar <- newEmptyMVar
+    | otherwise = do
+    let pool = ?modelContext.hasqlPool
+    requestMVar <- newEmptyMVar
 
-        let runner :: forall a. Hasql.Session a -> IO a
-            runner session = do
-                responseVar <- newEmptyMVar
-                putMVar requestMVar (Just (SessionRequest session responseVar))
-                result <- takeMVar responseVar
-                case result of
-                    Left err -> throwIO (HasqlSessionError err)
-                    Right a -> pure a
+    let runner :: forall a. Hasql.Session a -> IO a
+        runner session = do
+            responseVar <- newEmptyMVar
+            putMVar requestMVar (Just (SessionRequest session responseVar))
+            result <- takeMVar responseVar
+            case result of
+                Left err -> throwIO (HasqlSessionError err)
+                Right a -> pure a
 
-        let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
+    let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
 
-        let ?context = ?modelContext
-        let transactionSession = do
-                Hasql.script "BEGIN"
-                case ?modelContext.rowLevelSecurity of
-                    Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
-                        Hasql.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Nothing -> pure ()
+    let ?context = ?modelContext
+    let transactionSession = do
+            Hasql.script "BEGIN"
+            case ?modelContext.rowLevelSecurity of
+                Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                    Hasql.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                Nothing -> pure ()
 
-                -- Fork the user's block in a separate thread
-                blockResultVar <- liftIO $ do
-                    resultVar <- newEmptyMVar
-                    _ <- forkIO $ mask \restore -> do
-                        result <- try @SomeException (restore block)
-                        putMVar requestMVar Nothing   -- Signal processRequests to stop
-                        putMVar resultVar result
-                    pure resultVar
+            -- Fork the user's block in a separate thread
+            blockResultVar <- liftIO $ do
+                resultVar <- newEmptyMVar
+                _ <- forkIO $ mask \restore -> do
+                    result <- try @SomeException (restore block)
+                    putMVar requestMVar Nothing   -- Signal processRequests to stop
+                    putMVar resultVar result
+                pure resultVar
 
-                processRequests requestMVar
+            processRequests requestMVar
 
-                blockResult <- liftIO (takeMVar blockResultVar)
-                case blockResult of
-                    Left exc -> do
-                        catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
-                            Log.warn ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)))
-                        liftIO (throwIO exc)
-                    Right a -> do
-                        Hasql.script "COMMIT"
-                        pure a
+            blockResult <- liftIO (takeMVar blockResultVar)
+            case blockResult of
+                Left exc -> do
+                    catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
+                        Log.warn ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)))
+                    liftIO (throwIO exc)
+                Right a -> do
+                    Hasql.script "COMMIT"
+                    pure a
 
-        result <- HasqlPool.use pool transactionSession
-        case result of
-            Left err -> throwIO (HasqlError err)
-            Right a -> pure a
-    Nothing ->
-        -- pg-simple fallback (for tests / no hasql pool)
-        withTransactionConnection do
-            let connection = ?modelContext.transactionConnection
-                    |> \case
-                        Just connection -> connection
-                        Nothing -> error "withTransaction: transactionConnection not set as expected"
-            PG.withTransaction connection block
+    result <- HasqlPool.use pool transactionSession
+    case result of
+        Left err -> throwIO (HasqlError err)
+        Right a -> pure a
 {-# INLINABLE withTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
@@ -728,34 +638,17 @@ withRowLevelSecurityDisabled block = do
     let ?modelContext = currentModelContext { rowLevelSecurity = Nothing } in block
 {-# INLINABLE withRowLevelSecurityDisabled #-}
 
--- | Returns the postgres connection when called within a 'withTransaction' block
---
--- Throws an error if called from outside a 'withTransaction'
-transactionConnectionOrError :: (?modelContext :: ModelContext) => Connection
-transactionConnectionOrError = ?modelContext.transactionConnection
-            |> \case
-                Just connection -> connection
-                Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
-
 commitTransaction :: (?modelContext :: ModelContext) => IO ()
 commitTransaction = case ?modelContext.transactionRunner of
     Just (TransactionRunner runner) -> runner (Hasql.script "COMMIT")
-    Nothing -> PG.commit transactionConnectionOrError
+    Nothing -> error "commitTransaction: Not in a transaction"
 {-# INLINABLE commitTransaction #-}
 
 rollbackTransaction :: (?modelContext :: ModelContext) => IO ()
 rollbackTransaction = case ?modelContext.transactionRunner of
     Just (TransactionRunner runner) -> runner (Hasql.script "ROLLBACK")
-    Nothing -> PG.rollback transactionConnectionOrError
+    Nothing -> error "rollbackTransaction: Not in a transaction"
 {-# INLINABLE rollbackTransaction #-}
-
-withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransactionConnection block = do
-    let ModelContext { connectionPool } = ?modelContext
-    Pool.withResource connectionPool \connection -> do
-        let modelContext = ?modelContext { transactionConnection = Just connection }
-        let ?modelContext = modelContext in block
-{-# INLINABLE withTransactionConnection #-}
 
 -- | Access meta data for a database table
 class
@@ -850,20 +743,6 @@ primaryKeyConditionColumnSelector =
 primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
 primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
-logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Text -> PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
-logQuery logPrefix connection query parameters time = do
-        let ?context = ?modelContext
-        -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
-        -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = round (realToFrac time * 1000 :: Double)
-        let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
-        let rlsInfo = case ?context.rowLevelSecurity of
-                Just RowLevelSecurityContext { rlsUserId } -> formatRLSInfo rlsUserId
-                Nothing -> ""
-
-        formatted <- PG.formatQuery connection query parameters
-        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-{-# INLINABLE logQuery #-}
 
 -- | Runs a @DELETE@ query for a record.
 --
@@ -885,16 +764,11 @@ deleteRecord record =
 -- DELETE FROM projects WHERE id = '..'
 --
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder (Id' table)) => Id' table -> IO ()
-deleteRecordById id = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
-            <> Snippet.param id
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
-            let theParameters = PG.Only $ primaryKeyConditionForId @record id
-            sqlExec (PG.Query $! theQuery) theParameters
-            pure ()
+deleteRecordById id = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $
+        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
+        <> Snippet.param id
 {-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
@@ -914,17 +788,12 @@ deleteRecords records =
 -- DELETE FROM projects WHERE id IN ('..')
 --
 deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder [Id' table]) => [Id' table] -> IO ()
-deleteRecordByIds ids = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
-            <> Snippet.param ids
-            <> Snippet.sql ")"
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
-            let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
-            sqlExec (PG.Query $! theQuery) theParameters
-            pure ()
+deleteRecordByIds ids = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $
+        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
+        <> Snippet.param ids
+        <> Snippet.sql ")"
 {-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
@@ -932,14 +801,9 @@ deleteRecordByIds ids = withHasqlOrPgSimple hasqlPath pgSimplePath
 -- >>> deleteAll @Project
 -- DELETE FROM projects
 deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
-deleteAll = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableName @record))
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableName @record
-            sqlExec (PG.Query . cs $! theQuery) ()
-            pure ()
+deleteAll = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> cs (tableName @record))
 {-# INLINABLE deleteAll #-}
 
 instance Default NominalDiffTime where
@@ -1149,10 +1013,6 @@ instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
 instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
     parseJSON value = Id <$> parseJSON value
 
--- | Catches 'SqlError' and wraps them in 'EnhancedSqlError'
-enhanceSqlError :: PG.ToRow parameters => Query -> parameters -> IO a -> IO a
-enhanceSqlError sqlErrorQuery sqlErrorQueryParams block = catch block (\sqlError -> throwIO EnhancedSqlError { sqlErrorQuery, sqlErrorQueryParams = PG.toRow sqlErrorQueryParams, sqlError })
-{-# INLINE enhanceSqlError #-}
 
 instance Default Aeson.Value where
     def = Aeson.Null

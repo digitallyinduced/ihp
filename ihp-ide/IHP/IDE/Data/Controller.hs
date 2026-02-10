@@ -189,7 +189,7 @@ instance Controller DataController where
             Nothing -> renderNotFound
 
 getPool :: (?modelContext :: ModelContext) => HasqlPool.Pool
-getPool = fromMaybe (error "No hasql pool available") ?modelContext.hasqlPool
+getPool = ?modelContext.hasqlPool
 
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do

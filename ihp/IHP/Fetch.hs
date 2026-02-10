@@ -29,123 +29,107 @@ module IHP.Fetch
 where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.Types (Query (Query))
 import Database.PostgreSQL.Simple.FromField hiding (Field, name)
 import Database.PostgreSQL.Simple.ToField
-import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.QueryBuilder.HasqlCompiler (buildSnippet)
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
-    fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO (FetchResult fetchable model)
-    fetchOneOrNothing :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
-    fetchOne :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO model
+    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO (FetchResult fetchable model)
+    fetchOneOrNothing :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
+    fetchOne :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO model
 
 -- The instance declaration had to be split up because a type variable ranging over HasQueryBuilder instances is not allowed in the declaration of the associated type. The common*-functions reduce the redundancy to the necessary minimum.
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (QueryBuilder table) model where
     type instance FetchResult (QueryBuilder table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
+    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
     fetch = commonFetch
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => QueryBuilder table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (JoinQueryBuilderWrapper r table) model where
     type instance FetchResult (JoinQueryBuilderWrapper r table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
+    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
     fetch = commonFetch
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (NoJoinQueryBuilderWrapper table) model where
     type instance FetchResult (NoJoinQueryBuilderWrapper table) model = [model]
     {-# INLINE fetch #-}
-    fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
+    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
     fetch = commonFetch
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
 instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, HasqlDecodeColumn value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
     type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
     {-# INLINE fetch #-}
-    fetch :: (Table model, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
+    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
-        let !(theQuery, theParameters) = queryBuilderProvider
-                |> toSQL
         trackTableRead (tableNameByteString @model)
-        sqlQuery @_ @(LabeledData value model) (Query $ cs theQuery) theParameters
+        let pool = ?modelContext.hasqlPool
+        let snippet = buildSnippet (buildQuery queryBuilderProvider)
+        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
 
     {-# INLINE fetchOneOrNothing #-}
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
     fetchOneOrNothing = commonFetchOneOrNothing
 
     {-# INLINE fetchOne #-}
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, PG.FromRow model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
     fetchOne = commonFetchOne
 
 
 
 {-# INLINE commonFetch #-}
-commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
+commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     trackTableRead (tableNameByteString @model)
     let !sqlQuery' = buildQuery queryBuilder
-    -- Use hasql when available and not in a transaction
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
-        (Nothing, Just pool) -> do
-            -- Use hasql (not in transaction, pool available)
-            let snippet = buildSnippet sqlQuery'
-            let decoder = Decoders.rowList (hasqlRowDecoder @model)
-            sqlQueryHasql pool snippet decoder
-        _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool)
-            let !(theQuery, theParameters) = toSQL' sqlQuery'
-            sqlQuery (Query $ cs theQuery) theParameters
+    let pool = ?modelContext.hasqlPool
+    let snippet = buildSnippet sqlQuery'
+    let decoder = Decoders.rowList (hasqlRowDecoder @model)
+    sqlQueryHasql pool snippet decoder
 
 {-# INLINE commonFetchOneOrNothing #-}
-commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
+commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     trackTableRead (tableNameByteString @model)
     let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
-    -- Use hasql when available and not in a transaction
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool) of
-        (Nothing, Just pool) -> do
-            -- Use hasql (not in transaction, pool available)
-            let snippet = buildSnippet limitedQuery
-            let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
-            sqlQueryHasql pool snippet decoder
-        _ -> do
-            -- Use pg-simple (in transaction OR no hasql pool)
-            let !(theQuery, theParameters) = toSQL' limitedQuery
-            results <- sqlQuery (Query $ cs theQuery) theParameters
-            pure $ listToMaybe results
+    let pool = ?modelContext.hasqlPool
+    let snippet = buildSnippet limitedQuery
+    let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
+    sqlQueryHasql pool snippet decoder
 
 {-# INLINE commonFetchOne #-}
-commonFetchOne :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, PG.FromRow model, FromRowHasql model) => queryBuilderProvider table -> IO model
+commonFetchOne :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO model
 commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
@@ -168,11 +152,10 @@ commonFetchOne !queryBuilder = do
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
 fetchCount !queryBuilder = do
-    let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
-    let theQuery = "SELECT COUNT(*) FROM (" <> theQuery' <> ") AS _count_values"
+    let snippet = Snippet.sql "SELECT COUNT(*) FROM (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _count_values"
     trackTableRead (symbolToByteString @table)
-    [PG.Only count] <- sqlQuery (Query $! cs theQuery) theParameters
-    pure count
+    let pool = ?modelContext.hasqlPool
+    fromIntegral <$> sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 {-# INLINE fetchCount #-}
 
 -- | Checks whether the query has any results.
@@ -187,35 +170,34 @@ fetchCount !queryBuilder = do
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Bool
 fetchExists !queryBuilder = do
-    let !(theQuery', theParameters) = toSQL' (buildQuery queryBuilder)
-    let theQuery = "SELECT EXISTS (" <> theQuery' <> ") AS _exists_values"
+    let snippet = Snippet.sql "SELECT EXISTS (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _exists_values"
     trackTableRead (symbolToByteString @table)
-    [PG.Only exists] <- sqlQuery (Query $! cs theQuery) theParameters
-    pure exists
+    let pool = ?modelContext.hasqlPool
+    sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 {-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
+genericFetchId :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
 genericFetchId !id = query @model |> filterWhereId id |> fetch
 
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
+genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
 genericfetchIdOneOrNothing !id = query @model |> filterWhereId id |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
+genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
 genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
+genericFetchIds :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIdIn ids |> fetch
 
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIdIn ids |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO model
+genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIdIn ids |> fetchOne
 
 {-# INLINE findBy #-}
@@ -259,11 +241,12 @@ instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, G
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
 
-fetchSQLQuery :: (PG.FromRow model, FromRowHasql model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
+fetchSQLQuery :: (FromRowHasql model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
 fetchSQLQuery theQuery = do
-    let (sql, theParameters) = toSQL' theQuery
     trackTableRead (theQuery.selectFrom)
-    sqlQuery (Query $ cs sql) theParameters
+    let pool = ?modelContext.hasqlPool
+    let snippet = buildSnippet theQuery
+    sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
 
 -- | Returns the latest record or Nothing
 --
@@ -289,7 +272,6 @@ fetchLatest :: forall table queryBuilderProvider joinRegister model.
     , HasField "createdAt" model UTCTime
     , Fetchable (queryBuilderProvider table) model
     , Table model
-    , FromRow model
     , FromRowHasql model
     ) => queryBuilderProvider table -> IO (Maybe model)
 fetchLatest queryBuilder = queryBuilder |> fetchLatestBy #createdAt
@@ -321,7 +303,6 @@ fetchLatestBy :: forall table createdAt queryBuilderProvider joinRegister model.
     , HasField createdAt model UTCTime
     , Fetchable (queryBuilderProvider table) model
     , Table model
-    , FromRow model
     , FromRowHasql model
     ) => Proxy createdAt -> queryBuilderProvider table -> IO (Maybe model)
 fetchLatestBy field queryBuilder =

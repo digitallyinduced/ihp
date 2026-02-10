@@ -11,6 +11,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.ModelSupport hiding (withTransaction)
 import qualified Database.PostgreSQL.Simple.Types as PG
+import Database.PostgreSQL.Simple.Types (Only(..))
 import qualified Data.Char as Char
 import IHP.Log.Types
 import IHP.EnvVar
@@ -50,7 +51,7 @@ runMigration migration@Migration { revision, migrationFile } = do
             INSERT INTO schema_migrations (revision) VALUES (?);
         COMMIT;
     |]
-    sqlExec (fromString . cs $ fullSql) [revision]
+    sqlExec (fromString . cs $ fullSql) (Only revision)
 
     pure ()
 
