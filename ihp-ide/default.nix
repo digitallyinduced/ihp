@@ -7,7 +7,7 @@
 , ihp-log, ihp-migrate, ihp-modal, ihp-postgres-parser
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
-, postgresql-simple, process, safe-exceptions, split
+, process, safe-exceptions, split
 , string-conversions, text, time, transformers, unagi-chan, unix
 , unliftio, uri-encode, uuid, vault, wai, wai-app-static
 , wai-asset-path, wai-extra, wai-request-params, wai-session
@@ -30,7 +30,7 @@ mkDerivation {
     ihp-hsx ihp-log ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
     mono-traversable neat-interpolation network network-uri
-    postgresql-simple process safe-exceptions split string-conversions
+    process safe-exceptions split string-conversions
     text time transformers unagi-chan unix unliftio uri-encode uuid
     vault wai wai-app-static wai-extra wai-request-params wai-session
     wai-session-clientsession wai-util wai-websockets warp websockets
@@ -44,7 +44,7 @@ mkDerivation {
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
     ihp-hsx ihp-log ihp-migrate ihp-postgres-parser ihp-schema-compiler
     inflections interpolate megaparsec mono-traversable
-    neat-interpolation network network-uri postgresql-simple process
+    neat-interpolation network network-uri process
     safe-exceptions split string-conversions text time transformers
     unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
     wai-extra wai-session wai-session-clientsession wai-util
@@ -59,7 +59,7 @@ mkDerivation {
     http-types ihp ihp-hsx ihp-log ihp-migrate ihp-modal
     ihp-postgres-parser ihp-schema-compiler inflections interpolate
     megaparsec mono-traversable neat-interpolation network network-uri
-    postgresql-simple process safe-exceptions split string-conversions
+    process safe-exceptions split string-conversions
     text time transformers unagi-chan unix unliftio uri-encode uuid
     vault wai wai-app-static wai-asset-path wai-extra
     wai-request-params wai-session wai-session-clientsession wai-util
