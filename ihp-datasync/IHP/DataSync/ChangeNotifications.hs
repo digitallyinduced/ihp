@@ -154,11 +154,11 @@ createNotificationFunction uuidFunction table = Snippet.sql [i|
 
 -- Statements
 
-retrieveChangesStatement :: Statement.Statement UUID ByteString
+retrieveChangesStatement :: Statement.Statement UUID Text
 retrieveChangesStatement = Statement.preparable
     "SELECT payload FROM large_pg_notifications WHERE id = $1 LIMIT 1"
     (Encoders.param (Encoders.nonNullable Encoders.uuid))
-    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bytea)))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 -- Sessions
 
@@ -166,7 +166,7 @@ installTableChangeTriggersSession :: Text -> RLS.TableWithRLS -> Session.Session
 installTableChangeTriggersSession uuidFunction table =
     Snippet.toSession (createNotificationFunction uuidFunction table) Decoders.noResult
 
-retrieveChangesSession :: UUID -> Session.Session ByteString
+retrieveChangesSession :: UUID -> Session.Session Text
 retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
 
 -- IO API (thin wrappers)
@@ -238,7 +238,7 @@ retrieveChanges :: Hasql.Pool.Pool -> ChangeSet -> IO [Change]
 retrieveChanges _pool InlineChangeSet { changeSet } = pure changeSet
 retrieveChanges pool ExternalChangeSet { largePgNotificationId } = do
     payload <- runSession pool (retrieveChangesSession largePgNotificationId)
-    case eitherDecodeStrict' payload of
+    case eitherDecodeStrictText payload of
         Left e -> fail e
         Right changes -> pure changes
 
