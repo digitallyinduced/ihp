@@ -12,6 +12,7 @@ module IHP.QueryBuilder.HasqlCompiler
 ( toSnippet
 , buildSnippet
 , snippetToSQL
+, compileOperator
 ) where
 
 import IHP.Prelude
@@ -19,7 +20,6 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
-import qualified Data.Text as Text
 import qualified Data.List as List
 import Data.Int (Int32)
 
@@ -84,27 +84,47 @@ whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet cond
 {-# INLINE whereSnippet #-}
 
 -- | Convert a Condition to a Snippet
---
--- Uses the hasql-specific template (with = ANY/<> ALL for IN/NOT IN).
 conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (VarCondition template snippet) =
-    -- VarCondition stores template (e.g., "id = ANY(?)") and a snippet parameter
-    -- We substitute the ? with the actual parameter
-    substituteSnippet template snippet
+conditionToSnippet (ColumnCondition column operator value applyLeft applyRight) =
+    let applyFn fn snippet = case fn of
+            Just f -> Snippet.sql f <> Snippet.sql "(" <> snippet <> Snippet.sql ")"
+            Nothing -> snippet
+        colSnippet = applyFn applyLeft (Snippet.sql column)
+        valSnippet = case operator of
+            InOp -> Snippet.sql "(" <> value <> Snippet.sql ")"
+            NotInOp -> Snippet.sql "(" <> value <> Snippet.sql ")"
+            SqlOp -> value
+            _ -> applyFn applyRight value
+        opText = compileOperator operator
+    in case operator of
+        SqlOp -> colSnippet <> Snippet.sql " " <> valSnippet
+        _ -> colSnippet <> Snippet.sql " " <> Snippet.sql opText <> Snippet.sql " " <> valSnippet
 conditionToSnippet (OrCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
 conditionToSnippet (AndCondition a b) =
     Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") AND (" <> conditionToSnippet b <> Snippet.sql ")"
 {-# INLINE conditionToSnippet #-}
 
--- | Substitute a ? placeholder in a template with the snippet parameter
-substituteSnippet :: Text -> Snippet -> Snippet
-substituteSnippet template snippet =
-    let (before, after) = Text.break (== '?') template
-    in if Text.null after
-        then Snippet.sql template  -- No ? found, just use the template (e.g., for raw SQL conditions)
-        else Snippet.sql before <> snippet <> Snippet.sql (Text.drop 1 after)
-{-# INLINE substituteSnippet #-}
+-- | Compiles a 'FilterOperator' to its SQL representation
+compileOperator :: FilterOperator -> Text
+compileOperator EqOp = "="
+compileOperator NotEqOp = "!="
+compileOperator InOp = "= ANY"
+compileOperator NotInOp = "<> ALL"
+compileOperator IsOp = "IS"
+compileOperator IsNotOp = "IS NOT"
+compileOperator (LikeOp CaseSensitive) = "LIKE"
+compileOperator (LikeOp CaseInsensitive) = "ILIKE"
+compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
+compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
+compileOperator (MatchesOp CaseSensitive) = "~"
+compileOperator (MatchesOp CaseInsensitive) = "~*"
+compileOperator GreaterThanOp = ">"
+compileOperator GreaterThanOrEqualToOp = ">="
+compileOperator LessThanOp = "<"
+compileOperator LessThanOrEqualToOp = "<="
+compileOperator SqlOp = ""
+{-# INLINE compileOperator #-}
 
 -- | Convert ORDER BY clause to Snippet
 orderBySnippet :: [OrderByClause] -> Snippet
