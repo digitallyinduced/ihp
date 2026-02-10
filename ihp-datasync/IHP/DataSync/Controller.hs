@@ -8,7 +8,7 @@ import IHP.DataSync.RowLevelSecurity
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.ControllerImpl (runDataSyncController)
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
-import IHP.DataSync.Pool (requestHasqlPool)
+import IHP.ModelSupport.Types (ModelContext(..))
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -19,7 +19,7 @@ instance (
     initialState = DataSyncController
 
     run = do
-        let hasqlPool = requestHasqlPool
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
         installTableChangeTriggers <- ChangeNotifications.makeInstallTableChangeTriggers ?context.frameworkConfig.environment hasqlPool
         runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)

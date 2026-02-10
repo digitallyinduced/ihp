@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
 {-|
 Module: IHP.Hasql.FromRow
 Description: Typeclass for decoding hasql result rows
@@ -14,12 +15,22 @@ like Point, Polygon, and TSVector.
 -}
 module IHP.Hasql.FromRow
 ( FromRowHasql (..)
+, HasqlDecodeValue (..)
+, HasqlDecodeColumn (..)
 , parsePointText
 , parsePolygonText
 , parseTSVectorText
 ) where
 
-import IHP.Prelude
+import Prelude
+import Data.ByteString (ByteString)
+import Data.Text (Text)
+import Data.UUID (UUID)
+import Data.Time.Clock (UTCTime, DiffTime)
+import Data.Time.Calendar (Day)
+import Data.Time.LocalTime (TimeOfDay)
+import Data.String.Conversions (cs)
+import Control.Applicative ((<|>))
 import qualified Hasql.Decoders as Decoders
 import IHP.Postgres.Point (Point(..))
 import IHP.Postgres.Polygon (Polygon(..))
@@ -27,6 +38,11 @@ import IHP.Postgres.TSVector (TSVector(..), Lexeme(..), LexemeRanking(..))
 import qualified Data.Text.Encoding as Text
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.Attoparsec.ByteString.Char8 (skipSpace, char, option, choice, double, skipMany, many1, many', sepBy)
+import Data.Int (Int16, Int32, Int64)
+import Data.Scientific (Scientific)
+import qualified Data.Aeson as Aeson
+import qualified Database.PostgreSQL.Simple.Types as PG
+import IHP.ModelSupport.Types (LabeledData(..))
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -102,3 +118,54 @@ parsePolygon = do
     points <- parsePoint `Attoparsec.sepBy` (char ',')
     Attoparsec.string ")"
     pure $ Polygon points
+
+-- | Typeclass mapping Haskell scalar types to hasql value decoders
+class HasqlDecodeValue a where
+    hasqlDecodeValue :: Decoders.Value a
+
+instance HasqlDecodeValue Int16 where hasqlDecodeValue = Decoders.int2
+instance HasqlDecodeValue Int32 where hasqlDecodeValue = Decoders.int4
+instance HasqlDecodeValue Int64 where hasqlDecodeValue = Decoders.int8
+instance HasqlDecodeValue Int where hasqlDecodeValue = fromIntegral <$> Decoders.int8
+instance HasqlDecodeValue Bool where hasqlDecodeValue = Decoders.bool
+instance HasqlDecodeValue Text where hasqlDecodeValue = Decoders.text
+instance HasqlDecodeValue ByteString where hasqlDecodeValue = Decoders.bytea
+instance HasqlDecodeValue UUID where hasqlDecodeValue = Decoders.uuid
+instance HasqlDecodeValue UTCTime where hasqlDecodeValue = Decoders.timestamptz
+instance HasqlDecodeValue Day where hasqlDecodeValue = Decoders.date
+instance HasqlDecodeValue TimeOfDay where hasqlDecodeValue = Decoders.time
+instance HasqlDecodeValue DiffTime where hasqlDecodeValue = Decoders.interval
+instance HasqlDecodeValue Scientific where hasqlDecodeValue = Decoders.numeric
+instance HasqlDecodeValue Double where hasqlDecodeValue = Decoders.float8
+instance HasqlDecodeValue Float where hasqlDecodeValue = Decoders.float4
+instance HasqlDecodeValue Aeson.Value where hasqlDecodeValue = Decoders.jsonb
+
+-- | Typeclass for building column-level row decoders, handling nullable/non-nullable
+class HasqlDecodeColumn a where
+    hasqlColumnDecoder :: Decoders.Row a
+
+instance {-# OVERLAPPABLE #-} HasqlDecodeValue a => HasqlDecodeColumn a where
+    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable hasqlDecodeValue)
+
+instance {-# OVERLAPPING #-} HasqlDecodeValue a => HasqlDecodeColumn (Maybe a) where
+    hasqlColumnDecoder = Decoders.column (Decoders.nullable hasqlDecodeValue)
+
+-- FromRowHasql instances for PG.Only and tuples (used by sqlQuery callers like fetchCount, fetchExists)
+
+instance HasqlDecodeColumn a => FromRowHasql (PG.Only a) where
+    hasqlRowDecoder = PG.Only <$> hasqlColumnDecoder
+
+instance (HasqlDecodeColumn a, HasqlDecodeColumn b) => FromRowHasql (a, b) where
+    hasqlRowDecoder = (,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder
+
+instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c) => FromRowHasql (a, b, c) where
+    hasqlRowDecoder = (,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
+
+instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d) => FromRowHasql (a, b, c, d) where
+    hasqlRowDecoder = (,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
+
+instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d, HasqlDecodeColumn e) => FromRowHasql (a, b, c, d, e) where
+    hasqlRowDecoder = (,,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
+
+instance (HasqlDecodeColumn label, FromRowHasql a) => FromRowHasql (LabeledData label a) where
+    hasqlRowDecoder = LabeledData <$> hasqlColumnDecoder <*> hasqlRowDecoder

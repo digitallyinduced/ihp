@@ -52,7 +52,7 @@ instance Controller DataController where
             redirectTo NewQueryAction
 
         queryResult :: Maybe (Either SqlConsoleError SqlConsoleResult) <- do
-            let pool = getPool
+            let pool = ?modelContext.hasqlPool
             Just <$> if isQuery queryText then do
                     let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
                     let statement = Snippet.toStatement snippet dynamicFieldDecoder
@@ -188,12 +188,9 @@ instance Controller DataController where
             Just (record, foreignTableName) -> render ShowForeignKeyHoverCardView { record, foreignTableName }
             Nothing -> renderNotFound
 
-getPool :: (?modelContext :: ModelContext) => HasqlPool.Pool
-getPool = fromMaybe (error "No hasql pool available") ?modelContext.hasqlPool
-
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do
-    let pool = getPool
+    let pool = ?modelContext.hasqlPool
     let statement = Snippet.toStatement snippet decoder
     let session = Session.statement () statement
     result <- HasqlPool.use pool session
@@ -204,7 +201,7 @@ runSnippetQuery snippet decoder = do
 
 runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
 runSnippetExec snippet = do
-    let pool = getPool
+    let pool = ?modelContext.hasqlPool
     let statement = Snippet.toStatement snippet Decoders.noResult
     let session = Session.statement () statement
     result <- HasqlPool.use pool session

@@ -11,11 +11,9 @@ import qualified Data.Text as Text
 sqlIdentifier :: Text -> Snippet.Snippet
 sqlIdentifier name = Snippet.sql ("\"" <> Text.replace "\"" "\"\"" name <> "\"")
 
--- | Get the hasql pool from the model context, erroring if not available.
+-- | Get the hasql pool from the model context.
 getHasqlPool :: (?modelContext :: ModelContext) => HasqlPool.Pool
-getHasqlPool = case ?modelContext.hasqlPool of
-    Just pool -> pool
-    Nothing -> error "IHP.Job.Dashboard: hasql pool not available in ModelContext"
+getHasqlPool = ?modelContext.hasqlPool
 
 numberOfPagesForTable :: (?modelContext::ModelContext) => Text -> Int -> IO Int
 numberOfPagesForTable table pageSize = do
