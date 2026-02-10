@@ -29,6 +29,7 @@ lookupRequestVault key req =
 -- | Like 'insertVaultMiddleware', but creates a fresh 'IORef' with the given
 -- default value on each request. Use this for mutable per-request state
 -- (e.g. response headers, modal containers).
+{-# INLINE insertNewIORefVaultMiddleware #-}
 insertNewIORefVaultMiddleware :: Vault.Key (IORef value) -> value -> Middleware
 insertNewIORefVaultMiddleware key defaultValue app req respond = do
     ref <- newIORef defaultValue
