@@ -66,11 +66,18 @@ let
 
             # Lazy session middleware: defer cookie decryption until first access,
             # skip Set-Cookie when session is unmodified.
-            # See: https://github.com/singpolyma/wai-session/issues/15
+            # PRs: https://github.com/singpolyma/wai-session/pull/17
+            #       https://github.com/singpolyma/wai-session-clientsession/pull/5
             wai-session = final.haskell.lib.appendPatch super.wai-session
-                "${flakeRoot}/NixSupport/patches/wai-session-lazy.patch";
+                (builtins.fetchurl {
+                    url = "https://github.com/singpolyma/wai-session/commit/c0142c100975d7f4ba7516f5235d30a3e88e32a2.patch";
+                    sha256 = "0ymv7zwg4wdkdyz8wrfyjcprjq9iyik7iiaazsi1d6vhgm3fv6ls";
+                });
             wai-session-clientsession = final.haskell.lib.appendPatch super.wai-session-clientsession
-                "${flakeRoot}/NixSupport/patches/wai-session-clientsession-lazy.patch";
+                (builtins.fetchurl {
+                    url = "https://github.com/singpolyma/wai-session-clientsession/commit/8b383eac381b6a96ceaa7b3a282b0fe856452f78.patch";
+                    sha256 = "02127wd8y26aps34kmvxxvyyzg94p3i9f3drf7zwp8phdncb19pg";
+                });
 
             # Can be removed after v0.3.2 is on hackage
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
