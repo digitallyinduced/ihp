@@ -1,7 +1,7 @@
 module IHP.AuthSupport.Types where
 
 import IHP.Prelude
-import Data.Data
+import Data.Data ()
 import IHP.ModelSupport
 
 data PasswordReset = PasswordReset
