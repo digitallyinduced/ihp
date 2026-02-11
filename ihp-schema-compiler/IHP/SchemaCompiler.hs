@@ -198,7 +198,7 @@ atomicType = \case
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PInet -> "Inet"
-    PTSVector -> "TSVector"
+    PTSVector -> "Tsvector"
     PSingleChar -> "Text"
     PTrigger -> error "atomicType: PTrigger not supported"
     PEventTrigger -> error "atomicType: PEventTrigger not supported"

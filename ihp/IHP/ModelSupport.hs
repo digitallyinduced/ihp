@@ -6,7 +6,7 @@ module IHP.ModelSupport
 , module PostgresqlTypes.Point
 , module PostgresqlTypes.Polygon
 , module PostgresqlTypes.Inet
-, module IHP.Postgres.TSVector
+, module PostgresqlTypes.Tsvector
 , module PostgresqlTypes.Interval
 , module IHP.InputValue
 ) where
@@ -67,7 +67,7 @@ import PostgresqlTypes.Point
 import PostgresqlTypes.Polygon
 import PostgresqlTypes.Inet
 import PostgresqlTypes.Interval
-import IHP.Postgres.TSVector
+import PostgresqlTypes.Tsvector
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
@@ -141,7 +141,7 @@ instance Default Point where
 instance Default Polygon where
     def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
-instance Default TSVector where
+instance Default Tsvector where
     def = normalizeFromLexemeList []
 
 instance Default Scientific where

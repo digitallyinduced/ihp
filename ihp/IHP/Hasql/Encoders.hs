@@ -46,7 +46,7 @@ import PostgresqlTypes.Point (Point)
 import PostgresqlTypes.Polygon (Polygon)
 import PostgresqlTypes.Inet (Inet)
 import PostgresqlTypes.Interval (Interval)
-import IHP.Postgres.TSVector (Tsvector)
+import PostgresqlTypes.Tsvector (Tsvector)
 
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
