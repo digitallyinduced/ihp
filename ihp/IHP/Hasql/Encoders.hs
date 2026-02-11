@@ -42,17 +42,11 @@ import Data.UUID (UUID)
 import Database.PostgreSQL.Simple.Types (Binary(..))
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
-import qualified PostgresqlTypes.Point as PgPoint
-import qualified PostgresqlTypes.Polygon as PgPolygon
-import qualified PostgresqlTypes.Inet as PgInet
-import IHP.Postgres.Point (Point(..))
-import IHP.Postgres.Polygon (Polygon(..))
-import IHP.Postgres.TimeParser (PGInterval(..))
-import IHP.Postgres.TSVector (TSVector(..), Lexeme(..), LexemeRanking(..))
-import qualified Net.IP
-import qualified Net.IPv4
-import qualified Net.IPv6
-import qualified Data.WideWord.Word128 as Word128
+import PostgresqlTypes.Point (Point)
+import PostgresqlTypes.Polygon (Polygon)
+import PostgresqlTypes.Inet (Inet)
+import PostgresqlTypes.Interval (Interval)
+import PostgresqlTypes.Tsvector (Tsvector)
 
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
@@ -140,93 +134,45 @@ instance DefaultParamEncoder Integer where
 instance DefaultParamEncoder (Maybe Integer) where
     defaultParam = Encoders.nullable (contramap fromInteger Encoders.int8)
 
--- | Encode IHP 'Point' as PostgreSQL point via postgresql-types binary encoder
+-- | Encode 'Point' as PostgreSQL point via postgresql-types binary encoder
 instance DefaultParamEncoder Point where
-    defaultParam = Encoders.nonNullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Point' as nullable PostgreSQL point
 instance DefaultParamEncoder (Maybe Point) where
-    defaultParam = Encoders.nullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode IHP 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
+-- | Encode 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
 instance DefaultParamEncoder Polygon where
-    defaultParam = Encoders.nonNullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Polygon' as nullable PostgreSQL polygon
 instance DefaultParamEncoder (Maybe Polygon) where
-    defaultParam = Encoders.nullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode 'PGInterval' as PostgreSQL interval
--- Uses 'unknown' OID so PostgreSQL coerces the text representation to interval
-instance DefaultParamEncoder PGInterval where
-    defaultParam = Encoders.nonNullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
+-- | Encode 'Interval' as PostgreSQL interval via postgresql-types binary encoder
+instance DefaultParamEncoder Interval where
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
--- | Encode 'Maybe PGInterval' as nullable PostgreSQL interval
-instance DefaultParamEncoder (Maybe PGInterval) where
-    defaultParam = Encoders.nullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
+-- | Encode 'Maybe Interval' as nullable PostgreSQL interval
+instance DefaultParamEncoder (Maybe Interval) where
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode 'TSVector' as PostgreSQL tsvector
--- Uses 'unknown' OID so PostgreSQL coerces the text representation to tsvector
-instance DefaultParamEncoder TSVector where
-    defaultParam = Encoders.nonNullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
+-- | Encode 'Tsvector' as PostgreSQL tsvector via postgresql-types binary encoder
+instance DefaultParamEncoder Tsvector where
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
--- | Encode 'Maybe TSVector' as nullable PostgreSQL tsvector
-instance DefaultParamEncoder (Maybe TSVector) where
-    defaultParam = Encoders.nullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
+-- | Encode 'Maybe Tsvector' as nullable PostgreSQL tsvector
+instance DefaultParamEncoder (Maybe Tsvector) where
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Serialize a TSVector to its text representation
-serializeTSVectorText :: TSVector -> Text
-serializeTSVectorText (TSVector lexemes) = Text.intercalate " " (map serializeLexeme lexemes)
-  where
-    serializeLexeme :: Lexeme -> Text
-    serializeLexeme Lexeme { token, ranking } =
-        "'" <> token <> "':" <> Text.intercalate "," (map serializeRanking ranking)
-    serializeRanking :: LexemeRanking -> Text
-    serializeRanking LexemeRanking { position, weight } =
-        Text.pack (show position) <> (if weight == 'D' then "" else Text.singleton weight)
+-- | Encode 'Inet' as PostgreSQL inet via postgresql-types binary encoder
+instance DefaultParamEncoder Inet where
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
--- | Encode 'Net.IP.IP' as PostgreSQL inet via postgresql-types binary encoder
-instance DefaultParamEncoder Net.IP.IP where
-    defaultParam = Encoders.nonNullable (contramap ipToInet Mapping.encoder)
-
--- | Encode 'Maybe Net.IP.IP' as nullable PostgreSQL inet
-instance DefaultParamEncoder (Maybe Net.IP.IP) where
-    defaultParam = Encoders.nullable (contramap ipToInet Mapping.encoder)
-
--- | Convert 'Net.IP.IP' to 'PostgresqlTypes.Inet.Inet'
-ipToInet :: Net.IP.IP -> PgInet.Inet
-ipToInet ip = Net.IP.case_ ipv4ToInet ipv6ToInet ip
-  where
-    ipv4ToInet :: Net.IPv4.IPv4 -> PgInet.Inet
-    ipv4ToInet addr = PgInet.normalizeFromV4 (Net.IPv4.getIPv4 addr) 32
-    ipv6ToInet :: Net.IPv6.IPv6 -> PgInet.Inet
-    ipv6ToInet addr =
-        let w128 = Net.IPv6.getIPv6 addr
-            hi = Word128.word128Hi64 w128
-            lo = Word128.word128Lo64 w128
-            a = fromIntegral (hi `shiftR` 32)
-            b = fromIntegral hi
-            c = fromIntegral (lo `shiftR` 32)
-            d = fromIntegral lo
-        in PgInet.normalizeFromV6 a b c d 128
+-- | Encode 'Maybe Inet' as nullable PostgreSQL inet
+instance DefaultParamEncoder (Maybe Inet) where
+    defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Converts parameter tuples into a list of hasql 'Snippet' values.
 --

@@ -380,7 +380,7 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User' = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (Id' "users"), ts :: (Maybe Tsvector), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
@@ -409,7 +409,7 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = (\id ts -> let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                             <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
+                            <*> Decoders.column (Decoders.nullable Mapping.decoder)
 
                     type instance GetModelName (User') = "User"
 

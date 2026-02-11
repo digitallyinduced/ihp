@@ -25,7 +25,6 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import qualified IHP.QueryBuilder.HasqlHelpers as HasqlHelpers
-import IHP.Postgres.Point (Point(..))
 import Data.Int (Int64)
 import qualified Data.Set as Set
 

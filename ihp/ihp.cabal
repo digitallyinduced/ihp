@@ -101,7 +101,6 @@ common shared-properties
             , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
             , temporary
@@ -116,7 +115,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , ihp-context
             , ihp-pagehead
             , ihp-log
@@ -140,7 +138,6 @@ common shared-properties
             , hasql-transaction
             , postgresql-types
             , contravariant
-            , wide-word
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

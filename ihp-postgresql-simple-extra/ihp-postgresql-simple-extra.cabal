@@ -25,6 +25,7 @@ common shared-properties
             , basic-prelude
             , text
             , postgresql-simple
+            , postgresql-types
             , ip
             , time
             , time-compat

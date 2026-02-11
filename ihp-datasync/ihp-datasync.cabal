@@ -53,7 +53,6 @@ common shared-properties
             , ihp
             , ihp-log
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , deepseq
             , safe-exceptions
             , http-types
@@ -63,6 +62,9 @@ common shared-properties
             , unordered-containers
             , vault
             , typerep-map
+            , postgresql-types
+            , hasql-mapping
+            , hasql-postgresql-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

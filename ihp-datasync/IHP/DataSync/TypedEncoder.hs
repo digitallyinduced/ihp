@@ -19,7 +19,9 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import IHP.Postgres.Point (Point(..))
+import PostgresqlTypes.Point (Point, fromCoordinates)
+import qualified Hasql.Mapping.IsScalar as Mapping
+import Hasql.PostgresqlTypes ()
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -100,13 +102,13 @@ typedValueParam colType (Object values)
                     y <- case yValue of
                             Aeson.Number number -> pure (Scientific.toRealFloat number)
                             _ -> Nothing
-                    pure Point { x, y }
+                    pure (fromCoordinates x y)
         in
             if Aeson.size values == 2
-                then fromMaybe (error "Cannot decode as Point") (pointToSnippet <$> tryDecodeAsPoint)
+                then case tryDecodeAsPoint of
+                    Just point -> Snippet.encoderAndParam (Encoders.nonNullable Mapping.encoder) point
+                    Nothing -> error "Cannot decode as Point"
                 else error "Cannot decode as Point: expected {x, y} object"
-    where
-        pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
 typedValueParam pgType (Array arr) =
     let elemType = case pgType of
             Just t | "_" `Text.isPrefixOf` t -> Just (Text.drop 1 t)
@@ -139,8 +141,7 @@ encodeWithType "numeric"     val = Snippet.encoderAndParam (Encoders.nonNullable
 encodeWithType "jsonb"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) val
 encodeWithType "json"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) val
 encodeWithType "bytea"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bytea) (toByteString val)
--- Interval uses text+cast because PGInterval can contain years/months/days
--- which DiffTime (used by Encoders.interval) cannot represent.
+-- Interval uses text+cast for dynamic DataSync queries where values come as JSON text.
 encodeWithType "interval"    val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::interval"
 encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::" <> quoteIdentifier pgType
 

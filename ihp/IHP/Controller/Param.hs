@@ -267,18 +267,33 @@ allParams = Params.allParams ?request.parsedBody ?request
 instance ParamReader ModelSupport.Point where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
+        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure (ModelSupport.fromCoordinates x y)) byteString of
             Right value -> Right value
             Left error -> Left "has to be two numbers with a comma, e.g. '1,2'"
 
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in  readParameter byteString
     readParameterJSON _ = Left "Expected Point"
 
-instance ParamReader ModelSupport.PGInterval where
+instance ParamReader ModelSupport.Interval where
     {-# INLINABLE readParameter #-}
-    readParameter byteString = pure (ModelSupport.PGInterval byteString)
+    readParameter byteString = case readMaybe (cs byteString) of
+        Just interval -> Right interval
+        Nothing -> Left "Invalid interval"
 
-    readParameterJSON (Aeson.String bytestring) = Right (ModelSupport.PGInterval (cs bytestring))
+    readParameterJSON (Aeson.String string) = case readMaybe (cs string) of
+        Just interval -> Right interval
+        Nothing -> Left "Invalid interval"
+    readParameterJSON _ = Left "Expected String"
+
+instance ParamReader ModelSupport.Inet where
+    {-# INLINABLE readParameter #-}
+    readParameter byteString = case readMaybe (cs byteString) of
+        Just inet -> Right inet
+        Nothing -> Left "Invalid IP address"
+
+    readParameterJSON (Aeson.String string) = case readMaybe (cs string) of
+        Just inet -> Right inet
+        Nothing -> Left "Invalid IP address"
     readParameterJSON _ = Left "Expected String"
 
 
@@ -293,15 +308,17 @@ instance ParamReader ModelSupport.Polygon where
                 Attoparsec.char ','
                 y <- Attoparsec.double
                 Attoparsec.char ')'
-                pure ModelSupport.Point { .. }
+                pure (x, y)
             parser = do
                 points <- pointParser `Attoparsec.sepBy` (Attoparsec.char ',')
                 Attoparsec.endOfInput
-                pure ModelSupport.Polygon { .. }
+                case ModelSupport.refineFromPointList points of
+                    Just polygon -> pure polygon
+                    Nothing -> fail "Polygon must have at least 3 points"
         in
         case Attoparsec.parseOnly parser byteString of
             Right value -> Right value
-            Left error -> Left "has to be points wrapped in parenthesis, separated with a comma, e.g. '(1,2),(3,4)'"
+            Left error -> Left (cs error)
 
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in readParameter byteString
     readParameterJSON _ = Left "Expected Polygon"

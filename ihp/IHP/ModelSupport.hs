@@ -3,11 +3,11 @@
 module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.ModelSupport.Types
-, module IHP.Postgres.Point
-, module IHP.Postgres.Polygon
-, module IHP.Postgres.Inet
-, module IHP.Postgres.TSVector
-, module IHP.Postgres.TimeParser
+, module PostgresqlTypes.Point
+, module PostgresqlTypes.Polygon
+, module PostgresqlTypes.Inet
+, module PostgresqlTypes.Tsvector
+, module PostgresqlTypes.Interval
 , module IHP.InputValue
 ) where
 
@@ -58,12 +58,11 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
-import IHP.Postgres.Point
-import IHP.Postgres.Interval ()
-import IHP.Postgres.Polygon
-import IHP.Postgres.Inet ()
-import IHP.Postgres.TSVector
-import IHP.Postgres.TimeParser
+import PostgresqlTypes.Point
+import PostgresqlTypes.Polygon
+import PostgresqlTypes.Inet
+import PostgresqlTypes.Interval
+import PostgresqlTypes.Tsvector
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
@@ -138,13 +137,13 @@ instance Default Bool where
 #endif
 
 instance Default Point where
-    def = Point def def
+    def = fromCoordinates 0 0
 
 instance Default Polygon where
-    def = Polygon [def]
+    def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
-instance Default TSVector where
-    def = TSVector def
+instance Default Tsvector where
+    def = normalizeFromLexemeList []
 
 instance Default Scientific where
     def = 0
@@ -827,8 +826,11 @@ instance Default UTCTime where
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
 
-instance Default PGInterval where
-    def = PGInterval "00:00:00"
+instance Default Interval where
+    def = normalizeFromMonthsDaysAndMicroseconds 0 0 0
+
+instance Default Inet where
+    def = normalizeFromV4 0 32
 
 class Record model where
     newRecord :: model
