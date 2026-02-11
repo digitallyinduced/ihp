@@ -138,14 +138,18 @@ findAllMigrations :: IO [Migration]
 findAllMigrations = do
     migrationDir <- detectMigrationDir
     migrationDirOsPath <- encodeUtf (cs migrationDir)
-    directoryFiles <- Directory.listDirectory migrationDirOsPath
-    fileNames <- mapM decodeUtf directoryFiles
-    let textNames = map (cs :: FilePath -> Text) fileNames
-    textNames
-        & filter (\path -> ".sql" `Text.isSuffixOf` path)
-        & mapMaybe pathToMigration
-        & sortBy (comparing revision)
-        & pure
+    exists <- Directory.doesDirectoryExist migrationDirOsPath
+    if exists
+        then do
+            directoryFiles <- Directory.listDirectory migrationDirOsPath
+            fileNames <- mapM decodeUtf directoryFiles
+            let textNames = map (cs :: FilePath -> Text) fileNames
+            textNames
+                & filter (\path -> ".sql" `Text.isSuffixOf` path)
+                & mapMaybe pathToMigration
+                & sortBy (comparing revision)
+                & pure
+        else pure []
 
 -- | Given a path such as Application/Migrate/00-initial-migration.sql it returns a Migration
 --
