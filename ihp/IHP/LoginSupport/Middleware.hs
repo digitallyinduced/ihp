@@ -21,7 +21,6 @@ initAuthentication :: forall user normalizedModel.
         , normalizedModel ~ NormalizeModel user
         , Typeable normalizedModel
         , Table normalizedModel
-        , FromRow normalizedModel
         , FromRowHasql normalizedModel
         , PrimaryKey (GetTableName normalizedModel) ~ UUID
         , GetTableName normalizedModel ~ GetTableName user

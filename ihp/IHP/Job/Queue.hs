@@ -48,7 +48,6 @@ import Control.Concurrent.STM.TBQueue (isFullTBQueue)
 fetchNextJob :: forall job.
     ( ?modelContext :: ModelContext
     , job ~ GetModelByTableName (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , Table job

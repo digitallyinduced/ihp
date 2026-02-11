@@ -157,7 +157,6 @@ class ( Typeable record
     , KnownSymbol (GetModelName record)
     , HasNewSessionUrl record
     , KnownSymbol (GetTableName record)
-    , FromRow record
     , FromRowHasql record
     ) => SessionsControllerConfig record where
 
