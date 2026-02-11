@@ -80,7 +80,7 @@ Inside the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideCo
 
 When the `callServerAction('IncrementCounterAction')` is called, it will trigger the [`action state IncrementCounterAction = do`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) haskell block to be called on the server.
 
-You can see that the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) handler get's passed the current state and will return a new state based on the action and the current state.
+You can see that the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:action) handler gets passed the current state and will return a new state based on the action and the current state.
 
 ### FrontController
 
@@ -170,7 +170,7 @@ To call the `SetSearchQuery` action with a specific `searchQuery` value, we can 
 
 You can use the typical IHP database operations like [`query @Post`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:query) or [`createRecord`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) from your actions.
 
-To fill the inital data you can use the [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) lifecycle function:
+To fill the initial data you can use the [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) lifecycle function:
 
 ```haskell
 data PostsTable = PostsTable
@@ -195,7 +195,7 @@ instance Component PostsTable PostsTableController where
     |]
 ```
 
-The [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) get's passed the initial state and returns a new state. It's called right after the first render once the client has wired up the WebSocket connection.
+The [`componentDidMount`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:createRecord) gets passed the initial state and returns a new state. It's called right after the first render once the client has wired up the WebSocket connection.
 
 When the `posts` field is set to `Nothing` we know that the data is still being fetched. In that case we render a loading spinner inside our [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-ServerSideComponent-Types.html#v:render) function.
 

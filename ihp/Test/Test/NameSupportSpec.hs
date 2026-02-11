@@ -6,7 +6,6 @@ module Test.NameSupportSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.NameSupport
 
 
 tests = do

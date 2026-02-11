@@ -3,8 +3,7 @@ module Test.DataSync.ChangeNotifications where
 import Test.Hspec
 import IHP.Prelude
 import Data.Aeson
-import qualified Data.Aeson.Key as Aeson
-import IHP.DataSync.ChangeNotifications (Change(..), ChangeNotification(..))
+import IHP.DataSync.ChangeNotifications (Change(..))
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
 import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)

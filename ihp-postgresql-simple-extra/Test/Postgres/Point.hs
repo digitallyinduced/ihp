@@ -4,7 +4,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module Test.Postgres.Point where
 
-import Data.Either
+import Data.Either (Either(..))
 import Test.Hspec
 import Test.Postgres.Support ()
 import IHP.Postgres.Point

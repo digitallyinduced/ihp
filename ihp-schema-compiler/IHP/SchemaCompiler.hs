@@ -14,12 +14,10 @@ import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
-import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import qualified IHP.Postgres.Parser as PostgresParser
 import IHP.Postgres.Types
-import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import qualified System.Environment
 import NeatInterpolation
@@ -188,7 +186,7 @@ atomicType = \case
     PDate -> "Data.Time.Calendar.Day"
     PBinary -> "(Binary ByteString)"
     PTime -> "TimeOfDay"
-    (PInterval _) -> "PGInterval"
+    (PInterval _) -> "Interval"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"
     (PNumeric _ _) -> "Scientific"
@@ -197,8 +195,8 @@ atomicType = \case
     PArray type_ -> "[" <> atomicType type_ <> "]"
     PPoint -> "Point"
     PPolygon -> "Polygon"
-    PInet -> "Net.IP.IP"
-    PTSVector -> "TSVector"
+    PInet -> "Inet"
+    PTSVector -> "Tsvector"
     PSingleChar -> "Text"
     PTrigger -> error "atomicType: PTrigger not supported"
     PEventTrigger -> error "atomicType: PEventTrigger not supported"
@@ -312,11 +310,9 @@ defaultImports = [trimming|
     import CorePrelude hiding (id)
     import Data.Time.Clock
     import Data.Time.LocalTime
-    import Data.Time.Format (parseTimeOrError, defaultTimeLocale)
     import qualified Data.Time.Calendar
     import qualified Data.List as List
     import qualified Data.ByteString as ByteString
-    import qualified Net.IP
     import Database.PostgreSQL.Simple
     import Database.PostgreSQL.Simple.FromRow
     import Database.PostgreSQL.Simple.FromField hiding (Field, name)
@@ -339,12 +335,14 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText, parseTSVectorText)
+    import IHP.Hasql.FromRow (FromRowHasql(..))
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import IHP.Hasql.Encoders ()
+    import qualified Hasql.Mapping.IsScalar as Mapping
+    import Hasql.PostgresqlTypes ()
 |]
 
 
@@ -971,11 +969,11 @@ hasqlValueDecoder = \case
     PBinary -> "(Database.PostgreSQL.Simple.Types.Binary <$> Decoders.bytea)"
     (PVaryingN _) -> "Decoders.text"
     (PCharacterN _) -> "Decoders.text"
-    (PInterval _) -> "(Decoders.refine (\\t -> Right (parseTimeOrError True defaultTimeLocale \"%H:%M:%S\" (cs t))) Decoders.text)"
-    PPoint -> "(Decoders.refine parsePointText Decoders.bytea)"
-    PPolygon -> "(Decoders.refine parsePolygonText Decoders.bytea)"
-    PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
-    PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
+    (PInterval _) -> "Mapping.decoder"
+    PPoint -> "Mapping.decoder"
+    PPolygon -> "Mapping.decoder"
+    PInet -> "Mapping.decoder"
+    PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
     PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow (Text.toLower typeName) <> " textToEnum" <> tableNameToModelName typeName <> ")"
     PSingleChar -> "Decoders.char"
@@ -1072,43 +1070,15 @@ compileTableInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions)
 compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
 instance #{instanceHead} where
     tableName = \"#{name}\"
-    tableNameByteString = Data.Text.Encoding.encodeUtf8 \"#{name}\"
     columnNames = #{columnNames}
     primaryKeyColumnNames = #{primaryKeyColumnNames}
-    primaryKeyConditionForId (#{pattern}) = #{condition}
-    {-# INLINABLE primaryKeyConditionForId #-}
 |]
     where
         instanceHead :: Text
-        instanceHead = instanceConstraints <> " => IHP.ModelSupport.Table (" <> compileTypePattern table <> ")"
-            where
-                instanceConstraints =
-                    table
-                    |> primaryKeyColumns
-                    |> map (.name)
-                    |> map columnNameToFieldName
-                    |> filter (\field -> field `elem` (dataTypeArguments table))
-                    |> map (\field -> "ToField " <> field)
-                    |> intercalate ", "
-                    |> \inner -> "(" <> inner <> ")"
+        instanceHead = "IHP.ModelSupport.Table (" <> compileTypePattern table <> ")"
 
         primaryKeyColumnNames :: [Text]
         primaryKeyColumnNames = primaryKeyColumns table |> map (.name)
-
-        primaryKeyFieldNames :: [Text]
-        primaryKeyFieldNames = primaryKeyColumnNames |> map columnNameToFieldName
-
-        pattern :: Text
-        pattern = "Id (" <> intercalate ", " primaryKeyFieldNames <> ")"
-
-        condition :: Text
-        condition = case primaryKeyColumns table of
-                            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                            [column] -> primaryKeyToCondition column
-                            cols -> "Many [Plain \"(\", " <> intercalate ", Plain \",\", " (map primaryKeyToCondition cols)<> ", Plain \")\"]"
-
-        primaryKeyToCondition :: Column -> Text
-        primaryKeyToCondition column = "toField " <> columnNameToFieldName column.name
 
         columnNames = columns
                 |> map (.name)

@@ -6,7 +6,6 @@ module Test.PGListenerSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.HaskellSupport
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import Data.HashMap.Strict as HashMap

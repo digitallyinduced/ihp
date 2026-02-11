@@ -53,7 +53,6 @@ import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import IHP.ActionType (isActiveController)

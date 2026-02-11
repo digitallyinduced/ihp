@@ -39,7 +39,7 @@ The EC2 instance, RDS database, VPS, subnets, security groups, etc, can be setup
    ```
 6. Important data like the RDS endpoint and the EC2 instance URL is written to the file `db_info.txt`
 
-Now the NixOS instance and Postgres database is setup and an SSH conncetion can be established to it.
+Now the NixOS instance and Postgres database is setup and an SSH connection can be established to it.
 
 #### Creating a new EC2 Instance
 
@@ -416,9 +416,9 @@ $ docker run \
 
 ##### `IHP_ASSET_VERSION`
 
-**As of IHP v0.16 this env variable is automatically set to a unqiue build hash.**
+**As of IHP v0.16 this env variable is automatically set to a unique build hash.**
 
-If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
+If you use [`assetPath` helpers](assets.html) in your app, specify the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
 
 ```bash
 $ docker run \
@@ -443,7 +443,7 @@ $ docker run \
 
 Without specifying this env var, the app will always use `http://localhost:8000/` in absolute URLs it's generating (e.g. when redirecting or sending out emails).
 
-It's therefore important to set it to the external user-facing web addresss. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
+It's therefore important to set it to the external user-facing web address. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
 
 ```bash
 $ docker run \
@@ -800,7 +800,7 @@ You can also use `IHP_ENV=Development` to force dev mode.
 
 Without specifying this env var, the app will always use `http://localhost:8000/` in absolute URLs it's generating (e.g. when redirecting or sending out emails).
 
-It's therefore important to set it to the external user-facing web addresss. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
+It's therefore important to set it to the external user-facing web address. E.g. if your IHP app is available at `https://example.com/`, the variable should be set to that:
 
 ```bash
 $ export IHP_BASEURL=https://example.com
@@ -872,7 +872,7 @@ $ ./build/bin/RunProdServer
 
 As of IHP v0.16 this env variable is automatically set to a unique build hash.
 
-If you use [`assetPath` helpers](assets.html) in your app, specifiy the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
+If you use [`assetPath` helpers](assets.html) in your app, specify the `IHP_ASSET_VERSION` env var. Set it e.g. to your commit hash or to the release timestamp.
 
 ```bash
 $ export IHP_ASSET_VERSION=af5f389ef7a64a04c9fa275111e4739c0d4a78d0

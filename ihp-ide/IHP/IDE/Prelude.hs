@@ -13,7 +13,6 @@ module IHP.IDE.Prelude
     , module IHP.Controller.Layout
     , module IHP.FlashMessages
     , module IHP.Modal.Types
-    , module IHP.Modal.ControllerFunctions
     , setModal
     , module IHP.ValidationSupport
     ) where
@@ -26,12 +25,10 @@ import IHP.Controller.Redirect
 import IHP.Controller.Layout
 import IHP.FlashMessages
 import IHP.Modal.Types
-import IHP.Modal.ControllerFunctions hiding (setModal)
 import qualified IHP.Modal.ControllerFunctions as Modal
 import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport
 import IHP.ValidationSupport
-import Network.Wai (Request)
 
 -- | Renders a view and stores it as modal HTML in the context for later rendering.
 --

@@ -822,7 +822,7 @@ withTransaction do
 In this example, when the creation of the User fails, the creation of the company will be rolled back. So that no
 incomplete data is left in the database when there's an error.
 
-The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
+The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it successfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
 Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
 
@@ -855,3 +855,21 @@ CREATE TABLE users (
     UNIQUE (email, username)
 );
 ```
+
+PostgreSQL constraint names have a **63-byte** limit.
+
+For a multi-column unique constraint, Postgres auto-generates a name from table + column names.  
+For `strategy_factor_regime_online` + `(symbol_id, timeframe, ts, version)`, this becomes a long name (truncated form: `strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke`) and can trigger noisy migrations like:
+
+```sql
+ALTER TABLE strategy_factor_regime_online DROP CONSTRAINT strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke;
+```
+
+Solution: use a short explicit constraint name after `CREATE TABLE strategy_factor_regime_online`:
+
+```sql
+ALTER TABLE strategy_factor_regime_online
+    ADD CONSTRAINT uq_sfr_on_main UNIQUE (symbol_id, timeframe, ts, version);
+```
+
+Alternative: use `CREATE UNIQUE INDEX ...`.

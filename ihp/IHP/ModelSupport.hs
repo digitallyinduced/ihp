@@ -3,11 +3,11 @@
 module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.ModelSupport.Types
-, module IHP.Postgres.Point
-, module IHP.Postgres.Polygon
-, module IHP.Postgres.Inet
-, module IHP.Postgres.TSVector
-, module IHP.Postgres.TimeParser
+, module PostgresqlTypes.Point
+, module PostgresqlTypes.Polygon
+, module PostgresqlTypes.Inet
+, module PostgresqlTypes.Tsvector
+, module PostgresqlTypes.Interval
 , module IHP.InputValue
 ) where
 
@@ -22,31 +22,19 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Data.Hashable (Hashable)
-import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, Exception, SomeException, try, mask)
+import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
-import Data.List (filter, elem)
-import qualified Data.ByteString.Char8 as BS8
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-import Database.PostgreSQL.Simple.ToField
 import Data.Default
-import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PGFR
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.ToRow as PG
 import GHC.Records
 import GHC.TypeLits
-import GHC.Types
 import Data.Proxy
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..))
@@ -63,29 +51,26 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
-import IHP.Postgres.Point
-import IHP.Postgres.Interval ()
-import IHP.Postgres.Polygon
-import IHP.Postgres.Inet ()
-import IHP.Postgres.TSVector
-import IHP.Postgres.TimeParser
+import PostgresqlTypes.Point
+import PostgresqlTypes.Polygon
+import PostgresqlTypes.Inet
+import PostgresqlTypes.Interval
+import PostgresqlTypes.Tsvector
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
 import IHP.EnvVar
 import Data.Scientific
 import GHC.Stack
-import qualified Numeric
-import qualified Data.Text.Encoding as Text
 import qualified Hasql.Transaction as Tx
 import qualified Hasql.Transaction.Sessions as Tx
 import Data.Functor.Contravariant (contramap)
 import Control.Concurrent (forkIO, MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
-import qualified Hasql.Errors as HasqlErrors
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: Logger -> ModelContext
@@ -97,17 +82,17 @@ notConnectedModelContext logger = ModelContext
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
-createModelContext idleTime maxConnections databaseUrl logger = do
+createModelContext :: ByteString -> Logger -> IO ModelContext
+createModelContext databaseUrl logger = do
     -- Create hasql pool for prepared statement-based queries
-    -- HASQL_POOL_SIZE: pool size (default: maxConnections). Set to 1 for consistent prepared statement caching.
+    -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
             ]
-            <> maybe [HasqlPoolConfig.size maxConnections] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
     hasqlPool <- HasqlPool.acquire hasqlPoolConfig
@@ -120,6 +105,12 @@ createModelContext idleTime maxConnections databaseUrl logger = do
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext = do
     HasqlPool.release modelContext.hasqlPool
+
+-- | Bracket-style wrapper around 'createModelContext' that ensures the database
+-- pool is released when the callback completes (or throws an exception).
+withModelContext :: ByteString -> Logger -> (ModelContext -> IO a) -> IO a
+withModelContext databaseUrl logger =
+    bracket (createModelContext databaseUrl logger) releaseModelContext
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -136,13 +127,13 @@ instance Default Bool where
 #endif
 
 instance Default Point where
-    def = Point def def
+    def = fromCoordinates 0 0
 
 instance Default Polygon where
-    def = Polygon [def]
+    def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
-instance Default TSVector where
-    def = TSVector def
+instance Default Tsvector where
+    def = normalizeFromLexemeList []
 
 instance Default Scientific where
     def = 0
@@ -197,22 +188,6 @@ recordToInputValue entity =
     |> Text.pack . show
 {-# INLINE recordToInputValue #-}
 
-instance FromField (PrimaryKey model) => FromField (Id' model) where
-    {-# INLINE fromField #-}
-    fromField value metaData = do
-        fieldValue <- fromField value metaData
-        pure (Id fieldValue)
-
-instance ToField (PrimaryKey model) => ToField (Id' model) where
-    {-# INLINE toField #-}
-    toField = toField . unpackId
-
--- | ToField instance for composite primary keys (tuples of two Id' types)
--- Used by filterWhereIdIn for tables with composite primary keys
-instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
-    {-# INLINE toField #-}
-    toField (a, b) = PG.Many [PG.Plain "(", toField a, PG.Plain ",", toField b, PG.Plain ")"]
-
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . unpackId
@@ -232,9 +207,6 @@ packId uuid = Id uuid
 --
 unpackId :: Id' model -> PrimaryKey model
 unpackId (Id uuid) = uuid
-
-instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
-    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
@@ -578,7 +550,7 @@ isCachedPlanSessionError _ = False
 -- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO value
+sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -593,7 +565,7 @@ sqlQueryScalar theQuery theParameters = do
 -- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -720,17 +692,6 @@ class
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
-    -- | Returns the table name of a given model as a bytestring.
-    --
-    -- __Example:__
-    --
-    -- >>> tableNameByteString @User
-    -- "users"
-    --
-    tableNameByteString :: ByteString
-    tableNameByteString = symbolToByteString @(GetTableName record)
-    {-# INLINE tableNameByteString #-}
-
     -- | Returns the list of column names for a given model
     --
     -- __Example:__
@@ -738,7 +699,7 @@ class
     -- >>> columnNames @User
     -- ["id", "email", "created_at"]
     --
-    columnNames :: [ByteString]
+    columnNames :: [Text]
 
     -- | Returns the list of column names, that are contained in the primary key for a given model
     --
@@ -750,22 +711,8 @@ class
     -- >>> primaryKeyColumnNames @PostTagging
     -- ["post_id", "tag_id"]
     --
-    primaryKeyColumnNames :: [ByteString]
+    primaryKeyColumnNames :: [Text]
 
-    -- | Returns the parameters for a WHERE conditions to match an entity by it's primary key, given the entities id
-    --
-    -- For tables with a simple primary key this simply the id:
-    --
-    -- >>> primaryKeyConditionForId project.id
-    -- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
-    --
-    -- If the table has a composite primary key, this returns multiple elements:
-    --
-    -- >>> primaryKeyConditionForId postTag.id
-    -- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-    -- 
-    -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
-    primaryKeyConditionForId :: Id record -> PG.Action
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
 -- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
@@ -773,29 +720,16 @@ class
 -- "(post_tags.post_id, post_tags.tag_id)"
 -- >>> primaryKeyColumnSelector @Post
 -- "post_tags.post_id"
-primaryKeyConditionColumnSelector :: forall record. (Table record) => ByteString
-primaryKeyConditionColumnSelector = 
-    let 
-        qualifyColumnName col = tableNameByteString @record <> "." <> col
+primaryKeyConditionColumnSelector :: forall record. (Table record) => Text
+primaryKeyConditionColumnSelector =
+    let
+        qualifyColumnName col = tableName @record <> "." <> col
     in
     case primaryKeyColumnNames @record of
             [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
             [s] -> qualifyColumnName s
-            conds -> "(" <> BS8.intercalate ", " (map qualifyColumnName conds) <> ")"
+            conds -> "(" <> Text.intercalate ", " (map qualifyColumnName conds) <> ")"
 
--- | Returns WHERE conditions to match an entity by it's primary key
---
--- For tables with a simple primary key this returns a tuple with the id:
---
--- >>> primaryKeyCondition project
--- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
---
--- If the table has a composite primary key, this returns multiple elements:
---
--- >>> primaryKeyCondition postTag
--- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
-primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
 truncateQuery :: Text -> Text
 truncateQuery query
@@ -825,7 +759,7 @@ deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table r
 deleteRecordById id = do
     let pool = ?modelContext.hasqlPool
     sqlExecHasql pool $
-        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ")
         <> Snippet.param id
 {-# INLINABLE deleteRecordById #-}
 
@@ -849,7 +783,7 @@ deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (
 deleteRecordByIds ids = do
     let pool = ?modelContext.hasqlPool
     sqlExecHasql pool $
-        Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ANY(")
         <> Snippet.param ids
         <> Snippet.sql ")"
 {-# INLINABLE deleteRecordByIds #-}
@@ -861,7 +795,7 @@ deleteRecordByIds ids = do
 deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
 deleteAll = do
     let pool = ?modelContext.hasqlPool
-    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> cs (tableName @record))
+    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> tableName @record)
 {-# INLINABLE deleteAll #-}
 
 instance Default NominalDiffTime where
@@ -882,8 +816,11 @@ instance Default UTCTime where
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
 
-instance Default PGInterval where
-    def = PGInterval "00:00:00"
+instance Default Interval where
+    def = normalizeFromMonthsDaysAndMicroseconds 0 0 0
+
+instance Default Inet where
+    def = normalizeFromV4 0 32
 
 class Record model where
     newRecord :: model
@@ -986,10 +923,6 @@ didTouchField field record =
     record.meta.touchedFields
     |> includes (symbolToText @fieldName)
 
-instance ToField valueType => ToField (FieldWithDefault valueType) where
-  toField Default = Plain "DEFAULT"
-  toField (NonDefault a) = toField a
-
 -- | Construct a 'FieldWithDefault'
 --
 --   Use the default SQL value when the field hasn't been touched since the
@@ -1007,11 +940,6 @@ fieldWithDefault name model
   | cs (symbolVal name) `elem` model.meta.touchedFields =
     NonDefault (get name model)
   | otherwise = Default
-
-instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
-  toField (NoUpdate name) =
-    Plain (Data.String.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
-  toField (Update a) = toField a
 
 -- | Construct a 'FieldWithUpdate'
 --
@@ -1075,16 +1003,6 @@ instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
 instance Default Aeson.Value where
     def = Aeson.Null
 
--- | This instance allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance ToField value => ToField [value] where
-    toField list = toField (PG.PGArray list)
-
--- | This instancs allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance (FromField value, Typeable value) => FromField [value] where
-    fromField field value = PG.fromPGArray <$> (fromField field value)
-
 -- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
 --
 -- When using 'fetch' on a query builder, this function is automatically called. That's why you only need to call
@@ -1099,7 +1017,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 -- >     render MyView { .. }
 --
 --
-trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
     Just callback -> callback tableName
     Nothing -> pure ()
@@ -1118,7 +1036,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set ByteString)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
@@ -1217,7 +1135,7 @@ copyRecord existingRecord =
         fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
 
         meta :: MetaBag
-        meta = def { touchedFields = map (IHP.NameSupport.columnNameToFieldName . cs) fieldsExceptId }
+        meta = def { touchedFields = map IHP.NameSupport.columnNameToFieldName fieldsExceptId }
     in
         existingRecord
             |> set #id def

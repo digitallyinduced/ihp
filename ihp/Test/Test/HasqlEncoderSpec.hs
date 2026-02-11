@@ -8,7 +8,6 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
 import Database.PostgreSQL.Simple (Only(..), (:.)(..))
-import Data.Int (Int64)
 
 -- | Convert a Snippet to its SQL text representation for testing.
 -- Parameters become $1, $2, etc.

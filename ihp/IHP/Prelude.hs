@@ -33,7 +33,6 @@ module IHP.Prelude
 , module IHP.NameSupport
 , module IHP.ModelSupport
 , module Data.TMap
-, module Database.PostgreSQL.Simple
 , module Data.IORef
 , module Data.Time.Format
 , null
@@ -74,7 +73,6 @@ import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
 import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
 import Data.TMap (TMap)
-import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
 import Control.Exception.Safe (throw, throwIO, catch)

@@ -31,9 +31,8 @@ module IHP.Controller.Session
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
-import GHC.Records (HasField(..))
 import Control.Monad (when)
-import IHP.ModelSupport.Types (PrimaryKey, Id'(..), Id)
+import IHP.ModelSupport.Types (PrimaryKey, Id'(..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault

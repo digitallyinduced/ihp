@@ -40,7 +40,7 @@ common shared-properties
         , DuplicateRecordFields
         , BlockArguments
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
 
 library
     import: shared-properties

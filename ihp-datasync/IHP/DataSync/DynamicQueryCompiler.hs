@@ -7,13 +7,12 @@ module IHP.DataSync.DynamicQueryCompiler where
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), typedValueParam)
+import IHP.DataSync.TypedEncoder (typedValueParam)
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.List as List
 import qualified Data.HashMap.Strict as HashMap
-import Data.Int (Int32)
 import qualified Data.Aeson as Aeson
 
 data Renamer = Renamer

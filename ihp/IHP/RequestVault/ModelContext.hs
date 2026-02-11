@@ -8,7 +8,6 @@ module IHP.RequestVault.ModelContext
 , requestBodyVaultKey
 ) where
 
-import Prelude
 import GHC.Records (HasField(..))
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)

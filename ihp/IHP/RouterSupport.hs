@@ -33,7 +33,7 @@ CanRoute (..)
 import Prelude hiding (take)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Maybe (fromMaybe, catMaybes, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
@@ -44,7 +44,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
-import Wai.Request.Params.Middleware (Respond)
 import Network.Wai
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
@@ -59,12 +58,10 @@ import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
 import qualified Data.Typeable as Typeable
 import qualified Data.ByteString.Char8 as ByteString
-import Control.Monad.Fail
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import qualified Text.Blaze.Html5 as Html5
 import qualified IHP.ErrorController as ErrorController
 import qualified Control.Exception as Exception
-import qualified Data.List.Split as List
 import qualified Network.URI.Encode as URI
 import qualified Data.Text.Encoding as Text
 import Data.Dynamic
@@ -76,7 +73,6 @@ import GHC.TypeLits as T
 import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
-import IHP.Environment
 import qualified Data.TMap as TypeMap
 import IHP.Controller.Response (ResponseException(..))
 

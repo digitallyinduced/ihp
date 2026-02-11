@@ -198,13 +198,10 @@ tests = do
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User') where
+                    instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
-                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -298,13 +295,10 @@ tests = do
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User') where
+                    instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
-                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -386,7 +380,7 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User' = User {id :: (Id' "users"), ts :: (Maybe TSVector), meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (Id' "users"), ts :: (Maybe Tsvector), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
 
@@ -397,13 +391,10 @@ tests = do
 
                     instance Default (Id' "users") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (User') where
+                    instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "users"
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
-                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue Generated.ActualTypes.User where inputValue = IHP.ModelSupport.recordToInputValue
@@ -418,7 +409,7 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = (\id ts -> let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                             <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
-                            <*> Decoders.column (Decoders.nullable (Decoders.refine parseTSVectorText Decoders.bytea))
+                            <*> Decoders.column (Decoders.nullable Mapping.decoder)
 
                     type instance GetModelName (User') = "User"
 
@@ -532,13 +523,10 @@ tests = do
 
                     instance Default (Id' "landing_pages") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
+                    instance IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
                         tableName = "landing_pages"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "landing_pages"
                         columnNames = ["id"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
-                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue Generated.ActualTypes.LandingPage where inputValue = IHP.ModelSupport.recordToInputValue
@@ -661,14 +649,12 @@ tests = do
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "() => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
-                    instance () => IHP.ModelSupport.Table (Thing' others) where
+                getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance IHP.ModelSupport.Table (Thing' others) where
                         tableName = "things"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "things"
                         columnNames = ["thing_arbitrary_ident"]
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
-                        primaryKeyConditionForId (Id (thingArbitraryIdent)) = toField thingArbitraryIdent
-                        {-# INLINABLE primaryKeyConditionForId #-}
+
                     |]
             it "should compile QueryBuilder.FilterPrimaryKey instance" $ \statement -> do
                 getInstanceDecl "QueryBuilder.FilterPrimaryKey" compileOutput `shouldBe` [trimming|
@@ -723,14 +709,12 @@ tests = do
                             pure theRecord
                     |]
             it "should compile Table instance" $ \statement -> do
-                getInstanceDecl "(ToField bitRef, ToField partRef) => IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
-                    instance (ToField bitRef, ToField partRef) => IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
+                getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
                         tableName = "bit_part_refs"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "bit_part_refs"
                         columnNames = ["bit_ref","part_ref"]
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
-                        primaryKeyConditionForId (Id (bitRef, partRef)) = Many [Plain "(", toField bitRef, Plain ",", toField partRef, Plain ")"]
-                        {-# INLINABLE primaryKeyConditionForId #-}
+
                     |]
             it "should compile FromRow instance of table that references part of a composite key" $ \statement -> do
                 let (Just statement) = find (isNamedTable "parts") statements
@@ -804,13 +788,10 @@ tests = do
 
                     instance Default (Id' "posts") where def = Id def
 
-                    instance () => IHP.ModelSupport.Table (Post') where
+                    instance IHP.ModelSupport.Table (Post') where
                         tableName = "posts"
-                        tableNameByteString = Data.Text.Encoding.encodeUtf8 "posts"
                         columnNames = ["id","title","user_id"]
                         primaryKeyColumnNames = ["id"]
-                        primaryKeyConditionForId (Id (id)) = toField id
-                        {-# INLINABLE primaryKeyConditionForId #-}
 
 
                     instance InputValue Generated.ActualTypes.Post where inputValue = IHP.ModelSupport.recordToInputValue

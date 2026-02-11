@@ -10,7 +10,6 @@ import IHP.DataSync.TypedEncoder
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Vector as Vector
 import qualified Control.Exception as Exception
 
@@ -58,10 +57,10 @@ tests = do
                 Exception.evaluate (snippetToSql (typedValueParam Nothing (Aeson.String "hello")))
                     `shouldThrow` anyErrorCall
 
-            it "encodes Point with SQL syntax regardless of type" do
+            it "encodes Point with binary encoder" do
                 let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]
                 snippetToSql (typedValueParam (Just "point") pointJson)
-                    `shouldBe` "point(1.0,2.0)"
+                    `shouldBe` "$1"
 
             it "encodes Array with typed element encoding" do
                 snippetToSql (typedValueParam (Just "_int4") (Aeson.Array (Vector.fromList [Aeson.Number 1, Aeson.Number 2])))
@@ -87,7 +86,7 @@ tests = do
             it "decodes {x, y} object as Point only when column type is point" do
                 let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]
                 snippetToSql (typedAesonValueToSnippet (Just "point") pointJson)
-                    `shouldBe` "point(1.0,2.0)"
+                    `shouldBe` "$1"
 
             it "does not decode {x, y} object as Point when column type is not point" do
                 let pointJson = Aeson.object ["x" Aeson..= (1.0 :: Double), "y" Aeson..= (2.0 :: Double)]

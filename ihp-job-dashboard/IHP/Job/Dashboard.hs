@@ -34,13 +34,10 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
-import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import Network.Wai (Request, requestMethod)
+import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
 
 import IHP.Job.Dashboard.Types
@@ -59,11 +56,8 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- for your job type. Your custom implementations will then be used instead of the defaults.
 class ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -175,7 +169,7 @@ instance JobsDashboard '[] where
         render $ SomeView tables
         where
             getAllTableNames = sqlQueryHasql getHasqlPool
-                (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
+                (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
                 (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
@@ -378,7 +372,7 @@ baseJobDecoder = BaseJob
 
 getNotIncludedTableNames :: (?modelContext :: ModelContext) => [Text] -> IO [Text]
 getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
-    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
+    (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
     (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO SomeView

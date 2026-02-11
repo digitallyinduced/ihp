@@ -16,7 +16,6 @@ import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
-import Control.Exception (SomeException)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
@@ -24,8 +23,7 @@ import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response
 import qualified IHP.PGListener as PGListener
-import qualified Database.PostgreSQL.Simple.Types as PG
-import Data.String.Interpolate.IsString
+import qualified Hasql.Session as HasqlSession
 import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
@@ -188,7 +186,7 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
-registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set ByteString) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
@@ -205,12 +203,11 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
     subscriptions <- subscriptionRequired |> mapM (\table -> do
-        let createTriggerSql = notificationTrigger table
-
         -- We need to add the trigger from the main IHP database role other we will get this error:
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
-            sqlExec createTriggerSql ()
+            let pool = ?modelContext.hasqlPool
+            runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
@@ -224,9 +221,9 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     when isDevelopment do
         let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
         forM_ alreadySubscribed \table -> do
-            let createTriggerSql = notificationTrigger table
             withRowLevelSecurityDisabled do
-                sqlExec createTriggerSql ()
+                let pool = ?modelContext.hasqlPool
+                runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
@@ -275,30 +272,29 @@ isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
 isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
-channelName :: ByteString -> ByteString
-channelName tableName = "ar_did_change_" <> tableName
+channelName :: Text -> ByteString
+channelName tableName = "ar_did_change_" <> cs tableName
 
--- | Returns the sql code to set up a database trigger
-notificationTrigger :: ByteString -> PG.Query
-notificationTrigger tableName = PG.Query [i|
-        BEGIN;
-            CREATE OR REPLACE FUNCTION #{functionName}() RETURNS TRIGGER AS $$
-                BEGIN
-                    PERFORM pg_notify('#{channelName tableName}', '');
-                    RETURN new;
-                END;
-            $$ language plpgsql;
-            DROP TRIGGER IF EXISTS #{insertTriggerName} ON #{tableName};
-            CREATE TRIGGER #{insertTriggerName} AFTER INSERT ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-            DROP TRIGGER IF EXISTS #{updateTriggerName} ON #{tableName};
-            CREATE TRIGGER #{updateTriggerName} AFTER UPDATE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-            DROP TRIGGER IF EXISTS #{deleteTriggerName} ON #{tableName};
-            CREATE TRIGGER #{deleteTriggerName} AFTER DELETE ON "#{tableName}" FOR EACH STATEMENT EXECUTE PROCEDURE #{functionName}();
-
-        COMMIT;
-    |]
+-- | Returns individual SQL statements to set up a database trigger.
+-- Split into separate statements because hasql's extended query protocol
+-- only supports single statements per execution.
+notificationTriggerStatements :: Text -> [Text]
+notificationTriggerStatements tableName =
+        [ "BEGIN"
+        , "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+            <> "BEGIN\n"
+            <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
+            <> "    RETURN new;\n"
+            <> "END;\n"
+            <> "$$ language plpgsql"
+        , "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
+        , "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
+        , "COMMIT"
+        ]
     where
         functionName = "ar_notify_did_change_" <> tableName
         insertTriggerName = "ar_did_insert_" <> tableName

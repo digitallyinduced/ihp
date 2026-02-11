@@ -25,7 +25,6 @@ module IHP.ControllerPrelude
     , module IHP.FlashMessages
     , module IHP.Controller.Context
     , module IHP.Modal.Types
-    , module IHP.Modal.ControllerFunctions
     , setModal
     , module IHP.Controller.Layout
     , module IHP.Job.Types
@@ -46,7 +45,6 @@ import IHP.Controller.Render
 import IHP.Controller.AccessDenied
 import IHP.Controller.NotFound
 import IHP.Controller.Session
-import Wai.Request.Params.Middleware (Respond, RequestBody (..))
 import IHP.Controller.BasicAuth
 import IHP.Controller.Cookie
 import IHP.ControllerSupport
@@ -59,7 +57,6 @@ import IHP.Fetch
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo(..))
-import Network.Wai (Request)
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Database.PostgreSQL.Simple.Types (Only (..))
@@ -68,7 +65,6 @@ import IHP.Controller.Context
 import IHP.Controller.Layout
 
 import IHP.Modal.Types
-import IHP.Modal.ControllerFunctions hiding (setModal)
 import qualified IHP.Modal.ControllerFunctions as Modal
 import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport

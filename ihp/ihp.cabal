@@ -101,7 +101,6 @@ common shared-properties
             , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
             , temporary
@@ -116,7 +115,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , ihp-context
             , ihp-pagehead
             , ihp-log
@@ -140,7 +138,6 @@ common shared-properties
             , hasql-transaction
             , postgresql-types
             , contravariant
-            , wide-word
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -161,7 +158,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
 
 library
     import: shared-properties
@@ -261,6 +258,7 @@ library
         , IHP.AuthSupport.Types
         , IHP.AuthSupport.View.PasswordResets.New
         , IHP.AuthSupport.View.PasswordResets.Show
+        , IHP.PGSimpleCompat
         , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp

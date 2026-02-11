@@ -4,9 +4,8 @@ import ClassyPrelude
 import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
-import Control.Concurrent (myThreadId, threadDelay)
+import Control.Concurrent (threadDelay)
 import System.Exit
-import System.Posix.Signals
 
 import IHP.IDE.Types
 import IHP.IDE.Postgres

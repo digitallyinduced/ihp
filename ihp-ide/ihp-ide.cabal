@@ -48,7 +48,6 @@ common shared-properties
             , wai-extra
             , inflections
             , text
-            , postgresql-simple
             , wai-app-static
             , wai-util
             , bytestring

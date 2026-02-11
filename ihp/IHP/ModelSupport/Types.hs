@@ -40,6 +40,7 @@ module IHP.ModelSupport.Types
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, enhancedSqlErrorMessage
 , HasqlSessionError (..)
   -- * Type Classes
 , CanCreate (..)
@@ -50,11 +51,11 @@ module IHP.ModelSupport.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Text.Encoding
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.ToField (Action) -- used by RecordNotFoundException, EnhancedSqlError
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Hasql.Pool as Hasql
 import qualified Hasql.Session as HasqlSession
@@ -63,7 +64,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
-import Data.Proxy
 import IHP.Log.Types (Logger)
 
 -- | Runner that executes a hasql Session on the current transaction's connection
@@ -83,7 +83,7 @@ data ModelContext = ModelContext
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }
@@ -186,7 +186,7 @@ data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
+    = RecordNotFoundException { queryAndParams :: Text }
     deriving (Show)
 
 instance Exception RecordNotFoundException
@@ -197,11 +197,19 @@ instance Exception RecordNotFoundException
 data EnhancedSqlError
     = EnhancedSqlError
     { sqlErrorQuery :: Query
-    , sqlErrorQueryParams :: [Action]
+    , sqlErrorQueryParams :: Text
     , sqlError :: PG.SqlError
     } deriving (Show)
 
 instance Exception EnhancedSqlError
+
+-- | Extract the SQL error message as Text from an EnhancedSqlError.
+--
+-- This avoids downstream packages needing to import postgresql-simple
+-- to access the 'sqlErrorMsg' field on 'PG.SqlError'.
+enhancedSqlErrorMessage :: EnhancedSqlError -> Text
+enhancedSqlErrorMessage e = Data.Text.Encoding.decodeUtf8 e.sqlError.sqlErrorMsg
+{-# INLINE enhancedSqlErrorMessage #-}
 
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a

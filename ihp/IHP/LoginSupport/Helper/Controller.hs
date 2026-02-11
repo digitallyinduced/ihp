@@ -28,7 +28,6 @@ import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
 import qualified IHP.Controller.Session as Session
-import Network.Wai (Request)
 import IHP.FlashMessages
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport

@@ -12,7 +12,6 @@ module IHP.Fetch
 ( findManyBy
 , findMaybeBy
 , findBy
-, In (In)
 , genericFetchId
 , genericfetchIdOneOrNothing
 , genericFetchIdOne
@@ -22,15 +21,12 @@ module IHP.Fetch
 , genericFetchIdsOne
 , fetchCount
 , fetchExists
-, fetchSQLQuery
 , fetchLatest
 , fetchLatestBy
 )
 where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-import Database.PostgreSQL.Simple.ToField
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
@@ -88,12 +84,12 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (No
     fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO model
     fetchOne = commonFetchOne
 
-instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value, HasqlDecodeColumn value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
+instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColumn value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
     type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
     {-# INLINE fetch #-}
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
-        trackTableRead (tableNameByteString @model)
+        trackTableRead (tableName @model)
         let pool = ?modelContext.hasqlPool
         let snippet = buildSnippet (buildQuery queryBuilderProvider)
         sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
@@ -111,7 +107,7 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, FromField value,
 {-# INLINE commonFetch #-}
 commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
-    trackTableRead (tableNameByteString @model)
+    trackTableRead (tableName @model)
     let !sqlQuery' = buildQuery queryBuilder
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet sqlQuery'
@@ -121,8 +117,8 @@ commonFetch !queryBuilder = do
 {-# INLINE commonFetchOneOrNothing #-}
 commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
-    trackTableRead (tableNameByteString @model)
-    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause "LIMIT 1"
+    trackTableRead (tableName @model)
+    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause 1
     let pool = ?modelContext.hasqlPool
     let snippet = buildSnippet limitedQuery
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
@@ -134,7 +130,7 @@ commonFetchOne !queryBuilder = do
     maybeModel <- fetchOneOrNothing queryBuilder
     case maybeModel of
         Just model -> pure model
-        Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
+        Nothing -> throwIO RecordNotFoundException { queryAndParams = snippetToSQL (toSnippet queryBuilder) }
 
 
 -- | Returns the count of records selected by the query builder.
@@ -153,7 +149,7 @@ commonFetchOne !queryBuilder = do
 fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
 fetchCount !queryBuilder = do
     let snippet = Snippet.sql "SELECT COUNT(*) FROM (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _count_values"
-    trackTableRead (symbolToByteString @table)
+    trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
     fromIntegral <$> sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 {-# INLINE fetchCount #-}
@@ -171,7 +167,7 @@ fetchCount !queryBuilder = do
 fetchExists :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Bool
 fetchExists !queryBuilder = do
     let snippet = Snippet.sql "SELECT EXISTS (" <> buildSnippet (buildQuery queryBuilder) <> Snippet.sql ") AS _exists_values"
-    trackTableRead (symbolToByteString @table)
+    trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
     sqlQueryHasql pool snippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 {-# INLINE fetchExists #-}
@@ -189,15 +185,15 @@ genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, FromRo
 genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
 
 {-# INLINE genericFetchIds #-}
-genericFetchIds :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
+genericFetchIds :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
 genericFetchIds !ids = query @model |> filterWhereIdIn ids |> fetch
 
 {-# INLINE genericfetchIdsOneOrNothing #-}
-genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO (Maybe model)
+genericfetchIdsOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO (Maybe model)
 genericfetchIdsOneOrNothing !ids = query @model |> filterWhereIdIn ids |> fetchOneOrNothing
 
 {-# INLINE genericFetchIdsOne #-}
-genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, ToField (PrimaryKey (GetTableName model)), DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO model
+genericFetchIdsOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO model
 genericFetchIdsOne !ids = query @model |> filterWhereIdIn ids |> fetchOne
 
 {-# INLINE findBy #-}
@@ -232,7 +228,7 @@ instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPr
     fetchOne (Just a) = genericFetchIdOne a
     fetchOne Nothing = error "Fetchable (Maybe Id): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
 
-instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, GetTableName model ~ table, ToField (PrimaryKey table), DefaultParamEncoder [PrimaryKey table]) => Fetchable [Id' table] model where
+instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey table]) => Fetchable [Id' table] model where
     type FetchResult [Id' table] model = [model]
     {-# INLINE fetch #-}
     fetch = genericFetchIds
@@ -240,13 +236,6 @@ instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, G
     fetchOneOrNothing = genericfetchIdsOneOrNothing
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
-
-fetchSQLQuery :: (FromRowHasql model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
-fetchSQLQuery theQuery = do
-    trackTableRead (theQuery.selectFrom)
-    let pool = ?modelContext.hasqlPool
-    let snippet = buildSnippet theQuery
-    sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
 
 -- | Returns the latest record or Nothing
 --

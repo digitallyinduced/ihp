@@ -8,18 +8,13 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
-import Control.Exception
 import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.Controller.Session
 import qualified Text.Blaze.Renderer.Text as Blaze
-import qualified Text.Blaze.Html5 as H
-import IHP.HSX.QQ (hsx)
 import IHP.ModelSupport
-import IHP.Breadcrumb.Types
-import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text (isInfixOf)
 import qualified Data.TMap as TypeMap

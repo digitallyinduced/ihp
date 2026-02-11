@@ -344,7 +344,7 @@ WRONG:
 
 RIGHT:
 <head>
-    <title>{pageTitleOrDefault "The default page title, can be overriden in views"}</title>
+    <title>{pageTitleOrDefault "The default page title, can be overridden in views"}</title>
 </head>
 ```
 

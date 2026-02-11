@@ -22,7 +22,7 @@ library
         DisambiguateRecordFields
         BlockArguments
         OverloadedStrings
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
     build-depends: base >= 4.17.0 && < 4.22, text, wai, vault, cereal, cereal-text, bytestring, wai-session
     hs-source-dirs: .
     exposed-modules: Network.Wai.Middleware.FlashMessages

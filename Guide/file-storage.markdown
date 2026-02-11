@@ -408,7 +408,7 @@ uploadOrRemoveMaybeImage imageProperty isRemove record = do
 
 Note that the above function doesn't actually remove the file from the storage. It just removes the reference to the file from the record. To remove the file from storage you would need to call [`removeFileFromStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:removeFileFromStorage).
 
-Finally, let's add some Javacript, that would take care of removing the image from the file input, as well as hiding the "Remove image" checkbox when there's no image to remove.
+Finally, let's add some Javascript, that would take care of removing the image from the file input, as well as hiding the "Remove image" checkbox when there's no image to remove.
 
 ```javascript
 # app.js

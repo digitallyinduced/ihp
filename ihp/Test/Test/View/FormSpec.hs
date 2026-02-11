@@ -11,8 +11,6 @@ import qualified Text.Blaze.Renderer.Text as Blaze
 import IHP.ModelSupport
 import qualified Network.Wai as Wai
 import IHP.ViewPrelude
-import Data.Default
-import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Data.Text.Lazy as LT
 import qualified Data.Vault.Lazy as Vault
 import qualified IHP.RequestVault

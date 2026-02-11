@@ -14,7 +14,6 @@ module IHP.Job.Dashboard.Auth (
 import IHP.Prelude
 import IHP.ControllerPrelude
 import qualified IHP.EnvVar as EnvVar
-import Network.Wai (Request)
 
 -- | Defines one method, 'authenticate', called before every action. Use to authenticate user.
 --

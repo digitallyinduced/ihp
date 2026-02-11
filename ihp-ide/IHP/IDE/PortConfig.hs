@@ -11,7 +11,6 @@ import ClassyPrelude
 import qualified Network.Socket as Socket
 import qualified UnliftIO.Exception as Exception
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
-import Control.Exception.Safe (IOException(..))
 import GHC.IO.Exception (ioe_errno)
 import IHP.FrameworkConfig (defaultPort)
 import qualified System.Posix.IO as Posix

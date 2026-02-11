@@ -12,7 +12,6 @@ import Data.Maybe (isJust)
 import Data.Default (def)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
-import IHP.ModelSupport.Types (Violation(..))
 import IHP.InputValue (inputValue)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.HSX.QQ (hsx)
@@ -23,7 +22,6 @@ import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import Data.Default (def)
 import IHP.View.CSSFramework.Unstyled ()
 
 tailwind :: CSSFramework

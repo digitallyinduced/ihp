@@ -2,7 +2,6 @@
 module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
-import Network.Wai (Request)
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
@@ -22,14 +21,13 @@ import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
 import GHC.Conc (ThreadId, myThreadId, atomically)
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
-import IHP.RequestVault
 import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -488,7 +486,7 @@ findTransactionById transactionId = do
 -- | Allow max 10 concurrent transactions per connection to avoid running out of database connections
 --
 -- Each transaction removes a database connection from the connection pool. If we don't limit the transactions,
--- a single user could take down the application by starting more than 'IHP.FrameworkConfig.DBPoolMaxConnections'
+-- a single user could take down the application by starting more than the pool size (HASQL_POOL_SIZE)
 -- concurrent transactions. Then all database connections are removed from the connection pool and further database
 -- queries for other users will fail.
 --

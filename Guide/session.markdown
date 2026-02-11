@@ -75,7 +75,7 @@ Use [`setSuccessMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMes
 ```haskell
 action CreatePostAction = do
     ...
-    setSuccessMessage "Your Post has been created succesfully"
+    setSuccessMessage "Your Post has been created successfully"
     redirectTo ShowPostAction { .. }
 ```
 

@@ -8,7 +8,6 @@ import Test.Hspec
 import Prelude
 import IHP.SchemaMigration
 import qualified System.Directory as Directory
-import qualified Data.List as List
 import System.FilePath ((</>))
 import System.IO.Temp
 

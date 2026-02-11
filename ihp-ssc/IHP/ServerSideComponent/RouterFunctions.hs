@@ -14,7 +14,6 @@ import qualified Prelude
 import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
-import Wai.Request.Params.Middleware (Respond)
 import Network.Wai
 import Data.Attoparsec.ByteString.Char8 (Parser)
 

@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import qualified Data.List as List
 import qualified Control.Debounce as Debounce
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import System.OsPath (encodeUtf, decodeUtf)
 import qualified System.Process as Process
 import qualified System.IO as IO
 

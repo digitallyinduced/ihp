@@ -13,7 +13,6 @@ import qualified Network.HTTP.Media as Accept
 
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
-import IHP.Controller.Context (ControllerContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)

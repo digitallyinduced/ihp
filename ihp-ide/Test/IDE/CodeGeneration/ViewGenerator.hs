@@ -7,11 +7,8 @@ module Test.IDE.CodeGeneration.ViewGenerator where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.IDE.CodeGen.ViewGenerator as ViewGenerator
-import IHP.ViewPrelude (cs, plain)
-import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport
 import Test.IDE.SchemaDesigner.ParserSpec (col, table)
 
 

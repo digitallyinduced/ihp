@@ -571,7 +571,7 @@ If you want a certain value to be preselected, set the value in the controller. 
         render NewView { .. }
 ```
 
-In your `Show.hs` file you can re-use the `selectLabel` to render the user name, the same it did on the select list.
+In your `Show.hs` file you can reuse the `selectLabel` to render the user name, the same it did on the select list.
 
 ```haskell
 instance View ShowView where
@@ -635,7 +635,7 @@ view to generate the list of select fields:
       allContentTypes = allEnumValues @ContentType
 ```
 
-In your `Show.hs` file you can re-use the `selectLabel` to render the content type, the same it did on the select list.
+In your `Show.hs` file you can reuse the `selectLabel` to render the content type, the same it did on the select list.
 
 ```haskell
 instance View ShowView where
@@ -808,7 +808,7 @@ The generated HTML will look like this:
 
 ### Custom Form Attributes
 
-You can specifiy custom HTML attributes using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
+You can specify custom HTML attributes using [`formForWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formForWithOptions):
 
 ```haskell
 renderForm :: Post -> Html

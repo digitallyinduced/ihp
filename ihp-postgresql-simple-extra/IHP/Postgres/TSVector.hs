@@ -4,80 +4,79 @@ Module: IHP.Postgres.TSVector
 Description: Adds support for the Postgres tsvector type
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module IHP.Postgres.TSVector where
+module IHP.Postgres.TSVector
+( TSVector
+, module PostgresqlTypes.Tsvector
+) where
 
 import BasicPrelude
 import IHP.Postgres.TypeInfo
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.TypeInfo.Macro
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)
-import Data.ByteString.Builder (byteString, charUtf8)
-import qualified Data.Text.Encoding as Text
+import Data.ByteString.Builder (byteString)
+import PostgresqlTypes.Tsvector
 
--- | Represents a Postgres tsvector
---
--- See https://www.postgresql.org/docs/current/datatype-textsearch.html
-data TSVector
-    = TSVector [Lexeme]
-    deriving (Eq, Show, Ord)
+-- | Type alias for backwards compatibility
+type TSVector = Tsvector
 
-data Lexeme
-    = Lexeme { token :: Text, ranking :: [LexemeRanking] }
-    deriving (Eq, Show, Ord)
-
-data LexemeRanking
-    = LexemeRanking { position :: Int, weight :: Char }
-    deriving (Eq, Show, Ord)
-
-instance FromField TSVector where
+instance FromField Tsvector where
     fromField f v =
         if typeOid f /= $(inlineTypoid tsvector)
         then returnError Incompatible f ""
         else case v of
                Nothing -> returnError UnexpectedNull f ""
                Just bs ->
-                   case parseOnly parseTSVector bs of
+                   case parseOnly parseTsvectorBS bs of
                      Left  err -> returnError ConversionFailed f err
                      Right val -> pure val
 
--- 'a:1A fat:2B,4C cat:5D'
--- 'descript':4 'one':1,3 'titl':2
-parseTSVector :: Parser ByteString TSVector
-parseTSVector = TSVector <$> many' parseLexeme
+-- | Parse tsvector text representation from ByteString
+-- Format: 'word1':1A,2B 'word2':3C
+parseTsvectorBS :: Parser ByteString Tsvector
+parseTsvectorBS = do
+    lexemes <- parseLexeme `sepBy` skipSpace1
+    case fromLexemeList lexemes of
+        Just tv -> pure tv
+        Nothing -> fail "invalid tsvector lexeme"
     where
+        skipSpace1 = skipWhile (== ' ')
         parseLexeme = do
             skipSpace
-
             char '\''
             token <- Attoparsec.takeWhile (/= '\'')
             char '\''
-
             char ':'
-            ranking <- many1 do
-                skipMany $ char ','
+            positions <- parsePosition `sepBy1` char ','
+            pure (TextEncoding.decodeUtf8 token, positions)
+        parsePosition = do
+            pos <- Attoparsec.decimal
+            weight <- option WeightD $ choice
+                [ char 'A' >> pure WeightA
+                , char 'B' >> pure WeightB
+                , char 'C' >> pure WeightC
+                , char 'D' >> pure WeightD
+                ]
+            pure (pos, weight)
 
-                position <- double
-                -- The Default Weight Is `D` So Postgres Does Not Include It In The Result
-                weight <- option 'D' $ choice [char 'A', char 'B', char 'C', char 'D']
-                pure $ LexemeRanking { position = truncate position, weight }
-
-            pure $ Lexeme { token = Text.decodeUtf8 token, ranking }
-
-
-instance ToField TSVector where
-    toField = serializeTSVector
-
-serializeTSVector :: TSVector -> Action
-serializeTSVector (TSVector lexemes) = Many $ map serializeLexeme lexemes
-    where
-        serializeLexeme Lexeme { token, ranking } = Many
-            [ Plain $ byteString $ Text.encodeUtf8 token
-            , toField ':'
-            , Many $ intersperse (toField ',') (map serializeLexemeRanking ranking)
-            ]
-        serializeLexemeRanking LexemeRanking { position, weight } = Many [toField position, toField weight]
-
-instance ToField Char where
-    toField char = Plain $ charUtf8 char
+instance ToField Tsvector where
+    toField tv = Many $ intersperse (Plain " ") $ map serializeLexeme (toLexemeList tv)
+        where
+            serializeLexeme (token, positions) = Many
+                [ Plain $ byteString "'"
+                , Plain $ byteString $ TextEncoding.encodeUtf8 token
+                , Plain $ byteString "'"
+                , Plain $ byteString ":"
+                , Many $ intersperse (Plain $ byteString ",") (map serializePosition positions)
+                ]
+            serializePosition (pos, weight) = Many
+                [ toField (fromIntegral pos :: Int)
+                , Plain $ byteString $ case weight of
+                    WeightA -> "A"
+                    WeightB -> "B"
+                    WeightC -> "C"
+                    WeightD -> ""
+                ]

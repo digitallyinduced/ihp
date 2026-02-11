@@ -8,9 +8,7 @@ module IHP.FlashMessages where
 import Prelude
 import Data.Text (Text)
 import Data.Maybe (fromMaybe)
-import IHP.Controller.Context
 import IHP.Controller.Session
-import qualified Data.Maybe as Maybe
 import qualified Network.Wai.Middleware.FlashMessages as FlashMessages
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import Network.Wai

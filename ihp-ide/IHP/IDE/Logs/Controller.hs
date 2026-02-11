@@ -4,10 +4,8 @@ import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Helper.Controller
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Logs.View.Logs
-import qualified IHP.IDE.Types as DevServer
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
-import qualified Control.Concurrent.MVar as MVar
 
 instance Controller LogsController where
     action AppLogsAction = do

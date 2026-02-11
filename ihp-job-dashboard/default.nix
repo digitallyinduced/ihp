@@ -1,6 +1,6 @@
 { mkDerivation, base, blaze-html, blaze-markup, hasql
 , hasql-dynamic-statements, hasql-implicits, hasql-pool, http-types
-, ihp, ihp-hsx, lib, mtl, postgresql-simple, text, wai
+, ihp, ihp-hsx, lib, mtl, text, wai
 , wai-request-params
 }:
 mkDerivation {
@@ -10,7 +10,7 @@ mkDerivation {
   libraryHaskellDepends = [
     base blaze-html blaze-markup hasql hasql-dynamic-statements
     hasql-implicits hasql-pool http-types ihp ihp-hsx mtl
-    postgresql-simple text wai wai-request-params
+    text wai wai-request-params
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Dashboard for IHP job runners";
