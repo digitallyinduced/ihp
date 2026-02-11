@@ -41,6 +41,9 @@ cd -
 
 # update your flake lock to make sure your flake references the local version of ihp.
 nix flake update
+
+# Ensure nix has picked up all the changes.
+nix develop --impure -c true
 ```
 
 ### Running the development server
@@ -67,6 +70,9 @@ If you ever switch back to using the upstream version, restore the original line
 
 ```
 nix flake lock --update-input ihp
+
+# Ensure nix has picked up all the changes.
+nix develop --impure -c true
 ```
 
 ### Faster Haskell Builds
@@ -123,9 +129,9 @@ ghci
 main
 ```
 
-Note that if it's the first time you switch to the `IHP` directory, you need to run `direnv allow`. This will then download all dependencies needed for IHP development automatically.
+Note that if it's the first time you switch to the `IHP` directory, you need to run `direnv allow`. This will automatically download all dependencies required for IHP development.
 
-When doing changes to the test files, use this to reload and rerun the tests:
+When making changes to the test files, use this to reload and rerun the tests:
 
 ```
 :r
