@@ -24,7 +24,6 @@ library
             , blaze-markup
             , ihp
             , ihp-hsx
-            , postgresql-simple
             , http-types
             , wai-request-params
             , hasql-implicits
