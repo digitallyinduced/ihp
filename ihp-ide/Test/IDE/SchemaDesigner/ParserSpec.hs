@@ -8,7 +8,6 @@ import Test.Hspec
 import IHP.Prelude
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
-import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import GHC.IO (evaluate)
 

@@ -5,10 +5,7 @@ Copyright: (c) digitally induced GmbH, 2023
 module Test.Postgres.Interval where
 
 import Test.Hspec
-import IHP.Postgres.Interval
 import IHP.Postgres.TimeParser
-import Database.PostgreSQL.Simple.ToField
-import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 
 tests = do
     describe "Interval" do

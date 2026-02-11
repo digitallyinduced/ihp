@@ -12,7 +12,7 @@ module IHP.ControllerSupport
 , getFiles
 , Controller (..)
 , runAction
-, ControllerContext
+, Context.ControllerContext
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
@@ -37,20 +37,18 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
 import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
 import Data.Typeable (Typeable)
-import qualified Data.Text as Text
 import IHP.HaskellSupport
 import Network.Wai
 import qualified Network.HTTP.Types as HTTP
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Wai.Request.Params.Middleware (Respond, RequestBody (..))
+import Wai.Request.Params.Middleware (Respond)
 import qualified Data.CaseInsensitive
 import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
-import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import IHP.Controller.Response
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
@@ -67,13 +65,13 @@ import System.IO.Unsafe (unsafePerformIO)
 type Action' = IO ResponseReceived
 
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
+    beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ()
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ()
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => IO ()
+    initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
@@ -81,7 +79,7 @@ instance InitControllerContext () where
     initContext = pure ()
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
@@ -109,7 +107,7 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => controller -> IO (Either (IO ResponseReceived) ControllerContext)
+    => controller -> IO (Either (IO ResponseReceived) Context.ControllerContext)
 newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
@@ -138,7 +136,7 @@ setupActionContext
        , Typeable application
        )
     => Typeable.TypeRep -> Request -> Respond
-    -> IO (ControllerContext, Maybe SomeException)
+    -> IO (Context.ControllerContext, Maybe SomeException)
 setupActionContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
     let ?request = request'
@@ -211,7 +209,7 @@ startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: 
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ()
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action

@@ -5,7 +5,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module Test.Controller.ParamSpec where
 
 import IHP.Prelude
-import IHP.HaskellSupport
 import Test.Hspec
 import IHP.Controller.Param
 import IHP.Controller.Context
@@ -13,7 +12,6 @@ import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
 import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
 import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified GHC.IO as IO

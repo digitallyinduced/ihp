@@ -16,7 +16,6 @@ import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
 import IHP.ModelSupport
 import qualified Control.Exception as Exception
-import Control.Exception (SomeException)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text

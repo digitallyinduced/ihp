@@ -17,7 +17,6 @@ module IHP.QueryBuilder.Compiler
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
-import IHP.NameSupport (fieldNameToColumnName)
 
 
 -- | Returns the "NOT" version of an operator

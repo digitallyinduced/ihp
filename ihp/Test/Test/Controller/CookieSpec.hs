@@ -15,7 +15,6 @@ import IHP.Controller.Context
 import qualified Network.Wai as Wai
 import Web.Cookie
 import Network.HTTP.Types.Status
-import qualified Data.TMap as TypeMap
 
 tests = do
     describe "IHP.Controller.Cookie" do

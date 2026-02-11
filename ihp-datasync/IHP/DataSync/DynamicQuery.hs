@@ -7,7 +7,6 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.DataSync.DynamicQuery where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
@@ -22,10 +21,8 @@ import qualified Data.Scientific as Scientific
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
 import qualified Data.List as List
-import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import qualified IHP.QueryBuilder.HasqlHelpers as HasqlHelpers
-import Data.Int (Int64)
 import qualified Data.Set as Set
 
 data Field = Field { fieldName :: Text, fieldValue :: Value }

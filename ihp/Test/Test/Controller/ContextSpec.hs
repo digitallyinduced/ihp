@@ -13,9 +13,8 @@ import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Test (defaultRequest)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestBodyVaultKey)
-import Network.Wai (Request, vault)
+import Network.Wai (vault)
 import qualified Data.List as List
-import Data.Typeable (Typeable)
 
 -- Test types to simulate known types in error messages
 data PageTitle = PageTitle deriving (Typeable)

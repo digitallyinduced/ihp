@@ -21,7 +21,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
 import qualified Data.List as List
-import Data.Int (Int64)
 import IHP.QueryBuilder.HasqlHelpers (wrapDynamicQuery, quoteIdentifier)
 
 instance Controller DataController where

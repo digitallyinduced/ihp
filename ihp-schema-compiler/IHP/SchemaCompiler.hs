@@ -14,12 +14,10 @@ import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
-import Data.List.Split
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import qualified IHP.Postgres.Parser as PostgresParser
 import IHP.Postgres.Types
-import qualified IHP.Postgres.Compiler as SqlCompiler
 import qualified Control.Exception as Exception
 import qualified System.Environment
 import NeatInterpolation

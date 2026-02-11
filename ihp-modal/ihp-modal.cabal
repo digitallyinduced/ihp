@@ -30,7 +30,7 @@ common shared-properties
         , RecordWildCards
         , QuasiQuotes
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
 
 library
     import: shared-properties

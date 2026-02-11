@@ -10,7 +10,6 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
-import Network.Wai (Request)
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 
 import qualified Data.Aeson as Aeson

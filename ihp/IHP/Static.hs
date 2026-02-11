@@ -1,6 +1,5 @@
 module IHP.Static (staticRouteShortcut) where
 
-import Prelude
 import Network.Wai
 import qualified Data.ByteString.Char8 as ByteString
 

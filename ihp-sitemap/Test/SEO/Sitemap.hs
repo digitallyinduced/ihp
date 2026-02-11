@@ -5,12 +5,11 @@ import IHP.Test.Mocking
 import IHP.Environment
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
 
 import IHP.SEO.Sitemap.Types
-import IHP.SEO.Sitemap.Routes
+import IHP.SEO.Sitemap.Routes ()
 import IHP.SEO.Sitemap.ControllerFunctions
 
 main :: IO ()

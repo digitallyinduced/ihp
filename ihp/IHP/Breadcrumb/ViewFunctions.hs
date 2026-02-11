@@ -12,8 +12,6 @@ import IHP.Breadcrumb.Types
 import IHP.ControllerSupport
 
 import Text.Blaze.Html (Html)
-import Network.Wai (Request)
-
 import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude

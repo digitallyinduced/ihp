@@ -21,7 +21,7 @@ import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
 import qualified IHP.Log as Log
 import IHP.Hasql.FromRow (FromRowHasql)
-import Control.Concurrent.STM (TBQueue, TVar, atomically, newTBQueue, readTBQueue, writeTBQueue, newTVarIO, readTVar, readTVarIO, writeTVar, modifyTVar', check)
+import Control.Concurrent.STM (atomically, newTBQueue, readTBQueue, writeTBQueue, newTVarIO, readTVar, readTVarIO, writeTVar, modifyTVar', check)
 import IHP.Job.Queue (tryWriteTBQueue)
 
 -- | Used by the RunJobs binary

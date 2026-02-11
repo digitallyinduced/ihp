@@ -23,9 +23,6 @@ import Network.URI (parseURI, uriToString)
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
-import Network.Wai (Request)
-
-import IHP.Controller.Context
 import IHP.ControllerSupport
 
 -- | Redirects to an action

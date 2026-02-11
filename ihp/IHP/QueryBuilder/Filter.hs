@@ -43,11 +43,8 @@ module IHP.QueryBuilder.Filter
 
 import IHP.Prelude
 import IHP.ModelSupport
-import IHP.ModelSupport.Types (Id'(..))
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (negateFilterOperator)
-import Data.Text (toLower)
-import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import IHP.Hasql.Encoders () -- Import for DefaultParamEncoder instances

@@ -7,14 +7,12 @@ preserve their status codes.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.MockingSpec where
-import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
 import IHP.Test.Mocking
 import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
-import IHP.Job.Types
 import IHP.ControllerPrelude hiding (get, request)
 import Text.Blaze.Html (Html)
 import Network.Wai

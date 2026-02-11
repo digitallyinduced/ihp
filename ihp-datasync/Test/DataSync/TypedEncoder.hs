@@ -10,7 +10,6 @@ import IHP.DataSync.TypedEncoder
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Vector as Vector
 import qualified Control.Exception as Exception
 

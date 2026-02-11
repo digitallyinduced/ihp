@@ -14,7 +14,6 @@ import IHP.Postgres.TypeInfo
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.TypeInfo.Macro
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Attoparsec.ByteString.Char8 as Attoparsec hiding (Parser(..))
 import Data.Attoparsec.Internal.Types (Parser)

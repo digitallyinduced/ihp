@@ -54,7 +54,6 @@ import Data.Proxy
 import qualified Data.Time
 import GHC.TypeLits
 import GHC.OverloadedLabels
-import qualified GHC.Records as Record
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import Data.String.Conversions (cs, ConvertibleStrings (..))
 import qualified Debug.Trace

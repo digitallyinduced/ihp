@@ -38,8 +38,6 @@ import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.Time.Clock (UTCTime)

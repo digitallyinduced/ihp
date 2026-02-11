@@ -11,7 +11,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.String.Conversions (cs)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, listToMaybe)
-import Data.List (sortBy, filter, isSuffixOf)
+import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Function ((&))
 import Control.Monad (unless, forM_, join)
@@ -22,7 +22,7 @@ import Text.Read (readMaybe)
 import qualified Data.Char as Char
 
 import qualified System.Directory.OsPath as Directory
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import System.OsPath (encodeUtf, decodeUtf)
 
 import qualified Hasql.Connection as Connection
 import qualified Hasql.Session as Session

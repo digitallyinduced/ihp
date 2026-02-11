@@ -7,7 +7,6 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..))
 import IHP.QueryBuilder hiding (OrderByClause)
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet

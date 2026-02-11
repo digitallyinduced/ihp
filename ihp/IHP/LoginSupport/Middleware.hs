@@ -11,7 +11,6 @@ import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context
 import IHP.Hasql.FromRow (FromRowHasql)
-import Network.Wai (Request)
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user normalizedModel.

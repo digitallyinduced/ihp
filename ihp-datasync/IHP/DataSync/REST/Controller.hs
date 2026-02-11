@@ -2,7 +2,6 @@
 module IHP.DataSync.REST.Controller where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import Network.Wai (Request)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Data.Vector as Vector
@@ -13,8 +12,7 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
-import qualified Data.HashMap.Strict as HashMap
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
 import qualified Data.Text as Text
 import qualified Data.List as List
 
@@ -23,8 +21,6 @@ import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
-import IHP.ModelSupport.Types (ModelContext(..))
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))

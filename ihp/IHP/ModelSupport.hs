@@ -22,26 +22,19 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Data.Hashable (Hashable)
-import Control.DeepSeq (NFData)
 import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
-import Data.List (filter, elem)
-import qualified Data.ByteString.Char8 as BS8
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
-import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
 import GHC.Records
 import GHC.TypeLits
-import GHC.Types
 import Data.Proxy
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..))
@@ -69,15 +62,12 @@ import Data.Dynamic
 import IHP.EnvVar
 import Data.Scientific
 import GHC.Stack
-import qualified Numeric
-import qualified Data.Text.Encoding as Text
 import qualified Hasql.Transaction as Tx
 import qualified Hasql.Transaction.Sessions as Tx
 import Data.Functor.Contravariant (contramap)
 import Control.Concurrent (forkIO, MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
-import qualified Hasql.Errors as HasqlErrors
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import IHP.PGSimpleCompat ()
