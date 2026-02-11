@@ -98,6 +98,16 @@ spec = do
                 response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) app
                 cs (simpleBody response) `shouldBe` ("JSONBody payload=Just (Object (fromList [(\"name\",String \"test\")]))" :: String)
 
+            it "parses JSON body when Content-Type includes charset parameter" $ do
+                let body = "{\"name\": \"test\"}"
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json; charset=utf-8")] body) app
+                cs (simpleBody response) `shouldBe` ("JSONBody payload=Just (Object (fromList [(\"name\",String \"test\")]))" :: String)
+
+            it "does not parse as JSON when Content-Type is a non-JSON type starting with application/json" $ do
+                let body = "{\"name\": \"test\"}"
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/jsonFOO")] body) app
+                cs (simpleBody response) `shouldBe` ("FormBody params=0 files=0" :: String)
+
         describe "query string params" $ do
             it "preserves query params on GET requests even though body parsing is skipped" $ do
                 let allParamsApp = requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions inspectAllParamsApp
