@@ -19,7 +19,7 @@ import Network.Wai.Internal (ResponseReceived (..))
 import IHP.ControllerSupport (InitControllerContext)
 import IHP.FrameworkConfig (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.ModelSupport (createModelContext)
+import qualified IHP.ModelSupport as ModelSupport
 import IHP.Log.Types
 
 import qualified System.Process as Process
@@ -43,19 +43,16 @@ runSessionOnConnection conn session = do
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
-        let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime } = frameworkConfig
-
         logger <- newLogger def { level = Warn } -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
-            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
+            ModelSupport.withModelContext testDatabaseUrl logger \modelContext -> do
+                -- Use the central test middleware stack
+                let baseRequest = defaultRequest
+                mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
+                let mockRespond = const (pure ResponseReceived)
 
-            -- Use the central test middleware stack
-            let baseRequest = defaultRequest
-            mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
-            let mockRespond = const (pure ResponseReceived)
-
-            hspecAction MockContext { .. }
+                hspecAction MockContext { .. }
 
 withTestDatabase :: ByteString -> (ByteString -> IO ()) -> IO ()
 withTestDatabase masterDatabaseUrl callback = do

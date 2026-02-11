@@ -16,8 +16,6 @@ module IHP.FrameworkConfig.Types
 , BaseUrl (..)
 , RequestLoggerMiddleware (..)
 , SessionCookie (..)
-, DBPoolIdleTime (..)
-, DBPoolMaxConnections (..)
 , DatabaseUrl (..)
 , ConfigBuilder
 , ExceptionTracker (..)
@@ -35,7 +33,6 @@ module IHP.FrameworkConfig.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Time.Clock (NominalDiffTime)
 import Control.Exception (SomeException)
 import GHC.Records (HasField(..))
 import qualified Control.Monad.Trans.State.Strict as State
@@ -76,12 +73,6 @@ newtype RequestLoggerMiddleware = RequestLoggerMiddleware Middleware
 -- __Example: Set max age to 90 days__
 -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
 newtype SessionCookie = SessionCookie Cookie.SetCookie
-
--- | How long db connection are kept alive inside the connecton pool when they're idle
-newtype DBPoolIdleTime = DBPoolIdleTime NominalDiffTime
-
--- | Max number of db connections the connection pool can open to the database
-newtype DBPoolMaxConnections = DBPoolMaxConnections Int
 
 newtype DatabaseUrl = DatabaseUrl ByteString
 
@@ -136,11 +127,6 @@ data FrameworkConfig = FrameworkConfig
     , sessionCookie :: !Cookie.SetCookie
 
     , databaseUrl :: !ByteString
-    -- | How long db connection are kept alive inside the connecton pool when they're idle
-    , dbPoolIdleTime :: !NominalDiffTime
-
-    -- | Max number of db connections the connection pool can open to the database
-    , dbPoolMaxConnections :: !Int
 
     -- | Bootstrap 4 by default
     --

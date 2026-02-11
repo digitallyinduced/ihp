@@ -24,7 +24,7 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, Exception, SomeException, try, mask)
+import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
@@ -93,17 +93,17 @@ notConnectedModelContext logger = ModelContext
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
-createModelContext idleTime maxConnections databaseUrl logger = do
+createModelContext :: ByteString -> Logger -> IO ModelContext
+createModelContext databaseUrl logger = do
     -- Create hasql pool for prepared statement-based queries
-    -- HASQL_POOL_SIZE: pool size (default: maxConnections). Set to 1 for consistent prepared statement caching.
+    -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
             ]
-            <> maybe [HasqlPoolConfig.size maxConnections] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
     hasqlPool <- HasqlPool.acquire hasqlPoolConfig
@@ -116,6 +116,12 @@ createModelContext idleTime maxConnections databaseUrl logger = do
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext = do
     HasqlPool.release modelContext.hasqlPool
+
+-- | Bracket-style wrapper around 'createModelContext' that ensures the database
+-- pool is released when the callback completes (or throws an exception).
+withModelContext :: ByteString -> Logger -> (ModelContext -> IO a) -> IO a
+withModelContext databaseUrl logger =
+    bracket (createModelContext databaseUrl logger) releaseModelContext
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model

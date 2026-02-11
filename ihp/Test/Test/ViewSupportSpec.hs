@@ -9,7 +9,7 @@ module Test.ViewSupportSpec where
 import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
-import IHP.Test.Mocking hiding (application)
+import IHP.Test.Mocking
 import IHP.Prelude
 import IHP.QueryBuilder
 import IHP.Environment
@@ -21,19 +21,15 @@ import IHP.Job.Types
 import Wai.Request.Params.Middleware (RequestBody (..), Respond)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import qualified IHP.Server as Server
 import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import qualified IHP.ErrorController as ErrorController
 import Data.String.Conversions
 import Data.Text as Text
 import Unsafe.Coerce
 import IHP.RequestVault (frameworkConfigMiddleware, modelContextMiddleware)
 import IHP.Controller.Layout (viewLayoutMiddleware)
-import System.IO.Unsafe (unsafePerformIO)
-import IHP.Log.Types (newLogger, LoggerSettings(..), LogLevel(..))
 
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
@@ -101,41 +97,30 @@ config = do
     option Development
     option (AppPort 8000)
 
-initApplication :: IO Application
-initApplication = do
-    frameworkConfig <- buildFrameworkConfig (pure ())
-    logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
-    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
-    pure (middleware $ Server.application handleNotFound (\app -> app))
-
-application :: Application
-application = unsafePerformIO initApplication
-
 tests :: Spec
-tests = beforeAll (mockContextNoDatabase WebApplication config) do
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "isActiveAction" $ do
-        it "should return True on the same route" $ withContext do
+        it "should return True on the same route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction foo: True"
-        it "should return False on a different route" $ withContext do
+        it "should return False on a different route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction bar: False"
     describe "isActivePath" $ do
-        it "should return True on the same route" $ withContext do
+        it "should return True on the same route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
-        it "should return False on a different route" $ withContext do
+        it "should return False on a different route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
     describe "isActiveController" $ do
-        it "should return True on the same route" $ withContext do
+        it "should return True on the same route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
-        it "should return False on a different route" $ withContext do
+        it "should return False on a different route" $ withContextAndApp \application -> do
             runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
 
     describe "HSX" $ do
-        it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContext do
+        it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContextAndApp \_ -> do
             let
                 id :: Id' "users"
                 id = Id ("70a10b53-a776-470a-91a8-900cdda06aa2" :: UUID)
-            
+
             (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\">"
 
 type instance PrimaryKey "users" = UUID

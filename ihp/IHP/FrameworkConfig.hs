@@ -19,8 +19,6 @@ module IHP.FrameworkConfig
 , isProduction
 , defaultCorsResourcePolicy
 , withFrameworkConfig
-, initModelContext
-, withModelContext
 , configIO
 , ExceptionWithCallStack (..)
 ) where
@@ -51,7 +49,6 @@ import IHP.EnvVar
 import qualified Prelude
 import qualified GHC.Stack as Stack
 
-import qualified Control.Concurrent as Concurrent
 
 -- | Puts an option into the current configuration
 --
@@ -119,16 +116,6 @@ ihpDefaultConfig = do
     databaseUrl <- configIO defaultDatabaseUrl
 
     option $ DatabaseUrl databaseUrl
-    option $ DBPoolIdleTime $
-            case environment of
-                Development -> 2
-                Production -> 60
-
-    -- poolMaxResources must not be smaller than numStripes
-    -- https://github.com/digitallyinduced/ihp/issues/1959
-    numCapabilities <- configIO Concurrent.getNumCapabilities
-    option $ DBPoolMaxConnections (max numCapabilities 20)
-
     (AppPort port) <- findOption @AppPort
 
     -- The IHP_BASEURL env var can override the hardcoded base url in Config.hs
@@ -193,8 +180,6 @@ buildFrameworkConfig appConfig = do
             (BaseUrl baseUrl) <- findOption @BaseUrl
             (RequestLoggerMiddleware requestLoggerMiddleware) <- findOption @RequestLoggerMiddleware
             (SessionCookie sessionCookie) <- findOption @SessionCookie
-            (DBPoolIdleTime dbPoolIdleTime) <- findOption @DBPoolIdleTime
-            (DBPoolMaxConnections dbPoolMaxConnections) <- findOption @DBPoolMaxConnections
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
             logger <- findOption @Logger
@@ -284,16 +269,6 @@ defaultCorsResourcePolicy = Nothing
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
 withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
-
-initModelContext :: FrameworkConfig -> IO ModelContext
-initModelContext FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } = do
-    let isDevelopment = environment == Development
-    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
-    pure modelContext
-
-withModelContext :: FrameworkConfig -> (ModelContext -> IO result) -> IO result
-withModelContext frameworkConfig action =
-    Exception.bracket (initModelContext frameworkConfig) releaseModelContext action
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --

@@ -17,7 +17,7 @@ import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, putContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
-import IHP.ModelSupport (createModelContext, releaseModelContext)
+import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport.Types (ModelContext(..), Id'(..), GetTableName, PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
@@ -146,55 +146,52 @@ withDataSyncController connStr testUserId action = do
                 then cs connStr
                 else cs ("dbname=" <> connStr)
         logger <- Log.newLogger def { Log.level = Log.Error }
-        modelContext <- createModelContext 10 4 actualConnStr logger
-        PGListener.withPGListener actualConnStr logger \pgListener -> do
-            frameworkConfig <- buildFrameworkConfig (pure ())
-            let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
+        ModelSupport.withModelContext actualConnStr logger \modelContext -> do
+            PGListener.withPGListener actualConnStr logger \pgListener -> do
+                frameworkConfig <- buildFrameworkConfig (pure ())
+                let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
-            let v = Vault.empty
-                    |> Vault.insert pgListenerVaultKey pgListener
-                    |> Vault.insert frameworkConfigVaultKey frameworkConfig'
-            let request = defaultRequest { vault = v }
+                let v = Vault.empty
+                        |> Vault.insert pgListenerVaultKey pgListener
+                        |> Vault.insert frameworkConfigVaultKey frameworkConfig'
+                let request = defaultRequest { vault = v }
 
-            -- Set up ControllerContext with the request and current user
-            let ?request = request
-            context <- newControllerContext
-            let ?context = context
+                -- Set up ControllerContext with the request and current user
+                let ?request = request
+                context <- newControllerContext
+                let ?context = context
 
-            -- Put the current user into context so currentUserOrNothing can find it
-            putContext (Just (TestUser { id = Id testUserId }) :: Maybe TestUser)
+                -- Put the current user into context so currentUserOrNothing can find it
+                putContext (Just (TestUser { id = Id testUserId }) :: Maybe TestUser)
 
-            -- Freeze the context so it can be accessed from pure code
-            frozenContext <- freeze ?context
-            let ?context = frozenContext
+                -- Freeze the context so it can be accessed from pure code
+                frozenContext <- freeze ?context
+                let ?context = frozenContext
 
-            -- Create the DataSync state IORef
-            stateRef <- newIORef DataSyncController
-            let ?state = stateRef
+                -- Create the DataSync state IORef
+                stateRef <- newIORef DataSyncController
+                let ?state = stateRef
 
-            -- Create TQueues for communication
-            inQueue <- newTQueueIO :: IO (TQueue ByteString)
-            outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
+                -- Create TQueues for communication
+                inQueue <- newTQueueIO :: IO (TQueue ByteString)
+                outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
 
-            let receiveData = atomically $ readTQueue inQueue
-            let sendJSON response = atomically $ writeTQueue outQueue response
+                let receiveData = atomically $ readTQueue inQueue
+                let sendJSON response = atomically $ writeTQueue outQueue response
 
-            -- Build the helper functions
-            ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-            let installTableChangeTriggers = ChangeNotifications.installTableChangeTriggers hasqlPool
+                -- Build the helper functions
+                ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
+                let installTableChangeTriggers = ChangeNotifications.installTableChangeTriggers hasqlPool
 
-            -- Start the controller in an async thread
-            let ?modelContext = modelContext
-            controllerAsync <- async $
-                runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
+                -- Start the controller in an async thread
+                let ?modelContext = modelContext
+                controllerAsync <- async $
+                    runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
 
-            -- Run the test action, then clean up
-            Exception.finally
-                (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
-                (do
-                    cancel controllerAsync
-                    releaseModelContext modelContext
-                )
+                -- Run the test action, then clean up
+                Exception.finally
+                    (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
+                    (cancel controllerAsync)
 
 -- | Read the next DataSyncResponse with a timeout
 readResponseWithTimeout :: TQueue DataSyncResponse -> IO DataSyncResponse
