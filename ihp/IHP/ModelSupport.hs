@@ -24,7 +24,7 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, Exception, SomeException, try, mask)
+import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
@@ -121,6 +121,12 @@ createModelContext databaseUrl logger = do
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext = do
     HasqlPool.release modelContext.hasqlPool
+
+-- | Bracket-style wrapper around 'createModelContext' that ensures the database
+-- pool is released when the callback completes (or throws an exception).
+withModelContext :: ByteString -> Logger -> (ModelContext -> IO a) -> IO a
+withModelContext databaseUrl logger =
+    bracket (createModelContext databaseUrl logger) releaseModelContext
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model

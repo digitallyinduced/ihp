@@ -19,7 +19,7 @@ import Network.Wai.Internal (ResponseReceived (..))
 import IHP.ControllerSupport (InitControllerContext)
 import IHP.FrameworkConfig (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.ModelSupport (createModelContext)
+import qualified IHP.ModelSupport as ModelSupport
 import IHP.Log.Types
 
 import qualified System.Process as Process
@@ -46,14 +46,13 @@ withIHPApp application configBuilder hspecAction = do
         logger <- newLogger def { level = Warn } -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
-            modelContext <- createModelContext testDatabaseUrl logger
+            ModelSupport.withModelContext testDatabaseUrl logger \modelContext -> do
+                -- Use the central test middleware stack
+                let baseRequest = defaultRequest
+                mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
+                let mockRespond = const (pure ResponseReceived)
 
-            -- Use the central test middleware stack
-            let baseRequest = defaultRequest
-            mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
-            let mockRespond = const (pure ResponseReceived)
-
-            hspecAction MockContext { .. }
+                hspecAction MockContext { .. }
 
 withTestDatabase :: ByteString -> (ByteString -> IO ()) -> IO ()
 withTestDatabase masterDatabaseUrl callback = do
