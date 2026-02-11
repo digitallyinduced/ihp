@@ -19,7 +19,7 @@ module IHP.Controller.Context
     ) where
 
 import Prelude
-import Data.IORef (IORef, newIORef, readIORef)
+import Data.IORef (newIORef, readIORef)
 import GHC.Records (HasField(..))
 import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
@@ -32,7 +32,6 @@ import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
 import IHP.ControllerContext (ControllerContext(..), freeze, unfreeze, putContext, fromContext, maybeFromContext, fromFrozenContext, maybeFromFrozenContext)
-import qualified IHP.ControllerContext as Context
 
 -- | Creates a new controller context with the WAI Request stored in the TMap
 --

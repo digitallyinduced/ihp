@@ -3,7 +3,7 @@ module IHP.IDE.CodeGen.MailGenerator (buildPlan, buildPlan', MailConfig (..)) wh
 import IHP.Prelude
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import Text.Countable (singularize, pluralize)
+import Text.Countable (pluralize)
 
 data MailConfig = MailConfig
     { controllerName :: Text

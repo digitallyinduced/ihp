@@ -4,10 +4,8 @@ module IHP.DataSync.Pool
 ) where
 
 import IHP.Prelude
-import qualified Hasql.Pool
 import IHP.FrameworkConfig (findOptionOrNothing, addInitializer)
 import IHP.FrameworkConfig.Types (RLSAuthenticatedRole(..))
-import IHP.ModelSupport.Types (ModelContext(..))
 import qualified Control.Monad.Trans.State.Strict as State
 import qualified Data.TMap as TMap
 import qualified IHP.DataSync.Role as Role

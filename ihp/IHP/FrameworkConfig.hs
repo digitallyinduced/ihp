@@ -38,12 +38,10 @@ import IHP.View.Types
 import IHP.View.CSSFramework.Bootstrap (bootstrap)
 import IHP.Log.Types
 import IHP.Log (makeRequestLogger, defaultRequestLogger)
-import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
 import qualified Control.Exception as Exception
-import IHP.ModelSupport
 import IHP.EnvVar
 
 import qualified Prelude

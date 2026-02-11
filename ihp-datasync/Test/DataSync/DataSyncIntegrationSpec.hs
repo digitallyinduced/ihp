@@ -18,13 +18,12 @@ import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, putContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
 import qualified IHP.ModelSupport as ModelSupport
-import IHP.ModelSupport.Types (ModelContext(..), Id'(..), GetTableName, PrimaryKey)
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
 import IHP.FrameworkConfig.Types
 
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
@@ -35,7 +34,6 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.Aeson as Aeson
 import Control.Concurrent.STM
 import Control.Concurrent (threadDelay)
-import Data.IORef
 import qualified IHP.Log as Log
 
 -- | Define CurrentUserRecord for this test module

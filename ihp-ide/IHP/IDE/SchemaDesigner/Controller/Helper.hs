@@ -8,8 +8,6 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.IDE.SchemaDesigner.Compiler as SchemaCompiler
 import IHP.IDE.SchemaDesigner.View.Schema.Error
 import IHP.IDE.ToolServer.Helper.Controller
-import Wai.Request.Params.Middleware (Respond)
-import Network.Wai (Request)
 
 instance ParamReader PostgresType where
     readParameter byteString = case Megaparsec.runParser Parser.sqlType "" (cs byteString) of

@@ -2,7 +2,6 @@ module IHP.DataSync.TypeScript.Compiler where
 
 import IHP.Prelude
 import IHP.Postgres.Types
-import NeatInterpolation
 
 generateTypeScriptTypeDefinitions :: [Statement] -> Text
 generateTypeScriptTypeDefinitions schema = [trimming|

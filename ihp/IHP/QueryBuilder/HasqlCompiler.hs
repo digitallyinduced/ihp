@@ -21,7 +21,6 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.List as List
-import Data.Int (Int32)
 
 -- | Compile a QueryBuilder to a Hasql Snippet
 toSnippet :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet

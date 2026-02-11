@@ -10,7 +10,6 @@ import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
 import qualified Network.HTTP.Types                        as HTTP
-import qualified Network.HTTP.Types.Status                 as HTTP
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))

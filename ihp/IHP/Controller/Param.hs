@@ -41,23 +41,12 @@ module IHP.Controller.Param
 ) where
 
 import IHP.Prelude
-import qualified Data.Either as Either
-import Wai.Request.Params.Middleware (RequestBody (..))
 import Network.Wai (Request)
-import qualified Data.UUID as UUID
 import qualified IHP.ModelSupport as ModelSupport
-import qualified Data.ByteString.Char8 as Char8
 import IHP.ValidationSupport
-import GHC.TypeLits
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import qualified GHC.Float as Float
-import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import IHP.RequestVault ()
-import qualified Data.Aeson.KeyMap as Aeson
-import qualified Data.Aeson.Key as Aeson
-import qualified Data.Scientific as Scientific
-import qualified Data.Vector as Vector
 import qualified Control.DeepSeq as DeepSeq
 import Text.Read (readMaybe)
 

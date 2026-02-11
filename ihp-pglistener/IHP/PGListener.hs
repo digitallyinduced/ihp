@@ -30,8 +30,7 @@ import Data.IORef
 import Data.String.Conversions (cs)
 import Data.UUID (UUID)
 import qualified Data.UUID.V4 as UUID
-import Control.Monad (forever, unless, void, forM_)
-import GHC.Records (HasField)
+import Control.Monad (forever, unless, forM_)
 import Data.Maybe (fromMaybe)
 import Control.Exception (SomeException, displayException, uninterruptibleMask_)
 import Control.Concurrent.Async (Async, async, cancel, uninterruptibleCancel)

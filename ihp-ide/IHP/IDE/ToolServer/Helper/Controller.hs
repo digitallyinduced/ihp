@@ -17,19 +17,16 @@ module IHP.IDE.ToolServer.Helper.Controller
 import IHP.Prelude
 import IHP.ControllerSupport
 import IHP.IDE.ToolServer.Types
-import qualified IHP.IDE.PortConfig as PortConfig
-import IHP.IDE.Types
 import qualified Network.Socket as Socket
 import qualified System.Process as Process
 import System.Info (os)
 import qualified IHP.EnvVar as EnvVar
 import IHP.Controller.Context
-import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
 import qualified Data.Text.IO as IO
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import System.OsPath (encodeUtf, decodeUtf)
 
 -- | Returns the port used by the running app. Usually returns @8000@.
 theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber

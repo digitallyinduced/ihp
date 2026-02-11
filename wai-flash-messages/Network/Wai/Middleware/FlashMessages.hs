@@ -13,7 +13,6 @@ import Prelude
 import Network.Wai
 import Data.ByteString
 import qualified Data.Serialize as Serialize
-import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai.Session as Session

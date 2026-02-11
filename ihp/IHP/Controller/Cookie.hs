@@ -10,7 +10,6 @@ import IHP.ControllerSupport
 import Web.Cookie
 import qualified Data.Binary.Builder as Binary
 import qualified Data.ByteString.Lazy as LBS
-import Network.Wai
 
 -- | Sets a @Set-Cookie@ header
 --

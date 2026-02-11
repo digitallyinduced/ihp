@@ -21,22 +21,17 @@ module IHP.Hasql.Encoders
 import Prelude
 import Data.Int (Int64)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Word (Word32, Word8)
-import Data.Bits (shiftR)
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import Database.PostgreSQL.Simple (Only(..), (:.)(..))
-import Data.Functor.Contravariant (contramap, (>$<))
+import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import Data.UUID (UUID)
 import Database.PostgreSQL.Simple.Types (Binary(..))

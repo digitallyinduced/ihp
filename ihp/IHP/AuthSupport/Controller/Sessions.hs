@@ -19,8 +19,6 @@ import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
-import Wai.Request.Params.Middleware (Respond)
-import Network.Wai (Request)
 import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Displays the login form.

@@ -36,8 +36,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.Scientific as Scientific
-import Data.Int (Int16, Int32, Int64)
-import Data.Time (UTCTime, LocalTime, Day)
+import Data.Int (Int16)
 import qualified Data.Time.Format.ISO8601 as ISO8601
 import qualified Data.Attoparsec.Text as Attoparsec
 import qualified Data.Text as Text

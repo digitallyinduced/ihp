@@ -8,7 +8,6 @@ module IHP.RequestVault.Helper
 import Prelude
 import Data.IORef
 import Network.Wai
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
 import Data.Proxy
 import Data.Typeable

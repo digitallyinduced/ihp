@@ -3,8 +3,6 @@ module Main where
 import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.TypeScript.Compiler
-import NeatInterpolation
-import IHP.ControllerPrelude
 
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types

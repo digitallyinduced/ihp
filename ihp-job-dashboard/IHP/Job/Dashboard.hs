@@ -34,11 +34,10 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
-import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
-import Network.Wai (Request, requestMethod)
+import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
 
 import IHP.Job.Dashboard.Types

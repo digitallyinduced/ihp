@@ -64,7 +64,6 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
-import Data.Proxy
 import IHP.Log.Types (Logger)
 
 -- | Runner that executes a hasql Session on the current transaction's connection

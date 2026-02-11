@@ -8,7 +8,6 @@ import IHP.DataSync.RowLevelSecurity
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.ControllerImpl (runDataSyncController)
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
-import IHP.ModelSupport.Types (ModelContext(..))
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))

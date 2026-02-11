@@ -1,8 +1,6 @@
 module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
-import qualified IHP.IDE.Types as DevServer
-import Control.Concurrent.MVar
 import qualified Data.ByteString.Builder as ByteString
 import Network.Socket (PortNumber)
 import qualified Data.Vault.Lazy as Vault

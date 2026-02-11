@@ -6,29 +6,18 @@ Tests for typed auto routing.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.RouterSupportSpec where
-import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
 import IHP.Test.Mocking
 import IHP.Prelude
-import IHP.QueryBuilder
 import IHP.Environment
 import IHP.FrameworkConfig
-import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
-import IHP.FrameworkConfig
-import IHP.Job.Types
-import Wai.Request.Params.Middleware (RequestBody (..))
+import Data.Attoparsec.ByteString.Char8 (string, endOfInput)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
-import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import Data.String.Conversions
-import Unsafe.Coerce
-import IHP.RequestVault
-import IHP.Controller.Layout (viewLayoutMiddleware)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'

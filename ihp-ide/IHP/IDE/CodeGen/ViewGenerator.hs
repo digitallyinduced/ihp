@@ -3,7 +3,6 @@ module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..), po
 import IHP.Prelude
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport (columnNameToFieldName, columnNameToFieldLabel)
 import Text.Countable (singularize, pluralize)
 
 data ViewConfig = ViewConfig

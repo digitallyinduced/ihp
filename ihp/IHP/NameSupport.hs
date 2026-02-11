@@ -25,7 +25,6 @@ import Prelude hiding (splitAt, words, map)
 import IHP.HaskellSupport
 import Data.Text (Text)
 import Data.String.Conversions (cs)
-import qualified Data.Char as Char
 import qualified Text.Inflections as Inflector
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List

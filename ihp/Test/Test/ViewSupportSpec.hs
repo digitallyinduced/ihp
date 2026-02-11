@@ -6,33 +6,18 @@ Tests for view support functions.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.ViewSupportSpec where
-import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
 import IHP.Test.Mocking
 import IHP.Prelude
-import IHP.QueryBuilder
 import IHP.Environment
 import IHP.FrameworkConfig
-import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
-import IHP.FrameworkConfig
-import IHP.Job.Types
-import Wai.Request.Params.Middleware (RequestBody (..), Respond)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
-import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import Data.String.Conversions
 import Data.Text as Text
-import Unsafe.Coerce
-import IHP.RequestVault (frameworkConfigMiddleware, modelContextMiddleware)
-import IHP.Controller.Layout (viewLayoutMiddleware)
-
-import qualified Network.Wai.Session as Session
-import qualified Network.Wai.Session.Map as Session
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 

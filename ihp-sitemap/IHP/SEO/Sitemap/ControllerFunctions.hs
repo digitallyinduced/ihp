@@ -3,7 +3,6 @@ module IHP.SEO.Sitemap.ControllerFunctions where
 import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.SEO.Sitemap.Types
-import Network.Wai (Request)
 import qualified Text.Blaze as Markup
 import qualified Text.Blaze.Internal as Markup
 import qualified Text.Blaze.Renderer.Utf8 as Markup

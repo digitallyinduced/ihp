@@ -6,7 +6,6 @@ module Test.HaskellSupportSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.HaskellSupport
 
 tests = do
     describe "HaskellSupport" do

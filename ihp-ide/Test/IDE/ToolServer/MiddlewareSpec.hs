@@ -16,7 +16,6 @@ import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
 import qualified Data.ByteString.Lazy as LBS
-import Data.Text (isInfixOf)
 
 import IHP.IDE.ToolServer (withToolServerApplication, ToolServerApplicationWithConfig(..))
 import IHP.IDE.ToolServer.Types

@@ -15,7 +15,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import System.OsPath (decodeUtf)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do

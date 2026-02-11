@@ -33,16 +33,11 @@ import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
 import qualified IHP.EnvVar as EnvVar
-import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.AutoRefresh as AutoRefresh
-import IHP.Controller.Context
-import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
-import qualified IHP.PGListener as PGListener
-import IHP.RequestVault.ModelContext (modelContextMiddleware)
 import qualified Control.Exception.Safe as Exception
 
 import qualified Network.Wai.Application.Static as Static

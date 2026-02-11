@@ -7,8 +7,7 @@ module IHP.ScriptSupport (runScript, Script, module IHP.FrameworkConfig) where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import IHP.ModelSupport (ModelContext, withModelContext)
-import IHP.Log (Logger(cleanup))
+import IHP.ModelSupport (withModelContext)
 import Main.Utf8 (withUtf8)
 
 -- | A script is just an IO action which requires a database connection and framework config
