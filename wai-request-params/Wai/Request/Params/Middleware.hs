@@ -23,6 +23,7 @@ import qualified Network.Wai.Parse as WaiParse
 import qualified Data.Aeson as Aeson
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import Network.Wai.Parse (File, Param)
 
@@ -58,7 +59,7 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
         else do
             let contentType = lookup hContentType (requestHeaders req)
             case contentType of
-                Just "application/json" -> do
+                Just ct | isJsonContentType ct -> do
                     rawPayload <- lazyRequestBody req
                     let jsonPayload = Aeson.decode rawPayload
                     pure JSONBody { jsonPayload, rawPayload }
@@ -68,3 +69,12 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
 
     let req' = req { vault = Vault.insert requestBodyVaultKey requestBody (vault req) }
     app req' respond
+
+-- | Checks if a Content-Type header value indicates JSON.
+--
+-- Matches @application/json@ exactly, or @application/json@ followed by
+-- a semicolon and parameters (e.g. @application/json; charset=utf-8@).
+isJsonContentType :: BS.ByteString -> Bool
+isJsonContentType ct =
+    ct == BS.pack "application/json"
+    || BS.pack "application/json;" `BS.isPrefixOf` ct
