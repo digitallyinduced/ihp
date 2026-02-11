@@ -19,7 +19,7 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import PostgresqlTypes.Point (Point(..), fromCoordinates)
+import PostgresqlTypes.Point (Point, fromCoordinates, toX, toY)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -106,7 +106,7 @@ typedValueParam colType (Object values)
                 then fromMaybe (error "Cannot decode as Point") (pointToSnippet <$> tryDecodeAsPoint)
                 else error "Cannot decode as Point: expected {x, y} object"
     where
-        pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
+        pointToSnippet p = Snippet.sql ("point(" <> cs (tshow (toX p)) <> "," <> cs (tshow (toY p)) <> ")")
 typedValueParam pgType (Array arr) =
     let elemType = case pgType of
             Just t | "_" `Text.isPrefixOf` t -> Just (Text.drop 1 t)
