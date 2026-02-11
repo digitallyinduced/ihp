@@ -139,8 +139,7 @@ encodeWithType "numeric"     val = Snippet.encoderAndParam (Encoders.nonNullable
 encodeWithType "jsonb"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) val
 encodeWithType "json"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) val
 encodeWithType "bytea"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bytea) (toByteString val)
--- Interval uses text+cast because PGInterval can contain years/months/days
--- which DiffTime (used by Encoders.interval) cannot represent.
+-- Interval uses text+cast for dynamic DataSync queries where values come as JSON text.
 encodeWithType "interval"    val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::interval"
 encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::" <> quoteIdentifier pgType
 

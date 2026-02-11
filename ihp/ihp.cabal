@@ -101,7 +101,6 @@ common shared-properties
             , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
             , temporary

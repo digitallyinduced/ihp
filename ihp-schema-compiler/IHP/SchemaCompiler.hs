@@ -188,7 +188,7 @@ atomicType = \case
     PDate -> "Data.Time.Calendar.Day"
     PBinary -> "(Binary ByteString)"
     PTime -> "TimeOfDay"
-    (PInterval _) -> "PGInterval"
+    (PInterval _) -> "Interval"
     PCustomType theType -> tableNameToModelName theType
     PTimestamp -> "LocalTime"
     (PNumeric _ _) -> "Scientific"
@@ -197,7 +197,7 @@ atomicType = \case
     PArray type_ -> "[" <> atomicType type_ <> "]"
     PPoint -> "Point"
     PPolygon -> "Polygon"
-    PInet -> "Net.IP.IP"
+    PInet -> "Inet"
     PTSVector -> "TSVector"
     PSingleChar -> "Text"
     PTrigger -> error "atomicType: PTrigger not supported"
@@ -312,11 +312,9 @@ defaultImports = [trimming|
     import CorePrelude hiding (id)
     import Data.Time.Clock
     import Data.Time.LocalTime
-    import Data.Time.Format (parseTimeOrError, defaultTimeLocale)
     import qualified Data.Time.Calendar
     import qualified Data.List as List
     import qualified Data.ByteString as ByteString
-    import qualified Net.IP
     import Database.PostgreSQL.Simple
     import Database.PostgreSQL.Simple.FromRow
     import Database.PostgreSQL.Simple.FromField hiding (Field, name)
@@ -973,10 +971,10 @@ hasqlValueDecoder = \case
     PBinary -> "(Database.PostgreSQL.Simple.Types.Binary <$> Decoders.bytea)"
     (PVaryingN _) -> "Decoders.text"
     (PCharacterN _) -> "Decoders.text"
-    (PInterval _) -> "(Decoders.refine (\\t -> Right (parseTimeOrError True defaultTimeLocale \"%H:%M:%S\" (cs t))) Decoders.text)"
+    (PInterval _) -> "Mapping.decoder"
     PPoint -> "Mapping.decoder"
     PPolygon -> "Mapping.decoder"
-    PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
+    PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
     PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow (Text.toLower typeName) <> " textToEnum" <> tableNameToModelName typeName <> ")"

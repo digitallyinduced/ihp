@@ -5,9 +5,9 @@ module IHP.ModelSupport
 , module IHP.ModelSupport.Types
 , module PostgresqlTypes.Point
 , module PostgresqlTypes.Polygon
-, module IHP.Postgres.Inet
+, module PostgresqlTypes.Inet
 , module IHP.Postgres.TSVector
-, module IHP.Postgres.TimeParser
+, module PostgresqlTypes.Interval
 , module IHP.InputValue
 ) where
 
@@ -64,11 +64,10 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
 import PostgresqlTypes.Point
-import IHP.Postgres.Interval ()
 import PostgresqlTypes.Polygon
-import IHP.Postgres.Inet ()
+import PostgresqlTypes.Inet
+import PostgresqlTypes.Interval
 import IHP.Postgres.TSVector
-import IHP.Postgres.TimeParser
 import IHP.Log.Types
 import qualified IHP.Log as Log
 import Data.Dynamic
@@ -826,8 +825,11 @@ instance Default UTCTime where
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
 
-instance Default PGInterval where
-    def = PGInterval "00:00:00"
+instance Default Interval where
+    def = normalizeFromMonthsDaysAndMicroseconds 0 0 0
+
+instance Default Inet where
+    def = normalizeFromV4 0 32
 
 class Record model where
     newRecord :: model
