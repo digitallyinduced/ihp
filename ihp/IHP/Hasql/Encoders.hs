@@ -43,10 +43,8 @@ import Database.PostgreSQL.Simple.Types (Binary(..))
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
 import PostgresqlTypes.Point (Point)
-import qualified PostgresqlTypes.Polygon as PgPolygon
+import PostgresqlTypes.Polygon (Polygon)
 import qualified PostgresqlTypes.Inet as PgInet
-import qualified IHP.Postgres.Point as IHPPoint
-import IHP.Postgres.Polygon (Polygon(..))
 import IHP.Postgres.TimeParser (PGInterval(..))
 import IHP.Postgres.TSVector (Tsvector)
 import qualified Net.IP
@@ -148,25 +146,13 @@ instance DefaultParamEncoder Point where
 instance DefaultParamEncoder (Maybe Point) where
     defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode IHP 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
+-- | Encode 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
 instance DefaultParamEncoder Polygon where
-    defaultParam = Encoders.nonNullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\p -> (IHPPoint.x p, IHPPoint.y p)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Polygon' as nullable PostgreSQL polygon
 instance DefaultParamEncoder (Maybe Polygon) where
-    defaultParam = Encoders.nullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\p -> (IHPPoint.x p, IHPPoint.y p)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Encode 'PGInterval' as PostgreSQL interval
 -- Uses 'unknown' OID so PostgreSQL coerces the text representation to interval

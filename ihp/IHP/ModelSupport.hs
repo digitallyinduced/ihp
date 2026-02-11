@@ -4,7 +4,7 @@ module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.ModelSupport.Types
 , module PostgresqlTypes.Point
-, module IHP.Postgres.Polygon
+, module PostgresqlTypes.Polygon
 , module IHP.Postgres.Inet
 , module IHP.Postgres.TSVector
 , module IHP.Postgres.TimeParser
@@ -64,9 +64,8 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
 import PostgresqlTypes.Point
-import qualified IHP.Postgres.Point as IHPPoint
 import IHP.Postgres.Interval ()
-import IHP.Postgres.Polygon (Polygon(..))
+import PostgresqlTypes.Polygon
 import IHP.Postgres.Inet ()
 import IHP.Postgres.TSVector
 import IHP.Postgres.TimeParser
@@ -141,7 +140,7 @@ instance Default Point where
     def = fromCoordinates 0 0
 
 instance Default Polygon where
-    def = Polygon [IHPPoint.Point 0 0]
+    def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
 instance Default TSVector where
     def = normalizeFromLexemeList []

@@ -46,7 +46,6 @@ import Wai.Request.Params.Middleware (RequestBody (..))
 import Network.Wai (Request)
 import qualified Data.UUID as UUID
 import qualified IHP.ModelSupport as ModelSupport
-import qualified IHP.Postgres.Point as IHPPoint
 import qualified Data.ByteString.Char8 as Char8
 import IHP.ValidationSupport
 import GHC.TypeLits
@@ -294,15 +293,17 @@ instance ParamReader ModelSupport.Polygon where
                 Attoparsec.char ','
                 y <- Attoparsec.double
                 Attoparsec.char ')'
-                pure (IHPPoint.Point x y)
+                pure (x, y)
             parser = do
                 points <- pointParser `Attoparsec.sepBy` (Attoparsec.char ',')
                 Attoparsec.endOfInput
-                pure ModelSupport.Polygon { .. }
+                case ModelSupport.refineFromPointList points of
+                    Just polygon -> pure polygon
+                    Nothing -> fail "Polygon must have at least 3 points"
         in
         case Attoparsec.parseOnly parser byteString of
             Right value -> Right value
-            Left error -> Left "has to be points wrapped in parenthesis, separated with a comma, e.g. '(1,2),(3,4)'"
+            Left error -> Left (cs error)
 
     readParameterJSON (Aeson.String string) = let byteString :: ByteString = cs string in readParameter byteString
     readParameterJSON _ = Left "Expected Polygon"
