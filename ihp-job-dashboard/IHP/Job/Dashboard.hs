@@ -38,8 +38,6 @@ import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import Network.Wai (Request, requestMethod)
 import Network.HTTP.Types.Method (methodPost)
 
@@ -59,11 +57,8 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- for your job type. Your custom implementations will then be used instead of the defaults.
 class ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
