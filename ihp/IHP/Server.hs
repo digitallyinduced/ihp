@@ -15,6 +15,7 @@ import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
+import IHP.ModelSupport (withModelContext)
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import IHP.AutoRefresh (AutoRefreshWSApp)
 import qualified IHP.Job.Runner as Job
@@ -57,7 +58,7 @@ run configBuilder = do
     IO.setLocaleEncoding IO.utf8
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
             withInitalizers frameworkConfig modelContext do
                 PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener -> do
                     let ?modelContext = modelContext

@@ -7,7 +7,7 @@ module IHP.ScriptSupport (runScript, Script, module IHP.FrameworkConfig) where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import IHP.ModelSupport (ModelContext)
+import IHP.ModelSupport (ModelContext, withModelContext)
 import IHP.Log (Logger(cleanup))
 import Main.Utf8 (withUtf8)
 
@@ -18,7 +18,7 @@ type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO
 runScript :: ConfigBuilder -> Script -> IO ()
 runScript configBuilder taskMain = withUtf8 do
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        withModelContext frameworkConfig \modelContext -> do
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
             let ?modelContext = modelContext
             let ?context = frameworkConfig
             taskMain

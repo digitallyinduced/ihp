@@ -19,7 +19,6 @@ module IHP.FrameworkConfig
 , isProduction
 , defaultCorsResourcePolicy
 , withFrameworkConfig
-, withModelContext
 , configIO
 , ExceptionWithCallStack (..)
 ) where
@@ -44,8 +43,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
 import qualified Control.Exception as Exception
-import IHP.ModelSupport hiding (withModelContext)
-import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport
 import IHP.EnvVar
 
 import qualified Prelude
@@ -271,10 +269,6 @@ defaultCorsResourcePolicy = Nothing
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
 withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
-
-withModelContext :: FrameworkConfig -> (ModelContext -> IO result) -> IO result
-withModelContext FrameworkConfig { databaseUrl, logger } =
-    ModelSupport.withModelContext databaseUrl logger
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --

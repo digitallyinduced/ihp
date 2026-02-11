@@ -106,7 +106,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
             Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
             Nothing -> pure ()
 
-    Config.withModelContext frameworkConfig \modelContext -> do
+    withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
         store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
         let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 

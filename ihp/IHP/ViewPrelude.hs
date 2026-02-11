@@ -49,7 +49,7 @@ import IHP.HSX.ToHtml
 import IHP.View.TimeAgo
 import IHP.ValidationSupport
 import IHP.RouterSupport
-import IHP.ModelSupport hiding (withModelContext)
+import IHP.ModelSupport
 import IHP.FrameworkConfig
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))

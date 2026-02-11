@@ -52,7 +52,7 @@ import IHP.Controller.Cookie
 import IHP.ControllerSupport
 import IHP.ValidationSupport
 import IHP.HaskellSupport
-import IHP.ModelSupport hiding (withModelContext)
+import IHP.ModelSupport
 import IHP.FrameworkConfig
 import IHP.QueryBuilder
 import IHP.Fetch
