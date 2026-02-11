@@ -63,6 +63,7 @@ common shared-properties
             , unordered-containers
             , vault
             , typerep-map
+            , postgresql-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
