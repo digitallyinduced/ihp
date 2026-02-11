@@ -855,3 +855,21 @@ CREATE TABLE users (
     UNIQUE (email, username)
 );
 ```
+
+PostgreSQL constraint names have a **63-byte** limit.
+
+For a multi-column unique constraint, Postgres auto-generates a name from table + column names.  
+For `strategy_factor_regime_online` + `(symbol_id, timeframe, ts, version)`, this becomes a long name (truncated form: `strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke`) and can trigger noisy migrations like:
+
+```sql
+ALTER TABLE strategy_factor_regime_online DROP CONSTRAINT strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke;
+```
+
+Solution: use a short explicit constraint name after `CREATE TABLE strategy_factor_regime_online`:
+
+```sql
+ALTER TABLE strategy_factor_regime_online
+    ADD CONSTRAINT uq_sfr_on_main UNIQUE (symbol_id, timeframe, ts, version);
+```
+
+Alternative: use `CREATE UNIQUE INDEX ...`.
