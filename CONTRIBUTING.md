@@ -43,7 +43,7 @@ cd -
 nix flake update
 
 # Ensure nix has picked up all the changes.
-nix develop --impure -c true
+nix develop --impure --command true
 ```
 
 ### Running the development server
