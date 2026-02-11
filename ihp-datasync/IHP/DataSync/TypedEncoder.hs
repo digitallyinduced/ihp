@@ -19,7 +19,9 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import PostgresqlTypes.Point (Point, fromCoordinates, toX, toY)
+import PostgresqlTypes.Point (Point, fromCoordinates)
+import qualified Hasql.Mapping.IsScalar as Mapping
+import Hasql.PostgresqlTypes ()
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -103,10 +105,10 @@ typedValueParam colType (Object values)
                     pure (fromCoordinates x y)
         in
             if Aeson.size values == 2
-                then fromMaybe (error "Cannot decode as Point") (pointToSnippet <$> tryDecodeAsPoint)
+                then case tryDecodeAsPoint of
+                    Just point -> Snippet.encoderAndParam (Encoders.nonNullable Mapping.encoder) point
+                    Nothing -> error "Cannot decode as Point"
                 else error "Cannot decode as Point: expected {x, y} object"
-    where
-        pointToSnippet p = Snippet.sql ("point(" <> cs (tshow (toX p)) <> "," <> cs (tshow (toY p)) <> ")")
 typedValueParam pgType (Array arr) =
     let elemType = case pgType of
             Just t | "_" `Text.isPrefixOf` t -> Just (Text.drop 1 t)

@@ -64,6 +64,8 @@ common shared-properties
             , vault
             , typerep-map
             , postgresql-types
+            , hasql-mapping
+            , hasql-postgresql-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
