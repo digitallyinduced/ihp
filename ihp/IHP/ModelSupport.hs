@@ -143,7 +143,7 @@ instance Default Polygon where
     def = Polygon [def]
 
 instance Default TSVector where
-    def = TSVector def
+    def = normalizeFromLexemeList []
 
 instance Default Scientific where
     def = 0

@@ -136,9 +136,10 @@ let
                 url = "https://hackage.haskell.org/package/postgresql-types-algebra-0.1/postgresql-types-algebra-0.1.tar.gz";
                 sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv";
             }) {}));
+            # Using fork with Tsvector support: https://github.com/nikita-volkov/postgresql-types/pull/63
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (fastBuild (self.callCabal2nix "postgresql-types" (builtins.fetchTarball {
-                url = "https://hackage.haskell.org/package/postgresql-types-0.1.1.1/postgresql-types-0.1.1.1.tar.gz";
-                sha256 = "0p0z2lns63z4wkinac10pyxf5zmidp3yr8lg748vb7brs3r02laz";
+                url = "https://github.com/digitallyinduced/postgresql-types/archive/3100a6630c2f7f410514c46137ef49dc992c75e2.tar.gz";
+                sha256 = "1iyb7dqk0nxzhyp627hd3xh0hj7hc1dhfsvwf6cj50iqgw3lnfgv";
             }) {})));
             # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
             # Not on Hackage, only on GitHub. Patched to export IsScalar(..) from Hasql.Mapping
@@ -155,10 +156,20 @@ let
                                        "( IsScalar(..),"
                 '';
             })));
-            hasql-postgresql-types = final.haskell.lib.doJailbreak (fastBuild (self.callCabal2nix "hasql-postgresql-types" (builtins.fetchTarball {
+            # Patched to add Tsvector instance (added in postgresql-types fork)
+            hasql-postgresql-types = final.haskell.lib.doJailbreak (fastBuild (final.haskell.lib.overrideCabal (self.callCabal2nix "hasql-postgresql-types" (builtins.fetchTarball {
                 url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/b8cb8fe1e7eb.tar.gz";
                 sha256 = "0fffxiavxn70nis9rqgx2z9rp030x1afdr7qj8plwncif3qvsv1f";
-            }) {}));
+            }) {}) (old: {
+                postPatch = (old.postPatch or "") + ''
+                    cat >> src/library/Hasql/PostgresqlTypes.hs << 'TSVECTOR_INSTANCE'
+
+                    instance Hasql.Mapping.IsScalar Tsvector where
+                      encoder = Core.encoder
+                      decoder = Core.decoder
+                    TSVECTOR_INSTANCE
+                '';
+            })));
         };
 in
 final: prev: {

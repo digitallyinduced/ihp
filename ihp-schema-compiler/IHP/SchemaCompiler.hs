@@ -339,12 +339,14 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText, parseTSVectorText)
+    import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText)
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import IHP.Hasql.Encoders ()
+    import qualified Hasql.Mapping.IsScalar as Mapping
+    import Hasql.PostgresqlTypes ()
 |]
 
 
@@ -975,7 +977,7 @@ hasqlValueDecoder = \case
     PPoint -> "(Decoders.refine parsePointText Decoders.bytea)"
     PPolygon -> "(Decoders.refine parsePolygonText Decoders.bytea)"
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
-    PTSVector -> "(Decoders.refine parseTSVectorText Decoders.bytea)"
+    PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
     PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow (Text.toLower typeName) <> " textToEnum" <> tableNameToModelName typeName <> ")"
     PSingleChar -> "Decoders.char"

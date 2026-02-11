@@ -19,7 +19,6 @@ module IHP.Hasql.FromRow
 , HasqlDecodeColumn (..)
 , parsePointText
 , parsePolygonText
-, parseTSVectorText
 ) where
 
 import Prelude
@@ -34,10 +33,9 @@ import Control.Applicative ((<|>))
 import qualified Hasql.Decoders as Decoders
 import IHP.Postgres.Point (Point(..))
 import IHP.Postgres.Polygon (Polygon(..))
-import IHP.Postgres.TSVector (TSVector(..), Lexeme(..), LexemeRanking(..))
 import qualified Data.Text.Encoding as Text
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import Data.Attoparsec.ByteString.Char8 (skipSpace, char, option, choice, double, skipMany, many1, many', sepBy)
+import Data.Attoparsec.ByteString.Char8 (char, double, sepBy)
 import Data.Int (Int16, Int32, Int64)
 import Data.Scientific (Scientific)
 import qualified Data.Aeson as Aeson
@@ -55,32 +53,6 @@ class FromRowHasql a where
 
 -- Parser functions for custom PostgreSQL types
 -- These are used by the generated decoders via Decoders.refine
-
--- | Parse tsvector text representation to TSVector
--- Format: 'word1':1A,2B 'word2':3C
-parseTSVectorText :: ByteString -> Either Text TSVector
-parseTSVectorText bs = case Attoparsec.parseOnly parseTSVector bs of
-    Left err -> Left (cs err)
-    Right val -> Right val
-
--- | Attoparsec parser for tsvector format
--- This matches the parser in IHP.Postgres.TSVector
-parseTSVector :: Attoparsec.Parser TSVector
-parseTSVector = TSVector <$> many' parseLexeme
-    where
-        parseLexeme = do
-            skipSpace
-            char '\''
-            token <- Attoparsec.takeWhile (/= '\'')
-            char '\''
-            char ':'
-            ranking <- many1 do
-                skipMany $ char ','
-                position <- double
-                -- The Default Weight Is `D` So Postgres Does Not Include It In The Result
-                weight <- option 'D' $ choice [char 'A', char 'B', char 'C', char 'D']
-                pure $ LexemeRanking { position = truncate position, weight }
-            pure $ Lexeme { token = Text.decodeUtf8 token, ranking }
 
 -- | Parse point text representation to Point
 -- Format: (x,y)

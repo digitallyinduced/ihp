@@ -48,7 +48,7 @@ import qualified PostgresqlTypes.Inet as PgInet
 import IHP.Postgres.Point (Point(..))
 import IHP.Postgres.Polygon (Polygon(..))
 import IHP.Postgres.TimeParser (PGInterval(..))
-import IHP.Postgres.TSVector (TSVector(..), Lexeme(..), LexemeRanking(..))
+import IHP.Postgres.TSVector (Tsvector)
 import qualified Net.IP
 import qualified Net.IPv4
 import qualified Net.IPv6
@@ -183,25 +183,13 @@ instance DefaultParamEncoder PGInterval where
 instance DefaultParamEncoder (Maybe PGInterval) where
     defaultParam = Encoders.nullable (contramap (\(PGInterval bs) -> bs) Encoders.unknown)
 
--- | Encode 'TSVector' as PostgreSQL tsvector
--- Uses 'unknown' OID so PostgreSQL coerces the text representation to tsvector
-instance DefaultParamEncoder TSVector where
-    defaultParam = Encoders.nonNullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
+-- | Encode 'Tsvector' as PostgreSQL tsvector via postgresql-types binary encoder
+instance DefaultParamEncoder Tsvector where
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
--- | Encode 'Maybe TSVector' as nullable PostgreSQL tsvector
-instance DefaultParamEncoder (Maybe TSVector) where
-    defaultParam = Encoders.nullable (contramap (Text.encodeUtf8 . serializeTSVectorText) Encoders.unknown)
-
--- | Serialize a TSVector to its text representation
-serializeTSVectorText :: TSVector -> Text
-serializeTSVectorText (TSVector lexemes) = Text.intercalate " " (map serializeLexeme lexemes)
-  where
-    serializeLexeme :: Lexeme -> Text
-    serializeLexeme Lexeme { token, ranking } =
-        "'" <> token <> "':" <> Text.intercalate "," (map serializeRanking ranking)
-    serializeRanking :: LexemeRanking -> Text
-    serializeRanking LexemeRanking { position, weight } =
-        Text.pack (show position) <> (if weight == 'D' then "" else Text.singleton weight)
+-- | Encode 'Maybe Tsvector' as nullable PostgreSQL tsvector
+instance DefaultParamEncoder (Maybe Tsvector) where
+    defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Encode 'Net.IP.IP' as PostgreSQL inet via postgresql-types binary encoder
 instance DefaultParamEncoder Net.IP.IP where
