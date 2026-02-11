@@ -72,7 +72,7 @@ If you ever switch back to using the upstream version, restore the original line
 nix flake lock --update-input ihp
 
 # Ensure nix has picked up all the changes.
-nix develop --impure -c true
+nix develop --impure --command true
 ```
 
 ### Faster Haskell Builds
