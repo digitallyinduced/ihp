@@ -12,6 +12,7 @@ import IHP.Controller.Context
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
+import qualified IHP.Postgres.Point as IHPPoint
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.TMap as TypeMap
@@ -230,16 +231,16 @@ tests = do
 
             describe "Point" do
                 it "should accept integer input" do
-                    (readParameter @Point "1337,1338") `shouldBe` (Right Point { x = 1337, y = 1338 })
+                    (readParameter @Point "1337,1338") `shouldBe` (Right (fromCoordinates 1337 1338))
 
                 it "should accept floating point input" do
-                    (readParameter @Point "1.2,1.3") `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                    (readParameter @Point "1.2,1.3") `shouldBe` (Right (fromCoordinates 1.2 1.3))
 
                 it "should accept JSON integer input" do
-                    (readParameterJSON @Point (json "\"1337,1338\"")) `shouldBe` (Right Point { x = 1337, y = 1338 })
+                    (readParameterJSON @Point (json "\"1337,1338\"")) `shouldBe` (Right (fromCoordinates 1337 1338))
 
                 it "should accept JSON floating point input" do
-                    (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                    (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right (fromCoordinates 1.2 1.3))
 
                 it "should fail on other JSON input " do
                     (readParameterJSON @Point (json "true")) `shouldBe` (Left "Expected Point")
@@ -249,19 +250,19 @@ tests = do
             describe "Polygon" do
                 it "should accept integer input" do
                     (readParameter @Polygon "(100,200),(300,400)") `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+                        (Right Polygon { points = [ IHPPoint.Point 100 200, IHPPoint.Point 300 400 ] })
 
                 it "should accept floating-point input" do
                     (readParameter @Polygon "(100.1,200.2),(300.3,400.4)") `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+                        (Right Polygon { points = [ IHPPoint.Point 100.1 200.2, IHPPoint.Point 300.3 400.4 ] })
 
                 it "should accept JSON integer input" do
                     (readParameterJSON @Polygon (json "\"(100,200),(300,400)\"")) `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+                        (Right Polygon { points = [ IHPPoint.Point 100 200, IHPPoint.Point 300 400 ] })
 
                 it "should accept JSON floating-point input" do
                     (readParameterJSON @Polygon (json "\"(100.1,200.2),(300.3,400.4)\"")) `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+                        (Right Polygon { points = [ IHPPoint.Point 100.1 200.2, IHPPoint.Point 300.3 400.4 ] })
 
             describe "Text" do
                 it "should handle text input" do

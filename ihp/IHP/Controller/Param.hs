@@ -46,6 +46,7 @@ import Wai.Request.Params.Middleware (RequestBody (..))
 import Network.Wai (Request)
 import qualified Data.UUID as UUID
 import qualified IHP.ModelSupport as ModelSupport
+import qualified IHP.Postgres.Point as IHPPoint
 import qualified Data.ByteString.Char8 as Char8
 import IHP.ValidationSupport
 import GHC.TypeLits
@@ -267,7 +268,7 @@ allParams = Params.allParams ?request.parsedBody ?request
 instance ParamReader ModelSupport.Point where
     {-# INLINABLE readParameter #-}
     readParameter byteString =
-        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure ModelSupport.Point { x, y }) byteString of
+        case Attoparsec.parseOnly (do x <- Attoparsec.double; Attoparsec.char ','; y <- Attoparsec.double; Attoparsec.endOfInput; pure (ModelSupport.fromCoordinates x y)) byteString of
             Right value -> Right value
             Left error -> Left "has to be two numbers with a comma, e.g. '1,2'"
 
@@ -293,7 +294,7 @@ instance ParamReader ModelSupport.Polygon where
                 Attoparsec.char ','
                 y <- Attoparsec.double
                 Attoparsec.char ')'
-                pure ModelSupport.Point { .. }
+                pure (IHPPoint.Point x y)
             parser = do
                 points <- pointParser `Attoparsec.sepBy` (Attoparsec.char ',')
                 Attoparsec.endOfInput

@@ -19,7 +19,7 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import IHP.Postgres.Point (Point(..))
+import PostgresqlTypes.Point (Point(..), fromCoordinates)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -100,7 +100,7 @@ typedValueParam colType (Object values)
                     y <- case yValue of
                             Aeson.Number number -> pure (Scientific.toRealFloat number)
                             _ -> Nothing
-                    pure Point { x, y }
+                    pure (fromCoordinates x y)
         in
             if Aeson.size values == 2
                 then fromMaybe (error "Cannot decode as Point") (pointToSnippet <$> tryDecodeAsPoint)

@@ -77,6 +77,8 @@ library
         , hasql
         , hasql-dynamic-statements
         , hasql-implicits
+        , hasql-mapping
+        , hasql-postgresql-types
         , hasql-pool
         , unordered-containers
     exposed-modules:
@@ -121,7 +123,7 @@ CABAL_EOF
     # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
     # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
     modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-pool, unordered-containers }: mkDerivation {
+        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers }: mkDerivation {
             pname = "${appName}-models";
             version = "0.1.0";
             src = modelsPackageSrc;
@@ -143,6 +145,8 @@ CABAL_EOF
                 hasql
                 hasql-dynamic-statements
                 hasql-implicits
+                hasql-mapping
+                hasql-postgresql-types
                 hasql-pool
                 unordered-containers
             ];

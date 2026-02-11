@@ -17,7 +17,6 @@ module IHP.Hasql.FromRow
 ( FromRowHasql (..)
 , HasqlDecodeValue (..)
 , HasqlDecodeColumn (..)
-, parsePointText
 , parsePolygonText
 ) where
 
@@ -54,27 +53,6 @@ class FromRowHasql a where
 -- Parser functions for custom PostgreSQL types
 -- These are used by the generated decoders via Decoders.refine
 
--- | Parse point text representation to Point
--- Format: (x,y)
-parsePointText :: ByteString -> Either Text Point
-parsePointText bs = case Attoparsec.parseOnly parsePoint bs of
-    Left err -> Left (cs err)
-    Right val -> Right val
-
--- | Attoparsec parser for point format
--- This matches the parser in IHP.Postgres.Point
-parsePoint :: Attoparsec.Parser Point
-parsePoint = do
-    Attoparsec.string "("
-    x <- doubleOrNaN
-    Attoparsec.string ","
-    y <- doubleOrNaN
-    Attoparsec.string ")"
-    pure $ Point { x, y }
-    where
-        -- Postgres supports storing NaN inside a point
-        doubleOrNaN = double <|> (Attoparsec.string "NaN" >> (pure $ 0 / 0))
-
 -- | Parse polygon text representation to Polygon
 -- Format: ((x1,y1),(x2,y2),...)
 parsePolygonText :: ByteString -> Either Text Polygon
@@ -90,6 +68,16 @@ parsePolygon = do
     points <- parsePoint `Attoparsec.sepBy` (char ',')
     Attoparsec.string ")"
     pure $ Polygon points
+    where
+        parsePoint = do
+            Attoparsec.string "("
+            x <- doubleOrNaN
+            Attoparsec.string ","
+            y <- doubleOrNaN
+            Attoparsec.string ")"
+            pure $ Point { x, y }
+        -- Postgres supports storing NaN inside a point
+        doubleOrNaN = double <|> (Attoparsec.string "NaN" >> (pure $ 0 / 0))
 
 -- | Typeclass mapping Haskell scalar types to hasql value decoders
 class HasqlDecodeValue a where

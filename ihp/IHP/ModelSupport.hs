@@ -3,7 +3,7 @@
 module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.ModelSupport.Types
-, module IHP.Postgres.Point
+, module PostgresqlTypes.Point
 , module IHP.Postgres.Polygon
 , module IHP.Postgres.Inet
 , module IHP.Postgres.TSVector
@@ -63,9 +63,10 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
-import IHP.Postgres.Point
+import PostgresqlTypes.Point
+import qualified IHP.Postgres.Point as IHPPoint
 import IHP.Postgres.Interval ()
-import IHP.Postgres.Polygon
+import IHP.Postgres.Polygon (Polygon(..))
 import IHP.Postgres.Inet ()
 import IHP.Postgres.TSVector
 import IHP.Postgres.TimeParser
@@ -137,10 +138,10 @@ instance Default Bool where
 #endif
 
 instance Default Point where
-    def = Point def def
+    def = fromCoordinates 0 0
 
 instance Default Polygon where
-    def = Polygon [def]
+    def = Polygon [IHPPoint.Point 0 0]
 
 instance Default TSVector where
     def = normalizeFromLexemeList []

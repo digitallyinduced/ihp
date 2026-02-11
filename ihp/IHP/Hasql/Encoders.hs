@@ -42,10 +42,10 @@ import Data.UUID (UUID)
 import Database.PostgreSQL.Simple.Types (Binary(..))
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
-import qualified PostgresqlTypes.Point as PgPoint
+import PostgresqlTypes.Point (Point)
 import qualified PostgresqlTypes.Polygon as PgPolygon
 import qualified PostgresqlTypes.Inet as PgInet
-import IHP.Postgres.Point (Point(..))
+import qualified IHP.Postgres.Point as IHPPoint
 import IHP.Postgres.Polygon (Polygon(..))
 import IHP.Postgres.TimeParser (PGInterval(..))
 import IHP.Postgres.TSVector (Tsvector)
@@ -140,19 +140,13 @@ instance DefaultParamEncoder Integer where
 instance DefaultParamEncoder (Maybe Integer) where
     defaultParam = Encoders.nullable (contramap fromInteger Encoders.int8)
 
--- | Encode IHP 'Point' as PostgreSQL point via postgresql-types binary encoder
+-- | Encode 'Point' as PostgreSQL point via postgresql-types binary encoder
 instance DefaultParamEncoder Point where
-    defaultParam = Encoders.nonNullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Point' as nullable PostgreSQL point
 instance DefaultParamEncoder (Maybe Point) where
-    defaultParam = Encoders.nullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Encode IHP 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
 instance DefaultParamEncoder Polygon where
@@ -160,7 +154,7 @@ instance DefaultParamEncoder Polygon where
       where
         ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
         ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
+            case PgPolygon.refineFromPointList (map (\p -> (IHPPoint.x p, IHPPoint.y p)) points) of
                 Just pg -> pg
                 Nothing -> error "Polygon must have at least 3 points"
 
@@ -170,7 +164,7 @@ instance DefaultParamEncoder (Maybe Polygon) where
       where
         ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
         ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
+            case PgPolygon.refineFromPointList (map (\p -> (IHPPoint.x p, IHPPoint.y p)) points) of
                 Just pg -> pg
                 Nothing -> error "Polygon must have at least 3 points"
 

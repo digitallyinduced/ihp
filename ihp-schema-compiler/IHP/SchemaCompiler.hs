@@ -339,7 +339,7 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..), parsePointText, parsePolygonText)
+    import IHP.Hasql.FromRow (FromRowHasql(..), parsePolygonText)
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
@@ -974,7 +974,7 @@ hasqlValueDecoder = \case
     (PVaryingN _) -> "Decoders.text"
     (PCharacterN _) -> "Decoders.text"
     (PInterval _) -> "(Decoders.refine (\\t -> Right (parseTimeOrError True defaultTimeLocale \"%H:%M:%S\" (cs t))) Decoders.text)"
-    PPoint -> "(Decoders.refine parsePointText Decoders.bytea)"
+    PPoint -> "Mapping.decoder"
     PPolygon -> "(Decoders.refine parsePolygonText Decoders.bytea)"
     PInet -> "(Decoders.refine (\\t -> maybe (Left \"Invalid IP\") Right (Net.IP.decode t)) Decoders.text)"
     PTSVector -> "Mapping.decoder"
