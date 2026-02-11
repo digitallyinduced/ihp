@@ -317,6 +317,9 @@ recoverStaleJobs staleThreshold = do
 -- | Mapping for @JOB_STATUS@:
 --
 -- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
+--
+-- These instances are needed by the generated @FromRow@ instances in user apps
+-- (see 'compileFromRowInstance' in "IHP.SchemaCompiler").
 instance PG.FromField JobStatus where
     fromField field (Just "job_status_not_started") = pure JobStatusNotStarted
     fromField field (Just "job_status_running") = pure JobStatusRunning
@@ -331,9 +334,7 @@ instance PG.FromField JobStatus where
 instance Default JobStatus where
     def = JobStatusNotStarted
 
--- | Mapping for @JOB_STATUS@:
---
--- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
+-- | See 'FromField' instance above.
 instance PG.ToField JobStatus where
     toField JobStatusNotStarted = PG.toField ("job_status_not_started" :: Text)
     toField JobStatusRunning = PG.toField ("job_status_running" :: Text)
