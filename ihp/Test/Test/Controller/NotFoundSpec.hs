@@ -8,7 +8,7 @@ module Test.Controller.NotFoundSpec where
 import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
-import IHP.Test.Mocking hiding (application)
+import IHP.Test.Mocking
 import IHP.Prelude
 import IHP.QueryBuilder
 import IHP.Environment
@@ -19,7 +19,6 @@ import IHP.Job.Types
 import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import qualified IHP.Server as Server
 import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import Network.Wai
 import Network.Wai.Test
@@ -31,8 +30,6 @@ import Unsafe.Coerce
 import qualified Network.Wai.Session as Session
 import qualified Network.Wai.Session.Map as Session
 import IHP.Controller.Layout (viewLayoutMiddleware)
-import System.IO.Unsafe (unsafePerformIO)
-import IHP.Log.Types (newLogger, LoggerSettings(..), LogLevel(..))
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -73,26 +70,15 @@ config = do
     option Development
     option (AppPort 8000)
 
-initApplication :: IO Application
-initApplication = do
-    frameworkConfig <- buildFrameworkConfig (pure ())
-    logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext frameworkConfig.databaseUrl logger
-    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
-    pure (middleware $ Server.application handleNotFound (\app -> app))
-
-application :: Application
-application = unsafePerformIO initApplication
-
 assertNotFound :: SResponse -> IO ()
 assertNotFound response = do
     response.simpleStatus `shouldBe` status404
     response.simpleBody `shouldNotBe` "Test"
 
 tests :: Spec
-tests = beforeAll (mockContextNoDatabase WebApplication config) do
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "Not found" $ do
-        it "should return show 404 page when notFoundWhen is True" $ withContext do
+        it "should return show 404 page when notFoundWhen is True" $ withContextAndApp \application -> do
             runSession (testGet "test/TestActionNotFoundWhen") application >>= assertNotFound
-        it "should return show 404 page when notFoundUnless is False" $ withContext do
+        it "should return show 404 page when notFoundUnless is False" $ withContextAndApp \application -> do
             runSession (testGet "test/TestActionNotFoundUnless") application >>= assertNotFound
