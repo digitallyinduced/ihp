@@ -105,7 +105,7 @@ initApplication :: IO Application
 initApplication = do
     frameworkConfig <- buildFrameworkConfig (pure ())
     logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
+    modelContext <- createModelContext frameworkConfig.databaseUrl logger
     middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
     pure (middleware $ Server.application handleNotFound (\app -> app))
 

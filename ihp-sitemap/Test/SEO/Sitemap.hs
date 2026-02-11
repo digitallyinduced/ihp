@@ -82,7 +82,7 @@ config = do
 makeApplication = do
     frameworkConfig <- buildFrameworkConfig config
     logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
+    modelContext <- createModelContext frameworkConfig.databaseUrl logger
     middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
     pure (middleware $ Server.application handleNotFound (\app -> app))
 

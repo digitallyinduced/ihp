@@ -98,17 +98,17 @@ notConnectedModelContext logger = ModelContext
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
-createModelContext idleTime maxConnections databaseUrl logger = do
+createModelContext :: ByteString -> Logger -> IO ModelContext
+createModelContext databaseUrl logger = do
     -- Create hasql pool for prepared statement-based queries
-    -- HASQL_POOL_SIZE: pool size (default: maxConnections). Set to 1 for consistent prepared statement caching.
+    -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
             ]
-            <> maybe [HasqlPoolConfig.size maxConnections] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
     hasqlPool <- HasqlPool.acquire hasqlPoolConfig

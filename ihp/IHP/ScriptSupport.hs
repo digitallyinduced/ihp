@@ -18,8 +18,8 @@ type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO
 -- | Initializes IHP and then runs the script inside the framework context
 runScript :: ConfigBuilder -> Script -> IO ()
 runScript configBuilder taskMain = withUtf8 do
-    frameworkConfig@FrameworkConfig { environment, dbPoolIdleTime, dbPoolMaxConnections, databaseUrl, logger } <- buildFrameworkConfig configBuilder
-    modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+    frameworkConfig@FrameworkConfig { databaseUrl, logger } <- buildFrameworkConfig configBuilder
+    modelContext <- createModelContext databaseUrl logger
 
     let ?modelContext = modelContext
     let ?context = frameworkConfig

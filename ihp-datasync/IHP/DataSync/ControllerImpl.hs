@@ -488,7 +488,7 @@ findTransactionById transactionId = do
 -- | Allow max 10 concurrent transactions per connection to avoid running out of database connections
 --
 -- Each transaction removes a database connection from the connection pool. If we don't limit the transactions,
--- a single user could take down the application by starting more than 'IHP.FrameworkConfig.DBPoolMaxConnections'
+-- a single user could take down the application by starting more than the pool size (HASQL_POOL_SIZE)
 -- concurrent transactions. Then all database connections are removed from the connection pool and further database
 -- queries for other users will fail.
 --

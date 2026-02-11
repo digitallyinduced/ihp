@@ -43,12 +43,10 @@ runSessionOnConnection conn session = do
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
-        let FrameworkConfig { dbPoolMaxConnections, dbPoolIdleTime } = frameworkConfig
-
         logger <- newLogger def { level = Warn } -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
-            modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections testDatabaseUrl logger
+            modelContext <- createModelContext testDatabaseUrl logger
 
             -- Use the central test middleware stack
             let baseRequest = defaultRequest

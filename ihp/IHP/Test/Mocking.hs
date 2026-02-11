@@ -63,9 +63,9 @@ runTestMiddlewares frameworkConfig modelContext baseRequest = do
 
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
-   frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
    logger <- newLogger def { level = Warn } -- don't log queries
-   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+   modelContext <- createModelContext databaseUrl logger
 
    -- Start with a minimal request - the middleware stack will set up session, etc.
    let baseRequest = defaultRequest
