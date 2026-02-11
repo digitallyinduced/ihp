@@ -127,7 +127,6 @@ stopExitHandler JobWorkerArgs { .. } main = main
 
 worker :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
@@ -149,7 +148,6 @@ worker = JobWorker (jobWorkerFetchAndRunLoop @job)
 
 jobWorkerFetchAndRunLoop :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)

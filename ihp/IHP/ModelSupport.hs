@@ -30,8 +30,6 @@ import Data.List (filter, elem)
 import qualified Data.ByteString.Char8 as BS8
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-import Database.PostgreSQL.Simple.ToField
 import Data.Default
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.String.Conversions (cs ,ConvertibleStrings)
@@ -41,9 +39,6 @@ import Data.Time.Calendar
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PGFR
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.ToRow as PG
 import GHC.Records
 import GHC.TypeLits
 import GHC.Types
@@ -560,7 +555,7 @@ isCachedPlanSessionError _ = False
 -- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO value
+sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
 sqlQueryScalar theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
@@ -575,7 +570,7 @@ sqlQueryScalar theQuery theParameters = do
 -- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, FromField value, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
 sqlQueryScalarOrNothing theQuery theParameters = do
     result <- sqlQuery theQuery theParameters
     pure case result of
