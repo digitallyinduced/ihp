@@ -19,7 +19,6 @@ module IHP.FrameworkConfig
 , isProduction
 , defaultCorsResourcePolicy
 , withFrameworkConfig
-, initModelContext
 , withModelContext
 , configIO
 , ExceptionWithCallStack (..)

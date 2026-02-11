@@ -18,7 +18,7 @@ import Network.HTTP.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text (isInfixOf)
 
-import IHP.IDE.ToolServer (buildToolServerApplication, ToolServerApplicationWithConfig(..))
+import IHP.IDE.ToolServer (withToolServerApplication, ToolServerApplicationWithConfig(..))
 import IHP.IDE.ToolServer.Types
 import qualified System.Environment as Env
 import Network.Socket (PortNumber)
@@ -42,8 +42,8 @@ buildTestApp = do
     Env.setEnv "IHP_STATIC" "."
     toolServerApp <- newToolServerApplication 8000
     liveReloadClients <- newIORef Map.empty
-    weightedApp <- buildToolServerApplication toolServerApp 8000 liveReloadClients
-    pure weightedApp.application
+    withToolServerApplication toolServerApp 8000 liveReloadClients \weightedApp ->
+        pure weightedApp.application
 
 tests :: Spec
 tests = beforeAll buildTestApp $ do
