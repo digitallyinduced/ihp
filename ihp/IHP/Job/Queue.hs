@@ -8,8 +8,6 @@ module IHP.Job.Queue where
 
 import IHP.Prelude
 import IHP.Job.Types
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception.Safe as Exception
@@ -313,33 +311,9 @@ recoverStaleJobs staleThreshold = do
     withoutQueryLogging (sqlExecHasql pool retrySnippet)
     withoutQueryLogging (sqlExecHasql pool failSnippet)
 
--- | Mapping for @JOB_STATUS@:
---
--- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
-instance PG.FromField JobStatus where
-    fromField field (Just "job_status_not_started") = pure JobStatusNotStarted
-    fromField field (Just "job_status_running") = pure JobStatusRunning
-    fromField field (Just "job_status_failed") = pure JobStatusFailed
-    fromField field (Just "job_status_timed_out") = pure JobStatusTimedOut
-    fromField field (Just "job_status_succeeded") = pure JobStatusSucceeded
-    fromField field (Just "job_status_retry") = pure JobStatusRetry
-    fromField field (Just value) = PG.returnError PG.ConversionFailed field ("Unexpected value for enum value. Got: " <> cs value)
-    fromField field Nothing = PG.returnError PG.UnexpectedNull field "Unexpected null for enum value"
-
 -- The default state is @not started@
 instance Default JobStatus where
     def = JobStatusNotStarted
-
--- | Mapping for @JOB_STATUS@:
---
--- > CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_succeeded', 'job_status_retry');
-instance PG.ToField JobStatus where
-    toField JobStatusNotStarted = PG.toField ("job_status_not_started" :: Text)
-    toField JobStatusRunning = PG.toField ("job_status_running" :: Text)
-    toField JobStatusFailed = PG.toField ("job_status_failed" :: Text)
-    toField JobStatusTimedOut = PG.toField ("job_status_timed_out" :: Text)
-    toField JobStatusSucceeded = PG.toField ("job_status_succeeded" :: Text)
-    toField JobStatusRetry = PG.toField ("job_status_retry" :: Text)
 
 instance InputValue JobStatus where
     inputValue JobStatusNotStarted = "job_status_not_started" :: Text
