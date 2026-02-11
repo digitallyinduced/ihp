@@ -17,6 +17,7 @@ import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.OAuth.Google.View.NewSessionWithGoogle
 import qualified Network.Wai
+import IHP.Hasql.FromRow (FromRowHasql(..))
 
 newSessionWithGoogleAction :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasPath Google.GoogleOAuthController, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 newSessionWithGoogleAction = do
@@ -27,7 +28,7 @@ googleConnectCallbackAction :: forall user.
     ( GoogleOAuthControllerConfig user
     , (HasField "email" user Text)
     , user ~ GetModelByTableName (GetTableName user)
-    , FromRow user
+    , FromRowHasql user
     , ?modelContext :: ModelContext
     , KnownSymbol (GetTableName user)
     , HasField "googleUserId" user (Maybe Text)

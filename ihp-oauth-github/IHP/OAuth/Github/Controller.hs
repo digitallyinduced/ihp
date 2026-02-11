@@ -10,6 +10,7 @@ import qualified Data.TMap as TMap
 import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified Network.Wai
+import IHP.Hasql.FromRow (FromRowHasql(..))
 
 newSessionWithGithubAction :: forall user. (?context :: ControllerContext, ?request :: Network.Wai.Request, HasPath Github.GithubOAuthController) => IO ()
 newSessionWithGithubAction = do
@@ -25,7 +26,7 @@ githubConnectCallbackAction :: forall user.
     ( GithubOAuthControllerConfig user
     , (HasField "email" user Text)
     , user ~ GetModelByTableName (GetTableName user)
-    , FromRow user
+    , FromRowHasql user
     , ?modelContext :: ModelContext
     , KnownSymbol (GetTableName user)
     , GithubOAuthControllerConfig user
