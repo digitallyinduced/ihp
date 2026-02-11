@@ -2,8 +2,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Consolidates all postgresql-simple FromField\/ToField\/FromRow orphan instances
--- for IHP model types. This module exists so that eventually these instances (plus
--- @ihp-postgresql-simple-extra@) can be extracted into a separate legacy package.
+-- for IHP model types.
 --
 -- Note: JobStatus FromField\/ToField instances remain in "IHP.Job.Queue" to
 -- avoid a circular dependency through @IHP.Job.Types -> IHP.Prelude -> IHP.ModelSupport@.

@@ -53,7 +53,6 @@ common shared-properties
             , ihp
             , ihp-log
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , deepseq
             , safe-exceptions
             , http-types
