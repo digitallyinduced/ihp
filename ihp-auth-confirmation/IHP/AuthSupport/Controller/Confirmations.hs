@@ -34,7 +34,6 @@ confirmAction :: forall record action.
     , HasField "isConfirmed" record Bool
     , Sessions.SessionsControllerConfig record
     , Table record
-    , FromRow record
     , FromRowHasql record
     ) => Id record -> Text -> IO ()
 confirmAction userId confirmationToken = do

@@ -42,7 +42,6 @@ showPasswordResetAction :: forall record action.
     , record ~ GetModelByTableName (GetTableName record)
     , HasField "passwordResetToken" record (Maybe Text)
     , KnownSymbol (GetTableName record)
-    , FromRow record
     , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
     , Table record
@@ -66,7 +65,6 @@ updatePasswordAction :: forall record action.
     , SetField "passwordResetToken" record (Maybe Text)
     , HasField "passwordResetToken" record (Maybe Text)
     , SetField "passwordHash" record Text
-    , FromRow record
     , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
     , KnownSymbol (GetTableName record)
@@ -106,7 +104,6 @@ createPasswordResetAction :: forall record action passwordField.
     , record ~ GetModelByTableName (GetTableName record)
     , BuildMail (PasswordResetLinkMail record)
     , SetField "passwordResetToken" record (Maybe Text)
-    , FromRow record
     , FromRowHasql record
     , KnownSymbol (GetTableName record)
     , Table record
