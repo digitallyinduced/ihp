@@ -15,7 +15,6 @@ module IHP.QueryBuilder
   query
   -- * Core Types
 , QueryBuilder (..)
-, SQLQuery (..)
 , Condition (..)
 , Join (..)
 , OrderByClause (..)

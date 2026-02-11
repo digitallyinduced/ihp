@@ -21,7 +21,6 @@ module IHP.Fetch
 , genericFetchIdsOne
 , fetchCount
 , fetchExists
-, fetchSQLQuery
 , fetchLatest
 , fetchLatestBy
 )
@@ -237,13 +236,6 @@ instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, G
     fetchOneOrNothing = genericfetchIdsOneOrNothing
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdsOne
-
-fetchSQLQuery :: (FromRowHasql model, ?modelContext :: ModelContext) => SQLQuery -> IO [model]
-fetchSQLQuery theQuery = do
-    trackTableRead theQuery.selectFrom
-    let pool = ?modelContext.hasqlPool
-    let snippet = buildSnippet theQuery
-    sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
 
 -- | Returns the latest record or Nothing
 --
