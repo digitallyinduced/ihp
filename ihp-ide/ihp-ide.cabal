@@ -343,4 +343,5 @@ test-suite tests
         Test.IDE.SchemaDesigner.SchemaOperationsSpec
         Test.IDE.CodeGeneration.MigrationGenerator
         Test.SchemaCompilerSpec
+        Test.IDE.PostgresSpec
         Test.ServerSpec

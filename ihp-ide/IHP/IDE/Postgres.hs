@@ -15,7 +15,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
-import System.OsPath (decodeUtf)
+import System.OsPath (OsPath, decodeUtf)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -80,7 +80,7 @@ redirectHandleToVariable !ref !handle !onLine = do
         onLine line
         modifyIORef ref (\log -> log <> "\n" <> ByteString.byteString line)
 
-ensureNoOtherPostgresIsRunning :: IO ()
+ensureNoOtherPostgresIsRunning :: (?context :: Context) => IO ()
 ensureNoOtherPostgresIsRunning = do
     pidFileExists <- Directory.doesFileExist "build/db/state/postmaster.pid"
     let stopFailedHandler (exception :: SomeException) = do
@@ -89,35 +89,36 @@ ensureNoOtherPostgresIsRunning = do
                 then Directory.removeFile "build/db/state/postmaster.pid"
                 else putStrLn "Found postgres lockfile at 'build/db/state/postmaster.pid'. Could not bring the other postgres instance to halt. Please stop the running postgres manually and then restart this dev server"
     when pidFileExists do
-        (Process.callProcess "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
+        (callProcessDirenvAware "pg_ctl" ["stop", "-D", "build/db/state"]) `catch` stopFailedHandler
 
 needsDatabaseInit :: IO Bool
 needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db/state"
 
-initDatabase :: IO ()
+initDatabase :: (?context :: Context) => IO ()
 initDatabase = do
     currentDir <- Directory.getCurrentDirectory
     currentDirStr <- decodeUtf currentDir
     Directory.createDirectoryIfMissing True "build/db"
 
-    Process.callProcess "initdb" [
+    callProcessDirenvAware "initdb" [
                 "build/db/state"
                 , "--no-locale" -- Avoid issues with impure host system locale in dev mode
                 , "--encoding"
                 , "UTF8"
             ]
 
-    let params = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDirStr <> "/build/db", "-c", "listen_addresses="])
-                { Process.std_in = Process.CreatePipe
-                , Process.std_out = Process.CreatePipe
-                , Process.std_err = Process.CreatePipe
-                }
+    baseProcess <- procDirenvAware "postgres" ["-D", "build/db/state", "-k", currentDirStr <> "/build/db", "-c", "listen_addresses="]
+    let params = baseProcess
+            { Process.std_in = Process.CreatePipe
+            , Process.std_out = Process.CreatePipe
+            , Process.std_err = Process.CreatePipe
+            }
 
     Process.withCreateProcess params \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         waitUntilReady errorHandle do
-            Process.callProcess "createdb" ["app", "-h", currentDirStr <> "/build/db"]
+            callProcessDirenvAware "createdb" ["app", "-h", currentDirStr <> "/build/db"]
 
-            let importSql file = Process.callCommand ("psql -h '" <> currentDirStr <> "/build/db' -d app < " <> file)
+            let importSql file = callProcessDirenvAware "psql" ["-h", currentDirStr <> "/build/db", "-d", "app", "-f", file]
             ihpSchemaSql <- getDataFileName "IHPSchema.sql"
             importSql ihpSchemaSql
             importSql "Application/Schema.sql"
@@ -132,6 +133,13 @@ waitUntilReady handle callback = do
     if "database system is ready to accept connections" `ByteString.isInfixOf` line
         then callback
         else waitUntilReady handle callback
+
+callProcessDirenvAware :: (?context :: Context) => OsPath -> [String] -> IO ()
+callProcessDirenvAware command args = do
+    commandStr <- decodeUtf command
+    if ?context.wrapWithDirenv
+        then Process.callProcess "direnv" (["exec", ".", commandStr] <> args)
+        else Process.callProcess commandStr args
 
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do
