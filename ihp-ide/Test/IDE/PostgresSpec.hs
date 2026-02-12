@@ -120,8 +120,8 @@ writeExecutable filePath content = do
 
 direnvScript :: Text
 direnvScript = Text.unlines
-    [ "#!/usr/bin/env bash"
-    , "set -euo pipefail"
+    [ "#!/bin/sh"
+    , "set -eu"
     , "if [ \"${1:-}\" != \"exec\" ] || [ \"${2:-}\" != \".\" ]; then"
     , "  echo \"unexpected direnv invocation: $*\" >&2"
     , "  exit 1"
@@ -129,13 +129,13 @@ direnvScript = Text.unlines
     , "echo \"$*\" >> \"$IHP_TEST_COMMAND_LOG\""
     , "shift 2"
     , "export IHP_TEST_CALLED_VIA_DIRENV=1"
-    , "\"$@\""
+    , "exec \"$@\""
     ]
 
 initdbScript :: Text
 initdbScript = Text.unlines
-    [ "#!/usr/bin/env bash"
-    , "set -euo pipefail"
+    [ "#!/bin/sh"
+    , "set -eu"
     , "if [ \"${IHP_TEST_CALLED_VIA_DIRENV:-0}\" != \"1\" ]; then"
     , "  echo \"initdb called without direnv\" >&2"
     , "  exit 1"
@@ -145,8 +145,8 @@ initdbScript = Text.unlines
 
 createdbScript :: Text
 createdbScript = Text.unlines
-    [ "#!/usr/bin/env bash"
-    , "set -euo pipefail"
+    [ "#!/bin/sh"
+    , "set -eu"
     , "if [ \"${IHP_TEST_CALLED_VIA_DIRENV:-0}\" != \"1\" ]; then"
     , "  echo \"createdb called without direnv\" >&2"
     , "  exit 1"
@@ -155,8 +155,8 @@ createdbScript = Text.unlines
 
 psqlScript :: Text
 psqlScript = Text.unlines
-    [ "#!/usr/bin/env bash"
-    , "set -euo pipefail"
+    [ "#!/bin/sh"
+    , "set -eu"
     , "if [ \"${IHP_TEST_CALLED_VIA_DIRENV:-0}\" != \"1\" ]; then"
     , "  echo \"psql called without direnv\" >&2"
     , "  exit 1"
@@ -165,8 +165,8 @@ psqlScript = Text.unlines
 
 postgresScript :: Text
 postgresScript = Text.unlines
-    [ "#!/usr/bin/env bash"
-    , "set -euo pipefail"
+    [ "#!/bin/sh"
+    , "set -eu"
     , "if [ \"${IHP_TEST_CALLED_VIA_DIRENV:-0}\" != \"1\" ]; then"
     , "  echo \"postgres called without direnv\" >&2"
     , "  exit 1"

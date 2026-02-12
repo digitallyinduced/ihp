@@ -112,6 +112,7 @@ initDatabase = do
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
+            , Process.create_group = True
             }
 
     Process.withCreateProcess params \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
