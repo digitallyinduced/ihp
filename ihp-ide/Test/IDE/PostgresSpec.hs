@@ -25,6 +25,7 @@ tests = describe "IHP.IDE.Postgres" do
         withTemporaryTestDirectory \testDir -> do
             let scriptsDir = testDir <> "/bin"
             let commandLog = testDir <> "/commands.log"
+            let ihpSchemaPath = testDir <> "/IHP/ihp-ide/IHPSchema.sql"
             path <- fromMaybe "" <$> Env.lookupEnv "PATH"
 
             writeExecutable (scriptsDir <> "/direnv") direnvScript
@@ -36,17 +37,19 @@ tests = describe "IHP.IDE.Postgres" do
             withEnvVar "PATH" (scriptsDir <> ":" <> path) do
                 withEnvVar "IHP_DEVENV" "0" do
                     withEnvVar "IHP_TEST_COMMAND_LOG" commandLog do
-                        withTestContext True do
-                            withCurrentDirectory testDir do
-                                withBuiltinOrDevenvPostgres \databaseIsReady _ _ -> do
-                                    ready <- Timeout.timeout (2 * 1000 * 1000) (takeMVar databaseIsReady)
-                                    ready `shouldBe` Just ()
+                        withEnvVar "IHP_LIB" (testDir <> "/IHP/ihp-ide/lib/IHP") do
+                            withTestContext True do
+                                withCurrentDirectory testDir do
+                                    withBuiltinOrDevenvPostgres \databaseIsReady _ _ -> do
+                                        ready <- Timeout.timeout (2 * 1000 * 1000) (takeMVar databaseIsReady)
+                                        ready `shouldBe` Just ()
 
             commandLogContent <- TextIO.readFile commandLog
             let commandLines = Text.lines commandLogContent
             commandLines `shouldSatisfy` any ("exec . initdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . createdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . psql " `Text.isPrefixOf`)
+            commandLines `shouldSatisfy` any (("-f " <> cs ihpSchemaPath) `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Schema.sql" `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Fixtures.sql" `Text.isInfixOf`)
             length (filter ("exec . postgres " `Text.isPrefixOf`) commandLines) `shouldSatisfy` (>= 2)
@@ -69,8 +72,10 @@ withTemporaryTestDirectory callback = do
     ignoreIOError (Directory.removePathForcibly testDir)
     Directory.createDirectoryIfMissing True (testDir <> "/Application")
     Directory.createDirectoryIfMissing True (testDir <> "/bin")
+    Directory.createDirectoryIfMissing True (testDir <> "/IHP/ihp-ide")
     TextIO.writeFile (testDir <> "/Application/Schema.sql") "CREATE TABLE test_table (id UUID PRIMARY KEY);\n"
     TextIO.writeFile (testDir <> "/Application/Fixtures.sql") ""
+    TextIO.writeFile (testDir <> "/IHP/ihp-ide/IHPSchema.sql") "CREATE EXTENSION IF NOT EXISTS pgcrypto;\n"
     Exception.finally
         (callback testDir)
         (ignoreIOError (Directory.removePathForcibly testDir))
