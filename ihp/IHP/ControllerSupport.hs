@@ -274,7 +274,13 @@ requestBodyJSON :: (?request :: Request) => Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> value
-        _ -> error "Expected JSON body"
+        JSONBody { jsonPayload = Nothing, rawPayload } ->
+            error ("Expected JSON body, but could not decode the request body"
+                <> (if LBS.null rawPayload
+                    then ". The request body is empty. This usually means another WAI middleware consumed the body before it could be parsed."
+                    else ". The raw request body was: " <> show rawPayload))
+        FormBody {} ->
+            error "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header."
 
 -- | Returns a custom config parameter
 --

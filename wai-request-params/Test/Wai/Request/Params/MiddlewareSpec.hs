@@ -108,6 +108,21 @@ spec = do
                 response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/jsonFOO")] body) app
                 cs (simpleBody response) `shouldBe` ("FormBody params=0 files=0" :: String)
 
+            it "returns JSONBody with Nothing payload for invalid JSON POST" $ do
+                let body = "not valid json{{"
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) app
+                cs (simpleBody response) `shouldBe` ("JSONBody payload=Nothing" :: String)
+
+            it "returns FormBody for POST without Content-Type" $ do
+                let body = "{\"name\": \"test\"}"
+                response <- runSession (makeRequestWithBody "POST" [] body) app
+                cs (simpleBody response) `shouldBe` ("FormBody params=0 files=0" :: String)
+
+            it "returns JSONBody with Nothing payload for empty body with application/json" $ do
+                let body = ""
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) app
+                cs (simpleBody response) `shouldBe` ("JSONBody payload=Nothing" :: String)
+
         describe "query string params" $ do
             it "preserves query params on GET requests even though body parsing is skipped" $ do
                 let allParamsApp = requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions inspectAllParamsApp
