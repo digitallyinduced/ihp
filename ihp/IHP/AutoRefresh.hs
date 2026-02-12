@@ -84,14 +84,12 @@ autoRefresh runAction = do
             frozenControllerContext <- freeze ?context
 
             let originalRequest = ?request
-            let renderView = \waiRequest waiRespond -> do
+            let renderView = \_waiRequest waiRespond -> do
                     controllerContext <- unfreeze frozenControllerContext
                     let ?context = controllerContext
-                    -- Copy vault from original request to preserve layout and other middleware state
-                    let waiRequest' = waiRequest { Wai.vault = Wai.vault originalRequest }
-                    let ?request = waiRequest'
+                    let ?request = originalRequest
                     let ?respond = waiRespond
-                    putContext waiRequest'
+                    putContext originalRequest
                     action ?theAction
 
             -- We save the allowed session ids to the session cookie to only grant a client access
