@@ -112,9 +112,13 @@ class StripeEventController where
 
 -- | Ensure that the request is from stripe. Aborts if the signature does not match.
 ensureIsStripe :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => LByteString -> IO ()
-ensureIsStripe requestBody = do
+ensureIsStripe requestBody = ensureIsStripeWith stripeCredentials requestBody
+
+-- | Like 'ensureIsStripe' but takes explicit 'StripeCredentials'.
+ensureIsStripeWith :: (?context :: ControllerContext, ?request :: Network.Wai.Request) => StripeCredentials -> LByteString -> IO ()
+ensureIsStripeWith credentials requestBody = do
     let signatureHeader = getHeader "Stripe-Signature" |> fromMaybe (error "Stripe-Signature header missing")
 
     let signature = Stripe.parseSig (cs signatureHeader) |> fromMaybe (error "Cannot parse stripe signature")
-    let isValid = Stripe.isSigValid signature (stripeCredentials |> get #stripeWebhookSecretKey |> Stripe.textToWebhookSecretKey) (cs requestBody)
+    let isValid = Stripe.isSigValid signature (credentials.stripeWebhookSecretKey |> Stripe.textToWebhookSecretKey) (cs requestBody)
     accessDeniedUnless isValid

@@ -11,6 +11,12 @@ import IHP.Stripe.Types
 import IHP.Stripe.Request
 import Data.Time.Clock.POSIX
 
+-- | Like 'send' but takes explicit 'StripeCredentials' instead of reading from context.
+-- Uses POST, which covers most built-in actions. For GET actions use 'getStripeRequestWith' directly.
+sendWith :: (FromJSON (StripeResult action), StripeAction action)
+    => StripeCredentials -> action -> IO (StripeResult action)
+sendWith = postStripeRequestWith
+
 data CheckoutSession = CheckoutSession
     { id :: Text
     , url :: Maybe Text

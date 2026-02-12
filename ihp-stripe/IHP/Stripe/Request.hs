@@ -13,15 +13,31 @@ import IHP.FrameworkConfig
 import Control.Lens hiding ((|>))
 import IHP.Stripe.Config
 
+postStripeRequestWith ::
+    ( FromJSON (StripeResult action)
+    , StripeAction action
+    ) => StripeCredentials -> action -> IO (StripeResult action)
+postStripeRequestWith credentials action = do
+        let options = Wreq.defaults & Wreq.auth ?~ Wreq.basicAuth (cs credentials.stripeSecretKey) ""
+        response <- Wreq.asJSON =<< Wreq.postWith options (actionUrl action) (requestPayload action)
+        pure (response ^. Wreq.responseBody)
+
+getStripeRequestWith ::
+    ( FromJSON (StripeResult action)
+    , StripeAction action
+    ) => StripeCredentials -> action -> IO (StripeResult action)
+getStripeRequestWith credentials action = do
+        let options = Wreq.defaults & Wreq.auth ?~ Wreq.basicAuth (cs credentials.stripeSecretKey) ""
+        response <- Wreq.asJSON =<< Wreq.getWith options (actionUrl action)
+        pure (response ^. Wreq.responseBody)
+
 postStripeRequest ::
     ( FromJSON (StripeResult action)
     , StripeAction action
     , ?context :: context
     , ConfigProvider context
     ) => action -> IO (StripeResult action)
-postStripeRequest action = do
-        response <- Wreq.asJSON =<< (Wreq.postWith stripeOptions (actionUrl action) (requestPayload action))
-        pure (response ^. Wreq.responseBody)
+postStripeRequest action = postStripeRequestWith stripeCredentials action
 
 getStripeRequest ::
     ( FromJSON (StripeResult action)
@@ -29,13 +45,4 @@ getStripeRequest ::
     , ?context :: context
     , ConfigProvider context
     ) => action -> IO (StripeResult action)
-getStripeRequest action = do
-        response <- Wreq.asJSON =<< (Wreq.getWith stripeOptions (actionUrl action))
-        pure (response ^. Wreq.responseBody)
-
-stripeOptions :: (?context :: context, ConfigProvider context) => Wreq.Options
-stripeOptions = Wreq.defaults & Wreq.auth ?~ (Wreq.basicAuth secretKey "")
-    where
-        secretKey = stripeCredentials
-                |> get #stripeSecretKey
-                |> cs
+getStripeRequest action = getStripeRequestWith stripeCredentials action
