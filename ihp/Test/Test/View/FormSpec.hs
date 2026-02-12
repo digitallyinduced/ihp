@@ -85,7 +85,7 @@ shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `
 
 createControllerContext :: IO ControllerContext
 createControllerContext = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
+    (frameworkConfig, _) <- FrameworkConfig.buildFrameworkConfig (pure ())
     let requestBody = FormBody { params = [], files = [] }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }

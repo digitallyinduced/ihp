@@ -43,7 +43,7 @@ runSessionOnConnection conn session = do
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
-        logger <- newLogger def { level = Warn } -- don't log queries
+        (logger, _) <- newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat' -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             ModelSupport.withModelContext testDatabaseUrl logger \modelContext -> do

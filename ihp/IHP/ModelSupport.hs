@@ -1151,7 +1151,7 @@ withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: Mod
 withoutQueryLogging callback =
     let
         modelContext = ?modelContext
-        nullLogger = modelContext.logger { write = \_ -> pure ()}
+        nullLogger = modelContext.logger { log = \_ _ -> pure ()}
     in
         let ?modelContext = modelContext { logger = nullLogger }
         in

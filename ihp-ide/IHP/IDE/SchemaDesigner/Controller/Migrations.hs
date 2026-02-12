@@ -146,6 +146,6 @@ withMigrateConnection :: (Connection.Connection -> IO result) -> IO result
 withMigrateConnection inner = Exception.bracket acquire Connection.release inner
     where
         acquire = do
-            frameworkConfig <- buildFrameworkConfig (pure ())
+            (frameworkConfig, _) <- buildFrameworkConfig (pure ())
             Connection.acquire (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
                 >>= either (\e -> error ("DB connect failed: " <> show e)) pure
