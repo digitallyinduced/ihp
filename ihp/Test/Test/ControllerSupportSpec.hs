@@ -17,6 +17,7 @@ import qualified Data.ByteString as BS
 import Network.HTTP.Types (status400)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Builder (toLazyByteString)
+import qualified System.Environment as Env
 
 tests = do
     describe "IHP.ControllerSupport" do
@@ -63,6 +64,35 @@ tests = do
                         Wai.responseStatus response `shouldBe` status400
                         let body = responseBody response
                         body `shouldSatisfy` bodyContains "not valid json"
+                    Right _ -> expectationFailure "Expected ResponseException"
+
+            it "should truncate long payloads in dev mode" do
+                let longPayload = LBS.pack (replicate 500 65) -- 500 bytes of 'A'
+                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = longPayload }
+                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                let ?request = request
+                Env.unsetEnv "IHP_ENV"
+                result <- Exception.try requestBodyJSON
+                case result of
+                    Left (ResponseException response) -> do
+                        let body = responseBody response
+                        body `shouldSatisfy` bodyContains "truncated"
+                        body `shouldSatisfy` bodyContains "raw request body was"
+                    Right _ -> expectationFailure "Expected ResponseException"
+
+            it "should omit raw payload in production mode" do
+                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
+                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                let ?request = request
+                Env.setEnv "IHP_ENV" "Production"
+                result <- Exception.try requestBodyJSON
+                Env.unsetEnv "IHP_ENV"
+                case result of
+                    Left (ResponseException response) -> do
+                        Wai.responseStatus response `shouldBe` status400
+                        let body = responseBody response
+                        body `shouldSatisfy` (not . bodyContains "not valid json")
+                        body `shouldSatisfy` (not . bodyContains "raw request body was")
                     Right _ -> expectationFailure "Expected ResponseException"
 
 bodyContains :: BS.ByteString -> LBS.ByteString -> Bool
