@@ -59,8 +59,8 @@ import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
 import IHP.ActionType (setActionType, actionTypeVaultKey, ActionType(..))
 import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified IHP.Environment as Environment
 import qualified Data.Vault.Lazy as Vault
-import qualified System.Environment
 import qualified Data.Text as Text
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -277,8 +277,7 @@ requestBodyJSON =
     case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> pure value
         JSONBody { jsonPayload = Nothing, rawPayload } -> do
-            ihpEnv <- System.Environment.lookupEnv "IHP_ENV"
-            let isDev = ihpEnv /= Just "Production"
+            let isDev = ?request.frameworkConfig.environment == Environment.Development
             let errorMessage = "Expected JSON body, but could not decode the request body"
                     <> (if LBS.null rawPayload
                         then ". The request body is empty."

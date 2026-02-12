@@ -7,6 +7,9 @@ import IHP.Prelude
 import Test.Hspec
 import IHP.ControllerSupport (requestBodyJSON)
 import IHP.Controller.Response (ResponseException(..))
+import IHP.Environment (Environment (..))
+import qualified IHP.FrameworkConfig as FrameworkConfig
+import qualified IHP.RequestVault as RequestVault
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.Aeson as Aeson
@@ -17,7 +20,6 @@ import qualified Data.ByteString as BS
 import Network.HTTP.Types (status400)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.ByteString.Builder (toLazyByteString)
-import qualified System.Environment as Env
 
 tests = do
     describe "IHP.ControllerSupport" do
@@ -25,14 +27,14 @@ tests = do
             it "should return parsed JSON value for valid JSONBody" do
                 let jsonValue = Aeson.object [("name", Aeson.String "test")]
                 let requestBody = JSONBody { jsonPayload = Just jsonValue, rawPayload = "{\"name\":\"test\"}" }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Development
                 let ?request = request
                 result <- requestBodyJSON
                 result `shouldBe` jsonValue
 
             it "should return 400 for FormBody" do
                 let requestBody = FormBody { params = [], files = [] }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Development
                 let ?request = request
                 result <- Exception.try requestBodyJSON
                 case result of
@@ -44,7 +46,7 @@ tests = do
 
             it "should return 400 for JSONBody with empty body" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "" }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Development
                 let ?request = request
                 result <- Exception.try requestBodyJSON
                 case result of
@@ -56,7 +58,7 @@ tests = do
 
             it "should return 400 for JSONBody with invalid JSON" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Development
                 let ?request = request
                 result <- Exception.try requestBodyJSON
                 case result of
@@ -69,9 +71,8 @@ tests = do
             it "should truncate long payloads in dev mode" do
                 let longPayload = LBS.pack (replicate 500 65) -- 500 bytes of 'A'
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = longPayload }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Development
                 let ?request = request
-                Env.unsetEnv "IHP_ENV"
                 result <- Exception.try requestBodyJSON
                 case result of
                     Left (ResponseException response) -> do
@@ -82,11 +83,9 @@ tests = do
 
             it "should omit raw payload in production mode" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
+                request <- buildRequest requestBody Production
                 let ?request = request
-                Env.setEnv "IHP_ENV" "Production"
                 result <- Exception.try requestBodyJSON
-                Env.unsetEnv "IHP_ENV"
                 case result of
                     Left (ResponseException response) -> do
                         Wai.responseStatus response `shouldBe` status400
@@ -97,6 +96,14 @@ tests = do
 
 bodyContains :: BS.ByteString -> LBS.ByteString -> Bool
 bodyContains needle haystack = BS.isInfixOf needle (LBS.toStrict haystack)
+
+buildRequest :: RequestBody -> Environment -> IO Wai.Request
+buildRequest requestBody environment = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
+    pure Wai.defaultRequest
+        { Wai.vault = Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
+                    $ Vault.insert requestBodyVaultKey requestBody Vault.empty
+        }
 
 -- | Extract the body from a WAI Response (works for responseLBS responses)
 responseBody :: Wai.Response -> LBS.ByteString

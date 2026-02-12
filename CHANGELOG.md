@@ -17,6 +17,7 @@
 - Deprecated Makefile targets — use `nix build` instead ([#2170](https://github.com/digitallyinduced/ihp/pull/2170))
 - Replaced `ApplicationContext` with WAI request vault for AutoRefresh ([#2149](https://github.com/digitallyinduced/ihp/pull/2149))
 - Used `OsPath` instead of `FilePath` across all packages ([#2246](https://github.com/digitallyinduced/ihp/pull/2246))
+- `requestBodyJSON` now returns `IO Aeson.Value` instead of `Aeson.Value`; update call sites to bind it in `do`-notation ([#2396](https://github.com/digitallyinduced/ihp/pull/2396))
 
 ### New Features
 
