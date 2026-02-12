@@ -183,18 +183,17 @@ postgresHandler exception controller additionalInfo = do
     case fromException exception of
         Just (ModelSupport.HasqlError (HasqlPool.SessionUsageError sessionError)) -> Just case sessionError of
             -- Statement with a ServerError
-            HasqlErrors.StatementSessionError _pipelineSize _stmtIdx sql params _prepared (HasqlErrors.ServerStatementError serverError@(HasqlErrors.ServerError code msg _ _ _))
-                -- "42xxx" = syntax/access errors; check for missing relations/columns
-                |  "42" `Text.isPrefixOf` code
-                && "does not exist" `Text.isSuffixOf` msg
-                -> handlePostgresOutdatedError (tshow serverError) (if "relation" `Text.isPrefixOf` msg then "A table is missing." else "A column is missing.")
+            HasqlErrors.StatementSessionError _pipelineSize _stmtIdx sql params _prepared (HasqlErrors.ServerStatementError serverError@(HasqlErrors.ServerError code _msg _ _ _))
+                -- 42P01 = undefined_table ("relation ... does not exist")
+                | code == "42P01" -> handlePostgresOutdatedError (tshow serverError) "A table is missing."
+                -- 42703 = undefined_column ("column ... does not exist")
+                | code == "42703" -> handlePostgresOutdatedError (tshow serverError) "A column is missing."
                 -- All other server errors on statements
                 | otherwise -> handleServerError sql params serverError
             -- Script (multi-statement) with a ServerError
-            HasqlErrors.ScriptSessionError sql serverError@(HasqlErrors.ServerError code msg _ _ _)
-                |  "42" `Text.isPrefixOf` code
-                && "does not exist" `Text.isSuffixOf` msg
-                -> handlePostgresOutdatedError (tshow serverError) (if "relation" `Text.isPrefixOf` msg then "A table is missing." else "A column is missing.")
+            HasqlErrors.ScriptSessionError sql serverError@(HasqlErrors.ServerError code _msg _ _ _)
+                | code == "42P01" -> handlePostgresOutdatedError (tshow serverError) "A table is missing."
+                | code == "42703" -> handlePostgresOutdatedError (tshow serverError) "A column is missing."
                 | otherwise -> handleServerError sql [] serverError
             -- Any other session error (connection errors, type mismatches, etc.)
             other -> handleSessionError other
