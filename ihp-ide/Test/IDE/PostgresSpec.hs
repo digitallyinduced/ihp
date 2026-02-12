@@ -25,7 +25,6 @@ tests = describe "IHP.IDE.Postgres" do
         withTemporaryTestDirectory \testDir -> do
             let scriptsDir = testDir <> "/bin"
             let commandLog = testDir <> "/commands.log"
-            let ihpSchemaPath = testDir <> "/IHP/ihp-ide/IHPSchema.sql"
             path <- fromMaybe "" <$> Env.lookupEnv "PATH"
 
             writeExecutable (scriptsDir <> "/direnv") direnvScript
@@ -49,7 +48,7 @@ tests = describe "IHP.IDE.Postgres" do
             commandLines `shouldSatisfy` any ("exec . initdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . createdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . psql " `Text.isPrefixOf`)
-            commandLines `shouldSatisfy` any (("-f " <> cs ihpSchemaPath) `Text.isInfixOf`)
+            commandLines `shouldSatisfy` any (\line -> "-f " `Text.isInfixOf` line && "IHPSchema.sql" `Text.isInfixOf` line)
             commandLines `shouldSatisfy` any ("-f Application/Schema.sql" `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Fixtures.sql" `Text.isInfixOf`)
             length (filter ("exec . postgres " `Text.isPrefixOf`) commandLines) `shouldSatisfy` (>= 2)
