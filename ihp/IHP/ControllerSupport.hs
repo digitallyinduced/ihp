@@ -277,7 +277,7 @@ requestBodyJSON =
         JSONBody { jsonPayload = Nothing, rawPayload } ->
             error ("Expected JSON body, but could not decode the request body"
                 <> (if LBS.null rawPayload
-                    then ". The request body is empty. This usually means another WAI middleware consumed the body before it could be parsed."
+                    then ". The request body is empty."
                     else ". The raw request body was: " <> show rawPayload))
         FormBody {} ->
             error "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header."

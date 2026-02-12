@@ -32,7 +32,7 @@ tests = do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "" }
                 let request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
                 let ?request = request
-                (IO.evaluate requestBodyJSON) `shouldThrow` errorCall "Expected JSON body, but could not decode the request body. The request body is empty. This usually means another WAI middleware consumed the body before it could be parsed."
+                (IO.evaluate requestBodyJSON) `shouldThrow` errorCall "Expected JSON body, but could not decode the request body. The request body is empty."
 
             it "should throw descriptive error for JSONBody with invalid JSON" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }

@@ -60,7 +60,7 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
             let contentType = lookup hContentType (requestHeaders req)
             case contentType of
                 Just ct | isJsonContentType ct -> do
-                    rawPayload <- lazyRequestBody req
+                    rawPayload <- strictRequestBody req
                     let jsonPayload = Aeson.decode rawPayload
                     pure JSONBody { jsonPayload, rawPayload }
                 _ -> do
