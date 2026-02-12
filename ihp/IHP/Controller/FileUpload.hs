@@ -15,11 +15,11 @@ module IHP.Controller.FileUpload where
 import IHP.Prelude
 
 import Network.Wai.Parse (FileInfo, fileContent)
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
 import Wai.Request.Params.Middleware (RequestBody (..))
-import IHP.Controller.Context
+import IHP.Controller.Context ()
 import qualified System.Process as Process
 
 -- | Returns a file upload from the request as a ByteString.
@@ -52,7 +52,7 @@ import qualified System.Process as Process
 --
 -- See 'IHP.FileStorage.ControllerFunctions.storeFile' to upload the file to S3 or similar cloud storages.
 --
-fileOrNothing :: (?request :: Wai.Request) => ByteString -> Maybe (FileInfo LBS.ByteString)
+fileOrNothing :: (?request :: Request) => ByteString -> Maybe (FileInfo LBS.ByteString)
 fileOrNothing !name =
         case ?request.parsedBody of
             FormBody { files } ->
@@ -97,7 +97,7 @@ fileOrNothing !name =
 -- >         pure ()
 -- >
 --
-filesByName :: (?request :: Wai.Request) => ByteString -> [FileInfo LBS.ByteString]
+filesByName :: (?request :: Request) => ByteString -> [FileInfo LBS.ByteString]
 filesByName !name =
         case ?request.parsedBody of
             FormBody { files } -> files
@@ -143,7 +143,7 @@ data ImageUploadOptions = ImageUploadOptions {
 --
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?request :: Wai.Request
+        ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -193,7 +193,7 @@ uploadImageWithOptions options _ user =
 -- >             redirectTo EditUserAction { .. }
 --
 uploadImageFile :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?request :: Wai.Request
+        ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -219,7 +219,7 @@ uploadImageFile ext _ user =
 -- | Saves an uploaded png file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
 uploadPng ::
-    ( ?request :: Wai.Request
+    ( ?request :: Request
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
@@ -231,7 +231,7 @@ uploadPng field record = uploadImageFile "png" field record
 -- | Saves an uploaded svg file. No validation or transformation applied.
 -- See 'uploadImageFile' for details.
 uploadSVG ::
-    ( ?request :: Wai.Request
+    ( ?request :: Request
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))

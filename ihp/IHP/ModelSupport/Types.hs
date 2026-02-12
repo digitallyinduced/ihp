@@ -15,6 +15,7 @@ module IHP.ModelSupport.Types
 ( -- * Model Context
   ModelContext (..)
 , RowLevelSecurityContext (..)
+, TransactionRunner (..)
   -- * Type Families
 , GetModelById
 , GetTableName
@@ -39,6 +40,8 @@ module IHP.ModelSupport.Types
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, enhancedSqlErrorMessage
+, HasqlSessionError (..)
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
@@ -48,29 +51,39 @@ module IHP.ModelSupport.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Text.Encoding
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
-import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.ToField (Action)
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.Pool as Pool
+import qualified Hasql.Pool as Hasql
+import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
-import Data.Proxy
 import IHP.Log.Types (Logger)
+
+-- | Runner that executes a hasql Session on the current transaction's connection
+newtype TransactionRunner = TransactionRunner
+    { runInTransaction :: forall a. HasqlSession.Session a -> IO a }
+
+-- | Wrapper to make 'HasqlErrors.SessionError' an 'Exception', since it doesn't have one by default
+data HasqlSessionError = HasqlSessionError HasqlErrors.SessionError
+    deriving (Show)
+
+instance Exception HasqlSessionError
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
-    { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
-    , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
+    { hasqlPool :: Hasql.Pool -- ^ Hasql pool for prepared statement-based queries
+    , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }
@@ -79,7 +92,7 @@ data ModelContext = ModelContext
 -- logged in user and the postgresql role to switch to.
 data RowLevelSecurityContext = RowLevelSecurityContext
     { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
-    , rlsUserId :: Action -- ^ The user id of the current logged in user
+    , rlsUserId :: Text -- ^ The user id of the current logged in user
     }
 
 type family GetModelById id :: Type where
@@ -173,7 +186,7 @@ data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
+    = RecordNotFoundException { queryAndParams :: Text }
     deriving (Show)
 
 instance Exception RecordNotFoundException
@@ -184,11 +197,19 @@ instance Exception RecordNotFoundException
 data EnhancedSqlError
     = EnhancedSqlError
     { sqlErrorQuery :: Query
-    , sqlErrorQueryParams :: [Action]
+    , sqlErrorQueryParams :: Text
     , sqlError :: PG.SqlError
     } deriving (Show)
 
 instance Exception EnhancedSqlError
+
+-- | Extract the SQL error message as Text from an EnhancedSqlError.
+--
+-- This avoids downstream packages needing to import postgresql-simple
+-- to access the 'sqlErrorMsg' field on 'PG.SqlError'.
+enhancedSqlErrorMessage :: EnhancedSqlError -> Text
+enhancedSqlErrorMessage e = Data.Text.Encoding.decodeUtf8 e.sqlError.sqlErrorMsg
+{-# INLINE enhancedSqlErrorMessage #-}
 
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a

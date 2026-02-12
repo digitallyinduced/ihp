@@ -21,7 +21,7 @@ instance View ShowTableRowsView where
     html ShowTableRowsView { .. } = [hsx|
         <div class="h-100">
             {headerNav}
-            <div class="h-100 row no-gutters">
+            <div class="h-100 row g-0">
                 {renderTableSelector tableNames tableName}
                 <div class="col" oncontextmenu="showContextMenu('context-menu-data-root')">
                     <div style="overflow: scroll; max-height: 80vh">
@@ -52,7 +52,7 @@ instance View ShowTableRowsView where
                     primaryKey = intercalate "---" . map (cs . fromMaybe "" . (.fieldValue)) $ filter ((`elem` primaryKeyFields) . cs . (.fieldName)) fields
             renderField primaryKey DynamicField { .. }
                 | fieldName == "id" = [hsx|<td><span data-fieldname={fieldName}><a class="border rounded p-1" href={EditRowValueAction tableName (cs fieldName) primaryKey}>{renderId (sqlValueToText fieldValue)}</a></span></td>|]
-                | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "t"} /></span></td>|]
+                | isBoolField fieldName tableCols && not (isNothing fieldValue) = [hsx|<td><span data-fieldname={fieldName}><input type="checkbox" onclick={onClick tableName fieldName primaryKey} checked={sqlValueToText fieldValue == "true"} /></span></td>|]
                 | otherwise = renderNormalField primaryKey DynamicField { .. }
 
             renderNormalField primaryKey DynamicField { .. } = [hsx|
@@ -101,7 +101,7 @@ instance View ShowTableRowsView where
                         
 
             renderPageButton :: Int -> Html
-            renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark font-weight-bold" else "text-muted")]}>{nr}</a>|]
+            renderPageButton nr = [hsx|<a href={pathTo (ShowTableRowsAction tableName) <> "&page=" <> show nr <> "&rows=" <> show pageSize} class={classes ["mx-2", (if page==nr then "text-dark fw-bold" else "text-muted")]}>{nr}</a>|]
 
             emptyState :: Html
             emptyState = [hsx|

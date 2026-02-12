@@ -11,6 +11,7 @@
 , rtsFlags ? ""
 , appName ? "app"
 , optimizationLevel ? "2"
+, relationSupport ? true
 , filter
 , ihp-env-var-backwards-compat
 , ihp-static
@@ -39,11 +40,14 @@ let
             pkgs.gnumake # Needed for make print-ghc-options
         ];
         buildPhase = ''
+            export IHP_RELATION_SUPPORT=${if relationSupport then "1" else "0"}
+
             # Generate types from schema
             build-generated-code
 
             # Find all generated modules and create cabal file
-            MODULES=$(find build/Generated -name '*.hs' -printf '%f\n' | sed 's/\.hs$//' | sort)
+            # Use path relative to build/ and convert slashes to dots for module names
+            MODULES=$(cd build && find Generated -name '*.hs' | sed 's/\.hs$//' | sed 's|/|.|g' | sort)
 
             # Create cabal file
             cat > ${appName}-models.cabal <<'CABAL_EOF'
@@ -67,15 +71,21 @@ library
         , postgresql-simple
         , deepseq
         , data-default
-        , ip
         , scientific
         , string-conversions
+        , hasql
+        , hasql-dynamic-statements
+        , hasql-implicits
+        , hasql-mapping
+        , hasql-postgresql-types
+        , hasql-pool
+        , unordered-containers
     exposed-modules:
 CABAL_EOF
 
             # Add each module to exposed-modules
             for mod in $MODULES; do
-                echo "        Generated.$mod" >> ${appName}-models.cabal
+                echo "        $mod" >> ${appName}-models.cabal
             done
 
             # Add default extensions matching the generated code
@@ -109,8 +119,38 @@ CABAL_EOF
         disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
     };
 
-    # Build the models package as a proper Haskell package
-    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (ghc.callCabal2nix "${appName}-models" modelsPackageSrc {}));
+    # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
+    # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
+    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers }: mkDerivation {
+            pname = "${appName}-models";
+            version = "0.1.0";
+            src = modelsPackageSrc;
+            libraryHaskellDepends = [
+                base
+                ihp
+                basic-prelude
+                text
+                bytestring
+                time
+                uuid
+                aeson
+                postgresql-simple
+                deepseq
+                data-default
+                scientific
+                string-conversions
+                hasql
+                hasql-dynamic-statements
+                hasql-implicits
+                hasql-mapping
+                hasql-postgresql-types
+                hasql-pool
+                unordered-containers
+            ];
+            license = pkgs.lib.licenses.free;
+        }) {}
+    ));
 
     allHaskellPackages =
         (if withHoogle

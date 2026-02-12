@@ -22,7 +22,7 @@ module IHP.QueryBuilder.Order
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
-import qualified Data.Text.Encoding as Text
+import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 
 -- | Adds an @ORDER BY .. ASC@ to your query.
 --
@@ -37,7 +37,7 @@ import qualified Data.Text.Encoding as Text
 orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
     where
-        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByAsc #-}
 
@@ -57,7 +57,7 @@ orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder {
 orderByAscJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
 orderByAscJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
     where
-        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByAscJoinedTable #-}
 
@@ -75,7 +75,7 @@ orderByAscJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQue
 orderByDesc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
     where
-        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByDesc #-}
 
@@ -95,7 +95,7 @@ orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder 
 orderByDescJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
 orderByDescJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
     where
-        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
         queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByDescJoinedTable #-}
 
@@ -167,5 +167,5 @@ distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
 distinctOn :: forall name model value table queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
 distinctOn !name queryBuilderProvider = injectQueryBuilder DistinctOnQueryBuilder { distinctOnColumn = columnName, queryBuilder = getQueryBuilder queryBuilderProvider}
     where
-        columnName = tableNameByteString @model <> "." <> Text.encodeUtf8 (fieldNameToColumnName (symbolToText @name))
+        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE distinctOn #-}

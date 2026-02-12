@@ -7,7 +7,8 @@ module IHP.Controller.AccessDenied
 )
 where
 
-import IHP.Prelude hiding (displayException)
+import Prelude
+import Control.Monad (when, unless)
 import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status403)
 import Network.Wai

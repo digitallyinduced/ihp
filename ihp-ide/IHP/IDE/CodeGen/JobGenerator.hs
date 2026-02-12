@@ -3,18 +3,21 @@ module IHP.IDE.CodeGen.JobGenerator (buildPlan, buildPlan', JobConfig (..)) wher
 import IHP.Prelude
 import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 
 data JobConfig = JobConfig
     { applicationName :: Text
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
     , isFirstJobInApplication :: Bool -- If true, creates Worker.hs in application directory
+    , uuidFunction :: Text -- E.g. "uuid_generate_v4" or "uuidv7"
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
-    isFirstJobInApplication <- not <$> Directory.doesFileExist (cs $ applicationName <> "/Worker.hs")
+    let workerPath = textToOsPath (applicationName <> "/Worker.hs")
+    isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
+    uuidFunction <- defaultUuidFunction
     if null jobName
         then pure $ Left "Job name cannot be empty"
         else do
@@ -23,10 +26,11 @@ buildPlan jobName applicationName = do
                     , tableName = jobName
                     , modelName = tableNameToModelName jobName
                     , isFirstJobInApplication
+                    , uuidFunction
                     }
             pure $ Right $ buildPlan' jobConfig
 
--- E.g. qualifiedMailModuleName config "Confirmation" == "Web.Mail.Users.Confirmation"
+-- E.g. qualifiedJobModuleName config == "Web.Job.CreateContainer"
 qualifiedJobModuleName :: JobConfig -> Text
 qualifiedJobModuleName config =
     config.applicationName <> ".Job." <> unqualifiedJobModuleName config
@@ -39,12 +43,7 @@ buildPlan' config =
         let
             name = config.modelName
             tableName = modelNameToTableName nameWithSuffix
-            nameWithSuffix = if "Job" `isSuffixOf` name
-                then name
-                else name <> "Job" --e.g. "Test" -> "TestJob"
-            nameWithoutSuffix = if "Job" `isSuffixOf` name
-                then Text.replace "Job" "" name
-                else name --e.g. "TestJob" -> "Test""
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "Job" name
 
             job =
                 ""
@@ -58,7 +57,7 @@ buildPlan' config =
             schemaSql =
                 ""
                 <> "CREATE TABLE " <> tableName <> " (\n"
-                <> "    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n"
+                <> "    id UUID DEFAULT " <> config.uuidFunction <> "() PRIMARY KEY NOT NULL,\n"
                 <> "    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n"
                 <> "    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,\n"
@@ -91,13 +90,13 @@ instance Worker #{applicationName}Application where
         ]
 |]
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/Job" }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Job") }
             , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
-            , CreateFile { filePath = config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs", fileContent = job }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs"), fileContent = job }
             ]
             <> if config.isFirstJobInApplication
-                    then [ CreateFile { filePath = config.applicationName <> "/Worker.hs", fileContent = emptyWorkerHs } ]
+                    then [ CreateFile { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = emptyWorkerHs } ]
                     else
-                        [ AddImport { filePath = config.applicationName <> "/Worker.hs", fileContent = "import " <> qualifiedJobModuleName config }
-                        , AppendToMarker { marker = "-- Generator Marker", filePath = config.applicationName <> "/Worker.hs", fileContent = "        , worker @" <> nameWithSuffix }
+                        [ AddImport { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "import " <> qualifiedJobModuleName config }
+                        , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "        , worker @" <> nameWithSuffix }
                         ]

@@ -110,6 +110,7 @@
 }
 
 .column-selector .column td {
+	color: white;
     padding-top: 0px;
     padding-bottom: 0px;
     font-size: 10px;
@@ -150,7 +151,7 @@
 
 #editor {
     min-height: 800px;
-    background-color: #33555E#33555E
+    background-color: #33555E;
 }
 
 .row-form {
@@ -178,8 +179,9 @@
     margin-bottom: 200px; /* Make sure the context menu has a bit of space, see https://github.com/digitallyinduced/ihp/issues/895 */
 }
 
-.index .index-name, .policy .policy-name {
+.index .index-name, .policy .policy-name, .policy-expression {
     padding-left: 8px;
+    color: inherit;
 }
 
 .policy-expression small {
@@ -204,6 +206,11 @@
 
 .object-selector, .column-selector {
     background-color: #063642;
+}
+
+.column-selector .table {
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: hsla(192, 81%, 26%, 0.25);
 }
 
 .object {
@@ -239,6 +246,10 @@
     color:  #fff;
 }
 
+.column-selector a.text-body {
+    color: inherit !important;
+}
+
 .column-selector .column {
     color: #FFFFFF;
 }
@@ -252,10 +263,16 @@
 #schema-designer-viewer {
     margin-bottom: 0;
     flex-grow: 1;
+    flex-wrap: nowrap;
+    overflow: hidden;
 }
 
 .object-selector, .column-selector {
     min-height: 0 !important;
+}
+
+.object-selector {
+    min-width: 0;
 }
 
 .migration-status-visible .column-selector {
@@ -294,14 +311,10 @@
     font-size: 12px;
 }
 
-#column-options .custom-control {
+#column-options .form-check {
     display: flex;
     justify-content: center;
     align-items: center;
-}
-
-#column-options .custom-control-label::before {
-    top: 1px;
 }
 
 #editor .code-editor-container {
@@ -332,26 +345,36 @@
 }
 
 #migration-status-container {
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    right: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    width: 100%;
 }
 
 #migration-status-container > .alert {
+    --bs-alert-bg: #0A4151;
+    --bs-alert-color: hsla(196, 13%, 90%, 1);
+    --bs-alert-border-color: #0A4151;
+    --bs-alert-padding-x: 16px;
+    --bs-alert-padding-y: 8px;
+    --bs-alert-margin-bottom: 0;
     max-width: 800px;
     margin-left: auto;
     margin-right: auto;
+    margin-bottom: 0;
     font-size: 14px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-    border: 2px solid #0B5163;
+    padding: 8px 16px;
+    border: 1px solid hsla(192, 81%, 26%, 0.4);
+    border-radius: 6px;
     background-color: #0A4151;
+    color: hsla(196, 13%, 90%, 1);
 }
 
 #migration-status-container .btn.btn-dark {
+    --bs-btn-bg: #002B37;
+    --bs-btn-border-color: hsla(192, 81%, 26%, 0.8);
+    --bs-btn-hover-bg: #003a4a;
+    --bs-btn-hover-border-color: hsla(192, 81%, 26%, 1);
     background-color: #002B37;
     border: 1px solid hsla(192, 81%, 26%, 0.8);
 }

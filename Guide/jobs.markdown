@@ -267,7 +267,7 @@ The third type parameter to [`JobsDashboardController`](https://ihp.digitallyind
 ### Customize views
 
 Most views in the dashboard can be customized by providing a custom implementation of [`DisplayableJob`](https://ihp.digitallyinduced.com/api-docs/IHP-Job-Dashboard.html#t:DisplayableJob) for your job type.
-These methods can be overriden to allow for custom behavior:
+These methods can be overridden to allow for custom behavior:
 
 ```haskell
 makeDashboardSection :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
@@ -292,7 +292,7 @@ Can be defined as any arbitrary view:
 makeNewJobView :: (?context::ControllerContext, ?modelContext::ModelContext) => IO SomeView
 ```
 The content of the page that will be displayed for the "new job" form of this job.
-By default, only the submit button is rendered. For additonal form data, define your own implementation.
+By default, only the submit button is rendered. For additional form data, define your own implementation.
 See `GenericNewJobView` for a guide on how it can look like.
 It can be defined as any arbitrary view, but it should be a form:
 

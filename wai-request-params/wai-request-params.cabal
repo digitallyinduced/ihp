@@ -15,6 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
     hs-source-dirs: .
     exposed-modules:
           Wai.Request.Params
@@ -47,11 +48,13 @@ test-suite spec
     main-is: Spec.hs
     other-modules:
           Wai.Request.ParamsSpec
+        , Wai.Request.Params.MiddlewareSpec
     build-depends:
             base >= 4.17.0 && < 4.22
           , wai-request-params
           , hspec
           , wai
+          , wai-extra
           , vault
           , aeson
           , uuid
@@ -60,6 +63,7 @@ test-suite spec
           , scientific
           , time
           , string-conversions
+          , http-types
 
 source-repository head
     type:     git

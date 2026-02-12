@@ -29,8 +29,8 @@ import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.ByteString.Char8 as ByteString
+import qualified Hasql.Errors as HasqlErrors
+import qualified Hasql.Pool as HasqlPool
 
 import IHP.HSX.QQ (hsx)
 import qualified IHP.ModelSupport as ModelSupport
@@ -57,7 +57,7 @@ handleNoResponseReturned controller = do
     let title = [hsx|No response returned in {tshow controller}|]
     ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError ?context.frameworkConfig.environment title errorMessage))
 
-displayException :: (Show action, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
@@ -87,10 +87,7 @@ displayException exception action additionalInfo = do
     --
     when (?context.frameworkConfig.environment == Environment.Production) do
         let exceptionTracker = ?context.frameworkConfig.exceptionTracker.onException
-        let request = ?context.request
-
-
-        exceptionTracker (Just request) exception
+        exceptionTracker (Just ?request) exception
 
     supportingHandlers
         |> listToMaybe
@@ -122,8 +119,8 @@ genericHandler exception controller additionalInfo = do
 postgresHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
     let
-        handlePostgresOutdatedError :: Show exception => exception -> H.Html -> IO ResponseReceived
-        handlePostgresOutdatedError exception errorText = do
+        handlePostgresOutdatedError :: Text -> H.Html -> IO ResponseReceived
+        handlePostgresOutdatedError errorDetail errorText = do
             let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
             let title = [hsx|Database looks outdated. {errorText}|]
             let errorMessage = [hsx|
@@ -138,48 +135,77 @@ postgresHandler exception controller additionalInfo = do
 
                         <h2>Details</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
+                        <p style="font-family: monospace; font-size: 16px">{errorDetail}</p>
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
 
-        handleSqlError :: ModelSupport.EnhancedSqlError -> IO ResponseReceived
-        handleSqlError exception = do
-            let ihpIdeBaseUrl = ?context.frameworkConfig.ideBaseUrl
-            let sqlError = exception.sqlError
-            let title = [hsx|{sqlError.sqlErrorMsg}|]
+        handleServerError :: Text -> [Text] -> HasqlErrors.ServerError -> IO ResponseReceived
+        handleServerError sql params (HasqlErrors.ServerError code msg detail hint _position) = do
+            let title = [hsx|{msg}|]
+            let detailSection = case detail of
+                    Just d  -> [hsx|<p style="font-size: 16px"><strong>Detail:</strong> {d}</p>|]
+                    Nothing -> mempty
+            let hintSection = case hint of
+                    Just h  -> [hsx|<p style="font-size: 16px"><strong>Hint:</strong> {h}</p>|]
+                    Nothing -> mempty
+            let paramsText = Text.intercalate ", " params
             let errorMessage = [hsx|
-                        <h2>While running the following Query:</h2>
+                        <h2>While running the following query:</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQuery}</code>
+                            <pre class="ihp-error-code">{sql}</pre>
                         </div>
 
-                        <h2>With Query Parameters:</h2>
+                        <h2>With parameters:</h2>
                         <div style="margin-bottom: 2rem; font-weight: 400;">
-                            <code>{exception.sqlErrorQueryParams}</code>
+                            <code>{paramsText}</code>
                         </div>
+
+                        {detailSection}
+                        {hintSection}
+
+                        <p style="font-size: 14px; font-family: monospace;">PostgreSQL error code: {code}</p>
 
                         <h2>Details:</h2>
                         <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
-                        <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
-    case fromException exception of
-        Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
-        Nothing -> case fromException exception of
-            -- Catching  `relation "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "relation" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A table is missing.")
 
-            -- Catching  `columns "..." does not exist`
-            Just exception@ModelSupport.EnhancedSqlError { sqlError }
-                |  "column" `ByteString.isPrefixOf` (sqlError.sqlErrorMsg)
-                && "does not exist" `ByteString.isSuffixOf` (sqlError.sqlErrorMsg)
-                -> Just (handlePostgresOutdatedError exception "A column is missing.")
-            -- Catching other SQL Errors
-            Just exception -> Just (handleSqlError exception)
-            Nothing -> Nothing
+        handleSessionError :: HasqlErrors.SessionError -> IO ResponseReceived
+        handleSessionError sessionError = do
+            let title = [hsx|PostgreSQL Error|]
+            let errorMessage = [hsx|
+                        <h2>Details:</h2>
+                        <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
+                        <pre class="ihp-error-code">{tshow sessionError}</pre>
+                    |]
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+
+    case fromException exception of
+        Just (ModelSupport.HasqlError (HasqlPool.SessionUsageError sessionError)) -> Just case sessionError of
+            -- Statement with a ServerError
+            HasqlErrors.StatementSessionError _pipelineSize _stmtIdx sql params _prepared (HasqlErrors.ServerStatementError serverError@(HasqlErrors.ServerError code _msg _ _ _))
+                -- 42P01 = undefined_table ("relation ... does not exist")
+                | code == "42P01" -> handlePostgresOutdatedError (tshow serverError) "A table is missing."
+                -- 42703 = undefined_column ("column ... does not exist")
+                | code == "42703" -> handlePostgresOutdatedError (tshow serverError) "A column is missing."
+                -- All other server errors on statements
+                | otherwise -> handleServerError sql params serverError
+            -- Script (multi-statement) with a ServerError
+            HasqlErrors.ScriptSessionError sql serverError@(HasqlErrors.ServerError code _msg _ _ _)
+                | code == "42P01" -> handlePostgresOutdatedError (tshow serverError) "A table is missing."
+                | code == "42703" -> handlePostgresOutdatedError (tshow serverError) "A column is missing."
+                | otherwise -> handleServerError sql [] serverError
+            -- Any other session error (connection errors, type mismatches, etc.)
+            other -> handleSessionError other
+        Just (ModelSupport.HasqlError _otherUsageError) -> Just do
+            let title = [hsx|Database Connection Error|]
+            let errorMessage = [hsx|
+                        <h2>Details:</h2>
+                        <p style="font-size: 16px">The exception was raised while running the action: {tshow controller}{additionalInfo}</p>
+                        <pre class="ihp-error-code">{tshow _otherUsageError}</pre>
+                    |]
+            ?respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError Environment.Development title errorMessage))
+        Nothing -> Nothing
 
 patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do
@@ -205,11 +231,10 @@ patternMatchFailureHandler exception controller additionalInfo = do
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
 -- Only used in dev mode of the app.
 
-paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
-            let ?request = ?context.request
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
 
             let renderParam (paramName, paramValue) = [hsx|<li>{paramName}: {paramValue}</li>|]
@@ -274,16 +299,12 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
             let (controllerPath, _) = Text.breakOn ":" (tshow exception)
             let errorMessage = [hsx|
                     <p>
                         The following SQL was executed:
-                        <pre class="ihp-error-code">{query}</pre>
-                    </p>
-                    <p>
-                        These query parameters have been used:
-                        <pre class="ihp-error-code">{params}</pre>
+                        <pre class="ihp-error-code">{queryAndParams}</pre>
                     </p>
 
                     <p>
@@ -315,11 +336,11 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->
-            Just (handleNotFound ?context.request ?respond)
+            Just (handleNotFound ?request ?respond)
         Nothing -> Nothing
 
 handleRouterException :: Environment.Environment -> SomeException -> Application

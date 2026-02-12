@@ -13,7 +13,11 @@ import Network.Wai.Internal (ResponseReceived(..))
 import Network.Wai.Test (defaultRequest)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestBodyVaultKey)
-import Network.Wai (Request, vault)
+import Network.Wai (vault)
+import qualified Data.List as List
+
+-- Test types to simulate known types in error messages
+data PageTitle = PageTitle deriving (Typeable)
 
 tests = do
     let requestBody = FormBody [] []
@@ -48,7 +52,9 @@ tests = do
                 context <- newControllerContext
                 let ?context = context
 
-                (fromContext @Text) `shouldThrow` (errorCall "Unable to find Text in controller context: TypeRepMap [Request]")
+                (fromContext @Text) `shouldThrow` (\e -> case e of
+                    ErrorCall msg -> "Unable to find Text in controller context:" `List.isPrefixOf` msg
+                    _ -> False)
 
             it "return a stored value if frozen" do
                 context <- newControllerContext
@@ -82,3 +88,25 @@ tests = do
                 let ?context = context
 
                 (fromFrozenContext @Text) `shouldBe` "hello"
+
+            it "should provide helpful error message for known types" do
+                context <- newControllerContext
+                let ?context = context
+
+                -- Test that error message does not include a hint for unknown types
+                (fromContext @Int) `shouldThrow` (\e -> case e of
+                    ErrorCall msg ->
+                        "Unable to find" `List.isPrefixOf` msg &&
+                        not ("Hint:" `List.isInfixOf` msg)  -- Int is not a known type, so no hint
+                    _ -> False)
+
+            it "should provide hint for PageTitle" do
+                context <- newControllerContext
+                let ?context = context
+
+                -- Test that PageTitle gets the correct hint
+                (fromContext @PageTitle) `shouldThrow` (\e -> case e of
+                    ErrorCall msg ->
+                        "Unable to find PageTitle in controller context:" `List.isPrefixOf` msg &&
+                        "Hint: Use 'setTitle' to set the page title (imported from IHP.PageHead.ControllerFunctions)" `List.isInfixOf` msg
+                    _ -> False)

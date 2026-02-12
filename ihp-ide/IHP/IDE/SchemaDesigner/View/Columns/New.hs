@@ -17,7 +17,7 @@ data NewColumnView = NewColumnView
 
 instance View NewColumnView where
     html NewColumnView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName  (zip [0..] columns) statements}
         </div>
@@ -25,15 +25,14 @@ instance View NewColumnView where
         {renderModal modal}
     |]
         where
-            table = findStatementByName tableName statements
-            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            columns = getTableColumns tableName statements
 
             modalContent = [hsx|
                 {renderFlashMessages}
                 <form method="POST" action={CreateColumnAction} id="new-column">
                     <input type="hidden" name="tableName" value={tableName}/>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <input
                             id="colName"
                             name="name"
@@ -45,35 +44,35 @@ instance View NewColumnView where
                             />
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         {typeSelector Nothing enumNames}
                         <div class="mt-1 text-muted" id="column-options">
                             {generateReferenceCheckboxes}
                             <div class="d-flex">
-                                <div class="custom-control custom-checkbox">
-                                    <input id="allowNull" type="checkbox" name="allowNull" class="mr-1 custom-control-input"/>
-                                    <label class="custom-control-label mr-2" for="allowNull">
+                                <div class="form-check">
+                                    <input id="allowNull" type="checkbox" name="allowNull" class="me-1 form-check-input"/>
+                                    <label class="form-check-label me-2" for="allowNull">
                                         Nullable
                                     </label>
                                 </div>
 
-                                <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" id="isUnique" name="isUnique" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 custom-control-label" for="isUnique">
+                                <div class="form-check">
+                                    <input type="checkbox" id="isUnique" name="isUnique" class="me-1 form-check-input"/>
+                                    <label class="mx-2 form-check-label" for="isUnique">
                                         Unique
                                     </label>
                                 </div>
 
-                                <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" name="primaryKey" id="primaryKey" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 custom-control-label" for="primaryKey">
+                                <div class="form-check">
+                                    <input type="checkbox" name="primaryKey" id="primaryKey" class="me-1 form-check-input"/>
+                                    <label class="mx-2 form-check-label" for="primaryKey">
                                         Primary Key
                                     </label>
                                 </div>
 
-                                <div class="custom-control custom-checkbox">
-                                    <input id="isArray" type="checkbox" name="isArray" class="mr-1 custom-control-input"/>
-                                    <label class="mx-2 custom-control-label" for="isArray">
+                                <div class="form-check">
+                                    <input id="isArray" type="checkbox" name="isArray" class="me-1 form-check-input"/>
+                                    <label class="mx-2 form-check-label" for="isArray">
                                         Array Type
                                     </label>
                                 </div>
@@ -81,11 +80,11 @@ instance View NewColumnView where
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         {defaultSelector}
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Create Column</button>
                     </div>
 
@@ -102,9 +101,9 @@ instance View NewColumnView where
                         where
                             checkbox tableName = [hsx|
                             <div>
-                                <div class="custom-control custom-checkbox ref" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
-                                    <input id={"checkbox-ref-" <> tableName} type="checkbox" name="isReference" class="mr-1 custom-control-input"/>
-                                    <label for={"checkbox-ref-" <> tableName} class="mx-2 custom-control-label" id="refText">
+                                <div class="form-check ref" style="display: none;" data-attribute={(singularize tableName) <> "_id"} data-table={tableName} >
+                                    <input id={"checkbox-ref-" <> tableName} type="checkbox" name="isReference" class="me-1 form-check-input"/>
+                                    <label for={"checkbox-ref-" <> tableName} class="mx-2 form-check-label" id="refText">
                                         References {tableName}
                                     </label>
                                 </div>

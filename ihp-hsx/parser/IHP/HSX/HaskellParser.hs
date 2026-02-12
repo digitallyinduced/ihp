@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-module IHP.HSX.HaskellParser (parseHaskellExpression) where
+module IHP.HSX.HaskellParser (parseHaskellExpression, HaskellExprParser, mkHaskellExprParser) where
 
 import Prelude
 import GHC.Parser.Lexer (ParseResult (..), PState (..))
@@ -24,8 +24,17 @@ import qualified GHC.Types.SrcLoc as SrcLoc
 import GHC.Unit.Module.Warnings
 #endif
 
-parseHaskellExpression :: SourcePos -> [TH.Extension] -> String -> Either (Int, Int, String) TH.Exp
-parseHaskellExpression sourcePos extensions input =
+-- | Cached GHC parser options, constructed once per HSX quasi-quote splice.
+newtype HaskellExprParser = HaskellExprParser Lexer.ParserOpts
+
+-- | Build a 'HaskellExprParser' from the given extensions.
+-- Call this once and reuse for every @{expr}@ splice in the template.
+mkHaskellExprParser :: [TH.Extension] -> HaskellExprParser
+mkHaskellExprParser extensions = HaskellExprParser $
+    Lexer.mkParserOpts (EnumSet.fromList extensions) diagOpts [] False False False False
+
+parseHaskellExpression :: HaskellExprParser -> SourcePos -> String -> Either (Int, Int, String) TH.Exp
+parseHaskellExpression (HaskellExprParser parserOpts) sourcePos input =
         case expr of
             POk parserState result -> Right (toExp (unLoc result))
             PFailed parserState ->
@@ -57,7 +66,7 @@ parseHaskellExpression sourcePos extensions input =
 
         location :: RealSrcLoc
         location = mkRealSrcLoc filename line col
-        
+
         filename :: FastString
         filename = mkFastString sourcePos.sourceName
 
@@ -69,9 +78,6 @@ parseHaskellExpression sourcePos extensions input =
 
         buffer = stringToStringBuffer input
         parseState = Lexer.initParserState parserOpts buffer location
-
-        parserOpts :: Lexer.ParserOpts
-        parserOpts = Lexer.mkParserOpts (EnumSet.fromList extensions) diagOpts [] False False False False
 
 diagOpts :: DiagOpts
 diagOpts =

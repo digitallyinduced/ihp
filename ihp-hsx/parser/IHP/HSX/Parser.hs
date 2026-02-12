@@ -34,8 +34,8 @@ import qualified "template-haskell" Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import qualified Data.Containers.ListUtils as List
 import qualified IHP.HSX.HaskellParser as HaskellParser
+import IHP.HSX.HaskellParser (HaskellExprParser, mkHaskellExprParser)
 
 data HsxSettings = HsxSettings
     { checkMarkup :: Bool
@@ -70,12 +70,12 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 parseHsx :: HsxSettings -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
 parseHsx settings position extensions code =
     let
-        ?extensions = extensions
+        ?haskellParser = mkHaskellExprParser extensions
         ?settings = settings
     in
         runParser (setPosition position *> parser) "" code
 
-type Parser a = (?extensions :: [TH.Extension], ?settings :: HsxSettings) => Parsec Void Text a
+type Parser a = (?haskellParser :: HaskellExprParser, ?settings :: HsxSettings) => Parsec Void Text a
 
 setPosition pstateSourcePos = updateParserState (\state -> state {
         statePosState = (statePosState state) { pstateSourcePos }
@@ -84,13 +84,10 @@ setPosition pstateSourcePos = updateParserState (\state -> state {
 parser :: Parser Node
 parser = do
     space
-    node <- manyHsxElement <|> hsxElement
+    node <- manyHsxElement <|> hsxOpenTag
     space
     eof
     pure node
-
-hsxElement :: Parser Node
-hsxElement = try hsxNoRenderComment <|> hsxOpenTag
 
 manyHsxElement :: Parser Node
 manyHsxElement = do
@@ -164,8 +161,22 @@ hsxTagChildren name attributes = do
     children <- case name of
         "script" -> parsePreEscapedTextChildren name Text.strip
         "style" -> parsePreEscapedTextChildren name (collapseSpace . Text.strip)
-        _ -> stripTextNodeWhitespaces <$> (space >> manyTill (try hsxChild) (try (space >> hsxClosingElement name)))
+        _ -> space >> collectChildren name []
     pure (Node name attributes children False)
+
+-- | Collect children until closing tag is found.
+-- Uses 'getInput' to peek for @<\/@ without backtracking, eliminating two @try@ wrappers per child.
+collectChildren :: Text -> [Node] -> Parser [Node]
+collectChildren name !acc = do
+    input <- getInput
+    if Text.isPrefixOf "</" (Text.dropWhile Char.isSpace input)
+        then do
+            space
+            hsxClosingElement name
+            pure (stripTextNodeWhitespaces (reverse acc))
+        else do
+            child <- hsxChild
+            collectChildren name (child : acc)
 
 -- | Parses pre-escaped text (for script/style bodies) by scanning for the closing tag.
 -- Produces Text directly without an intermediate String allocation.
@@ -215,7 +226,7 @@ hsxSplicedAttributes = do
 
 parseHaskellExpression :: SourcePos -> Text -> Parser Haskell.Exp
 parseHaskellExpression sourcePos input = do
-    case HaskellParser.parseHaskellExpression sourcePos ?extensions (cs input) of
+    case HaskellParser.parseHaskellExpression ?haskellParser sourcePos (cs input) of
         Right expression -> pure expression
         Left (line, col, error) -> do
             pos <- getSourcePos
@@ -294,8 +305,42 @@ hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
             char ('>')
             pure ()
 
+-- | Dispatch on first character to avoid sequential backtracking.
 hsxChild :: Parser Node
-hsxChild = hsxElement <|> hsxSplicedNode <|> try (space >> hsxElement) <|> hsxText
+hsxChild = do
+    c <- lookAhead anySingle
+    case c of
+        '<' -> hsxOpenTag
+        '{' -> hsxNoRenderCommentOrSplice
+        _ | Char.isSpace c -> hsxSpaceThenChild
+          | otherwise -> hsxText
+
+-- | Peek at second char to distinguish @{- comment -}@ from @{expr}@ splice.
+hsxNoRenderCommentOrSplice :: Parser Node
+hsxNoRenderCommentOrSplice = do
+    mc <- optional (lookAhead (string "{-"))
+    case mc of
+        Just _  -> hsxNoRenderComment
+        Nothing -> hsxSplicedNode
+
+-- | Whitespace in child position: consume it, then dispatch.
+-- Space before element/comment is discarded (matches old @try (space >> hsxElement)@ behavior).
+-- Space before splice/text/eof becomes a text node (matches old @hsxText@ fallback).
+hsxSpaceThenChild :: Parser Node
+hsxSpaceThenChild = do
+    sp <- takeWhileP Nothing Char.isSpace
+    mc <- optional (lookAhead anySingle)
+    case mc of
+        Nothing -> pure (buildTextNode sp)           -- eof: text node (stripped later)
+        Just '<' -> hsxOpenTag                       -- element: discard space
+        Just '{' -> do
+            mc2 <- optional (lookAhead (string "{-"))
+            case mc2 of
+                Just _  -> hsxNoRenderComment        -- {- comment: discard space
+                Nothing -> pure (buildTextNode sp)   -- {expr}: space is text node
+        Just _ -> do                                 -- more text: combine space + content
+            rest <- takeWhileP Nothing (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
+            pure (buildTextNode (sp <> rest))
 
 -- | Parses a hsx text node
 --
@@ -307,34 +352,26 @@ hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}
 buildTextNode :: Text -> Node
 buildTextNode value = TextNode (collapseSpace value)
 
-data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
-
 hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
-        (pos, expression) <- doParse
-        haskellExpression <- parseHaskellExpression pos (cs expression)
-        pure (SplicedNode haskellExpression)
-    where
-        doParse = do
-            (pos, tree) <- node
-            let value = (treeToString "" tree)
-            pure (pos, Text.init $ Text.tail value)
+    _ <- char '{'
+    pos <- getSourcePos
+    expression <- scanBracedExpression 0 []
+    haskellExpression <- parseHaskellExpression pos (cs expression)
+    pure (SplicedNode haskellExpression)
 
-        parseTree = (snd <$> node) <|> leaf
-        node = between (char '{') (char '}') do
-                pos <- getSourcePos
-                tree <- many parseTree
-                pure (pos, TokenNode tree)
-        leaf = TokenLeaf <$> takeWhile1P Nothing (\c -> c /= '{' && c /= '}')
-
-        -- Build result using difference lists (O(1) append) then convert once
-        treeToString :: Text -> TokenTree -> Text
-        treeToString acc tree = acc <> Text.concat (treeToList tree [])
-
-        treeToList :: TokenTree -> [Text] -> [Text]
-        treeToList (TokenLeaf value) rest = value : rest
-        treeToList (TokenNode []) rest = rest
-        treeToList (TokenNode children) rest = "{" : List.foldr treeToList ("}" : rest) children
+-- | Scan brace-balanced expression, tracking nesting depth.
+-- Accumulates text chunks in reverse for O(n) final concat.
+scanBracedExpression :: Int -> [Text] -> Parser Text
+scanBracedExpression !depth !acc = do
+    chunk <- takeWhileP Nothing (\c -> c /= '{' && c /= '}')
+    let acc' = if Text.null chunk then acc else chunk : acc
+    c <- anySingle  -- must be '{' or '}'
+    case c of
+        '{' -> scanBracedExpression (depth + 1) ("{" : acc')
+        '}' | depth > 0 -> scanBracedExpression (depth - 1) ("}" : acc')
+            | otherwise -> pure (Text.concat (reverse acc'))
+        _ -> error "impossible: takeWhileP guarantees '{' or '}'"
 
 
 
@@ -658,10 +695,9 @@ stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNod
 
 stripLastTextNodeWhitespaces :: [Node] -> [Node]
 stripLastTextNodeWhitespaces [] = []
-stripLastTextNodeWhitespaces nodes =
-    case List.last nodes of
-        TextNode text -> List.init nodes <> [TextNode (Text.stripEnd text)]
-        _ -> nodes
+stripLastTextNodeWhitespaces [TextNode text] = [TextNode (Text.stripEnd text)]
+stripLastTextNodeWhitespaces [node] = [node]
+stripLastTextNodeWhitespaces (x:xs) = x : stripLastTextNodeWhitespaces xs
 
 stripFirstTextNodeWhitespaces :: [Node] -> [Node]
 stripFirstTextNodeWhitespaces [] = []
@@ -716,10 +752,11 @@ missingPrefixHint name
 
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text
-collapseSpace text = Text.concat $ go $ Text.groupBy bothSpace text
-    where
-        bothSpace a b = Char.isSpace a && Char.isSpace b
-        go [] = []
-        go (t:ts)
-            | Text.any Char.isSpace t = Text.singleton ' ' : go ts
-            | otherwise = t : go ts
+collapseSpace text
+    | Text.null text = text
+    | otherwise = Text.concat (go text)
+  where
+    go t
+        | Text.null t = []
+        | Char.isSpace (Text.head t) = " " : go (Text.dropWhile Char.isSpace t)
+        | otherwise = let (w, rest) = Text.span (not . Char.isSpace) t in w : go rest

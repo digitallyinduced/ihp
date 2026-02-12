@@ -11,16 +11,16 @@ See https://ihp.digitallyinduced.com/Guide/relationships.html for some examples.
 module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing) where
 
 import IHP.Prelude
-import Database.PostgreSQL.Simple.ToField
-import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName, Table)
 import IHP.QueryBuilder
 import IHP.Fetch
+import IHP.Hasql.FromRow (FromRowHasql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 
 -- | This class provides the collectionFetchRelated function
 --
 -- This function is provided by this class as we have to deal with two cases:
--- 
+--
 -- 1. the related field is a id, e.g. like the company ids in @users |> collectionFetchRelated #companyId@
 -- 2. the related field is a query builder, e.g. in @posts |> collectionFetchRelated #comments@
 class CollectionFetchRelated relatedFieldValue relatedModel where
@@ -30,14 +30,14 @@ class CollectionFetchRelated relatedFieldValue relatedModel where
             UpdateField relatedField model (Include relatedField model) relatedFieldValue (FetchResult relatedFieldValue relatedModel),
             Fetchable relatedFieldValue relatedModel,
             KnownSymbol (GetTableName relatedModel),
-            PG.FromRow relatedModel,
+            FromRowHasql relatedModel,
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
 
 -- | This class provides the collectionFetchRelatedOrNothing function
 --
 -- This function is provided by this class as we have to deal with two cases:
--- 
+--
 -- 1. the related field is an id, e.g. like the company ids in @users |> collectionFetchRelated #companyId@
 -- 2. the related field is a query builder, e.g. in @posts |> collectionFetchRelated #comments@
 class CollectionFetchRelatedOrNothing relatedFieldValue relatedModel where
@@ -47,7 +47,7 @@ class CollectionFetchRelatedOrNothing relatedFieldValue relatedModel where
             UpdateField relatedField model (Include relatedField model) (Maybe relatedFieldValue) (Maybe (FetchResult relatedFieldValue relatedModel)),
             Fetchable relatedFieldValue relatedModel,
             KnownSymbol (GetTableName relatedModel),
-            PG.FromRow relatedModel,
+            FromRowHasql relatedModel,
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
 
@@ -67,12 +67,12 @@ class CollectionFetchRelatedOrNothing relatedFieldValue relatedModel where
 -- > SELECT * FROM companies WHERE id IN (?)
 instance (
         Eq (PrimaryKey tableName)
-        , ToField (PrimaryKey tableName)
         , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelated (Id' tableName) relatedModel where
     collectionFetchRelated :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -80,7 +80,7 @@ instance (
             UpdateField relatedField model (Include relatedField model) (Id' tableName) (FetchResult (Id' tableName) relatedModel),
             Fetchable (Id' tableName) relatedModel,
             KnownSymbol (GetTableName relatedModel),
-            PG.FromRow relatedModel,
+            FromRowHasql relatedModel,
             KnownSymbol relatedField,
             Table relatedModel
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
@@ -119,11 +119,11 @@ instance (
 -- > SELECT * FROM companies WHERE id IN (?)
 instance (
         Eq (PrimaryKey tableName)
-        , ToField (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
         , Table relatedModel
+        , DefaultParamEncoder [PrimaryKey tableName]
         ) => CollectionFetchRelatedOrNothing (Id' tableName) relatedModel where
     collectionFetchRelatedOrNothing :: forall model relatedField. (
             ?modelContext :: ModelContext,
@@ -131,7 +131,7 @@ instance (
             UpdateField relatedField model (Include relatedField model) (Maybe (Id' tableName)) (Maybe (FetchResult (Id' tableName) relatedModel)),
             Fetchable (Id' tableName) relatedModel,
             KnownSymbol (GetTableName relatedModel),
-            PG.FromRow relatedModel,
+            FromRowHasql relatedModel,
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelatedOrNothing relatedField model = do
@@ -169,7 +169,7 @@ instance (relatedModel ~ GetModelByTableName relatedTable, Table relatedModel) =
             UpdateField relatedField model (Include relatedField model) (QueryBuilder relatedTable) (FetchResult (QueryBuilder relatedTable) relatedModel),
             Fetchable (QueryBuilder relatedTable) relatedModel,
             KnownSymbol (GetTableName relatedModel),
-            PG.FromRow relatedModel,
+            FromRowHasql relatedModel,
             KnownSymbol relatedField
         ) => Proxy relatedField -> [model] -> IO [Include relatedField model]
     collectionFetchRelated relatedField models = do
@@ -208,7 +208,7 @@ fetchRelated :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
         UpdateField field model (Include field model) fieldValue (FetchResult fieldValue fetchModel),
         HasField field model fieldValue,
-        PG.FromRow fetchModel,
+        FromRowHasql fetchModel,
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel,
         Table fetchModel
@@ -223,7 +223,7 @@ fetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
         UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
         HasField field model (Maybe fieldValue),
-        PG.FromRow fetchModel,
+        FromRowHasql fetchModel,
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel,
         Table fetchModel
@@ -240,7 +240,7 @@ maybeFetchRelatedOrNothing :: forall model field fieldValue fetchModel. (
         ?modelContext :: ModelContext,
         UpdateField field model (Include field model) (Maybe fieldValue) (Maybe (FetchResult fieldValue fetchModel)),
         HasField field model (Maybe fieldValue),
-        PG.FromRow fetchModel,
+        FromRowHasql fetchModel,
         KnownSymbol (GetTableName fetchModel),
         Fetchable fieldValue fetchModel,
         Table fetchModel

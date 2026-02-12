@@ -15,6 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
     build-depends:
             base >= 4.17.0 && < 4.22
             , wai
@@ -23,9 +24,13 @@ library
             , blaze-markup
             , ihp
             , ihp-hsx
-            , postgresql-simple
             , http-types
             , wai-request-params
+            , hasql-implicits
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-pool
+            , text
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

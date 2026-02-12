@@ -5,19 +5,23 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.CSSFramework.Tailwind (tailwind) where
 
-import IHP.Prelude
+import Prelude hiding (null)
+import Data.Text (Text, null)
+import Data.ByteString (ByteString)
+import Data.Maybe (isJust)
+import Data.Default (def)
+import Control.Monad (unless)
+import IHP.HaskellSupport (forEach)
+import IHP.InputValue (inputValue)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml ()
 import IHP.View.Types
 import IHP.View.Classes
-
-import IHP.ModelSupport
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import Data.Default (def)
 import IHP.View.CSSFramework.Unstyled ()
 
 tailwind :: CSSFramework

@@ -18,43 +18,45 @@ module IHP.Controller.Context
     , ActionType(..)
     ) where
 
-import IHP.Prelude
+import Prelude
+import Data.IORef (newIORef, readIORef)
+import GHC.Records (HasField(..))
+import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Network.Wai as Wai
+import Network.Wai (Request)
 import IHP.RequestVault (requestFrameworkConfig)
 import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
 import IHP.ControllerContext (ControllerContext(..), freeze, unfreeze, putContext, fromContext, maybeFromContext, fromFrozenContext, maybeFromFrozenContext)
-import qualified IHP.ControllerContext as Context
 
 -- | Creates a new controller context with the WAI Request stored in the TMap
 --
 -- This version stores the Request in the TMap so it can be retrieved
 -- via the HasField instance.
-newControllerContext :: (?request :: Wai.Request) => IO ControllerContext
+newControllerContext :: (?request :: Request) => IO ControllerContext
 newControllerContext = do
     customFieldsRef <- newIORef (TypeMap.insert ?request TypeMap.empty)
     pure ControllerContext { customFieldsRef }
-{-# INLINABLE newControllerContext #-}
+{-# INLINE newControllerContext #-}
 
 -- | Access request from the TMap
 --
 -- This allows @controllerContext.request@ to work by retrieving
 -- the WAI Request stored in the TMap.
-instance HasField "request" ControllerContext Wai.Request where
+instance HasField "request" ControllerContext Request where
     getField (FrozenControllerContext { customFields }) =
-        case TypeMap.lookup @Wai.Request customFields of
+        case TypeMap.lookup @Request customFields of
             Just req -> req
             Nothing -> error "request: Request not found in controller context. Did you forget to call newControllerContext?"
     getField (ControllerContext { customFieldsRef }) =
         -- Hacky but necessary - we need to read the IORef in a pure context
         unsafePerformIO $ do
             customFields <- readIORef customFieldsRef
-            case TypeMap.lookup @Wai.Request customFields of
+            case TypeMap.lookup @Request customFields of
                 Just req -> pure req
                 Nothing -> error "request: Request not found in controller context. Did you forget to call newControllerContext?"
     {-# INLINABLE getField #-}

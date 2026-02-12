@@ -15,7 +15,7 @@ import IHP.HSX.QQ (hsx)
 
 import IHP.Controller.Param (paramOrNothing)
 
-import qualified Network.Wai as Wai
+import Network.Wai
 import qualified Network.HTTP.Types.URI as Query
 import IHP.ViewSupport (theRequest, theCSSFramework)
 import qualified Data.Containers.ListUtils as List
@@ -25,7 +25,7 @@ import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPag
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 -- If there is only one page, this will not render anything.
-renderPagination :: (?context :: ControllerContext, ?request :: Wai.Request) => Pagination -> Html
+renderPagination :: (?context :: ControllerContext, ?request :: Request) => Pagination -> Html
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
         when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
@@ -60,8 +60,8 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
             pageUrl n = path <> Query.renderQuery True newQueryString
                 where
                     -- "?page=" ++ show n ++ maybeFilter ++ maybeMaxItems
-                    path = Wai.rawPathInfo theRequest
-                    queryString = Wai.queryString theRequest
+                    path = theRequest.rawPathInfo
+                    queryString = theRequest.queryString
                     newQueryString = queryString
                         |> setQueryValue "page" (cs $ show n)
                         |> maybeFilter
@@ -69,8 +69,8 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 
             itemsPerPageUrl n = path <> Query.renderQuery True newQueryString
                 where
-                    path = Wai.rawPathInfo theRequest
-                    queryString = Wai.queryString theRequest
+                    path = theRequest.rawPathInfo
+                    queryString = theRequest.queryString
                     newQueryString = queryString
                         |> setQueryValue "maxItems" (cs $ tshow n)
                         -- If we change the number of items, we should jump back to the first page
@@ -129,27 +129,27 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 --        <div class="container">
 --          <div class="row justify-content-between">
 --              <div class="col-7">
---                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ml-4">+ New</a></h1>
+--                  <h1>Users<a href={pathTo NewUserAction} class="btn btn-primary ms-4">+ New</a></h1>
 --              </div>
 --              <div class="col-5">
 --                  {renderFilter "Username"}
 --              </div>
 --          </div>
 --        </div>
-renderFilter :: (?context::ControllerContext, ?request :: Wai.Request) =>
+renderFilter :: (?context::ControllerContext, ?request :: Request) =>
     Text    -- ^ Placeholder text for the text box
     -> Html
 renderFilter placeholder =
     [hsx|
-        <form method="GET" action="" class="mt-2 float-right">
-            <div class="form-row">
+        <form method="GET" action="" class="mt-2 float-end">
+            <div class="row">
                 <div class="col-auto">
-                <label class="sr-only" for="inlineFormInput">Name</label>
+                <label class="visually-hidden" for="inlineFormInput">Name</label>
                 <input type="hidden" name="page" value="1"/>
                 <input name="filter" type="text" class="form-control mb-2" id="inlineFormInput" placeholder={placeholder} value={boxValue}>
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-2 mr-2">Filter</button>
+                    <button type="submit" class="btn btn-primary mb-2 me-2">Filter</button>
                     <a class="btn btn-primary mb-2" href={clearFilterUrl}>Clear</a>
                 </div>
             </div>
@@ -159,8 +159,8 @@ renderFilter placeholder =
             boxValue = fromMaybe "" (paramOrNothing "filter") :: Text
             clearFilterUrl = path <> Query.renderQuery True newQueryString
                 where
-                    path = Wai.rawPathInfo theRequest
-                    queryString = Wai.queryString theRequest
+                    path = theRequest.rawPathInfo
+                    queryString = theRequest.queryString
                     newQueryString = queryString
                         |> removeQueryItem "filter"
 

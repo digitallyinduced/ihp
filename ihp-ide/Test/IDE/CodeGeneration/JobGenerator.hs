@@ -7,12 +7,7 @@ module Test.IDE.CodeGeneration.JobGenerator where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.IDE.CodeGen.JobGenerator as JobGenerator
-import IHP.ViewPrelude (cs, plain)
-import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
-import IHP.Postgres.Types
-import IHP.NameSupport
-import qualified System.Directory as Directory
 
 tests = do
     describe "Job Generator" do
@@ -21,6 +16,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -37,6 +33,7 @@ tests = do
             let tableName = "create_container"
             let modelName = "CreateContainer"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -54,6 +51,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = True
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -70,6 +68,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = False
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 
@@ -86,6 +85,7 @@ tests = do
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
             let isFirstJobInApplication = True
+            let uuidFunction = "uuid_generate_v4"
             let config = JobGenerator.JobConfig { .. }
             let builtPlan = JobGenerator.buildPlan' config
 

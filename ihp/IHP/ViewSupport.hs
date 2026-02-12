@@ -44,8 +44,8 @@ import qualified Text.Inflections as Inflector
 import qualified Data.Either as Either
 import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
-import IHP.RouterSupport hiding (get)
-import qualified Network.Wai as Wai
+import IHP.Router.UrlGenerator (HasPath(..))
+import Network.Wai
 import Text.Blaze.Html5.Attributes as A
 import IHP.HSX.QQ (hsx)
 import IHP.HSX.ToHtml
@@ -53,18 +53,17 @@ import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.Controller.Context
 import qualified IHP.HSX.Attribute as HSX
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import IHP.ActionType (isActiveController)
 
 class View theView where
     -- | Hook which is called before the render is called
-    beforeRender :: (?context :: ControllerContext) => theView -> IO ()
+    beforeRender :: (?context :: ControllerContext, ?request :: Request) => theView -> IO ()
     beforeRender view = pure ()
 
     -- Renders the view as html
-    html :: (?context :: ControllerContext, ?view :: theView, ?request :: Wai.Request) => theView -> Html5.Html
+    html :: (?context :: ControllerContext, ?view :: theView, ?request :: Request) => theView -> Html5.Html
 
     -- | Renders the view to a JSON
     json :: theView -> JSON.Value
@@ -116,10 +115,10 @@ currentViewId =
 -- False
 --
 -- This function returns @False@ when a sub-path is request. Use 'isActivePathOrSub' if you want this example to return @True@.
-isActivePath :: (?request :: Wai.Request, PathString controller) => controller -> Bool
+isActivePath :: (?request :: Request, PathString controller) => controller -> Bool
 isActivePath route =
     let
-        currentPath = Wai.rawPathInfo theRequest <> Wai.rawQueryString theRequest
+        currentPath = theRequest.rawPathInfo <> theRequest.rawQueryString
     in
         currentPath == cs (pathToString route)
 
@@ -136,10 +135,10 @@ isActivePath route =
 -- True
 --
 -- Also see 'isActivePath'.
-isActivePathOrSub :: (?request :: Wai.Request, PathString controller) => controller -> Bool
+isActivePathOrSub :: (?request :: Request, PathString controller) => controller -> Bool
 isActivePathOrSub route =
     let
-        currentPath = Wai.rawPathInfo theRequest
+        currentPath = theRequest.rawPathInfo
     in
         cs (pathToString route) `ByteString.isPrefixOf` currentPath
 
@@ -158,7 +157,7 @@ isActivePathOrSub route =
 -- >>> isActiveAction (ShowPostAction postId)
 -- True
 --
-isActiveAction :: forall controllerAction. (?request :: Wai.Request, HasPath controllerAction) => controllerAction -> Bool
+isActiveAction :: forall controllerAction. (?request :: Request, HasPath controllerAction) => controllerAction -> Bool
 isActiveAction controllerAction =
     isActivePath (pathTo controllerAction)
 
@@ -168,7 +167,7 @@ onClick = A.onclick
 onLoad = A.onload
 
 -- | Returns the current request
-theRequest :: (?request :: Wai.Request) => Wai.Request
+theRequest :: (?request :: Request) => Request
 theRequest = ?request
 {-# INLINE theRequest #-}
 
@@ -201,10 +200,10 @@ instance (T.TypeError (T.Text "‘fetch‘ or ‘query‘ can only be used insid
 instance (T.TypeError (T.Text "Looks like you forgot to pass a " :<>: (T.ShowType (GetModelByTableName record)) :<>: T.Text " id to this data constructor.")) => Eq (Id' (record :: T.Symbol) -> controller) where
     a == b = error "unreachable"
 
-fromCSSFramework :: (?request :: Wai.Request, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
+fromCSSFramework :: (?request :: Request, KnownSymbol field, HasField field CSSFramework (CSSFramework -> appliedFunction)) => Proxy field -> appliedFunction
 fromCSSFramework field = let cssFramework = theCSSFramework in (get field cssFramework) cssFramework
 
-theCSSFramework :: (?request :: Wai.Request) => CSSFramework
+theCSSFramework :: (?request :: Request) => CSSFramework
 theCSSFramework = ?request.frameworkConfig.cssFramework
 
 -- | Replaces all newline characters with a @<br>@ tag. Useful for displaying preformatted text.
@@ -220,7 +219,7 @@ nl2br content = content
 type Html = HtmlWithContext ControllerContext
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
-liveReloadWebsocketUrl :: (?request :: Wai.Request) => Text
+liveReloadWebsocketUrl :: (?request :: Request) => Text
 liveReloadWebsocketUrl = ?request.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
@@ -236,7 +235,7 @@ instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
 --
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
-assetPath :: (?request :: Wai.Request) => Text -> Text
+assetPath :: (?request :: Request) => Text -> Text
 assetPath assetPath = AssetPath.assetPath theRequest assetPath
 
 -- | Returns the assetVersion
@@ -246,5 +245,5 @@ assetPath assetPath = AssetPath.assetPath theRequest assetPath
 --
 -- The asset version can be configured using the
 -- @IHP_ASSET_VERSION@ environment variable.
-assetVersion :: (?request :: Wai.Request) => Text
+assetVersion :: (?request :: Request) => Text
 assetVersion = fromMaybe (error "assetPath middleware missing") (AssetPath.assetVersion theRequest)

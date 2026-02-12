@@ -1,10 +1,10 @@
 module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
-import qualified IHP.IDE.Types as DevServer
-import Control.Concurrent.MVar
 import qualified Data.ByteString.Builder as ByteString
 import Network.Socket (PortNumber)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
 
 data ToolServerApplication = ToolServerApplication
         { postgresStandardOutput :: !(IORef ByteString.Builder)
@@ -162,6 +162,29 @@ newtype WebControllers = WebControllers [Text]
 
 newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool
 
+availableAppsVaultKey :: Vault.Key AvailableApps
+availableAppsVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE availableAppsVaultKey #-}
+
+webControllersVaultKey :: Vault.Key WebControllers
+webControllersVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE webControllersVaultKey #-}
+
+appUrlVaultKey :: Vault.Key AppUrl
+appUrlVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE appUrlVaultKey #-}
+
+databaseNeedsMigrationVaultKey :: Vault.Key DatabaseNeedsMigration
+databaseNeedsMigrationVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE databaseNeedsMigrationVaultKey #-}
+
 data SqlConsoleResult
     = SelectQueryResult ![[DynamicField]]
     | InsertOrUpdateResult !Int64
+
+data SqlConsoleError = SqlConsoleError
+    { errorMessage :: Text
+    , errorDetail :: Text
+    , errorHint :: Text
+    , errorState :: Text
+    }

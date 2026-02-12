@@ -1,6 +1,7 @@
 module IHP.IDE.SchemaDesigner.View.Layout
 ( schemaDesignerLayout
 , findStatementByName
+, getTableColumns
 , visualNav
 , renderColumnSelector
 , renderColumn
@@ -22,6 +23,7 @@ import IHP.IDE.ToolServer.Helper.View
 import IHP.IDE.ToolServer.Layout hiding (tableIcon)
 import IHP.Postgres.Compiler (compilePostgresType, compileExpression)
 import qualified Data.List as List
+import IHP.RequestVault.Helper (lookupRequestVault)
 
 schemaDesignerLayout :: Html -> Html
 schemaDesignerLayout inner = toolServerLayout [hsx|
@@ -33,7 +35,7 @@ schemaDesignerLayout inner = toolServerLayout [hsx|
     </div>
 |]
     where
-        (DatabaseNeedsMigration hasUnmigratedChanges) = fromFrozenContext @DatabaseNeedsMigration
+        (DatabaseNeedsMigration hasUnmigratedChanges) = lookupRequestVault databaseNeedsMigrationVaultKey ?request
 
 unmigratedChanges :: Html
 unmigratedChanges = [hsx|
@@ -53,7 +55,7 @@ migrationStatus = if hasPendingMigrations
             then unmigratedChanges
             else mempty
     where
-        (DatabaseNeedsMigration databaseNeedsMigration) = fromFrozenContext @DatabaseNeedsMigration
+        (DatabaseNeedsMigration databaseNeedsMigration) = lookupRequestVault databaseNeedsMigrationVaultKey ?request
 
         hasPendingMigrations :: Bool
         hasPendingMigrations = False
@@ -63,11 +65,11 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Unmigrated Changes</strong></div>
                     Your app database is not in sync with the Schema
                 </div>
-                <div class="ml-auto d-flex justify-content-end">
+                <div class="ms-auto d-flex justify-content-end">
                     <a
                         href={NewMigrationAction}
                         class="btn px-4 btn-dark"
@@ -82,11 +84,11 @@ migrationStatus = if hasPendingMigrations
         <div id="migration-status-container">
             <div class="alert alert-primary d-flex align-items-center shadow-lg" role="alert">
                 {migrationStatusIcon}
-                <div class="user-select-none">
+                <div class="user-select-none flex-grow-1">
                     <div><strong>Pending Changes</strong></div>
                     You have migrations that haven't been run yet
                 </div>
-                <div class="ml-auto d-flex justify-content-end">
+                <div class="ms-auto d-flex justify-content-end">
                     <a
                         href="#"
                         class="btn px-4 btn-dark"
@@ -98,7 +100,7 @@ migrationStatus = if hasPendingMigrations
 
         migrationStatusIcon :: Html
         migrationStatusIcon = preEscapedToHtml [plain|
-            <svg width="33px" height="33px" viewBox="0 0 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="mr-3">
+            <svg width="33px" height="33px" viewBox="0 0 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="me-3">
                 <g id="Schema" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
                     <g id="Message" transform="translate(-383.000000, -813.000000)" fill="#FFCD1B">
                         <g id="Group" transform="translate(383.000000, 813.000000)">
@@ -114,7 +116,7 @@ migrationStatus = if hasPendingMigrations
 
 databaseControls :: Html
 databaseControls = [hsx|
-<div class="d-flex justify-content-end ml-auto">
+<div class="d-flex justify-content-end ms-auto">
     <form method="POST" action={pathTo UpdateDbAction} id="update-db-form"/>
     <form method="POST" action={pathTo PushToDbAction} id="push-to-db-form"/>
     <form method="POST" action={pathTo DumpDbAction} id="db-to-fixtures-form"/>
@@ -125,18 +127,18 @@ databaseControls = [hsx|
             onclick="checkBeforeUnload()"
             >Migrate DB →</a>
 
-        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            <span class="sr-only">Toggle Dropdown</span>
+        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span class="visually-hidden">Toggle Dropdown</span>
         </button>
 
-        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuLink">
+        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuLink">
             <button
                 type="submit"
                 form="update-db-form"
                 class="dropdown-item"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Dumps DB to Fixtures.sql.<br><br>Delete the DB.<br><br>Recreate using Schema.sql and Fixtures.sql"
                 onclick="checkBeforeUnload()"
                 >Update DB</button>
@@ -145,9 +147,9 @@ databaseControls = [hsx|
                 type="submit"
                 class="dropdown-item"
                 form="db-to-fixtures-form"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Saves the content of all tables to Application/Fixtures.sql"
                 onclick="checkBeforeUnload()"
                 >Save DB to Fixtures</button>
@@ -155,9 +157,9 @@ databaseControls = [hsx|
                 type="submit"
                 class="dropdown-item"
                 form="push-to-db-form"
-                data-toggle="tooltip"
-                data-placement="left"
-                data-html="true"
+                data-bs-toggle="tooltip"
+                data-bs-placement="left"
+                data-bs-html="true"
                 title="Delete the DB and recreate using Application/Schema.sql and Application/Fixture.sql<br><br><strong class=text-danger>Save DB to Fixtures before using this to avoid data loss</strong>"
                 onclick="checkBeforeUnload()"
                 >Push to DB</button>
@@ -173,6 +175,10 @@ findStatementByName statementName statements = find pred statements
         pred CreateEnumType { name } | (toUpper name) == (toUpper statementName) = True
         pred CreateEnumType { name } | (toUpper name) == (toUpper (tshow statementName)) = True
         pred _ = False
+
+getTableColumns :: Text -> [Statement] -> [Column]
+getTableColumns tableName statements =
+    maybe [] ((.columns) . unsafeGetCreateTable) (findStatementByName tableName statements)
 
 visualNav :: Html
 visualNav = [hsx|
@@ -211,8 +217,8 @@ renderColumnSelector tableName columns statements = [hsx|
                 <a
                     href={NewColumnAction tableName}
                     class="btn btn-link btn-add"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Column"
                 >{addIcon}</a>
             </div>
@@ -530,9 +536,9 @@ renderEnumSelector enumName values = [hsx|
         <div class="toolbox">
             <a
                 href={NewEnumValueAction enumName}
-                class="btn btn-link btn-add mr-1"
-                data-toggle="tooltip"
-                data-placement="bottom"
+                class="btn btn-link btn-add me-1"
+                data-bs-toggle="tooltip"
+                data-bs-placement="bottom"
                 title="Add Table"
                 >{addIcon}</a>
         </div>
@@ -566,14 +572,14 @@ renderValue value valueId enumName = [hsx|
 
 renderObjectSelector statements activeObjectName = [hsx|
     <div class={classes ["col", "object-selector", ("empty", isEmptySelector)]} oncontextmenu="showContextMenu('context-menu-object-root')">
-        <div class="d-flex align-items-center pl-2">
+        <div class="d-flex align-items-center ps-2">
             <h5>Tables</h5>
             <div class="toolbox">
                 <a
                     href={NewTableAction}
-                    class="btn btn-link btn-add mr-1"
-                    data-toggle="tooltip"
-                    data-placement="bottom"
+                    class="btn btn-link btn-add me-1"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="bottom"
                     title="Add Table"
                     >{addIcon}</a>
             </div>
@@ -603,7 +609,7 @@ renderObjectSelector statements activeObjectName = [hsx|
             otherwise -> False
 
         enums = whenNonEmpty enumStatements [hsx|
-            <div class="d-flex pl-2">
+            <div class="d-flex ps-2">
                 <h5>Enums</h5>
             </div>
             {forEach enumStatements (\statement -> renderObject (snd statement) (fst statement))}
@@ -611,7 +617,7 @@ renderObjectSelector statements activeObjectName = [hsx|
 
         renderObject :: Statement -> Int -> Html
         renderObject (StatementCreateTable CreateTable { name }) id = [hsx|
-            <div class={classes [("object object-table w-100 context-table pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+            <div class={classes [("object object-table w-100 context-table ps-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
                 <div class="d-flex justify-content-between">
                     <a href={ShowTableAction name} class="flex-grow-1">{name}</a>
 
@@ -637,7 +643,7 @@ renderObjectSelector statements activeObjectName = [hsx|
                 generateControllerLink = [hsx|<a href={pathTo NewControllerAction <> "?name=" <> name}>Generate Controller</a>|]
                 openControllerLink = [hsx|<a href={pathTo OpenControllerAction <> "?name=" <> name} target="_blank">Open Controller</a>|]
                 controllerDoesNotExist = not $ (ucfirst name) `elem` webControllers
-                (WebControllers webControllers) = fromFrozenContext @WebControllers
+                (WebControllers webControllers) = lookupRequestVault webControllersVaultKey ?request
 
                 rlsEnabled = statements
                         |> map snd
@@ -649,15 +655,15 @@ renderObjectSelector statements activeObjectName = [hsx|
                 rlsIcon = [hsx|
                         <span
                             class="rls-enabled"
-                            data-toggle="tooltip"
-                            data-placement="right"
-                            data-html="true"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="right"
+                            data-bs-html="true"
                             title="Row Level Security enabled"
                             >{shieldIcon}</span>
                         |]
 
         renderObject CreateEnumType { name } id = [hsx|
-            <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum pl-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
+            <a href={ShowEnumAction name} class={classes [("object object-table w-100 context-enum ps-3", True), ("active", Just name == activeObjectName)]} oncontextmenu={"showContextMenu('" <> contextMenuId <> "'); event.stopPropagation();"}>
                 <div class="d-flex">
                     {name}
                 </div>
@@ -684,6 +690,7 @@ renderObjectSelector statements activeObjectName = [hsx|
         renderObject UnknownStatement {} id = mempty
         renderObject EnableRowLevelSecurity {} id = mempty
         renderObject CreatePolicy {} id = mempty
+        renderObject _ id = mempty
 
         shouldRenderObject (StatementCreateTable CreateTable {}) = True
         shouldRenderObject CreateEnumType {} = True

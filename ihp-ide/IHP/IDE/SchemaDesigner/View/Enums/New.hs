@@ -9,7 +9,7 @@ data NewEnumView = NewEnumView { statements :: [Statement] }
 
 instance View NewEnumView where
     html NewEnumView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
             {emptyColumnSelectorContainer}
         </div>
@@ -20,14 +20,14 @@ instance View NewEnumView where
             modalContent = [hsx|
                 <form method="POST" action={CreateEnumAction}>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input id="nameInput" name="enumName" type="text" class="form-control" autofocus="autofocus"/>
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Create Enum</button>
                     </div>
                 </form>

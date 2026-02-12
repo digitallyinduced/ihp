@@ -27,7 +27,11 @@ common shared-properties
             , transformers
             , mtl
             , text
-            , postgresql-simple
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
+            , hasql-implicits
+            , hasql-transaction
             , bytestring
             , aeson
             , uuid
@@ -49,15 +53,18 @@ common shared-properties
             , ihp
             , ihp-log
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , deepseq
             , safe-exceptions
             , http-types
             , scientific
             , vector
             , stm
-            , resource-pool
             , unordered-containers
+            , vault
+            , typerep-map
+            , postgresql-types
+            , hasql-mapping
+            , hasql-postgresql-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -89,6 +96,8 @@ common shared-properties
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+            -Werror=unused-imports
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -102,6 +111,8 @@ common shared-properties
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+            -Werror=unused-imports
 
 library
     import: shared-properties
@@ -111,13 +122,16 @@ library
         , IHP.DataSync.RowLevelSecurity
         , IHP.DataSync.DynamicQuery
         , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.TypedEncoder
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.ControllerImpl
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Pool
         , IHP.DataSync.Role
+        , IHP.DataSync.Hasql
     other-modules:
         Paths_ihp_datasync
     autogen-modules:
@@ -129,7 +143,12 @@ test-suite ihp-datasync-hspec
     type:                exitcode-stdio-1.0
     hs-source-dirs:      .
     main-is:             Test/Main.hs
+    ghc-options:         -threaded
     other-modules: Test.DataSync.DynamicQueryCompiler
+                 , Test.DataSync.TypedEncoder
+                 , Test.DataSync.ChangeNotifications
+                 , Test.DataSync.RLSIntegrationSpec
+                 , Test.DataSync.DataSyncIntegrationSpec
     build-depends: hspec
 
 source-repository head

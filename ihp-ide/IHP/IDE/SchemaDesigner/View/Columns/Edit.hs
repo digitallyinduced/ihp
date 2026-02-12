@@ -17,7 +17,7 @@ data EditColumnView = EditColumnView
 
 instance View EditColumnView where
     html EditColumnView { column = column@Column { name }, .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>
@@ -26,7 +26,7 @@ instance View EditColumnView where
     |]
         where
             table = findStatementByName tableName statements
-            columns = maybe [] ((.columns) . unsafeGetCreateTable) table
+            columns = getTableColumns tableName statements
             primaryKeyColumns = maybe [] (primaryKeyColumnNames . (.primaryKeyConstraint) . unsafeGetCreateTable) table
 
             isArrayType (PArray _) = True
@@ -40,7 +40,7 @@ instance View EditColumnView where
                     <input type="hidden" name="tableName" value={tableName}/>
                     <input type="hidden" name="columnId" value={tshow columnId}/>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         <input
                             id="nameInput"
                             name="name"
@@ -52,45 +52,45 @@ instance View EditColumnView where
                             />
                     </div>
 
-                    <div class="form-group">
+                    <div class="mb-3">
                         {typeSelector (Just (column.columnType)) enumNames}
 
                         <div class="d-flex text-muted mt-1" id="column-options">
-                            <div class="custom-control custom-checkbox mr-2">
-                                <input id="allowNull" type="checkbox" name="allowNull" class="custom-control-input" checked={not (column.notNull)}/>
-                                <label class="mr-1 custom-control-label" for="allowNull">
+                            <div class="form-check me-2">
+                                <input id="allowNull" type="checkbox" name="allowNull" class="form-check-input" checked={not (column.notNull)}/>
+                                <label class="me-1 form-check-label" for="allowNull">
                                     Nullable
                                 </label>
                             </div>
 
-                            <div class="custom-control custom-checkbox mr-2">
-                                <input type="checkbox" id="isUnique" name="isUnique" class="custom-control-input" checked={column.isUnique}/>
-                                <label class="custom-control-label" for="isUnique">
+                            <div class="form-check me-2">
+                                <input type="checkbox" id="isUnique" name="isUnique" class="form-check-input" checked={column.isUnique}/>
+                                <label class="form-check-label" for="isUnique">
                                     Unique
                                 </label>
                             </div>
 
-                            <div class="custom-control custom-checkbox mr-2">
-                                <input type="checkbox" id="primaryKey" name="primaryKey" class="custom-control-input" checked={isPrimaryKey}/>
-                                <label class="custom-control-label" for="primaryKey">
+                            <div class="form-check me-2">
+                                <input type="checkbox" id="primaryKey" name="primaryKey" class="form-check-input" checked={isPrimaryKey}/>
+                                <label class="form-check-label" for="primaryKey">
                                     Primary Key
                                 </label>
                             </div>
 
-                            <div class="custom-control custom-checkbox mr-2">
-                                <input id="isArray" type="checkbox" name="isArray" class="custom-control-input" checked={isArrayType (column.columnType)}/>
-                                <label class="custom-control-label">
+                            <div class="form-check me-2">
+                                <input id="isArray" type="checkbox" name="isArray" class="form-check-input" checked={isArrayType (column.columnType)}/>
+                                <label class="form-check-label">
                                      Array Type
                                 </label>
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         {defaultSelector (column.defaultValue)}
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Edit Column</button>
                     </div>
                     <input type="hidden" name="primaryKey" value={inputValue False}/>

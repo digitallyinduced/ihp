@@ -6,8 +6,10 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Modal.ViewFunctions (modal, renderModal) where
 
 import Prelude
+import Data.IORef (readIORef)
 import Data.Text (Text)
-import IHP.ControllerContext (ControllerContext, maybeFromFrozenContext)
+import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai (Request)
 import IHP.HSX.QQ (hsx)
 import IHP.Modal.Types
 import Text.Blaze.Html5 (Html)
@@ -49,12 +51,12 @@ renderModalHeader :: Text -> Text -> Html
 renderModalHeader title closeUrl = [hsx|
     <div class="modal-header">
       <h5 class="modal-title" id="modal-title">{title}</h5>
-      <a href={closeUrl} class="btn-close" data-dismiss="modal" aria-label="Close"></a>
+      <a href={closeUrl} class="btn-close" data-bs-dismiss="modal" aria-label="Close"></a>
     </div>
 |]
 
-modal :: (?context :: ControllerContext) => Html
+modal :: (?request :: Request) => Html
 modal =
-    case maybeFromFrozenContext of
+    case unsafePerformIO (readIORef (lookupModalVault modalContainerVaultKey ?request)) of
         Just (ModalContainer html) -> html
         Nothing -> mempty

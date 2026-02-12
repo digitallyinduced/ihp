@@ -69,6 +69,7 @@ common common-flags
         -fdicts-strict
         -fexpose-all-unfoldings
         -optc-O3
+        -Werror=incomplete-patterns
 
 common common-depends
     build-depends:
@@ -146,3 +147,17 @@ test-suite ihp-hsx-tests
         , template-haskell
         , lucid2
         , mtl
+
+benchmark ihp-hsx-parser-bench
+    import: common-extensions, common-flags, common-depends
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      Test
+    main-is:             ParserBench.hs
+    default-language:    GHC2021
+    -- tasty-bench requires -fno-static-argument-transformation to prevent
+    -- GHC from defeating the re-evaluation trick used for measurement
+    ghc-options:         -fno-static-argument-transformation
+    build-depends:
+        , ihp-hsx
+        , tasty-bench
+        , deepseq

@@ -15,8 +15,9 @@ import qualified IHP.Environment as Env
 import qualified IHP.PGListener as PGListener
 
 import IHP.FrameworkConfig
+import IHP.ModelSupport (withModelContext)
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
-import qualified IHP.AutoRefresh as AutoRefresh
+import IHP.AutoRefresh (AutoRefreshWSApp)
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
@@ -24,7 +25,7 @@ import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
 
@@ -34,11 +35,16 @@ import qualified IHP.EnvVar as EnvVar
 import qualified Network.Wreq as Wreq
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
+import IHP.Controller.Response (responseHeadersVaultKey)
+import IHP.ControllerSupport (rlsContextVaultKey)
+import IHP.PageHead.Types
+import IHP.Modal.Types (modalContainerVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import Paths_ihp (getDataFileName)
+import IHP.Controller.Layout (viewLayoutMiddleware)
 import qualified Network.Socket as Socket
 import qualified System.Environment as Env
 import qualified Text.Read as Read
@@ -52,9 +58,9 @@ run configBuilder = do
     IO.setLocaleEncoding IO.utf8
 
     withFrameworkConfig configBuilder \frameworkConfig -> do
-        IHP.FrameworkConfig.withModelContext frameworkConfig \modelContext -> do
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
             withInitalizers frameworkConfig modelContext do
-                PGListener.withPGListener modelContext \pgListener -> do
+                PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener -> do
                     let ?modelContext = modelContext
 
                     middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
@@ -138,7 +144,7 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
 
 -- | Initialize the complete middleware stack
 --
--- Pass Nothing for PGListener in tests (auto-refresh will be disabled)
+-- Pass Nothing for PGListener in tests
 -- Pass Just pgListener in production for full functionality
 initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> IO Middleware
 initMiddlewareStack frameworkConfig modelContext maybePgListener = do
@@ -146,13 +152,14 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     approotMiddleware <- Approot.envFallback
     assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware "IHP_ASSET_VERSION" "IHP_ASSET_BASEURL"
 
-    autoRefreshMiddleware <- case maybePgListener of
-        Just pgListener -> AutoRefresh.initAutoRefreshMiddleware pgListener
-        Nothing -> pure id
-
     let corsMiddleware = initCorsMiddleware frameworkConfig
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
+
+    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+    let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
+    let pageHeadMiddleware = insertNewIORefVaultMiddleware pageHeadVaultKey emptyPageHeadState
 
     pure $
         customMiddleware
@@ -160,7 +167,11 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . methodOverridePost
         . sessionMiddleware
         . approotMiddleware
-        . autoRefreshMiddleware
+        . viewLayoutMiddleware
+        . responseHeadersMiddleware
+        . rlsContextMiddleware
+        . pageHeadMiddleware
+        . modalMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
@@ -169,7 +180,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
 application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
-    frontControllerToWAIApp @RootApplication @AutoRefresh.AutoRefreshWSApp middleware RootApplication staticApp request respond
+    frontControllerToWAIApp @RootApplication @AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()

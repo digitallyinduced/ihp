@@ -3,7 +3,7 @@ module IHP.IDE.Postgres (withPostgres, withBuiltinOrDevenvPostgres) where
 import IHP.IDE.Types
 import IHP.Prelude
 import qualified System.Process as Process
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import System.Exit (ExitCode(..))
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Builder as ByteString
@@ -15,6 +15,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified IHP.EnvVar as EnvVar
 import Paths_ihp_ide (getDataFileName)
+import System.OsPath (decodeUtf)
 
 withPostgres :: (?context :: Context) => (MVar () -> IORef ByteString.Builder -> IORef ByteString.Builder -> IO a) -> IO a
 withPostgres callback = do
@@ -23,7 +24,8 @@ withPostgres callback = do
     shouldInit <- needsDatabaseInit
     when shouldInit initDatabase
 
-    Process.withCreateProcess (postgresProcessParams currentDir) \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
+    params <- postgresProcessParams currentDir
+    Process.withCreateProcess params \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         let main = do
                 standardOutput <- newIORef mempty
                 errorOutput <- newIORef mempty
@@ -44,11 +46,12 @@ softStopPostgres processHandle = do
         interruptAndWait
         waitAndKill
 
-postgresProcessParams :: (?context :: Context) => FilePath -> Process.CreateProcess
-postgresProcessParams workingDirectory =
-    let
-        args = ["-D", "build/db/state", "-k", workingDirectory <> "/build/db", "-c", "listen_addresses="]
-    in (procDirenvAware "postgres" args)
+postgresProcessParams :: (?context :: Context) => OsPath -> IO Process.CreateProcess
+postgresProcessParams workingDirectory = do
+    workingDirectoryStr <- decodeUtf workingDirectory
+    let args = ["-D", "build/db/state", "-k", workingDirectoryStr <> "/build/db", "-c", "listen_addresses="]
+    baseProcess <- procDirenvAware "postgres" args
+    pure baseProcess
         { Process.std_in = Process.CreatePipe
         , Process.std_out = Process.CreatePipe
         , Process.std_err = Process.CreatePipe
@@ -79,7 +82,7 @@ redirectHandleToVariable !ref !handle !onLine = do
 
 ensureNoOtherPostgresIsRunning :: IO ()
 ensureNoOtherPostgresIsRunning = do
-    pidFileExists <- Directory.doesPathExist "build/db/state/postmaster.pid"
+    pidFileExists <- Directory.doesFileExist "build/db/state/postmaster.pid"
     let stopFailedHandler (exception :: SomeException) = do
             -- pg_ctl: could not send stop signal (PID: 123456765432): No such process
             if ("No such process" `isInfixOf` (tshow exception))
@@ -94,6 +97,7 @@ needsDatabaseInit = not <$> Directory.doesDirectoryExist "build/db/state"
 initDatabase :: IO ()
 initDatabase = do
     currentDir <- Directory.getCurrentDirectory
+    currentDirStr <- decodeUtf currentDir
     Directory.createDirectoryIfMissing True "build/db"
 
     Process.callProcess "initdb" [
@@ -103,7 +107,7 @@ initDatabase = do
                 , "UTF8"
             ]
 
-    let params = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDir <> "/build/db", "-c", "listen_addresses="])
+    let params = (Process.proc "postgres" ["-D", "build/db/state", "-k", currentDirStr <> "/build/db", "-c", "listen_addresses="])
                 { Process.std_in = Process.CreatePipe
                 , Process.std_out = Process.CreatePipe
                 , Process.std_err = Process.CreatePipe
@@ -111,9 +115,9 @@ initDatabase = do
 
     Process.withCreateProcess params \(Just inputHandle) (Just outputHandle) (Just errorHandle) processHandle -> do
         waitUntilReady errorHandle do
-            Process.callProcess "createdb" ["app", "-h", currentDir <> "/build/db"]
+            Process.callProcess "createdb" ["app", "-h", currentDirStr <> "/build/db"]
 
-            let importSql file = Process.callCommand ("psql -h '" <> currentDir <> "/build/db' -d app < " <> file)
+            let importSql file = Process.callCommand ("psql -h '" <> currentDirStr <> "/build/db' -d app < " <> file)
             ihpSchemaSql <- getDataFileName "IHPSchema.sql"
             importSql ihpSchemaSql
             importSql "Application/Schema.sql"
@@ -137,7 +141,8 @@ waitPostgres = do
         then EnvVar.env "PGHOST"
         else do
             currentDir <- Directory.getCurrentDirectory
-            pure (currentDir <> "/build/db")
+            currentDirStr <- decodeUtf currentDir
+            pure (currentDirStr <> "/build/db")
 
     -- pg_isready returns exit code 0 when ready, non-zero otherwise
     exitCode <- Process.rawSystem "pg_isready" ["-h", socketDir, "-q"]

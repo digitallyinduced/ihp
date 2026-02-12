@@ -22,15 +22,11 @@ data-files:
     , static/*.svg
     
     , static/vendor/*.min.css
-    , static/vendor/*.min.css.map
     , static/vendor/*.min.js
     , static/vendor/*.min.js.map
     , static/vendor/*.js
 
     , static/vendor/popper-2.11.6.min.js
-
-    , static/vendor/bootstrap-5.2.1/*.min.css
-    , static/vendor/bootstrap-5.2.1/*.min.js
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
@@ -43,7 +39,8 @@ common shared-properties
             , classy-prelude
             , mono-traversable
             , transformers
-            , directory
+            , directory >= 1.3.8.0
+            , filepath >= 1.5
             , string-conversions
             , warp
             , warp-systemd
@@ -56,6 +53,7 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , ihp-pglistener
             , wai-app-static
             , wai-util
             , bytestring
@@ -103,7 +101,6 @@ common shared-properties
             , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
             , temporary
@@ -118,7 +115,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , ihp-context
             , ihp-pagehead
             , ihp-log
@@ -133,6 +129,15 @@ common shared-properties
             , slugger
             , ihp-imagemagick
             , wai-request-params
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
+            , hasql-implicits
+            , hasql-mapping
+            , hasql-postgresql-types
+            , hasql-transaction
+            , postgresql-types
+            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -153,6 +158,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
 
 library
     import: shared-properties
@@ -183,6 +189,8 @@ library
         , IHP.View.Form
         , IHP.View.TimeAgo
         , IHP.RequestVault
+        , IHP.RequestVault.Helper
+        , IHP.RequestVault.ModelContext
         , IHP.ControllerPrelude
         , IHP.ControllerSupport
         , IHP.Environment
@@ -202,6 +210,8 @@ library
         , IHP.QueryBuilder.Join
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
+        , IHP.QueryBuilder.HasqlCompiler
+        , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
@@ -241,8 +251,12 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        , IHP.PGListener
         , IHP.EnvVar
+        , IHP.Hasql.FromRow
+        , IHP.Hasql.Encoders
+        , IHP.PGSimpleCompat
+        , IHP.PGVersion
+    reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules: Paths_ihp
 
@@ -273,3 +287,4 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.MockingSpec

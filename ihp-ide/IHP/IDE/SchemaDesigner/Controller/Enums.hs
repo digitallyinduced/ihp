@@ -34,6 +34,9 @@ instance Controller EnumsController where
             Failure message -> do
                 setErrorMessage message
                 redirectTo TablesAction
+            FailureHtml message -> do
+                setErrorMessage message
+                redirectTo TablesAction
             Success -> do
                 updateSchema $ SchemaOperations.addEnum enumName
                 redirectTo ShowEnumAction { .. }
@@ -51,6 +54,9 @@ instance Controller EnumsController where
         let validationResult = enumName |> validateEnum statements (Just oldEnumName)
         case validationResult of
             Failure message -> do
+                setErrorMessage message
+                redirectTo ShowEnumAction { enumName = oldEnumName }
+            FailureHtml message -> do
                 setErrorMessage message
                 redirectTo ShowEnumAction { enumName = oldEnumName }
             Success -> do

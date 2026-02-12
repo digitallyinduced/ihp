@@ -3,7 +3,6 @@ module IHP.IDE.LiveReloadNotificationServer (app, notifyHaskellChange, notifyAss
 import IHP.Prelude
 import qualified Network.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import IHP.IDE.Types
 import qualified Control.Exception as Exception
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Map as Map

@@ -33,7 +33,6 @@ module IHP.Prelude
 , module IHP.NameSupport
 , module IHP.ModelSupport
 , module Data.TMap
-, module Database.PostgreSQL.Simple
 , module Data.IORef
 , module Data.Time.Format
 , null
@@ -44,6 +43,9 @@ module IHP.Prelude
 , module GHC.Stack
 , module Data.Kind
 , type (~)
+, OsPath
+, textToOsPath
+, osPathToText
 )
 where
 
@@ -71,7 +73,6 @@ import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
 import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
 import Data.TMap (TMap)
-import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
 import Control.Exception.Safe (throw, throwIO, catch)
@@ -81,6 +82,9 @@ import NeatInterpolation (trimming)
 import GHC.Stack (HasCallStack, CallStack)
 import Data.Kind (Type)
 import Data.Type.Equality (type (~))
+import System.OsPath (OsPath)
+import qualified System.OsPath as OsPath
+import System.IO.Unsafe (unsafePerformIO)
 
 -- Alias for haskell newcomers :)
 a ++ b = a <> b
@@ -123,3 +127,19 @@ initMay :: [a] -> Maybe [a]
 initMay = init
 
 plain = Data.String.Interpolate.i
+
+-- | Pure conversion from Text to OsPath using UTF-8 encoding.
+-- On POSIX (where IHP runs), this is safe for all valid Text values.
+textToOsPath :: Text -> OsPath
+textToOsPath text = unsafePerformIO (OsPath.encodeUtf (cs text))
+{-# NOINLINE textToOsPath #-}
+
+-- | Pure conversion from OsPath to Text using UTF-8 decoding.
+osPathToText :: OsPath -> Text
+osPathToText path = cs (unsafePerformIO (OsPath.decodeUtf path))
+{-# NOINLINE osPathToText #-}
+
+-- | Allows using string literals as OsPath values with OverloadedStrings.
+instance IsString OsPath where
+    fromString s = unsafePerformIO (OsPath.encodeUtf s)
+    {-# NOINLINE fromString #-}

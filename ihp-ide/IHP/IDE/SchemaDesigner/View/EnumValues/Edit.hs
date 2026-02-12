@@ -14,7 +14,7 @@ data EditEnumValueView = EditEnumValueView
 
 instance View EditEnumValueView where
     html EditEnumValueView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just enumName)}
             {renderEnumSelector enumName (zip [0..] values)}
         </div>
@@ -30,14 +30,14 @@ instance View EditEnumValueView where
                     <input type="hidden" name="enumName" value={enumName}/>
                     <input type="hidden" name="valueId" value={tshow valueId}/>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="enumValueName" type="text" class="form-control" autofocus="autofocus" value={value}/>
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Edit Enum Value</button>
                     </div>
                 </form>

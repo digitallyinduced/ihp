@@ -5,9 +5,8 @@ Copyright: (c) digitally induced GmbH, 2022
 module Test.Postgres.Polygon where
 
 import CorePrelude
-import Data.Either
 import Test.Hspec
-import Test.Postgres.Support
+import Test.Postgres.Support ()
 import IHP.Postgres.Point
 import IHP.Postgres.Polygon
 import Database.PostgreSQL.Simple.ToField

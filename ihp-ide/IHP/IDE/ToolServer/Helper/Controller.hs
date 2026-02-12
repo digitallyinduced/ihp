@@ -17,18 +17,16 @@ module IHP.IDE.ToolServer.Helper.Controller
 import IHP.Prelude
 import IHP.ControllerSupport
 import IHP.IDE.ToolServer.Types
-import qualified IHP.IDE.PortConfig as PortConfig
-import IHP.IDE.Types
 import qualified Network.Socket as Socket
 import qualified System.Process as Process
 import System.Info (os)
 import qualified IHP.EnvVar as EnvVar
 import IHP.Controller.Context
-import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.Text as Text
-import System.Directory
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Text.IO as IO
+import System.OsPath (encodeUtf, decodeUtf)
 
 -- | Returns the port used by the running app. Usually returns @8000@.
 theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber
@@ -61,27 +59,41 @@ findEditor = do
         [] -> case os of
             "linux" -> (False, "xdg-open")
             "darwin" -> (False, "open")
+            _ -> (False, "xdg-open")
 
 
 findWebControllers :: IO [Text]
 findWebControllers = do
-    directoryFiles <-  listDirectory "Web/Controller"
-    let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
-    pure $ map (Text.replace ".hs" "") controllerFiles
+    osPath <- encodeUtf "Web/Controller"
+    exists <- Directory.doesDirectoryExist osPath
+    if exists
+        then do
+            osEntries <- Directory.listDirectory osPath
+            directoryFiles <- mapM decodeUtf osEntries
+            let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
+            pure $ map (Text.replace ".hs" "") controllerFiles
+        else pure []
 
 findControllers :: Text -> IO [Text]
 findControllers application = do
-    directoryFiles <-  listDirectory $ cs $ application <> "/Controller"
+    osPath <- encodeUtf (cs $ application <> "/Controller")
+    osEntries <- Directory.listDirectory osPath
+    directoryFiles <- mapM decodeUtf osEntries
     let controllerFiles :: [Text] =  filter (\x -> not $ "Prelude" `isInfixOf` x || "Context" `isInfixOf` x)  $ map cs directoryFiles
     pure $ map (Text.replace ".hs" "") controllerFiles
 
 findApplications :: IO ([Text])
 findApplications = do
-    mainhs <- IO.readFile "Main.hs"
-    let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
-    pure (map removeImport imports)
-        where
-            removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
+    osPath <- encodeUtf "Main.hs"
+    exists <- Directory.doesFileExist osPath
+    if exists
+        then do
+            mainhs <- IO.readFile "Main.hs"
+            let imports = filter (\line -> "import " `isPrefixOf` line && ".FrontController" `isSuffixOf` line) (lines mainhs)
+            pure (map removeImport imports)
+        else pure []
+    where
+        removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
 theToolServerApplication :: (?context :: ControllerContext) => IO ToolServerApplication
 theToolServerApplication = fromContext @ToolServerApplication

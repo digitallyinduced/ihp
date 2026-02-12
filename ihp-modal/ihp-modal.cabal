@@ -21,12 +21,16 @@ common shared-properties
         , ihp-hsx
         , text
         , blaze-html
+        , vault
+        , wai
     default-extensions:
         OverloadedStrings
         , ImplicitParams
         , DataKinds
         , RecordWildCards
         , QuasiQuotes
+        , OverloadedRecordDot
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
 
 library
     import: shared-properties

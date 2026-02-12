@@ -1,11 +1,8 @@
 module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..), postgresTypeToFieldHelper) where
 
 import IHP.Prelude
-import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
-import IHP.NameSupport (columnNameToFieldName, columnNameToFieldLabel)
 import Text.Countable (singularize, pluralize)
 
 data ViewConfig = ViewConfig
@@ -21,9 +18,7 @@ buildPlan viewName' applicationName controllerName' =
     if (null viewName' || null controllerName')
         then pure $ Left "Neither view name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewName = tableNameToViewName viewName'
@@ -34,7 +29,7 @@ buildPlan viewName' applicationName controllerName' =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
+    qualifiedModuleName config.applicationName "View" config.controllerName viewName
 
 buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
 buildPlan' schema config =
@@ -45,12 +40,7 @@ buildPlan' schema config =
             pluralName = singularName |> lcfirst |> pluralize |> ucfirst -- TODO: `pluralize` Should Support Lower-Cased Words
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if "View" `isSuffixOf` name
-                then name
-                else name <> "View" --e.g. "Test" -> "TestView"
-            nameWithoutSuffix = if "View" `isSuffixOf` name
-                then Text.replace "View" "" name
-                else name --e.g. "TestView" -> "Test"
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "View" name
 
             indexAction = pluralName <> "Action"
             specialCases = [
@@ -253,9 +243,9 @@ buildPlan' schema config =
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/View/" <> controllerName }
-            , CreateFile { filePath = config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/View/" <> controllerName) }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = chosenView }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
 
 -- | Maps a Postgres column type to the appropriate IHP form field helper name.

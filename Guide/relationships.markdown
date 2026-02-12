@@ -59,7 +59,7 @@ The `post.comments` returns a list of the comments belonging to the post.
 
 The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
-It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convinient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convenient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
 
 Note that for the above example, it is expected that the query will change as-well:
 
@@ -260,7 +260,7 @@ To add `WHERE` clauses involving a joined table, there is a family of functions 
 
 ### Many-to-many relationships and labeled results
 
-Joins are also useful when it comes to many-to-many relationships. An example is the realationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
+Joins are also useful when it comes to many-to-many relationships. An example is the relationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
 
 ```haskell
 query @Post
@@ -383,7 +383,7 @@ fetchPostWithRecords postId = do
     post <- fetch postId
 
     -- Fetch Comments referencing the post ID.
-    -- Eventhough we haven't used `fetchRelated` on the Post we still have the `post.comments` field.
+    -- Even though we haven't used `fetchRelated` on the Post we still have the `post.comments` field.
     -- This field field is a query builder with the right `WHERE` condition already applied (referencing the Post ID),
     -- so we only need to `fetch` and don't have to use the more verbose `query`:
     -- comments <- query @Comment
@@ -505,3 +505,86 @@ html PostsView { .. } = [hsx|
             <span>{tag.name}</span>
         |]
 ```
+
+## Disabling Relation Support for Faster Compilation
+
+IHP generates type-level machinery to support `fetchRelated` and `Include`: type parameters on record types, `QueryBuilder` fields for has-many relationships, and `Include` type family instances. For large schemas this adds significant compile time.
+
+If your project does not use `fetchRelated` or `Include` types, you can disable this machinery by setting `ihp.relationSupport = false;` in your `flake.nix`:
+
+```nix
+ihp = {
+    enable = true;
+    relationSupport = false;
+};
+```
+
+This applies to both the dev shell and production builds.
+
+Alternatively, set the environment variable manually:
+
+```bash
+export IHP_RELATION_SUPPORT=0
+```
+
+### What Changes
+
+With `IHP_RELATION_SUPPORT=0`, the generated types are simplified:
+
+**Default (relation support enabled):**
+```haskell
+data Post' userId comments = Post
+    { id :: Id' "posts"
+    , title :: Text
+    , userId :: userId
+    , comments :: comments
+    , meta :: MetaBag
+    }
+
+type Post = Post' (Id' "users") (QueryBuilder.QueryBuilder "comments")
+```
+
+**With `IHP_RELATION_SUPPORT=0`:**
+```haskell
+data Post' = Post
+    { id :: Id' "posts"
+    , title :: Text
+    , userId :: (Id' "users")
+    , meta :: MetaBag
+    }
+
+type Post = Post'
+```
+
+The key differences:
+
+- Record types have no type parameters (foreign key columns use concrete types like `Id' "users"` directly)
+- Has-many `QueryBuilder` fields (e.g. `comments`) are omitted from records
+- `Include` type family modules are not generated
+- `UpdateField` instances are simplified (no type-changing updates)
+
+### What Stops Working
+
+When relation support is disabled, you cannot use:
+
+- `fetchRelated` and `collectionFetchRelated`
+- `Include` and `Include'` types
+- `modify` on `QueryBuilder` relationship fields (e.g. `modify #comments (orderByDesc #createdAt)`)
+- Direct access to has-many fields like `post.comments`
+
+You can still query related records manually:
+
+```haskell
+post <- fetch postId
+comments <- query @Comment
+    |> filterWhere (#postId, post.id)
+    |> fetch
+```
+
+### When to Use This
+
+This is useful when:
+
+- Your project has a large schema (50+ tables) and compile times are slow
+- You prefer explicit queries over `fetchRelated`
+- You are building an API-only service that does not use the `Include` pattern

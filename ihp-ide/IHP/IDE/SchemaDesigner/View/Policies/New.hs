@@ -1,4 +1,4 @@
-module IHP.IDE.SchemaDesigner.View.Policies.New where
+module IHP.IDE.SchemaDesigner.View.Policies.New (NewPolicyView (..), policyFormModal) where
 
 import IHP.ViewPrelude
 import IHP.Postgres.Types
@@ -15,7 +15,7 @@ data NewPolicyView = NewPolicyView
 
 instance View NewPolicyView where
     html NewPolicyView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just tableName)}
             {renderColumnSelector tableName (zip [0..] columns) statements}
         </div>
@@ -23,66 +23,71 @@ instance View NewPolicyView where
         {renderModal modal}
     |]
         where
-            modalContent = [hsx|
-                <form method="POST" action={CreatePolicyAction} class="edit-policy">
-                    <input type="hidden" name="tableName" value={tableName}/>
+            modal = policyFormModal tableName columns policy (pathTo CreatePolicyAction) mempty "Create Policy" "New Policy"
 
-                    <!-- These will be filled via JS from the ace editors -->
-                    <input type="hidden" name="using" value={using}/>
-                    <input type="hidden" name="check" value={check}/>
+-- | Shared form modal for creating and editing policies.
+policyFormModal :: (?context :: ControllerContext, ?request :: Request) => Text -> [Column] -> Statement -> Text -> Html -> Text -> Text -> Modal
+policyFormModal tableName columns policy formAction extraHiddenFields buttonText modalTitle = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
+    where
+        modalContent = [hsx|
+            <form method="POST" action={formAction} class="edit-policy">
+                <input type="hidden" name="tableName" value={tableName}/>
+                {extraHiddenFields}
 
-                    <div class="form-group">
-                        <input
-                            id="nameInput"
-                            name="policyName"
-                            type="text"
-                            class="form-control"
-                            autofocus="autofocus"
-                            value={policy.name}
-                            />
-                    </div>
+                <!-- These will be filled via JS from the ace editors -->
+                <input type="hidden" name="using" value={using}/>
+                <input type="hidden" name="check" value={check}/>
 
-                    <div class="form-group">
-                        <label for="using">Visible if:</label>
-                        <textarea
-                            id="using"
-                            name="using"
-                            type="text"
-                            class="form-control sql-expression"
-                            data-autocomplete-suggestions={autocompleteSuggestions}
-                        >{using}</textarea>
-                        <small class="form-text text-muted">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
-                    </div>
+                <div class="mb-3">
+                    <input
+                        id="nameInput"
+                        name="policyName"
+                        type="text"
+                        class="form-control"
+                        autofocus="autofocus"
+                        value={policy.name}
+                        />
+                </div>
 
-                    <div class="form-group">
-                        <label for="using">Additionally, allow INSERT and UPDATE only if:</label>
-                        <textarea
-                            id="check"
-                            name="check"
-                            type="text"
-                            class="form-control sql-expression"
-                            data-autocomplete-suggestions={autocompleteSuggestions}
-                        >{check}</textarea>
-                        <small class="form-text text-muted">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
-                    </div>
+                <div class="mb-3">
+                    <label for="using">Visible if:</label>
+                    <textarea
+                        id="using"
+                        name="using"
+                        type="text"
+                        class="form-control sql-expression"
+                        data-autocomplete-suggestions={autocompleteSuggestions}
+                    >{using}</textarea>
+                    <small class="form-text">This SQL expression needs to return True if the row should be visible to the current user. This is the <code>USING</code> condition of the Postgres Policy</small>
+                </div>
 
-                    <div class="text-right">
-                        <button type="submit" class="btn btn-primary">Create Policy</button>
-                    </div>
-                </form>
-            |]
-            modalFooter = mempty
-            modalCloseUrl = pathTo ShowTableAction { tableName }
-            modalTitle = "New Policy"
-            modal = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
+                <div class="mb-3">
+                    <label for="using">Additionally, allow INSERT and UPDATE only if:</label>
+                    <textarea
+                        id="check"
+                        name="check"
+                        type="text"
+                        class="form-control sql-expression"
+                        data-autocomplete-suggestions={autocompleteSuggestions}
+                    >{check}</textarea>
+                    <small class="form-text">Use this to e.g. disallow users changing the user_id to another user's id. This is the <code>CHECK</code> condition of the Postgres Policy</small>
+                </div>
 
-            using = policy.using
-                    |> maybe "" Compiler.compileExpression
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">{buttonText}</button>
+                </div>
+            </form>
+        |]
+        modalFooter = mempty
+        modalCloseUrl = pathTo ShowTableAction { tableName }
 
-            check = policy.check
-                    |> maybe "" Compiler.compileExpression
+        using = policy.using
+                |> maybe "" Compiler.compileExpression
 
-            autocompleteSuggestions =
-                    columns
-                    |> map (.name)
-                    |> intercalate ","
+        check = policy.check
+                |> maybe "" Compiler.compileExpression
+
+        autocompleteSuggestions =
+                columns
+                |> map (.name)
+                |> intercalate ","

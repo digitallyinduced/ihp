@@ -107,7 +107,7 @@ fromContext = maybeFromContext @value >>= \case
     Nothing -> do
         let ControllerContext { customFieldsRef } = ?context
         customFields <- readIORef customFieldsRef
-        let notFoundMessage = "Unable to find " <> show (Typeable.typeRep (Typeable.Proxy @value)) <> " in controller context: " <> show customFields
+        let notFoundMessage = buildNotFoundMessage (Typeable.typeRep (Typeable.Proxy @value)) customFields
         error notFoundMessage
 {-# INLINABLE fromContext #-}
 
@@ -121,7 +121,7 @@ fromFrozenContext = case maybeFromFrozenContext @value of
     Just value -> value
     Nothing -> do
         let FrozenControllerContext { customFields } = ?context
-        let notFoundMessage = "Unable to find " <> show (Typeable.typeRep (Typeable.Proxy @value)) <> " in controller context: " <> show customFields
+        let notFoundMessage = buildNotFoundMessage (Typeable.typeRep (Typeable.Proxy @value)) customFields
         error notFoundMessage
 {-# INLINABLE fromFrozenContext #-}
 
@@ -148,3 +148,23 @@ putContext value = do
     let ControllerContext { customFieldsRef } = ?context
     modifyIORef customFieldsRef (TypeMap.insert value)
 {-# INLINABLE putContext #-}
+
+-- | Build an improved error message when a value is not found in the context
+--
+-- For common types that require initialization, provides helpful suggestions
+buildNotFoundMessage :: Typeable.TypeRep -> TypeMap.TMap -> String
+buildNotFoundMessage typeRep customFields =
+    let typeName = show typeRep
+        baseMessage = "Unable to find " <> typeName <> " in controller context: " <> show customFields
+        helpMessage = case lookup typeName knownTypes of
+            Just hint -> "\n\nHint: " <> hint
+            Nothing -> ""
+    in baseMessage <> helpMessage
+  where
+    -- Map of type names to helpful hints for initialization
+    knownTypes =
+        [ ("Maybe User", "Ensure you have called 'initAuthentication @User' in your 'initContext' function in FrontController.hs")
+        , ("Maybe Admin", "Ensure you have called 'initAuthentication @Admin' in your 'initContext' function in FrontController.hs")
+        , ("PageTitle", "Use 'setTitle' to set the page title (imported from IHP.PageHead.ControllerFunctions)")
+        ]
+{-# INLINABLE buildNotFoundMessage #-}
