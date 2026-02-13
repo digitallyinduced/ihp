@@ -92,16 +92,16 @@ let
 
             # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
             # callHackageDirect used because these versions are newer than the nixpkgs all-cabal-hashes snapshot.
-            # dontCheck: tests require a running PostgreSQL server
+            # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
             postgresql-binary = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "postgresql-binary"; ver = "0.15.0.1"; sha256 = "02cj87xbhpq4jn0ys3pdscblan69d5f1vcsgb5y2piw310x7d6xb"; } {});
             postgresql-connection-string = self.callHackageDirect { pkg = "postgresql-connection-string"; ver = "0.1.0.6"; sha256 = "07iykhnjzryqqc1mccnmqf7lkg12rb4dq5azvrpfq6qaf6a6r0r1"; } {};
 
-            hasql = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {});
-            hasql-pool = self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {};
-            hasql-dynamic-statements = self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.0.1"; sha256 = "1vdydp8n0zq3mwkzids64b86d9q2l11yc8df4brhmwx06qmvq3sc"; } {};
+            hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {}));
+            hasql-pool = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {});
+            hasql-dynamic-statements = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.0.1"; sha256 = "1vdydp8n0zq3mwkzids64b86d9q2l11yc8df4brhmwx06qmvq3sc"; } {});
             hasql-implicits = self.callHackageDirect { pkg = "hasql-implicits"; ver = "0.2.0.2"; sha256 = "0nyz96mgrc4i7x3q8wwv6zq8qpwam13f5y1rlbh102jp2ygb2mjy"; } {};
-            hasql-transaction = self.callHackageDirect { pkg = "hasql-transaction"; ver = "1.2.2"; sha256 = "0y1clnyw76rszsdvz0fxj2az036bmw1whp6pqchyjamnbkmf37d3"; } {};
-            hasql-notifications = self.callHackageDirect { pkg = "hasql-notifications"; ver = "0.2.5.0"; sha256 = "11jkrngiy175wc5hqx8pgagj4fdg42ry7afp4g4rr5hw8h43zg48"; } {};
+            hasql-transaction = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-transaction"; ver = "1.2.2"; sha256 = "0y1clnyw76rszsdvz0fxj2az036bmw1whp6pqchyjamnbkmf37d3"; } {});
+            hasql-notifications = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-notifications"; ver = "0.2.5.0"; sha256 = "11jkrngiy175wc5hqx8pgagj4fdg42ry7afp4g4rr5hw8h43zg48"; } {});
 
             # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
