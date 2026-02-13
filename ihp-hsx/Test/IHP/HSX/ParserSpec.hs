@@ -199,3 +199,62 @@ tests = do
         it "should allow mixing custom and standard elements" do
             let p = parseHsx customSettings position extensions "<mycustomtag class=\"hello\" my-custom-attr=\"world\">test</mycustomtag>"
             p `shouldBe` (Right (Children [Node "mycustomtag" [StaticAttribute "class" (TextValue "hello"), StaticAttribute "my-custom-attr" (TextValue "world")] [TextNode "test"] False]))
+
+    describe "SVG" do
+        let settings = HsxSettings True Set.empty Set.empty
+
+        it "should parse a basic svg element" do
+            let p = parseHsx settings position extensions "<svg viewBox=\"0 0 100 100\"></svg>"
+            p `shouldBe` (Right (Children [Node "svg" [StaticAttribute "viewBox" (TextValue "0 0 100 100")] [] False]))
+
+        it "should parse svg shapes" do
+            let p = parseHsx settings position extensions "<circle cx=\"50\" cy=\"50\" r=\"40\"/>"
+            p `shouldBe` (Right (Children [Node "circle" [StaticAttribute "cx" (TextValue "50"), StaticAttribute "cy" (TextValue "50"), StaticAttribute "r" (TextValue "40")] [] False]))
+
+        it "should parse self-closing svg elements" do
+            let p = parseHsx settings position extensions "<path d=\"M10,10 L90,90\"/>"
+            p `shouldBe` (Right (Children [Node "path" [StaticAttribute "d" (TextValue "M10,10 L90,90")] [] False]))
+
+        it "should parse rect with presentation attributes" do
+            let p = parseHsx settings position extensions "<rect x=\"10\" y=\"10\" width=\"80\" height=\"80\" fill=\"red\" stroke=\"black\" stroke-width=\"2\"/>"
+            p `shouldBe` (Right (Children [Node "rect" [StaticAttribute "x" (TextValue "10"), StaticAttribute "y" (TextValue "10"), StaticAttribute "width" (TextValue "80"), StaticAttribute "height" (TextValue "80"), StaticAttribute "fill" (TextValue "red"), StaticAttribute "stroke" (TextValue "black"), StaticAttribute "stroke-width" (TextValue "2")] [] False]))
+
+        it "should parse nested svg groups" do
+            let p = parseHsx settings position extensions "<svg><g transform=\"translate(10,10)\"><rect width=\"50\" height=\"50\"/></g></svg>"
+            p `shouldBe` (Right (Children [Node "svg" [] [Node "g" [StaticAttribute "transform" (TextValue "translate(10,10)")] [Node "rect" [StaticAttribute "width" (TextValue "50"), StaticAttribute "height" (TextValue "50")] [] False] False] False]))
+
+        it "should parse svg text element" do
+            let p = parseHsx settings position extensions "<text x=\"10\" y=\"30\" font-size=\"20\">Hello</text>"
+            p `shouldBe` (Right (Children [Node "text" [StaticAttribute "x" (TextValue "10"), StaticAttribute "y" (TextValue "30"), StaticAttribute "font-size" (TextValue "20")] [TextNode "Hello"] False]))
+
+        it "should parse linearGradient with stops" do
+            let p = parseHsx settings position extensions "<linearGradient id=\"grad1\"><stop offset=\"0%\" stop-color=\"red\"/><stop offset=\"100%\" stop-color=\"blue\"/></linearGradient>"
+            p `shouldBe` (Right (Children [Node "linearGradient" [StaticAttribute "id" (TextValue "grad1")] [Node "stop" [StaticAttribute "offset" (TextValue "0%"), StaticAttribute "stop-color" (TextValue "red")] [] False, Node "stop" [StaticAttribute "offset" (TextValue "100%"), StaticAttribute "stop-color" (TextValue "blue")] [] False] False]))
+
+        it "should parse svg image element" do
+            let p = parseHsx settings position extensions "<image href=\"photo.png\" width=\"100\" height=\"100\"/>"
+            p `shouldBe` (Right (Children [Node "image" [StaticAttribute "href" (TextValue "photo.png"), StaticAttribute "width" (TextValue "100"), StaticAttribute "height" (TextValue "100")] [] False]))
+
+        it "should parse camelCase svg element names" do
+            let p = parseHsx settings position extensions "<clipPath id=\"clip\"><rect width=\"100\" height=\"100\"/></clipPath>"
+            p `shouldBe` (Right (Children [Node "clipPath" [StaticAttribute "id" (TextValue "clip")] [Node "rect" [StaticAttribute "width" (TextValue "100"), StaticAttribute "height" (TextValue "100")] [] False] False]))
+
+        it "should parse filter elements" do
+            let p = parseHsx settings position extensions "<filter id=\"blur\"><feGaussianBlur stdDeviation=\"5\"/></filter>"
+            p `shouldBe` (Right (Children [Node "filter" [StaticAttribute "id" (TextValue "blur")] [Node "feGaussianBlur" [StaticAttribute "stdDeviation" (TextValue "5")] [] False] False]))
+
+        it "should parse defs/use pattern" do
+            let p = parseHsx settings position extensions "<svg><defs><circle id=\"dot\" r=\"5\"/></defs><use href=\"#dot\" x=\"10\" y=\"10\"/></svg>"
+            p `shouldBe` (Right (Children [Node "svg" [] [Node "defs" [] [Node "circle" [StaticAttribute "id" (TextValue "dot"), StaticAttribute "r" (TextValue "5")] [] False] False, Node "use" [StaticAttribute "href" (TextValue "#dot"), StaticAttribute "x" (TextValue "10"), StaticAttribute "y" (TextValue "10")] [] False] False]))
+
+        it "should parse svg with spliced attribute" do
+            let p = parseHsx settings position extensions "<circle cx=\"50\" cy=\"50\" r={\"40\"}/>"
+            p `shouldBe` (Right (Children [Node "circle" [StaticAttribute "cx" (TextValue "50"), StaticAttribute "cy" (TextValue "50"), StaticAttribute "r" (ExpressionValue (TH.LitE (TH.StringL "40")))] [] False]))
+
+        it "should parse new SVG attributes (fr, paint-order, vector-effect, transform-origin)" do
+            let p = parseHsx settings position extensions "<circle paint-order=\"stroke\" vector-effect=\"non-scaling-stroke\" transform-origin=\"center\"/>"
+            p `shouldBe` (Right (Children [Node "circle" [StaticAttribute "paint-order" (TextValue "stroke"), StaticAttribute "vector-effect" (TextValue "non-scaling-stroke"), StaticAttribute "transform-origin" (TextValue "center")] [] False]))
+
+        it "should parse radialGradient with fr attribute" do
+            let p = parseHsx settings position extensions "<radialGradient fr=\"20%\"></radialGradient>"
+            p `shouldBe` (Right (Children [Node "radialGradient" [StaticAttribute "fr" (TextValue "20%")] [] False]))

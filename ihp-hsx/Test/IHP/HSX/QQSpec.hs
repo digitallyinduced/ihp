@@ -225,6 +225,64 @@ tests = do
             textFragment `shouldBe` "<div>1</div><div>2</div><div>3</div>"
             doubleTextFragment `shouldBe` "<div><div>1</div><div>2</div><div>3</div></div><div><div>4</div><div>5</div><div>6</div></div>"
 
+    describe "SVG" do
+        it "should render a basic svg with shapes" do
+            [hsx|<svg viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="red"/></svg>|] `shouldBeSameHtml` "<svg viewBox=\"0 0 100 100\"><rect x=\"10\" y=\"10\" width=\"80\" height=\"80\" fill=\"red\"></rect></svg>"
+
+        it "should render self-closing svg elements" do
+            [hsx|<circle cx="50" cy="50" r="40" fill="blue"/>|] `shouldBeSameHtml` "<circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"blue\"></circle>"
+            [hsx|<path d="M10,10 L90,90" stroke="black" stroke-width="2"/>|] `shouldBeSameHtml` "<path d=\"M10,10 L90,90\" stroke=\"black\" stroke-width=\"2\"></path>"
+
+        it "should render nested svg groups" do
+            [hsx|<svg><g transform="translate(10,10)"><rect width="50" height="50"/></g></svg>|] `shouldBeSameHtml` "<svg><g transform=\"translate(10,10)\"><rect width=\"50\" height=\"50\"></rect></g></svg>"
+
+        it "should render svg text" do
+            [hsx|<text x="10" y="30" font-size="20">Hello</text>|] `shouldBeSameHtml` "<text x=\"10\" y=\"30\" font-size=\"20\">Hello</text>"
+
+        it "should render linearGradient with stops" do
+            [hsx|<linearGradient id="grad1"><stop offset="0%" stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient>|] `shouldBeSameHtml` "<linearGradient id=\"grad1\"><stop offset=\"0%\" stop-color=\"red\"></stop><stop offset=\"100%\" stop-color=\"blue\"></stop></linearGradient>"
+
+        it "should render svg with dynamic attributes" do
+            let color :: Text = "red"
+            [hsx|<circle cx="50" cy="50" r="40" fill={color}/>|] `shouldBeSameHtml` "<circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"red\"></circle>"
+
+        it "should render svg with spliced child content" do
+            let label :: Text = "Hello SVG"
+            [hsx|<text x="10" y="30">{label}</text>|] `shouldBeSameHtml` "<text x=\"10\" y=\"30\">Hello SVG</text>"
+
+        it "should render svg image element" do
+            [hsx|<image href="photo.png" width="100" height="100"/>|] `shouldBeSameHtml` "<image href=\"photo.png\" width=\"100\" height=\"100\"></image>"
+
+        it "should render defs/use pattern" do
+            [hsx|<svg><defs><circle id="dot" r="5"/></defs><use href="#dot" x="10" y="10"/></svg>|] `shouldBeSameHtml` "<svg><defs><circle id=\"dot\" r=\"5\"></circle></defs><use href=\"#dot\" x=\"10\" y=\"10\"></use></svg>"
+
+        it "should render filter elements" do
+            [hsx|<filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>|] `shouldBeSameHtml` "<filter id=\"blur\"><feGaussianBlur stdDeviation=\"5\"></feGaussianBlur></filter>"
+
+        it "should render clipPath" do
+            [hsx|<clipPath id="clip"><rect width="100" height="100"/></clipPath>|] `shouldBeSameHtml` "<clipPath id=\"clip\"><rect width=\"100\" height=\"100\"></rect></clipPath>"
+
+        it "should render presentation attributes" do
+            [hsx|<rect fill="red" stroke="black" stroke-width="2" opacity="0.5" fill-opacity="0.8"/>|] `shouldBeSameHtml` "<rect fill=\"red\" stroke=\"black\" stroke-width=\"2\" opacity=\"0.5\" fill-opacity=\"0.8\"></rect>"
+
+        it "should render svg with spread attributes" do
+            let svgAttrs :: [(Text, Text)] = [("fill", "red"), ("stroke", "black")]
+            [hsx|<rect {...svgAttrs}/>|] `shouldBeSameHtml` "<rect fill=\"red\" stroke=\"black\"></rect>"
+
+        it "should render a complete svg document" do
+            [hsx|
+                <svg viewBox="0 0 200 200">
+                    <defs>
+                        <linearGradient id="grad">
+                            <stop offset="0%" stop-color="red"/>
+                            <stop offset="100%" stop-color="blue"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="100" cy="100" r="80" fill="url(#grad)"/>
+                    <text x="100" y="105" text-anchor="middle" fill="white">IHP</text>
+                </svg>
+            |] `shouldBeSameHtml` "<svg viewBox=\"0 0 200 200\"><defs><linearGradient id=\"grad\"><stop offset=\"0%\" stop-color=\"red\"></stop><stop offset=\"100%\" stop-color=\"blue\"></stop></linearGradient></defs><circle cx=\"100\" cy=\"100\" r=\"80\" fill=\"url(#grad)\"></circle><text x=\"100\" y=\"105\" text-anchor=\"middle\" fill=\"white\">IHP</text></svg>"
+
     describe "customHsx" do
         it "should allow specified custom tags" do
             [myTagsOnlyHsx|<mycustomtag>hello</mycustomtag>|] `shouldBeSameHtml` "<mycustomtag>hello</mycustomtag>"
