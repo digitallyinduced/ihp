@@ -258,3 +258,29 @@ tests = do
         it "should parse radialGradient with fr attribute" do
             let p = parseHsx settings position extensions "<radialGradient fr=\"20%\"></radialGradient>"
             p `shouldBe` (Right (Children [Node "radialGradient" [StaticAttribute "fr" (TextValue "20%")] [] False]))
+
+    describe "Hyperscript" do
+        let settings = HsxSettings True Set.empty Set.empty
+
+        it "should parse the _ attribute (hyperscript)" do
+            let p = parseHsx settings position extensions "<button _=\"on click toggle .red on me\">Click Me</button>"
+            p `shouldBe` (Right (Children [Node "button" [StaticAttribute "_" (TextValue "on click toggle .red on me")] [TextNode "Click Me"] False]))
+
+        it "should parse _ as a boolean attribute" do
+            let p = parseHsx settings position extensions "<div _/>"
+            p `shouldBe` (Right (Children [Node "div" [StaticAttribute "_" (TextValue "_")] [] False]))
+
+    describe "htmx hx-on" do
+        let settings = HsxSettings True Set.empty Set.empty
+
+        it "should parse hx-on:click attribute" do
+            let p = parseHsx settings position extensions "<button hx-on:click=\"alert('hello')\">Click</button>"
+            p `shouldBe` (Right (Children [Node "button" [StaticAttribute "hx-on:click" (TextValue "alert('hello')")] [TextNode "Click"] False]))
+
+        it "should parse hx-on: with various event names" do
+            let p = parseHsx settings position extensions "<form hx-on:submit=\"return false\"></form>"
+            p `shouldBe` (Right (Children [Node "form" [StaticAttribute "hx-on:submit" (TextValue "return false")] [] False]))
+
+        it "should parse hx-on::after-request (htmx custom events)" do
+            let p = parseHsx settings position extensions "<div hx-on::after-request=\"doSomething()\"></div>"
+            p `shouldBe` (Right (Children [Node "div" [StaticAttribute "hx-on::after-request" (TextValue "doSomething()")] [] False]))
