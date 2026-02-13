@@ -11,7 +11,7 @@ import IHP.Postgres.TSVector
 
 tests = do
     let raw = "'dummi':9 'industri':16 'ipsum':4,6 'lorem':3,5 'print':13 'simpli':8 'text':10 'typeset':15"
-    let Just parsed = fromLexemeList
+    let Just parsed = refineFromLexemeList
             [ ("dummi",    [(9,  DWeight)])
             , ("industri", [(16, DWeight)])
             , ("ipsum",    [(4,  DWeight), (6, DWeight)])

@@ -39,7 +39,7 @@ instance FromField Tsvector where
 parseTsvectorBS :: Parser ByteString Tsvector
 parseTsvectorBS = do
     lexemes <- parseLexeme `sepBy` skipSpace1
-    case fromLexemeList lexemes of
+    case refineFromLexemeList lexemes of
         Just tv -> pure tv
         Nothing -> fail "invalid tsvector lexeme"
     where
