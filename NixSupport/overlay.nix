@@ -108,7 +108,8 @@ let
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
-            postgresql-types = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {});
+            # dontCheck: tests require a running PostgreSQL server
+            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
             # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
             # Not on Hackage, only on GitHub. Patched to export IsScalar(..) from Hasql.Mapping
             # so that hasql-postgresql-types can define orphan instances.
