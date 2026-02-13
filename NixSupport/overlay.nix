@@ -105,7 +105,7 @@ let
             # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
-            ptr-peeker = final.haskell.lib.markUnbroken super.ptr-peeker;
+            ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             postgresql-types = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {});
             # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
