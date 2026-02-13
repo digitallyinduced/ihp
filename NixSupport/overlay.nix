@@ -92,7 +92,8 @@ let
 
             # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
             # callHackageDirect used because these versions are newer than the nixpkgs all-cabal-hashes snapshot.
-            postgresql-binary = self.callHackageDirect { pkg = "postgresql-binary"; ver = "0.15.0.1"; sha256 = "02cj87xbhpq4jn0ys3pdscblan69d5f1vcsgb5y2piw310x7d6xb"; } {};
+            # dontCheck: tests require a running PostgreSQL server
+            postgresql-binary = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "postgresql-binary"; ver = "0.15.0.1"; sha256 = "02cj87xbhpq4jn0ys3pdscblan69d5f1vcsgb5y2piw310x7d6xb"; } {});
             postgresql-connection-string = self.callHackageDirect { pkg = "postgresql-connection-string"; ver = "0.1.0.6"; sha256 = "07iykhnjzryqqc1mccnmqf7lkg12rb4dq5azvrpfq6qaf6a6r0r1"; } {};
 
             hasql = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {});
