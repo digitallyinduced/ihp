@@ -205,7 +205,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
             let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
+            runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
@@ -221,7 +221,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
         forM_ alreadySubscribed \table -> do
             withRowLevelSecurityDisabled do
                 let pool = ?modelContext.hasqlPool
-                runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
+                runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
@@ -273,26 +273,23 @@ isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPi
 channelName :: Text -> ByteString
 channelName tableName = "ar_did_change_" <> cs tableName
 
--- | Returns individual SQL statements to set up a database trigger.
--- Split into separate statements because hasql's extended query protocol
--- only supports single statements per execution.
-notificationTriggerStatements :: Text -> [Text]
-notificationTriggerStatements tableName =
-        [ "BEGIN"
-        , "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+-- | Returns a multi-statement SQL script to set up database notification triggers.
+notificationTriggerSQL :: Text -> Text
+notificationTriggerSQL tableName =
+        "BEGIN;\n"
+        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
             <> "BEGIN\n"
             <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
             <> "    RETURN new;\n"
             <> "END;\n"
-            <> "$$ language plpgsql"
-        , "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "COMMIT"
-        ]
+            <> "$$ language plpgsql;\n"
+        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
+        <> "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
+        <> "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
+        <> "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "COMMIT"
     where
         functionName = "ar_notify_did_change_" <> tableName
         insertTriggerName = "ar_did_insert_" <> tableName
