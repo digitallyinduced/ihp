@@ -29,8 +29,6 @@ inspectBodyApp req respond = do
 
 -- | An app that reads the rawPayload from the middleware-parsed body.
 -- This simulates what getRequestBody does: it accesses parsedBody.rawPayload.
--- Before the fix, FormBody had no rawPayload field, so getRequestBody fell
--- back to lazyRequestBody which returned empty (stream already consumed).
 rereadBodyApp :: Application
 rereadBodyApp req respond = do
     let body = Vault.lookup requestBodyVaultKey (vault req)
