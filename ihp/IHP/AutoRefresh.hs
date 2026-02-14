@@ -273,23 +273,31 @@ isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPi
 channelName :: Text -> ByteString
 channelName tableName = "ar_did_change_" <> cs tableName
 
--- | Returns a multi-statement SQL script to set up database notification triggers.
+-- | Returns a SQL script to set up database notification triggers.
+--
+-- Wrapped in a DO $$ block with EXCEPTION handler because concurrent requests
+-- can race to CREATE OR REPLACE the same function, causing PostgreSQL to throw
+-- 'tuple concurrently updated' (SQLSTATE XX000). This is safe to ignore: the
+-- other connection's CREATE OR REPLACE will have succeeded.
 notificationTriggerSQL :: Text -> Text
 notificationTriggerSQL tableName =
-        "BEGIN;\n"
-        <> "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+        "DO $$\n"
+        <> "BEGIN\n"
+        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
             <> "BEGIN\n"
             <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
             <> "    RETURN new;\n"
             <> "END;\n"
-            <> "$$ language plpgsql;\n"
-        <> "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
-        <> "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
-        <> "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
-        <> "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "COMMIT"
+            <> "$BODY$ language plpgsql;\n"
+        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "EXCEPTION\n"
+        <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
+        <> "END; $$"
     where
         functionName = "ar_notify_did_change_" <> tableName
         insertTriggerName = "ar_did_insert_" <> tableName
