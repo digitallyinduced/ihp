@@ -11,19 +11,13 @@ import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString          as BS
 import qualified Data.List                as List
 import qualified Data.Map.Strict          as Map
-import           Data.Maybe               (mapMaybe)
 import           Data.Scientific          (Scientific)
 import qualified Data.Set                 as Set
 import qualified Data.String.Conversions  as CS
-import qualified Data.Text                as Text
-import           Data.Time                (LocalTime, TimeOfDay, UTCTime)
-import           Data.Time.Calendar       (Day)
-import           Data.UUID                (UUID)
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Language.Haskell.TH      as TH
 import           Net.IP                   (IP)
 import           IHP.ModelSupport.Types   (Id')
-import           IHP.NameSupport          (tableNameToModelName)
 import           IHP.Prelude
 import qualified IHP.Postgres.Point       as PGPoint
 import qualified IHP.Postgres.Polygon     as PGPolygon

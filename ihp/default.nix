@@ -8,7 +8,7 @@
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec, http-client
 , http-client-tls, http-media, http-types, ihp-context, ihp-hsx
 , ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead, ihp-pglistener
-, inflections, interpolate, lens
+, ihp-postgresql-simple-extra, inflections, interpolate, ip, lens
 , lib, mime-types, minio-hs, mono-traversable, mtl
 , neat-interpolation, network, network-uri, parser-combinators
 , postgresql-simple, postgresql-types, process, pwstore-fast
@@ -37,7 +37,8 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener inflections interpolate
+    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
+    ip
     lens mime-types minio-hs mono-traversable mtl neat-interpolation
     network network-uri parser-combinators postgresql-simple
     postgresql-types process pwstore-fast random random-strings
@@ -60,7 +61,8 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener inflections interpolate
+    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
+    ip
     lens mime-types minio-hs mono-traversable mtl neat-interpolation
     network network-uri parser-combinators postgresql-simple
     postgresql-types process pwstore-fast random random-strings

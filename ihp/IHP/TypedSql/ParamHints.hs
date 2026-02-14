@@ -11,7 +11,6 @@ import           Control.Monad               (guard)
 import qualified Data.Char                   as Char
 import qualified Data.List                   as List
 import qualified Data.Map.Strict             as Map
-import           Data.Maybe                  (catMaybes, mapMaybe)
 import qualified Data.Set                    as Set
 import qualified Data.Text                   as Text
 import qualified Data.String.Conversions     as CS

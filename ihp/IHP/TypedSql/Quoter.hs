@@ -7,7 +7,6 @@ module IHP.TypedSql.Quoter
     ( typedSql
     ) where
 
-import           Control.Monad                  (when)
 import           Data.Coerce                    (coerce)
 import qualified Data.Char                      as Char
 import qualified Data.Map.Strict                as Map

@@ -1,6 +1,3 @@
-{-# LANGUAGE ImplicitParams  #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module IHP.TypedSql
     ( typedSql
     , TypedQuery (..)
@@ -10,7 +7,7 @@ module IHP.TypedSql
 
 import qualified Hasql.Decoders                  as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import           IHP.ModelSupport                (ModelContext, sqlQueryHasql, withHasqlOrPgSimple)
+import           IHP.ModelSupport                (sqlQueryHasql)
 import           IHP.Prelude
 
 import           IHP.TypedSql.Quoter                 (typedSql)
@@ -30,6 +27,4 @@ sqlExecTyped TypedQuery { tqSnippet } =
 
 runTypedSqlSession :: (?modelContext :: ModelContext) => Snippet.Snippet -> HasqlDecoders.Result result -> IO result
 runTypedSqlSession snippet decoder =
-    withHasqlOrPgSimple
-        (\pool -> sqlQueryHasql pool snippet decoder)
-        (fail "typedSql: requires hasql pool and does not support pg-simple transactions or RLS contexts")
+    sqlQueryHasql ?modelContext.hasqlPool snippet decoder

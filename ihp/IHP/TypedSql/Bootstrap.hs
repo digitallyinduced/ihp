@@ -3,16 +3,14 @@ module IHP.TypedSql.Bootstrap
     ) where
 
 import           Control.Exception          (bracket_)
-import           Control.Monad              (when)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Char8     as BS8
-import           Data.Maybe                 (catMaybes)
 import qualified Data.String.Conversions   as CS
 import           System.Directory           (canonicalizePath, createDirectoryIfMissing,
                                              doesDirectoryExist, doesFileExist,
                                              findExecutable, removeDirectoryRecursive)
 import           System.Environment         (lookupEnv)
-import           System.FilePath            (isRelative, takeDirectory, takeFileName, (</>))
+import           System.FilePath            (isRelative, takeDirectory, takeFileName)
 import           System.IO                  (Handle, hIsEOF)
 import           System.IO.Temp             (withSystemTempDirectory)
 import qualified System.Process             as Process

@@ -8,7 +8,6 @@ module IHP.TypedSql.Decoders
 import           Control.Monad                    (guard)
 import qualified Data.List                        as List
 import qualified Data.Map.Strict                  as Map
-import           Data.Maybe                       (mapMaybe)
 import qualified Data.Set                         as Set
 import qualified Data.String.Conversions          as CS
 import qualified Database.PostgreSQL.LibPQ        as PQ

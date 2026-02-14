@@ -51,9 +51,11 @@ common shared-properties
             , wai-extra
             , http-types
             , inflections
+            , ip
             , text
             , postgresql-simple
             , ihp-pglistener
+            , ihp-postgresql-simple-extra
             , postgresql-libpq
             , wai-app-static
             , wai-util

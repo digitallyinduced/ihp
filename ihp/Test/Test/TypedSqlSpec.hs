@@ -4,15 +4,14 @@ import qualified Control.Exception                 as Exception
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
 import           IHP.Log.Types
-import           IHP.ModelSupport                  (Id', ModelContext,
-                                                    createModelContext,
+import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
                                                     sqlExec)
 import           IHP.Prelude
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
-import           System.FilePath                   (takeDirectory, (</>))
+import           System.FilePath                   (takeDirectory)
 import           System.Process                    (CreateProcess (..), proc,
                                                     readCreateProcessWithExitCode)
 import           System.IO.Temp                    (withSystemTempDirectory)
@@ -243,7 +242,7 @@ requirePostgresTestHook = do
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
     logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext 10 1 "" logger
+    modelContext <- createModelContext "" logger
     let ?modelContext = modelContext
     action `Exception.finally` releaseModelContext modelContext
 
@@ -1026,7 +1025,7 @@ runtimeModule = Text.unlines
     , "main :: IO ()"
     , "main = do"
     , "    logger <- newLogger def { level = Warn }"
-    , "    modelContext <- createModelContext 10 1 \"\" logger"
+    , "    modelContext <- createModelContext \"\" logger"
     , "    let ?modelContext = modelContext"
     , "    flip Exception.finally (releaseModelContext modelContext) do"
     , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
