@@ -66,7 +66,14 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
                     let jsonPayload = Aeson.decode rawPayload
                     pure JSONBody { jsonPayload, rawPayload }
                 _ -> do
-                    -- Replay the raw bytes for the form parser
+                    -- WAI's request body is a stream that can only be read
+                    -- once — each getRequestBodyChunk call pops the next
+                    -- chunk and removes it. Since strictRequestBody above
+                    -- already consumed the stream, we create a new body
+                    -- reader backed by an IORef holding the already-read
+                    -- chunks. Each time the form parser calls
+                    -- getRequestBodyChunk, it pops the next chunk from the
+                    -- IORef, effectively "replaying" the original bytes.
                     ref <- newIORef (LBS.toChunks rawPayload)
                     let bodyReader = atomicModifyIORef' ref $ \chunks -> case chunks of
                             [] -> ([], BS.empty)
