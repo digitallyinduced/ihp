@@ -19,7 +19,7 @@ that is defined in flake-module.nix
 
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
-                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql ];
+                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql_18 ];
                         preCheck = ''
                             ${old.preCheck or ""}
                             export PGDATA="$TMPDIR/pgdata"
@@ -105,7 +105,7 @@ that is defined in flake-module.nix
                             hspec
                         ]))
                         pkgs.gnumake
-                        pkgs.postgresql
+                        pkgs.postgresql_18
                     ];
                     buildPhase = ''
                         export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data}

@@ -2,6 +2,39 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# PostgreSQL 18 Upgrade
+
+IHP now defaults to PostgreSQL 18, which provides the native `uuidv7()` function for time-ordered UUIDs. New tables and jobs created by the code generators will use `uuidv7()` instead of `uuid_generate_v4()`.
+
+Existing `Schema.sql` files using `uuid_generate_v4()` continue to work — the `uuid-ossp` extension is still loaded.
+
+### Upgrading your dev database
+
+1. Save your local data (if needed):
+   ```bash
+   make dumpdb
+   ```
+
+2. Remove the old database files:
+   ```bash
+   # devenv users:
+   rm -rf .devenv/state/postgres/
+
+   # non-devenv users:
+   rm -rf build/db
+   ```
+
+3. Start the dev server — the database will be recreated with PG 18:
+   ```bash
+   devenv up
+   ```
+
+If you need to stay on PostgreSQL 17, set `IHP_POSTGRES_VERSION=17` in your environment.
+
+### Upgrading production (NixOS)
+
+If your production server uses the IHP `appWithPostgres` NixOS module, deploying will automatically use PG 18. Follow the [PostgreSQL upgrade guide on the NixOS wiki](https://wiki.nixos.org/wiki/PostgreSQL#Upgrading) to migrate your production data.
+
 # Upgrade to 1.5.0 from 1.4.0
 
 ## 1. Switch IHP version

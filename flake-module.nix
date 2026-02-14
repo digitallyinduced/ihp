@@ -357,6 +357,7 @@ ihpFlake:
                 # As the devenv postgres uses a different location for the socket
                 # this would break lots of known commands such as `make db`
                 services.postgres.enable = true;
+                services.postgres.package = pkgs.postgresql_18;
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
