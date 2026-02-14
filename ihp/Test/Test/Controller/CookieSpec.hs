@@ -38,7 +38,7 @@ tests = do
 createControllerContext = do
     headersRef <- newIORef []
     let
-        requestBody = FormBody { params = [], files = [] }
+        requestBody = FormBody { params = [], files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody
                                                   . Vault.insert responseHeadersVaultKey headersRef
                                                   $ Vault.empty }
