@@ -74,6 +74,9 @@ requestBodyMiddleware parseRequestBodyOptions app req respond = do
                     -- chunks. Each time the form parser calls
                     -- getRequestBodyChunk, it pops the next chunk from the
                     -- IORef, effectively "replaying" the original bytes.
+                    -- This is the standard WAI pattern for replaying a
+                    -- consumed request body, see:
+                    -- https://discourse.haskell.org/t/how-to-rebuild-the-request-body-after-reading-it-in-wai-middleware/13150
                     ref <- newIORef (LBS.toChunks rawPayload)
                     let bodyReader = atomicModifyIORef' ref $ \chunks -> case chunks of
                             [] -> ([], BS.empty)
