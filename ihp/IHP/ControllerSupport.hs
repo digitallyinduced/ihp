@@ -215,7 +215,6 @@ jumpToAction theAction = do
     beforeAction @action
     action theAction
 
-{-# INLINE getRequestBody #-}
 getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =
     pure ?request.parsedBody.rawPayload
