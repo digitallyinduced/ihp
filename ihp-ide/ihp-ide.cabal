@@ -120,7 +120,7 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
@@ -135,7 +135,7 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations

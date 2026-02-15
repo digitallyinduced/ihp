@@ -20,12 +20,21 @@ inspectBodyApp :: Application
 inspectBodyApp req respond = do
     let body = Vault.lookup requestBodyVaultKey (vault req)
     case body of
-        Just (FormBody params files) ->
+        Just (FormBody params files _rawPayload) ->
             respond $ responseLBS status200 [] (cs $ "FormBody params=" <> show (length params) <> " files=" <> show (length files))
         Just (JSONBody jsonPayload _) ->
             respond $ responseLBS status200 [] (cs $ "JSONBody payload=" <> show jsonPayload)
         Nothing ->
             respond $ responseLBS status200 [] "no body in vault"
+
+-- | An app that reads the rawPayload from the middleware-parsed body.
+-- This simulates what getRequestBody does: it accesses parsedBody.rawPayload.
+rereadBodyApp :: Application
+rereadBodyApp req respond = do
+    let body = Vault.lookup requestBodyVaultKey (vault req)
+    case body of
+        Just rb -> respond $ responseLBS status200 [] (rawPayload rb)
+        Nothing -> respond $ responseLBS status200 [] ""
 
 -- | An app that returns all params (body + query string) via allParams
 inspectAllParamsApp :: Application
@@ -107,6 +116,34 @@ spec = do
                 let body = "{\"name\": \"test\"}"
                 response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/jsonFOO")] body) app
                 cs (simpleBody response) `shouldBe` ("FormBody params=0 files=0" :: String)
+
+            it "returns JSONBody with Nothing payload for invalid JSON POST" $ do
+                let body = "not valid json{{"
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) app
+                cs (simpleBody response) `shouldBe` ("JSONBody payload=Nothing" :: String)
+
+            it "returns FormBody for POST without Content-Type" $ do
+                let body = "{\"name\": \"test\"}"
+                response <- runSession (makeRequestWithBody "POST" [] body) app
+                cs (simpleBody response) `shouldBe` ("FormBody params=0 files=0" :: String)
+
+            it "returns JSONBody with Nothing payload for empty body with application/json" $ do
+                let body = ""
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) app
+                cs (simpleBody response) `shouldBe` ("JSONBody payload=Nothing" :: String)
+
+        describe "raw body preservation (getRequestBody)" $ do
+            it "preserves raw body for form-encoded POST requests" $ do
+                let body = "name=test&value=123"
+                let rereadApp = requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions rereadBodyApp
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/x-www-form-urlencoded")] body) rereadApp
+                simpleBody response `shouldBe` body
+
+            it "preserves raw body for POST with non-JSON Content-Type" $ do
+                let body = "key1=val1"
+                let rereadApp = requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions rereadBodyApp
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/x-www-form-urlencoded")] body) rereadApp
+                simpleBody response `shouldBe` body
 
         describe "query string params" $ do
             it "preserves query params on GET requests even though body parsing is skipped" $ do

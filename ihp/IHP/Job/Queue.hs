@@ -99,7 +99,7 @@ watchForJob pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     liftIO do
         pool <- getHasqlPool
-        withoutQueryLogging (runSessionHasql pool (mapM_ HasqlSession.script (createNotificationTriggerStatements tableNameBS)))
+        withoutQueryLogging (runSessionHasql pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS)))
 
     poller <- pollForJob tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable; pure ()))
@@ -146,25 +146,30 @@ pollForJob tableName pollInterval onNewJob = do
 
     fst <$> allocate (Async.async handler) Async.cancel
 
--- | Returns individual SQL statements to create the notification trigger.
--- Split into separate statements because hasql 1.10's 'script' expects
--- exactly one result per call (multi-statement scripts cause
--- "Got too many results in script" errors).
-createNotificationTriggerStatements :: ByteString -> [Text]
-createNotificationTriggerStatements tableName =
-        [ "BEGIN"
-        , cs $ "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+-- | Returns a SQL script to create the notification trigger.
+--
+-- Wrapped in a DO $$ block with EXCEPTION handler because concurrent requests
+-- can race to CREATE OR REPLACE the same function, causing PostgreSQL to throw
+-- 'tuple concurrently updated' (SQLSTATE XX000). This is safe to ignore: the
+-- other connection's CREATE OR REPLACE will have succeeded.
+createNotificationTriggerSQL :: ByteString -> Text
+createNotificationTriggerSQL tableName =
+        cs $
+        "DO $$\n"
+        <> "BEGIN\n"
+        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
             <> "BEGIN\n"
             <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
             <> "    RETURN new;"
             <> "END;\n"
-            <> "$$ language plpgsql"
-        , cs $ "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
-        , cs $ "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
-        , cs $ "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
-        , cs $ "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
-        , "COMMIT"
-        ]
+            <> "$BODY$ language plpgsql;\n"
+        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "EXCEPTION\n"
+        <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
+        <> "END; $$"
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName
