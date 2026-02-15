@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-|
 Module: IHP.Hasql.FromRow
-Description: Typeclasses for decoding hasql result rows
+Description: Typeclass for decoding hasql result rows
 Copyright: (c) digitally induced GmbH, 2025
 
 This module provides 'FromRowHasql', a typeclass parallel to postgresql-simple's 'FromRow',
