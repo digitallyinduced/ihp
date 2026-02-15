@@ -1,14 +1,10 @@
 module IHP.TypedSql.ParamHints
-    ( SqlToken (..)
-    , ParamHint (..)
-    , tokenizeSql
-    , buildAliasMap
-    , collectParamHints
+    ( ParamHint (..)
+    , extractParamHints
     , resolveParamHintTypes
     ) where
 
-import           Control.Monad               (guard)
-import qualified Data.Char                   as Char
+import           Data.Foldable                (foldMap, toList)
 import qualified Data.List                   as List
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -18,17 +14,12 @@ import qualified Database.PostgreSQL.LibPQ   as PQ
 import qualified Language.Haskell.TH         as TH
 import           IHP.Prelude
 
+import qualified PostgresqlSyntax.Ast        as Ast
+import qualified PostgresqlSyntax.Parsing    as Parsing
+
 import           IHP.TypedSql.Metadata       (ColumnMeta (..), DescribeColumn (..),
                                               PgTypeInfo, TableMeta (..))
 import           IHP.TypedSql.TypeMapping    (hsTypeForColumn)
-
--- | Minimal SQL token used for placeholder context inspection.
--- This is a lightweight scanner, not a full SQL parser.
-data SqlToken
-    = TokIdent !Text
-    | TokSymbol !Char
-    | TokParam !Int
-    deriving (Eq, Show)
 
 -- | A derived hint about the expected type of a placeholder.
 -- The quasiquoter uses this to coerce ${...} to a column-compatible type.
@@ -40,232 +31,295 @@ data ParamHint = ParamHint
     }
     deriving (Eq, Show)
 
--- | Tokenize SQL just enough to locate placeholders and nearby identifiers.
--- This feeds alias detection and parameter hint extraction in typedSql.
-tokenizeSql :: String -> [SqlToken]
-tokenizeSql = go [] where
-    go acc [] = reverse acc
-    go acc ('-':'-':rest) = go acc (dropLineComment rest)
-    go acc ('/':'*':rest) = go acc (dropBlockComment rest)
-    go acc ('\'':rest) = go acc (dropStringLiteral rest)
-    go acc ('"':rest) =
-        let (ident, remaining) = parseQuotedIdent rest
-        in go (TokIdent ident : acc) remaining
-    go acc ('$':rest) =
-        let (digits, remaining) = span Char.isDigit rest
-        in if null digits
-            then go acc remaining
-            else go (TokParam (digitsToInt digits) : acc) remaining
-    go acc (c:rest)
-        | Char.isSpace c = go acc rest
-        | isIdentStart c =
-            let (identTail, remaining) = span isIdentChar rest
-                identText = Text.toLower (CS.cs (c : identTail))
-            in go (TokIdent identText : acc) remaining
-        | isSymbolToken c = go (TokSymbol c : acc) rest
-        | otherwise = go acc rest
+-- | Extract parameter hints by parsing SQL and walking the AST.
+-- Falls back to empty map if parsing fails.
+extractParamHints :: String -> Map.Map Int ParamHint
+extractParamHints sql =
+    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
+        Left _err -> Map.empty
+        Right stmt ->
+            let aliasMap = buildAliasMapFromStmt stmt
+                defTable = singleTable aliasMap
+            in collectFromStmt aliasMap defTable stmt
 
-    isIdentStart ch = Char.isLetter ch || ch == '_'
-    isIdentChar ch = Char.isAlphaNum ch || ch == '_' || ch == '$'
-    isSymbolToken ch = ch `elem` ['.', '=', '(', ')', ',']
+-- | Get the text from an Ident, lowercased.
+identToText :: Ast.Ident -> Text
+identToText (Ast.QuotedIdent t) = Text.toLower t
+identToText (Ast.UnquotedIdent t) = Text.toLower t
 
-    dropLineComment = dropWhile (/= '\n')
-    dropBlockComment = dropUntil "*/"
-    dropStringLiteral = dropSingleQuoted
+-- | Extract table name from a QualifiedName, ignoring schema prefix.
+qualifiedNameToText :: Ast.QualifiedName -> Text
+qualifiedNameToText (Ast.SimpleQualifiedName ident) = identToText ident
+qualifiedNameToText (Ast.IndirectedQualifiedName _schema indirection) =
+    -- schema.table -> take the last attr name
+    case toList indirection of
+        [] -> identToText _schema
+        els -> case List.last els of
+            Ast.AttrNameIndirectionEl ident -> identToText ident
+            _ -> identToText _schema
 
-    dropUntil _ [] = []
-    dropUntil pattern@(p1:p2:_) (x:y:rest)
-        | x == p1 && y == p2 = rest
-        | otherwise = dropUntil pattern (y:rest)
-    dropUntil _ rest = rest
+-- | If the alias map has exactly one distinct table, return it.
+singleTable :: Map.Map Text Text -> Maybe Text
+singleTable aliases =
+    case Set.toList (Set.fromList (Map.elems aliases)) of
+        [table] -> Just table
+        _ -> Nothing
 
-    dropSingleQuoted [] = []
-    dropSingleQuoted ('\'':'\'':xs) = dropSingleQuoted xs
-    dropSingleQuoted ('\'':xs) = xs
-    dropSingleQuoted (_:xs) = dropSingleQuoted xs
+----------------------------------------------------------------------
+-- Alias map building
+----------------------------------------------------------------------
 
-    parseQuotedIdent = go "" where
-        go acc [] = (Text.toLower (CS.cs (reverse acc)), [])
-        go acc ('"':'"':xs) = go ('"':acc) xs
-        go acc ('"':xs) = (Text.toLower (CS.cs (reverse acc)), xs)
-        go acc (x:xs) = go (x:acc) xs
+buildAliasMapFromStmt :: Ast.PreparableStmt -> Map.Map Text Text
+buildAliasMapFromStmt = \case
+    Ast.SelectPreparableStmt selectStmt -> buildAliasMapFromSelectStmt selectStmt
+    Ast.UpdatePreparableStmt (Ast.UpdateStmt _with (Ast.RelationExprOptAlias relExpr maybeAlias) _setClauses maybeFrom _where _ret) ->
+        let tableName = relationExprName relExpr
+            base = Map.singleton tableName tableName
+            withAlias = case maybeAlias of
+                Just (_, aliasIdent) -> Map.insert (identToText aliasIdent) tableName base
+                Nothing -> base
+        in case maybeFrom of
+            Just fromClause -> Map.union withAlias (buildAliasMapFromFrom fromClause)
+            Nothing -> withAlias
+    Ast.DeletePreparableStmt (Ast.DeleteStmt _with (Ast.RelationExprOptAlias relExpr maybeAlias) _using _where _ret) ->
+        let tableName = relationExprName relExpr
+            base = Map.singleton tableName tableName
+        in case maybeAlias of
+            Just (_, aliasIdent) -> Map.insert (identToText aliasIdent) tableName base
+            Nothing -> base
+    Ast.InsertPreparableStmt (Ast.InsertStmt _with (Ast.InsertTarget qname _alias) _rest _onConflict _ret) ->
+        let tableName = qualifiedNameToText qname
+        in Map.singleton tableName tableName
+    Ast.CallPreparableStmt _ -> Map.empty
 
--- | Convert a list of digit chars to an Int for $1/$2 token indices.
-digitsToInt :: String -> Int
-digitsToInt = foldl' (\acc digit -> acc * 10 + Char.digitToInt digit) 0
+buildAliasMapFromSelectStmt :: Ast.SelectStmt -> Map.Map Text Text
+buildAliasMapFromSelectStmt (Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
+    let withMap = case maybeWith of
+            Just (Ast.WithClause _recursive ctes) -> foldMap buildAliasMapFromCte (toList ctes)
+            Nothing -> Map.empty
+    in Map.union withMap (buildAliasMapFromSelectClause selectClause)
+buildAliasMapFromSelectStmt (Right _parens) = Map.empty
 
--- | Safe indexing helper for the token stream.
-tokenAtIndex :: [a] -> Int -> Maybe a
-tokenAtIndex xs ix =
-    case List.drop ix xs of
-        (value:_) -> Just value
-        [] -> Nothing
+buildAliasMapFromCte :: Ast.CommonTableExpr -> Map.Map Text Text
+buildAliasMapFromCte (Ast.CommonTableExpr _name _cols _mat innerStmt) =
+    buildAliasMapFromStmt innerStmt
 
--- | Keywords that should not be treated as table aliases.
-reservedKeywords :: Set.Set Text
-reservedKeywords =
-    Set.fromList (map Text.pack
-        [ "as", "where", "join", "inner", "left", "right", "full", "cross"
-        , "on", "group", "order", "limit", "offset", "having", "union"
-        , "intersect", "except", "returning", "set", "values", "from", "update"
-        , "delete", "insert", "select"
-        ])
+buildAliasMapFromSelectClause :: Ast.SelectClause -> Map.Map Text Text
+buildAliasMapFromSelectClause (Left simpleSelect) = buildAliasMapFromSimpleSelect simpleSelect
+buildAliasMapFromSelectClause (Right _parens) = Map.empty
 
--- | Keywords that introduce a table reference.
-clauseKeywords :: Set.Set Text
-clauseKeywords = Set.fromList (map Text.pack ["from", "join", "update", "into"])
+buildAliasMapFromSimpleSelect :: Ast.SimpleSelect -> Map.Map Text Text
+buildAliasMapFromSimpleSelect = \case
+    Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window ->
+        case maybeFrom of
+            Just fromClause -> buildAliasMapFromFrom fromClause
+            Nothing -> Map.empty
+    Ast.BinSimpleSelect _op left _distinct right ->
+        Map.union (buildAliasMapFromSelectClause left) (buildAliasMapFromSelectClause right)
+    Ast.TableSimpleSelect relExpr ->
+        let name = relationExprName relExpr
+        in Map.singleton name name
+    Ast.ValuesSimpleSelect _ -> Map.empty
 
--- | Build a map of aliases to base table names from FROM/JOIN clauses.
--- Used to resolve qualified columns when inferring parameter types.
-buildAliasMap :: [SqlToken] -> Map.Map Text Text
-buildAliasMap tokens = go tokens Map.empty where
-    go [] acc = acc
-    go (TokIdent keyword : rest) acc
-        | keyword `Set.member` clauseKeywords =
-            case parseTable rest of
-                Nothing -> go rest acc
-                Just (tableName, afterTable) ->
-                    let (alias, afterAlias) = parseAlias afterTable
-                        acc' = Map.insert tableName tableName acc
-                        acc'' = maybe acc' (\name -> Map.insert name tableName acc') alias
-                    in go afterAlias acc''
-        | otherwise = go rest acc
-    go (_:rest) acc = go rest acc
+buildAliasMapFromFrom :: Ast.FromClause -> Map.Map Text Text
+buildAliasMapFromFrom = foldMap buildAliasMapFromTableRef . toList
 
-    parseTable (TokIdent _schemaName : TokSymbol '.' : TokIdent tableName : rest) =
-        Just (tableName, rest)
-    parseTable (TokIdent tableName : rest) =
-        Just (tableName, rest)
-    parseTable _ = Nothing
+buildAliasMapFromTableRef :: Ast.TableRef -> Map.Map Text Text
+buildAliasMapFromTableRef = \case
+    Ast.RelationExprTableRef relExpr maybeAlias _sample ->
+        let tableName = relationExprName relExpr
+            base = Map.singleton tableName tableName
+        in case maybeAlias of
+            Just (Ast.AliasClause _asKw aliasIdent _cols) ->
+                Map.insert (identToText aliasIdent) tableName base
+            Nothing -> base
+    Ast.JoinTableRef joinedTable maybeAlias ->
+        let joinMap = buildAliasMapFromJoinedTable joinedTable
+        in case maybeAlias of
+            Just _ -> joinMap  -- parenthesized join with alias, just pass through
+            Nothing -> joinMap
+    Ast.SelectTableRef _lateral _subquery _alias -> Map.empty
+    Ast.FuncTableRef _lateral _funcTable _alias -> Map.empty
 
-    parseAlias (TokIdent aliasKeyword : TokIdent alias : rest)
-        | aliasKeyword == Text.pack "as" = (Just alias, rest)
-    parseAlias (TokIdent alias : rest)
-        | alias `Set.notMember` reservedKeywords = (Just alias, rest)
-    parseAlias rest = (Nothing, rest)
+buildAliasMapFromJoinedTable :: Ast.JoinedTable -> Map.Map Text Text
+buildAliasMapFromJoinedTable = \case
+    Ast.InParensJoinedTable inner -> buildAliasMapFromJoinedTable inner
+    Ast.MethJoinedTable _meth left right ->
+        Map.union (buildAliasMapFromTableRef left) (buildAliasMapFromTableRef right)
 
--- | Find placeholder sites that look like column comparisons and capture their types.
--- This is how typedSql infers a more precise parameter type than the DB-provided OID.
-collectParamHints :: [SqlToken] -> Map.Map Text Text -> Map.Map Int ParamHint
-collectParamHints tokens aliasMap =
-    let defaultTable = singleTable aliasMap
-    in tokens
-        |> zip [0..]
-        |> mapMaybe (hintForToken aliasMap defaultTable)
-        |> foldl' mergeHints Map.empty
-        |> Map.mapMaybe id
-  where
-    tokenAt ix
-        | ix < 0 = Nothing
-        | otherwise = tokenAtIndex tokens ix
+relationExprName :: Ast.RelationExpr -> Text
+relationExprName (Ast.SimpleRelationExpr qname _) = qualifiedNameToText qname
+relationExprName (Ast.OnlyRelationExpr qname _) = qualifiedNameToText qname
 
-    singleTable aliases =
-        case Set.toList (Set.fromList (Map.elems aliases)) of
-            [table] -> Just table
-            _ -> Nothing
+----------------------------------------------------------------------
+-- Parameter hint collection from expressions
+----------------------------------------------------------------------
 
-    hasDotBefore ix =
-        case tokenAt (ix - 1) of
-            Just (TokSymbol '.') -> True
-            _ -> False
+collectFromStmt :: Map.Map Text Text -> Maybe Text -> Ast.PreparableStmt -> Map.Map Int ParamHint
+collectFromStmt aliasMap defTable = \case
+    Ast.SelectPreparableStmt selectStmt ->
+        collectFromSelectStmt aliasMap defTable selectStmt
+    Ast.UpdatePreparableStmt (Ast.UpdateStmt _with (Ast.RelationExprOptAlias relExpr _) setClauses _from maybeWhere _ret) ->
+        let updateTable = relationExprName relExpr
+            setHints = foldMap (collectFromSetClause aliasMap defTable updateTable) (toList setClauses)
+            whereHints = case maybeWhere of
+                Just (Ast.ExprWhereOrCurrentClause expr) -> collectFromAExpr aliasMap defTable expr
+                _ -> Map.empty
+        in mergeHintMaps setHints whereHints
+    Ast.DeletePreparableStmt (Ast.DeleteStmt _with _rel _using maybeWhere _ret) ->
+        case maybeWhere of
+            Just (Ast.ExprWhereOrCurrentClause expr) -> collectFromAExpr aliasMap defTable expr
+            _ -> Map.empty
+    Ast.InsertPreparableStmt (Ast.InsertStmt _with _target _rest maybeOnConflict _ret) ->
+        case maybeOnConflict of
+            Just (Ast.OnConflict _confExpr (Ast.UpdateOnConflictDo setClauses maybeWhere)) ->
+                let insertTable = case _target of
+                        Ast.InsertTarget qname _ -> qualifiedNameToText qname
+                    setHints = foldMap (collectFromSetClause aliasMap defTable insertTable) (toList setClauses)
+                    whereHints = case maybeWhere of
+                        Just whereExpr -> collectFromAExpr aliasMap defTable whereExpr
+                        Nothing -> Map.empty
+                in mergeHintMaps setHints whereHints
+            _ -> Map.empty
+    Ast.CallPreparableStmt _ -> Map.empty
 
-    hasDotAfter ix =
-        case tokenAt (ix + 1) of
-            Just (TokSymbol '.') -> True
-            _ -> False
+collectFromSelectStmt :: Map.Map Text Text -> Maybe Text -> Ast.SelectStmt -> Map.Map Int ParamHint
+collectFromSelectStmt aliasMap defTable (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    collectFromSelectClause aliasMap defTable selectClause
+collectFromSelectStmt _ _ (Right _) = Map.empty
 
-    hintForToken aliases defaultTable (ix, TokParam index) =
-        let matches = catMaybes
-                [ matchEqRight aliases ix index
-                , matchEqLeft aliases ix index
-                , matchInRight aliases ix index
-                , matchAnyRight aliases ix index
-                , matchEqRightUnqualified defaultTable ix index
-                , matchEqLeftUnqualified defaultTable ix index
-                , matchInRightUnqualified defaultTable ix index
-                , matchAnyRightUnqualified defaultTable ix index
-                ]
-        in listToMaybe matches
-    hintForToken _ _ _ = Nothing
+collectFromSelectClause :: Map.Map Text Text -> Maybe Text -> Ast.SelectClause -> Map.Map Int ParamHint
+collectFromSelectClause aliasMap defTable (Left simpleSelect) =
+    collectFromSimpleSelect aliasMap defTable simpleSelect
+collectFromSelectClause _ _ (Right _) = Map.empty
 
-    matchEqRight aliases ix index = do
-        TokSymbol '=' <- tokenAt (ix - 1)
-        TokIdent column <- tokenAt (ix - 2)
-        TokSymbol '.' <- tokenAt (ix - 3)
-        TokIdent tableRef <- tokenAt (ix - 4)
-        tableName <- Map.lookup tableRef aliases
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+collectFromSimpleSelect :: Map.Map Text Text -> Maybe Text -> Ast.SimpleSelect -> Map.Map Int ParamHint
+collectFromSimpleSelect aliasMap defTable = \case
+    Ast.NormalSimpleSelect _targeting _into _from maybeWhere _group _having _window ->
+        case maybeWhere of
+            Just whereExpr -> collectFromAExpr aliasMap defTable whereExpr
+            Nothing -> Map.empty
+    Ast.BinSimpleSelect _op left _distinct right ->
+        mergeHintMaps
+            (collectFromSelectClause aliasMap defTable left)
+            (collectFromSelectClause aliasMap defTable right)
+    _ -> Map.empty
 
-    matchEqRightUnqualified defaultTable ix index = do
-        tableName <- defaultTable
-        TokSymbol '=' <- tokenAt (ix - 1)
-        TokIdent column <- tokenAt (ix - 2)
-        guard (not (hasDotBefore (ix - 2)))
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+collectFromSetClause :: Map.Map Text Text -> Maybe Text -> Text -> Ast.SetClause -> Map.Map Int ParamHint
+collectFromSetClause aliasMap defTable updateTable = \case
+    Ast.TargetSetClause (Ast.SetTarget colIdent _indirection) expr ->
+        let colName = identToText colIdent
+        in case extractParam expr of
+            Just paramIndex ->
+                Map.singleton paramIndex ParamHint
+                    { phIndex = paramIndex
+                    , phTable = updateTable
+                    , phColumn = colName
+                    , phArray = False
+                    }
+            Nothing -> Map.empty
+    Ast.TargetListSetClause _ _ -> Map.empty
 
-    matchEqLeft aliases ix index = do
-        TokSymbol '=' <- tokenAt (ix + 1)
-        TokIdent tableRef <- tokenAt (ix + 2)
-        TokSymbol '.' <- tokenAt (ix + 3)
-        TokIdent column <- tokenAt (ix + 4)
-        tableName <- Map.lookup tableRef aliases
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+-- | Extract parameter hints from an AExpr, looking for patterns like:
+-- column = $N, $N = column, column IN ($N), column = ANY($N)
+collectFromAExpr :: Map.Map Text Text -> Maybe Text -> Ast.AExpr -> Map.Map Int ParamHint
+collectFromAExpr aliasMap defTable = \case
+    -- column = $N  or  $N = column
+    Ast.SymbolicBinOpAExpr left (Ast.MathSymbolicExprBinOp Ast.EqualsMathOp) right ->
+        mergeHintMaps
+            (matchColEqParam aliasMap defTable left right False)
+            (matchColEqParam aliasMap defTable right left False)
+    -- AND / OR: recurse both sides
+    Ast.AndAExpr left right ->
+        mergeHintMaps
+            (collectFromAExpr aliasMap defTable left)
+            (collectFromAExpr aliasMap defTable right)
+    Ast.OrAExpr left right ->
+        mergeHintMaps
+            (collectFromAExpr aliasMap defTable left)
+            (collectFromAExpr aliasMap defTable right)
+    -- NOT: recurse
+    Ast.NotAExpr inner -> collectFromAExpr aliasMap defTable inner
+    -- column IN ($N, ...) - reversable op
+    Ast.ReversableOpAExpr colExpr _negated (Ast.InAExprReversableOp (Ast.ExprListInExpr exprs)) ->
+        case resolveColumnRef aliasMap defTable colExpr of
+            Just (tableName, colName) ->
+                foldMap (\expr -> case extractParam expr of
+                    Just n ->
+                        Map.singleton n ParamHint
+                            { phIndex = n
+                            , phTable = tableName
+                            , phColumn = colName
+                            , phArray = True
+                            }
+                    Nothing -> Map.empty
+                    ) (toList exprs)
+            Nothing -> Map.empty
+    -- column = ANY($N) pattern via SubqueryAExpr
+    Ast.SubqueryAExpr colExpr (Ast.AllSubqueryOp (Ast.MathAllOp Ast.EqualsMathOp)) Ast.AnySubType (Right paramExpr) ->
+        case resolveColumnRef aliasMap defTable colExpr of
+            Just (tableName, colName) ->
+                case extractParam paramExpr of
+                    Just n -> Map.singleton n ParamHint
+                        { phIndex = n
+                        , phTable = tableName
+                        , phColumn = colName
+                        , phArray = True
+                        }
+                    Nothing -> Map.empty
+            Nothing -> Map.empty
+    -- Parenthesized expression
+    Ast.CExprAExpr (Ast.InParensCExpr inner _) -> collectFromAExpr aliasMap defTable inner
+    _ -> Map.empty
 
-    matchEqLeftUnqualified defaultTable ix index = do
-        tableName <- defaultTable
-        TokSymbol '=' <- tokenAt (ix + 1)
-        TokIdent column <- tokenAt (ix + 2)
-        guard (not (hasDotAfter (ix + 2)))
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = False }
+-- | Try to match: colExpr is a column ref and paramExpr is $N
+matchColEqParam :: Map.Map Text Text -> Maybe Text -> Ast.AExpr -> Ast.AExpr -> Bool -> Map.Map Int ParamHint
+matchColEqParam aliasMap defTable colExpr paramExpr isArray =
+    case (resolveColumnRef aliasMap defTable colExpr, extractParam paramExpr) of
+        (Just (tableName, colName), Just n) ->
+            Map.singleton n ParamHint
+                { phIndex = n
+                , phTable = tableName
+                , phColumn = colName
+                , phArray = isArray
+                }
+        _ -> Map.empty
 
-    matchInRight aliases ix index = do
-        TokSymbol '(' <- tokenAt (ix - 1)
-        TokIdent keyword <- tokenAt (ix - 2)
-        guard (keyword == Text.pack "in")
-        TokIdent column <- tokenAt (ix - 3)
-        TokSymbol '.' <- tokenAt (ix - 4)
-        TokIdent tableRef <- tokenAt (ix - 5)
-        tableName <- Map.lookup tableRef aliases
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+-- | Resolve a column reference expression to (table, column).
+resolveColumnRef :: Map.Map Text Text -> Maybe Text -> Ast.AExpr -> Maybe (Text, Text)
+resolveColumnRef aliasMap defTable = \case
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref colId maybeIndirection)) ->
+        case maybeIndirection of
+            -- qualified: tableOrAlias.column
+            Just indirection ->
+                case toList indirection of
+                    [Ast.AttrNameIndirectionEl colIdent] ->
+                        let tableRef = identToText colId
+                            colName = identToText colIdent
+                        in case Map.lookup tableRef aliasMap of
+                            Just tableName -> Just (tableName, colName)
+                            Nothing -> Nothing
+                    _ -> Nothing
+            -- unqualified: just column name
+            Nothing ->
+                case defTable of
+                    Just tableName -> Just (tableName, identToText colId)
+                    Nothing -> Nothing
+    _ -> Nothing
 
-    matchInRightUnqualified defaultTable ix index = do
-        tableName <- defaultTable
-        TokSymbol '(' <- tokenAt (ix - 1)
-        TokIdent keyword <- tokenAt (ix - 2)
-        guard (keyword == Text.pack "in")
-        TokIdent column <- tokenAt (ix - 3)
-        guard (not (hasDotBefore (ix - 3)))
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+-- | Extract a $N parameter index from an expression.
+extractParam :: Ast.AExpr -> Maybe Int
+extractParam = \case
+    Ast.CExprAExpr (Ast.ParamCExpr n _) -> Just n
+    _ -> Nothing
 
-    matchAnyRight aliases ix index = do
-        TokSymbol '(' <- tokenAt (ix - 1)
-        TokIdent keyword <- tokenAt (ix - 2)
-        guard (keyword == Text.pack "any")
-        TokSymbol '=' <- tokenAt (ix - 3)
-        TokIdent column <- tokenAt (ix - 4)
-        TokSymbol '.' <- tokenAt (ix - 5)
-        TokIdent tableRef <- tokenAt (ix - 6)
-        tableName <- Map.lookup tableRef aliases
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
+-- | Merge two hint maps, discarding hints that conflict (same index, different hint).
+mergeHintMaps :: Map.Map Int ParamHint -> Map.Map Int ParamHint -> Map.Map Int ParamHint
+mergeHintMaps = Map.unionWith (\a b -> if a == b then a else a)
 
-    matchAnyRightUnqualified defaultTable ix index = do
-        tableName <- defaultTable
-        TokSymbol '(' <- tokenAt (ix - 1)
-        TokIdent keyword <- tokenAt (ix - 2)
-        guard (keyword == Text.pack "any")
-        TokSymbol '=' <- tokenAt (ix - 3)
-        TokIdent column <- tokenAt (ix - 4)
-        guard (not (hasDotBefore (ix - 4)))
-        pure ParamHint { phIndex = index, phTable = tableName, phColumn = column, phArray = True }
-
-    mergeHints acc hint =
-        Map.alter (mergeHint hint) (phIndex hint) acc
-
-    mergeHint hint Nothing = Just (Just hint)
-    mergeHint hint (Just Nothing) = Just Nothing
-    mergeHint hint (Just (Just existing))
-        | existing == hint = Just (Just existing)
-        | otherwise = Just Nothing
+----------------------------------------------------------------------
+-- Type resolution (unchanged from before)
+----------------------------------------------------------------------
 
 -- | Convert parameter hints into concrete Haskell types using table metadata.
 -- The quasiquoter uses this to apply per-placeholder type annotations.

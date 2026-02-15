@@ -22,8 +22,8 @@ import           IHP.TypedSql.Bootstrap         (describeUsingBootstrap)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..),
                                                  describeStatement)
-import           IHP.TypedSql.ParamHints        (buildAliasMap, collectParamHints,
-                                                 resolveParamHintTypes, tokenizeSql)
+import           IHP.TypedSql.ParamHints        (extractParamHints,
+                                                 resolveParamHintTypes)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypeForParam)
@@ -61,9 +61,7 @@ typedSqlExp rawSql = do
 
     paramTypes <- mapM (hsTypeForParam drTypes) drParams
 
-    let sqlTokens = tokenizeSql ppDescribeSql
-    let aliasMap = buildAliasMap sqlTokens
-    let paramHints = collectParamHints sqlTokens aliasMap
+    let paramHints = extractParamHints ppDescribeSql
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
     let annotatedParams =
