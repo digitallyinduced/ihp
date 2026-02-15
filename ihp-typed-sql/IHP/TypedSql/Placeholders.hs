@@ -35,7 +35,7 @@ planPlaceholders = go 1 "" "" [] where
             describeToken = reverse ('$' : CS.cs (show n))
         in go (n + 1)
               (describeToken <> accDescribe)
-              ('?' : accRuntime)
+              ('\0' : accRuntime)
               (expr : exprs)
               after
     go n accDescribe accRuntime exprs (c:rest) =

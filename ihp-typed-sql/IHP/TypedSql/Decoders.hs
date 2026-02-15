@@ -5,8 +5,6 @@ module IHP.TypedSql.Decoders
     ( resultDecoderForColumns
     ) where
 
-import           Control.Monad                    (guard)
-import qualified Data.List                        as List
 import qualified Data.Map.Strict                  as Map
 import qualified Data.Set                         as Set
 import qualified Data.String.Conversions          as CS
@@ -18,6 +16,7 @@ import           IHP.ModelSupport.Types           (Id' (..))
 import           IHP.Prelude
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
+import           IHP.TypedSql.TypeMapping        (detectFullTable)
 
 -- | Build a hasql result decoder for the described SQL columns.
 -- For full-table selections we reuse FromRowHasql; otherwise we decode a scalar/tuple.
@@ -32,27 +31,6 @@ resultDecoderForColumns typeInfo tables columns = do
                 [column] -> rowDecoderForColumn typeInfo tables column
                 _ -> tupleRowDecoderForColumns typeInfo tables columns
             pure rowDecoder
-
--- | Detect whether the columns represent a full table selection (table.* in table column order).
--- When this is true, typedSql can decode via the generated FromRowHasql model instance.
-detectFullTable :: Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> Maybe Text
-detectFullTable tables cols = do
-    guard (not (null cols))
-    let grouped =
-            cols
-                |> List.groupBy (\a b -> dcTable a == dcTable b)
-                |> mapMaybe (\group -> case List.uncons group of
-                        Just (first, _) -> Just (dcTable first, group)
-                        Nothing -> Nothing
-                   )
-    case grouped of
-        [(tableOid, colGroup)] | tableOid /= PQ.Oid 0 -> do
-            TableMeta { tmColumnOrder } <- Map.lookup tableOid tables
-            let attnums = mapMaybe dcAttnum colGroup
-            guard (attnums == tmColumnOrder)
-            TableMeta { tmName } <- Map.lookup tableOid tables
-            pure tmName
-        _ -> Nothing
 
 tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> TH.ExpQ
 tupleRowDecoderForColumns typeInfo tables columns = do

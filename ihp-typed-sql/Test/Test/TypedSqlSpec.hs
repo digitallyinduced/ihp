@@ -354,11 +354,11 @@ findIhpPackageRoot = do
     if inPackageExists
         then pure currentDirectory
         else do
-            let fromRepoRoot = currentDirectory </> "ihp" </> "IHP" </> "TypedSql.hs"
+            let fromRepoRoot = currentDirectory </> "ihp-typed-sql" </> "IHP" </> "TypedSql.hs"
             fromRepoExists <- doesFileExist fromRepoRoot
             if fromRepoExists
-                then pure (currentDirectory </> "ihp")
-                else fail "TypedSqlSpec: could not locate ihp package root"
+                then pure (currentDirectory </> "ihp-typed-sql")
+                else fail "TypedSqlSpec: could not locate ihp-typed-sql package root"
 
 ghciEnvironment :: IO [(String, String)]
 ghciEnvironment = do

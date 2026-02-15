@@ -103,7 +103,7 @@ typedSqlExp rawSql = do
 
 buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
 buildSnippetExpression sql params = do
-    let chunks = splitOnQuestion sql
+    let chunks = splitOnSentinel sql
     when (length chunks /= length params + 1) do
         fail "typedSql: internal error while building hasql snippet"
     let sqlSnippets = map (TH.AppE (TH.VarE 'Snippet.sql) . TH.LitE . TH.StringL) chunks
@@ -114,11 +114,11 @@ buildSnippetExpression sql params = do
         firstPiece:restPieces ->
             pure (foldl (\acc piece -> TH.InfixE (Just acc) (TH.VarE '(<>) ) (Just piece)) firstPiece restPieces)
 
-splitOnQuestion :: String -> [String]
-splitOnQuestion input = go "" [] input
+splitOnSentinel :: String -> [String]
+splitOnSentinel input = go "" [] input
   where
     go current acc [] = reverse (reverse current : acc)
-    go current acc ('?':rest) = go "" (reverse current : acc) rest
+    go current acc ('\0':rest) = go "" (reverse current : acc) rest
     go current acc (char:rest) = go (char:current) acc rest
 
 interleave :: [a] -> [a] -> [a]

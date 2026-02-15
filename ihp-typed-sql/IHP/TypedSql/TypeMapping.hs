@@ -4,6 +4,7 @@ module IHP.TypedSql.TypeMapping
     ( hsTypeForParam
     , hsTypeForColumns
     , hsTypeForColumn
+    , detectFullTable
     ) where
 
 import           Control.Monad            (guard)

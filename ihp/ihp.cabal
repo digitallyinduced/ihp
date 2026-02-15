@@ -215,7 +215,6 @@ library
         , IHP.QueryBuilder.Union
         , IHP.QueryBuilder.HasqlCompiler
         , IHP.QueryBuilder.HasqlHelpers
-        , IHP.TypedSql
         , IHP.Fetch
         , IHP.RouterPrelude
         , IHP.Server
@@ -264,14 +263,6 @@ library
     autogen-modules: Paths_ihp
     other-modules:
         Paths_ihp
-        IHP.TypedSql.Types
-        IHP.TypedSql.Quoter
-        IHP.TypedSql.Placeholders
-        IHP.TypedSql.ParamHints
-        IHP.TypedSql.Metadata
-        IHP.TypedSql.Bootstrap
-        IHP.TypedSql.TypeMapping
-        IHP.TypedSql.Decoders
 
 source-repository head
     type:     git
@@ -303,4 +294,3 @@ test-suite tests
         Test.MockingSpec
         Test.HasqlEncoderSpec
         Test.AutoRefreshSpec
-        Test.TypedSqlSpec
