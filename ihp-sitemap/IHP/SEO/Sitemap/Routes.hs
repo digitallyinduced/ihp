@@ -12,3 +12,9 @@ instance CanRoute SitemapController where
         string "/sitemap.xml"
         endOfInput
         pure SitemapAction
+
+instance AutoRoute SitemapController where
+    customRoutes = do
+        string "/sitemap.xml"
+        endOfInput
+        pure SitemapAction
