@@ -35,7 +35,7 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
+import Control.Exception.Safe (SomeException, fromException, try, catch)
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
 import Network.Wai
@@ -92,9 +92,9 @@ runAction controller = do
             (action controller)
             ErrorController.handleNoResponseReturned controller
 
-    let handleResponseException (ResponseException response) = ?respond response
-
-    doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
+    doRunAction `catch` \(exception :: SomeException) -> case fromException exception of
+        Just (ResponseException response) -> ?respond response
+        Nothing -> ErrorController.displayException exception controller ""
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -172,6 +172,7 @@ prepareRLSIfNeeded modelContext = do
     case rowLevelSecurityContext of
         Just context -> pure modelContext { rowLevelSecurity = Just context }
         Nothing -> pure modelContext
+{-# INLINE prepareRLSIfNeeded #-}
 
 rlsContextVaultKey :: Vault.Key (IORef (Maybe RowLevelSecurityContext))
 rlsContextVaultKey = unsafePerformIO Vault.newKey

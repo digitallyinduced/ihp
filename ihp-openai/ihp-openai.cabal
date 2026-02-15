@@ -49,7 +49,7 @@ library
         -Wredundant-constraints
         -Wunused-imports
         -Wunused-foralls
-        -Wmissing-fields
+        -Werror=missing-fields
         -Winaccessible-code
         -Wmissed-specialisations
         -fexpose-all-unfoldings
