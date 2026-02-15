@@ -84,14 +84,12 @@ autoRefresh runAction = do
             frozenControllerContext <- freeze ?context
 
             let originalRequest = ?request
-            let renderView = \waiRequest waiRespond -> do
+            let renderView = \_waiRequest waiRespond -> do
                     controllerContext <- unfreeze frozenControllerContext
                     let ?context = controllerContext
-                    -- Copy vault from original request to preserve layout and other middleware state
-                    let waiRequest' = waiRequest { Wai.vault = Wai.vault originalRequest }
-                    let ?request = waiRequest'
+                    let ?request = originalRequest
                     let ?respond = waiRespond
-                    putContext waiRequest'
+                    putContext originalRequest
                     action ?theAction
 
             -- We save the allowed session ids to the session cookie to only grant a client access
@@ -207,7 +205,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
         -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
             let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
+            runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
         pgListener |> PGListener.subscribe (channelName table) \notification -> do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
@@ -223,7 +221,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
         forM_ alreadySubscribed \table -> do
             withRowLevelSecurityDisabled do
                 let pool = ?modelContext.hasqlPool
-                runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
+                runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
@@ -275,26 +273,31 @@ isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPi
 channelName :: Text -> ByteString
 channelName tableName = "ar_did_change_" <> cs tableName
 
--- | Returns individual SQL statements to set up a database trigger.
--- Split into separate statements because hasql's extended query protocol
--- only supports single statements per execution.
-notificationTriggerStatements :: Text -> [Text]
-notificationTriggerStatements tableName =
-        [ "BEGIN"
-        , "CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $$"
+-- | Returns a SQL script to set up database notification triggers.
+--
+-- Wrapped in a DO $$ block with EXCEPTION handler because concurrent requests
+-- can race to CREATE OR REPLACE the same function, causing PostgreSQL to throw
+-- 'tuple concurrently updated' (SQLSTATE XX000). This is safe to ignore: the
+-- other connection's CREATE OR REPLACE will have succeeded.
+notificationTriggerSQL :: Text -> Text
+notificationTriggerSQL tableName =
+        "DO $$\n"
+        <> "BEGIN\n"
+        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
             <> "BEGIN\n"
             <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
             <> "    RETURN new;\n"
             <> "END;\n"
-            <> "$$ language plpgsql"
-        , "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName
-        , "CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "()"
-        , "COMMIT"
-        ]
+            <> "$BODY$ language plpgsql;\n"
+        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
+        <> "    CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "EXCEPTION\n"
+        <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
+        <> "END; $$"
     where
         functionName = "ar_notify_did_change_" <> tableName
         insertTriggerName = "ar_did_insert_" <> tableName

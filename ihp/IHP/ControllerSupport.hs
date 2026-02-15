@@ -217,12 +217,9 @@ jumpToAction theAction = do
     beforeAction @action
     action theAction
 
-{-# INLINE getRequestBody #-}
 getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =
-    case ?request.parsedBody of
-        JSONBody { rawPayload } -> pure rawPayload
-        _ -> lazyRequestBody ?request
+    pure ?request.parsedBody.rawPayload
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?request :: Request) => ByteString

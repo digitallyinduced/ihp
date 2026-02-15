@@ -33,7 +33,7 @@ tests = do
                 result `shouldBe` jsonValue
 
             it "should return 400 for FormBody" do
-                let requestBody = FormBody { params = [], files = [] }
+                let requestBody = FormBody { params = [], files = [], rawPayload = "" }
                 request <- buildRequest requestBody Development
                 let ?request = request
                 result <- Exception.try requestBodyJSON

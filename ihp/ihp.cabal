@@ -158,7 +158,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
@@ -289,3 +289,5 @@ test-suite tests
         Test.PGListenerSpec
         Test.MockingSpec
         Test.ControllerSupportSpec
+        Test.HasqlEncoderSpec
+        Test.AutoRefreshSpec

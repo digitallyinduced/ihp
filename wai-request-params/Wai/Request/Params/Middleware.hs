@@ -26,6 +26,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import Network.Wai.Parse (File, Param)
+import Data.IORef (newIORef, atomicModifyIORef')
 
 -- | Type alias for WAI respond function
 type Respond = Response -> IO ResponseReceived
@@ -33,7 +34,7 @@ type Respond = Response -> IO ResponseReceived
 -- | Represents the parsed HTTP request body
 data RequestBody
     -- | A form body with URL-encoded or multipart params and files
-    = FormBody { params :: [Param], files :: [File LBS.ByteString] }
+    = FormBody { params :: [Param], files :: [File LBS.ByteString], rawPayload :: LBS.ByteString }
     -- | A JSON body
     | JSONBody { jsonPayload :: Maybe Aeson.Value, rawPayload :: LBS.ByteString }
 
@@ -55,17 +56,34 @@ requestBodyMiddleware :: WaiParse.ParseRequestBodyOptions -> Middleware
 requestBodyMiddleware parseRequestBodyOptions app req respond = do
     let method = requestMethod req
     requestBody <- if method == methodGet || method == methodHead || method == methodDelete || method == methodOptions
-        then pure (FormBody [] [])
+        then pure (FormBody [] [] LBS.empty)
         else do
+            -- Always read the raw body first so it's available via getRequestBody
+            rawPayload <- strictRequestBody req
             let contentType = lookup hContentType (requestHeaders req)
             case contentType of
                 Just ct | isJsonContentType ct -> do
-                    rawPayload <- strictRequestBody req
                     let jsonPayload = Aeson.decode rawPayload
                     pure JSONBody { jsonPayload, rawPayload }
                 _ -> do
-                    (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
-                    pure FormBody { params, files }
+                    -- WAI's request body is a stream that can only be read
+                    -- once — each getRequestBodyChunk call pops the next
+                    -- chunk and removes it. Since strictRequestBody above
+                    -- already consumed the stream, we create a new body
+                    -- reader backed by an IORef holding the already-read
+                    -- chunks. Each time the form parser calls
+                    -- getRequestBodyChunk, it pops the next chunk from the
+                    -- IORef, effectively "replaying" the original bytes.
+                    -- This is the standard WAI pattern for replaying a
+                    -- consumed request body, see:
+                    -- https://discourse.haskell.org/t/how-to-rebuild-the-request-body-after-reading-it-in-wai-middleware/13150
+                    ref <- newIORef (LBS.toChunks rawPayload)
+                    let bodyReader = atomicModifyIORef' ref $ \chunks -> case chunks of
+                            [] -> ([], BS.empty)
+                            (c:cs) -> (cs, c)
+                    let req' = setRequestBodyChunks bodyReader req
+                    (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req'
+                    pure FormBody { params, files, rawPayload }
 
     let req' = req { vault = Vault.insert requestBodyVaultKey requestBody (vault req) }
     app req' respond
