@@ -152,6 +152,17 @@ urlTo action = ?context.frameworkConfig.baseUrl <> pathTo action
 class HasPath controller => CanRoute controller where
     parseRoute' :: (?request :: Request, ?respond :: Respond) => Parser controller
 
+    -- | Builds a WAI Application parser for this controller.
+    --
+    -- The default implementation parses the controller action using 'parseRoute''
+    -- and applies the given callback. The overlappable 'AutoRoute' instance overrides
+    -- this to defer query string parsing and method validation to the Application closure.
+    parseRouteWithAction :: (?request :: Request, ?respond :: Respond) => (controller -> Application) -> Parser Application
+    parseRouteWithAction toApp = do
+        action <- parseRoute'
+        pure (toApp action)
+    {-# INLINE parseRouteWithAction #-}
+
 
 -- | Each of these is tried when trying to parse an argument to a controller constructor (i.e. in IHP, an action).
 -- The type @d@ is an the type of the argument, and all we know about this type that its conforms to @Data@.
@@ -568,6 +579,26 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
     parseRoute' = customRoutes <|> autoRoute
     {-# INLINABLE parseRoute' #-}
 
+    parseRouteWithAction toApp = (do
+        action <- customRoutes @controller
+        pure (toApp action)
+      ) <|> (do
+        -- routeMatchParser is a NOINLINE CAF — the static path matching is computed once per controller type.
+        -- We defer query string parsing and method validation to the Application closure.
+        (constr, allowedMethods) <- routeMatchParser @controller
+        pure $ \waiRequest waiRespond -> do
+            case applyAction @controller constr (queryString waiRequest) of
+                Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
+                Right action -> do
+                    case parseMethod (requestMethod waiRequest) of
+                        Right method -> do
+                            unless (allowedMethods |> includes method)
+                                (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                            toApp action waiRequest waiRespond
+                        Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+      )
+    {-# INLINABLE parseRouteWithAction #-}
+
 -- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
 -- Currently this is only Int, Text, and both wrapped in List and Maybe.
 -- IDs also are representable in a URL, but we are unable to match on polymorphic types using reflection,
@@ -877,33 +908,14 @@ mountFrontController application = let ?application = application in router []
 parseRoute :: forall controller application.
     ( ?request :: Request
     , ?respond :: Respond
-    , AutoRoute controller
-    , Data controller
+    , CanRoute controller
     , Controller controller
     , InitControllerContext application
     , ?application :: application
     , Typeable application
     , Typeable controller
     ) => Parser Application
-parseRoute = (do
-    action <- customRoutes @controller
-    pure $ runAction' @application action
-  ) <|> (do
-    -- routeMatchParser is a NOINLINE CAF — the static path matching is computed once per controller type.
-    -- We use it here just for the path match, then defer the full autoRoute (which includes query string
-    -- parsing and method validation) to the Application closure where ?request is available.
-    (constr, allowedMethods) <- routeMatchParser @controller
-    pure $ \waiRequest waiRespond -> do
-        case applyAction @controller constr (queryString waiRequest) of
-            Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
-            Right action -> do
-                case parseMethod (requestMethod waiRequest) of
-                    Right method -> do
-                        unless (allowedMethods |> includes method)
-                            (Exception.throw UnexpectedMethodException { allowedMethods, method })
-                        runAction' @application action waiRequest waiRespond
-                    Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
-  )
+parseRoute = parseRouteWithAction @controller (runAction' @application)
 {-# INLINABLE parseRoute #-}
 
 parseUUIDOrTextId ::  ByteString -> Maybe Dynamic
@@ -918,12 +930,12 @@ parseRouteWithId
         (
             ?request :: Request,
             ?respond :: Respond,
-            AutoRoute controller,
+            CanRoute controller,
             Controller controller,
             InitControllerContext application,
             ?application :: application,
             Typeable application,
-            Data controller)
+            Typeable controller)
         => Parser Application
 parseRouteWithId = parseRoute @controller @application
 
