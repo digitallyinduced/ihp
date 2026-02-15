@@ -61,7 +61,7 @@ instance HasqlDecodeValue Scientific where hasqlDecodeValue = Decoders.numeric
 instance HasqlDecodeValue Double where hasqlDecodeValue = Decoders.float8
 instance HasqlDecodeValue Float where hasqlDecodeValue = Decoders.float4
 instance HasqlDecodeValue Aeson.Value where hasqlDecodeValue = Decoders.jsonb
-instance PrimaryKey table ~ UUID => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> Decoders.uuid
+instance HasqlDecodeValue (PrimaryKey table) => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> hasqlDecodeValue
 
 -- | Typeclass for building column-level row decoders, handling nullable/non-nullable
 class HasqlDecodeColumn a where
