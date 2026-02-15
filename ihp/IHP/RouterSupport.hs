@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase #-}
+{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, LambdaCase, ScopedTypeVariables #-}
 module IHP.RouterSupport (
 CanRoute (..)
 , HasPath (..)
@@ -28,6 +28,8 @@ CanRoute (..)
 , onlyAllowMethods
 , getMethod
 , routeParam
+, withImplicits
+, applyConstr
 ) where
 
 import Prelude hiding (take)
@@ -53,6 +55,8 @@ import Data.Data
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
 import Network.HTTP.Types.URI
+import Network.HTTP.Types.Status (status400)
+import Network.HTTP.Types.Header (hContentType)
 import qualified Data.List as List
 import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
@@ -75,6 +79,16 @@ import IHP.Controller.Param
 import Data.Kind
 import qualified Data.TMap as TypeMap
 import IHP.Controller.Response (ResponseException(..))
+
+-- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
+--
+-- This avoids repeating @let ?request = waiRequest; let ?respond = waiRespond@ at each call site.
+{-# INLINE withImplicits #-}
+withImplicits :: ((?request :: Request, ?respond :: Respond) => Application) -> Application
+withImplicits action waiRequest waiRespond =
+    let ?request = waiRequest
+        ?respond = waiRespond
+    in action waiRequest waiRespond
 
 runAction'
     :: forall application controller
@@ -347,6 +361,23 @@ class Data controller => AutoRoute controller where
     autoRoute :: (?request :: Request, ?respond :: Respond) => Parser controller
     autoRoute = autoRouteWithIdType (\_ -> Nothing :: Maybe Integer)
     {-# INLINABLE autoRoute #-}
+
+    -- | Constructs a controller value from a matched constructor and query string.
+    --
+    -- Uses the same id parser as 'autoRoute'. Override this when you override
+    -- 'autoRoute' with 'autoRouteWithIdType' to keep them in sync.
+    --
+    -- This is used by 'parseRoute' to defer query string parsing to the Application
+    -- closure while keeping path matching in the parser.
+    --
+    -- __Example:__
+    --
+    -- > instance AutoRoute MyController where
+    -- >     autoRoute = autoRouteWithIdType (parseIntegerId @(Id MyModel))
+    -- >     applyAction = applyConstr (parseIntegerId @(Id MyModel))
+    applyAction :: Constr -> Query -> Either TypedAutoRouteError controller
+    applyAction = applyConstr (\_ -> Nothing :: Maybe Integer)
+    {-# INLINE applyAction #-}
 
     -- | Specifies the allowed HTTP methods for a given action
     --
@@ -647,18 +678,17 @@ getMethod =
 get :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser Application
 get path action = do
-    method <- getMethod
-    case method of
-        GET -> do
-            string path
-            pure (runAction' action)
-        _   -> fail "Invalid method, expected GET"
+    string path
+    pure $ \waiRequest waiRespond ->
+        case parseMethod (requestMethod waiRequest) of
+            Right GET -> runAction' action waiRequest waiRespond
+            Right HEAD -> runAction' action waiRequest waiRespond
+            Right method -> Exception.throw UnexpectedMethodException { allowedMethods = [GET, HEAD], method }
+            Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
 {-# INLINABLE get #-}
 
 -- | Routes a given path to an action when requested via POST.
@@ -676,18 +706,16 @@ get path action = do
 post :: (Controller action
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable action
     ) => ByteString -> action -> Parser Application
 post path action = do
-    method <- getMethod
-    case method of
-        POST -> do
-            string path
-            pure (runAction' action)
-        _   -> fail "Invalid method, expected POST"
+    string path
+    pure $ \waiRequest waiRespond ->
+        case parseMethod (requestMethod waiRequest) of
+            Right POST -> runAction' action waiRequest waiRespond
+            Right method -> Exception.throw UnexpectedMethodException { allowedMethods = [POST], method }
+            Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
 {-# INLINABLE post #-}
 
 -- | Filter methods when writing a custom routing parser
@@ -736,8 +764,6 @@ webSocketApp :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     ) => Parser Application
@@ -753,8 +779,6 @@ webSocketAppWithHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
@@ -782,23 +806,19 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     ) => ByteString -> Parser Application
 webSocketAppWithCustomPath path = do
         Attoparsec.char '/'
         string path
-        pure (startWebSocketAppAndFailOnHTTP (WS.initialState @webSocketApp))
+        pure $ withImplicits (startWebSocketAppAndFailOnHTTP @webSocketApp @application (WS.initialState @webSocketApp))
 {-# INLINABLE webSocketAppWithCustomPath #-}
 
 webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
     ( WSApp webSocketApp
     , InitControllerContext application
     , ?application :: application
-    , ?request :: Request
-    , ?respond :: Respond
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
@@ -807,12 +827,12 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
         Attoparsec.char '/'
         string path
         let action = WS.initialState @webSocketApp
-        pure (startWebSocketApp action (runActionWithNewContext action))
+        pure $ withImplicits (startWebSocketApp @webSocketApp @application action (runActionWithNewContext action))
 {-# INLINABLE webSocketAppWithCustomPathAndHTTPFallback #-}
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, ?request :: Request, ?respond :: Respond, Typeable application, Typeable action) => action -> Parser Application
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, Typeable application, Typeable action) => action -> Parser Application
 startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 {-# INLINABLE startPage #-}
 
@@ -854,10 +874,36 @@ mountFrontController :: forall frontController. (?request :: Request, ?respond :
 mountFrontController application = let ?application = application in router []
 {-# INLINABLE mountFrontController #-}
 
-parseRoute :: forall controller application. (?request :: Request, ?respond :: Respond, Controller controller, CanRoute controller, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => Parser Application
-parseRoute = do
-    action <- parseRoute' @controller
+parseRoute :: forall controller application.
+    ( ?request :: Request
+    , ?respond :: Respond
+    , AutoRoute controller
+    , Data controller
+    , Controller controller
+    , InitControllerContext application
+    , ?application :: application
+    , Typeable application
+    , Typeable controller
+    ) => Parser Application
+parseRoute = (do
+    action <- customRoutes @controller
     pure $ runAction' @application action
+  ) <|> (do
+    -- routeMatchParser is a NOINLINE CAF — the static path matching is computed once per controller type.
+    -- We use it here just for the path match, then defer the full autoRoute (which includes query string
+    -- parsing and method validation) to the Application closure where ?request is available.
+    (constr, allowedMethods) <- routeMatchParser @controller
+    pure $ \waiRequest waiRespond -> do
+        case applyAction @controller constr (queryString waiRequest) of
+            Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
+            Right action -> do
+                case parseMethod (requestMethod waiRequest) of
+                    Right method -> do
+                        unless (allowedMethods |> includes method)
+                            (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                        runAction' @application action waiRequest waiRespond
+                    Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+  )
 {-# INLINABLE parseRoute #-}
 
 parseUUIDOrTextId ::  ByteString -> Maybe Dynamic
@@ -872,18 +918,16 @@ parseRouteWithId
         (
             ?request :: Request,
             ?respond :: Respond,
+            AutoRoute controller,
             Controller controller,
-            CanRoute controller,
             InitControllerContext application,
             ?application :: application,
             Typeable application,
             Data controller)
         => Parser Application
-parseRouteWithId = do
-    action <- parseRoute' @controller
-    pure (runAction' @application action)
+parseRouteWithId = parseRoute @controller @application
 
-catchAll :: forall action application. (?request :: Request, ?respond :: Respond, Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
+catchAll :: forall action application. (Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
 catchAll action = do
     string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
