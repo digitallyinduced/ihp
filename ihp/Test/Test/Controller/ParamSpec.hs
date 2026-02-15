@@ -465,7 +465,7 @@ tests = do
 
 createControllerContextWithParams params =
         let
-            requestBody = FormBody { params, files = [] }
+            requestBody = FormBody { params, files = [], rawPayload = "" }
             request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
             customFields = TypeMap.insert request TypeMap.empty
         in FrozenControllerContext { customFields }
