@@ -26,6 +26,7 @@ import Data.Time.Clock (UTCTime, DiffTime)
 import Data.Time.Calendar (Day)
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Mapping.IsScalar as Mapping
 import Data.Int (Int16, Int32, Int64)
 import Data.Scientific (Scientific)
 import qualified Data.Aeson as Aeson
@@ -61,7 +62,7 @@ instance HasqlDecodeValue Scientific where hasqlDecodeValue = Decoders.numeric
 instance HasqlDecodeValue Double where hasqlDecodeValue = Decoders.float8
 instance HasqlDecodeValue Float where hasqlDecodeValue = Decoders.float4
 instance HasqlDecodeValue Aeson.Value where hasqlDecodeValue = Decoders.jsonb
-instance HasqlDecodeValue (PrimaryKey table) => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> hasqlDecodeValue
+instance Mapping.IsScalar (PrimaryKey table) => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> Mapping.decoder
 
 -- | Typeclass for building column-level row decoders, handling nullable/non-nullable
 class HasqlDecodeColumn a where
