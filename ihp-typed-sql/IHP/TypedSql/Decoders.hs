@@ -151,96 +151,33 @@ decodeSimpleArray nullable valueDecoder =
         )
 
 decodeIntScalar :: Bool -> TH.ExpQ
-decodeIntScalar nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral)))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper True (TH.VarE 'HasqlDecoders.int4)))
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper False (TH.VarE 'HasqlDecoders.int4)))
-            )
+decodeIntScalar = decodeCoercedScalar (TH.VarE 'HasqlDecoders.int4)
 
 decodeIntegerScalar :: Bool -> TH.ExpQ
-decodeIntegerScalar nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral)))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper True (TH.VarE 'HasqlDecoders.int8)))
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper False (TH.VarE 'HasqlDecoders.int8)))
-            )
+decodeIntegerScalar = decodeCoercedScalar (TH.VarE 'HasqlDecoders.int8)
 
 decodeIntArray :: Bool -> TH.ExpQ
-decodeIntArray nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral))))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        True
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int4))
-                        )
-                    )
-                )
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral)))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        False
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int4))
-                        )
-                    )
-                )
-            )
+decodeIntArray = decodeCoercedArray (TH.VarE 'HasqlDecoders.int4)
 
 decodeIntegerArray :: Bool -> TH.ExpQ
-decodeIntegerArray nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral))))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        True
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int8))
-                        )
-                    )
-                )
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral)))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        False
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int8))
-                        )
-                    )
-                )
-            )
+decodeIntegerArray = decodeCoercedArray (TH.VarE 'HasqlDecoders.int8)
+
+decodeCoercedScalar :: TH.Exp -> Bool -> TH.ExpQ
+decodeCoercedScalar baseDecoder nullable =
+    let coercion = TH.VarE 'fromIntegral
+        columnExpr = TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper nullable baseDecoder)
+    in if nullable
+        then pure (TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) coercion)) columnExpr)
+        else pure (TH.AppE (TH.AppE (TH.VarE 'fmap) coercion) columnExpr)
+
+decodeCoercedArray :: TH.Exp -> Bool -> TH.ExpQ
+decodeCoercedArray baseDecoder nullable =
+    let coercion = TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral)
+        arrayExpr = TH.AppE (TH.VarE 'HasqlDecoders.listArray) (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) baseDecoder)
+        columnExpr = TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper nullable arrayExpr)
+    in if nullable
+        then pure (TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) coercion)) columnExpr)
+        else pure (TH.AppE (TH.AppE (TH.VarE 'fmap) coercion) columnExpr)
 
 decodeByteaScalar :: Bool -> TH.ExpQ
 decodeByteaScalar nullable =

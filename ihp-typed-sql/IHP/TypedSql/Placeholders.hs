@@ -41,7 +41,7 @@ planPlaceholders = go 1 "" "" [] where
     go n accDescribe accRuntime exprs (c:rest) =
         go n (c : accDescribe) (c : accRuntime) exprs rest
 
-    breakOnClosing depth acc [] = (reverse acc, []) -- no closing brace found
+    breakOnClosing _depth _acc [] = error "typedSql: unclosed ${...} placeholder in SQL string"
     breakOnClosing depth acc ('{':xs) = breakOnClosing (depth + 1) ('{':acc) xs -- nested { increases depth
     breakOnClosing depth acc ('}':xs)
         | depth == 0 = (reverse acc, xs) -- close the current placeholder
