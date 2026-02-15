@@ -2,13 +2,13 @@ module Test.HasqlEncoderSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet, HasqlEncodeValue(..))
+import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
-import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import Hasql.Implicits.Encoders ()
 import Database.PostgreSQL.Simple (Only(..), (:.)(..))
 
 -- Test type family instances for non-UUID primary keys
