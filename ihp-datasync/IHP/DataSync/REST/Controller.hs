@@ -35,7 +35,7 @@ instance (
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
 
-        let payload = requestBodyJSON
+        payload <- requestBodyJSON
 
         case payload of
             Object hashMap -> do
@@ -100,12 +100,12 @@ instance (
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
 
-        let payload = requestBodyJSON
-                |> \case
-                    Object hashMap -> hashMap
-                    _ -> error "Expected JSON object"
+        payload <- requestBodyJSON
+        let hashMap = case payload of
+                Object hm -> hm
+                _ -> error "Expected JSON object"
 
-        let keyValues = payload
+        let keyValues = hashMap
                 |> Aeson.toList
                 |> map (\(key, val) ->
                     let col = fieldNameToColumnName (Aeson.toText key)
