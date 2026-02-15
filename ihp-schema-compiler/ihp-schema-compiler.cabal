@@ -56,7 +56,7 @@ common shared-properties
         ghc-options:
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
@@ -68,7 +68,7 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -fspecialise-aggressively
             -Wno-ambiguous-fields
