@@ -16,7 +16,6 @@ integer columns, we provide these instances to make the transition seamless.
 module IHP.Hasql.Encoders
 ( ToSnippetParams(..)
 , sqlToSnippet
-, HasqlEncodeValue(..)
 ) where
 
 import Prelude
@@ -44,16 +43,6 @@ import PostgresqlTypes.Inet (Inet)
 import PostgresqlTypes.Interval (Interval)
 import PostgresqlTypes.Tsvector (Tsvector)
 
--- | Typeclass mapping Haskell scalar types to hasql value encoders.
--- Symmetric with 'HasqlDecodeValue' from "IHP.Hasql.FromRow".
-class HasqlEncodeValue a where
-    hasqlEncodeValue :: Encoders.Value a
-
-instance HasqlEncodeValue UUID where hasqlEncodeValue = Encoders.uuid
-instance HasqlEncodeValue Text where hasqlEncodeValue = Encoders.text
-instance HasqlEncodeValue Int where hasqlEncodeValue = contramap (fromIntegral :: Int -> Int64) Encoders.int8
-instance HasqlEncodeValue Integer where hasqlEncodeValue = contramap fromInteger Encoders.int8
-
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
 -- This treats Haskell's 'Int' as 'Int64', which is safe on 64-bit platforms
@@ -78,23 +67,23 @@ instance DefaultParamEncoder [Maybe Int] where
 instance DefaultParamEncoder (Vector Int) where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8)
 
--- | Encode 'Id' table' for tables with any primary key type that has a 'HasqlEncodeValue' instance.
+-- | Encode 'Id' table' for tables with any primary key type that has an 'IsScalar' instance.
 -- This covers UUID, Text, Int, and other primary key types.
-instance HasqlEncodeValue (PrimaryKey table) => DefaultParamEncoder (Id' table) where
-    defaultParam = Encoders.nonNullable (contramap (\(Id pk) -> pk) hasqlEncodeValue)
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Id' table) where
+    defaultParam = Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode list of 'Id' table' for tables with any encodable primary key type.
 -- Used by filterWhereIdIn for simple primary keys.
-instance HasqlEncodeValue (PrimaryKey table) => DefaultParamEncoder [Id' table] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id pk) -> pk) hasqlEncodeValue)
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Id' table] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode 'Maybe (Id' table)' for nullable foreign keys with any encodable primary key type.
-instance HasqlEncodeValue (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' table)) where
-    defaultParam = Encoders.nullable (contramap (\(Id pk) -> pk) hasqlEncodeValue)
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' table)) where
+    defaultParam = Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys.
-instance HasqlEncodeValue (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) hasqlEncodeValue)
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
 -- Used for composite primary keys with two UUID columns
