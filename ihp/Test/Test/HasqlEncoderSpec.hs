@@ -3,11 +3,18 @@ module Test.HasqlEncoderSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
+import Hasql.Implicits.Encoders ()
 import Database.PostgreSQL.Simple (Only(..), (:.)(..))
+
+-- Test type family instances for non-UUID primary keys
+type instance PrimaryKey "countries" = Text
+type instance PrimaryKey "serial_table" = Int
+type instance PrimaryKey "users" = UUID
 
 -- | Convert a Snippet to its SQL text representation for testing.
 -- Parameters become $1, $2, etc.
@@ -77,3 +84,29 @@ tests = do
             it "should parameterize with :. concatenation" do
                 snippetToSql (sqlToSnippet "SELECT * FROM t LIMIT ? OFFSET ?" (toSnippetParams (Only (50 :: Int64) :. Only (100 :: Int64))))
                     `shouldBe` "SELECT * FROM t LIMIT $1 OFFSET $2"
+
+        describe "Id' with non-UUID primary keys" do
+            it "should encode Text-keyed Id' as a snippet param" do
+                let countryId :: Id' "countries" = Id "US"
+                snippetToSql (sqlToSnippet "SELECT * FROM countries WHERE id = ?" [Snippet.param countryId])
+                    `shouldBe` "SELECT * FROM countries WHERE id = $1"
+
+            it "should encode Int-keyed Id' as a snippet param" do
+                let serialId :: Id' "serial_table" = Id 42
+                snippetToSql (sqlToSnippet "SELECT * FROM serial_table WHERE id = ?" [Snippet.param serialId])
+                    `shouldBe` "SELECT * FROM serial_table WHERE id = $1"
+
+            it "should encode UUID Id' as a snippet param (regression)" do
+                let userId :: Id' "users" = Id "550e8400-e29b-41d4-a716-446655440000"
+                snippetToSql (sqlToSnippet "SELECT * FROM users WHERE id = ?" [Snippet.param userId])
+                    `shouldBe` "SELECT * FROM users WHERE id = $1"
+
+            it "should encode Maybe (Id' with Text key) as a snippet param" do
+                let countryId :: Maybe (Id' "countries") = Just (Id "US")
+                snippetToSql (sqlToSnippet "SELECT * FROM t WHERE country_id = ?" [Snippet.param countryId])
+                    `shouldBe` "SELECT * FROM t WHERE country_id = $1"
+
+            it "should encode [Id' with Text key] as a snippet param" do
+                let countryIds :: [Id' "countries"] = [Id "US", Id "DE"]
+                snippetToSql (sqlToSnippet "SELECT * FROM countries WHERE id = ANY(?)" [Snippet.param countryIds])
+                    `shouldBe` "SELECT * FROM countries WHERE id = ANY($1)"
