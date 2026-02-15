@@ -49,8 +49,10 @@ tests = describe "IHP.IDE.Postgres" do
             commandLines `shouldSatisfy` any ("exec . initdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . createdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . psql " `Text.isPrefixOf`)
-            let expectedIhpSchema = testDir <> "/IHP/ihp-ide/data/IHPSchema.sql"
-            commandLines `shouldSatisfy` any (cs ("-f " <> expectedIhpSchema) `Text.isInfixOf`)
+            -- The exact path depends on the environment (dev uses IHP_LIB,
+            -- Nix uses Cabal's data-dir). The psql stub validates the file exists;
+            -- here we just verify an absolute path to IHPSchema.sql is used.
+            commandLines `shouldSatisfy` any (\line -> "-f /" `Text.isInfixOf` line && "IHPSchema.sql" `Text.isInfixOf` line)
             commandLines `shouldSatisfy` any ("-f Application/Schema.sql" `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Fixtures.sql" `Text.isInfixOf`)
             length (filter ("exec . postgres " `Text.isPrefixOf`) commandLines) `shouldSatisfy` (>= 2)
