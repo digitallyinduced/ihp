@@ -67,23 +67,23 @@ instance DefaultParamEncoder [Maybe Int] where
 instance DefaultParamEncoder (Vector Int) where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8)
 
--- | Encode 'Id' table' for tables with UUID primary keys
--- This covers the common case in IHP where most tables use UUID as the primary key.
-instance PrimaryKey table ~ UUID => DefaultParamEncoder (Id' table) where
-    defaultParam = Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode 'Id' table' for tables with any primary key type that has an 'IsScalar' instance.
+-- This covers UUID, Text, Int, and other primary key types.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Id' table) where
+    defaultParam = Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode list of 'Id' table' for tables with UUID primary keys
--- Used by filterWhereIdIn for simple primary keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder [Id' table] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode list of 'Id' table' for tables with any encodable primary key type.
+-- Used by filterWhereIdIn for simple primary keys.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Id' table] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode 'Maybe (Id' table)' for nullable foreign keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder (Maybe (Id' table)) where
-    defaultParam = Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode 'Maybe (Id' table)' for nullable foreign keys with any encodable primary key type.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' table)) where
+    defaultParam = Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder [Maybe (Id' table)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
 -- Used for composite primary keys with two UUID columns
