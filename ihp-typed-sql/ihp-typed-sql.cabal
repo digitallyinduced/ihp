@@ -62,6 +62,7 @@ library
             , hasql-dynamic-statements
             , hasql-pool
             , haskell-src-meta
+            , postgresql-syntax >= 0.4 && < 0.5
             , ip
             , postgresql-libpq
             , scientific
