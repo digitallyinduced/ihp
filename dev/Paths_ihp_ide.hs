@@ -16,7 +16,7 @@ getDataFileName path = do
         then pure directCandidate
         else do
             envCandidates <- ihpLibCandidates path
-            firstExistingPath (envCandidates <> fallbackCandidates path) directCandidate
+            firstExistingPath envCandidates directCandidate
 
 ihpLibCandidates :: FilePath -> IO [FilePath]
 ihpLibCandidates path = do
@@ -30,13 +30,6 @@ ihpLibCandidates path = do
                 , ihpIdePath </> "data" </> path
                 ]
 
-fallbackCandidates :: FilePath -> [FilePath]
-fallbackCandidates path =
-    [ "ihp-ide" </> path
-    , "ihp-ide" </> "data" </> path
-    , "IHP" </> "ihp-ide" </> path
-    , "IHP" </> "ihp-ide" </> "data" </> path
-    ]
 
 firstExistingPath :: [FilePath] -> FilePath -> IO FilePath
 firstExistingPath [] defaultPath = pure defaultPath
