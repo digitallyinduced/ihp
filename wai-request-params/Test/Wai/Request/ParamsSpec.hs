@@ -340,7 +340,7 @@ spec = do
 createRequestWithParams :: [(ByteString, ByteString)] -> (RequestBody, Wai.Request)
 createRequestWithParams params =
     let
-        requestBody = FormBody { params, files = [] }
+        requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
     in (requestBody, request)
 
