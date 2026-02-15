@@ -20,7 +20,7 @@ import qualified Data.List as List
 data PageTitle = PageTitle deriving (Typeable)
 
 tests = do
-    let requestBody = FormBody [] []
+    let requestBody = FormBody [] [] ""
     let mockRequest = defaultRequest { vault = Vault.insert requestBodyVaultKey requestBody (vault defaultRequest) }
     let mockRespond :: Respond
         mockRespond = \_ -> pure ResponseReceived

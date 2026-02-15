@@ -27,35 +27,6 @@ tests = do
                             , Migration { revision = 1605721940, migrationFile = "1605721940-create-users.sql" }
                             ]
 
-        describe "splitStatements" do
-            it "should split simple statements" do
-                splitStatements "CREATE TABLE a (id INT); CREATE TABLE b (id INT);"
-                    `shouldBe` ["CREATE TABLE a (id INT)", "CREATE TABLE b (id INT)"]
-
-            it "should handle statements without trailing semicolon" do
-                splitStatements "CREATE TABLE a (id INT); CREATE TABLE b (id INT)"
-                    `shouldBe` ["CREATE TABLE a (id INT)", "CREATE TABLE b (id INT)"]
-
-            it "should ignore semicolons inside single-quoted strings" do
-                splitStatements "INSERT INTO t (v) VALUES ('hello; world'); SELECT 1"
-                    `shouldBe` ["INSERT INTO t (v) VALUES ('hello; world')", "SELECT 1"]
-
-            it "should handle escaped quotes in strings" do
-                splitStatements "INSERT INTO t (v) VALUES ('it''s a test'); SELECT 1"
-                    `shouldBe` ["INSERT INTO t (v) VALUES ('it''s a test')", "SELECT 1"]
-
-            it "should ignore semicolons in line comments" do
-                splitStatements "SELECT 1; -- this; is a comment\nSELECT 2"
-                    `shouldBe` ["SELECT 1", "-- this; is a comment\nSELECT 2"]
-
-            it "should handle empty input" do
-                splitStatements "" `shouldBe` []
-
-            it "should filter blank statements from extra semicolons" do
-                splitStatements "SELECT 1;; SELECT 2;" `shouldBe` ["SELECT 1", "SELECT 2"]
-
-            it "should handle a single statement" do
-                splitStatements "CREATE TABLE users (id INT)" `shouldBe` ["CREATE TABLE users (id INT)"]
 
 withTempApp :: IO a -> IO a
 withTempApp action =

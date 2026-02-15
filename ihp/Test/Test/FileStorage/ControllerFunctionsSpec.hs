@@ -75,7 +75,7 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
 createControllerContext frameworkConfig = do
     let
-        requestBody = FormBody { params = [], files = [] }
+        requestBody = FormBody { params = [], files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
     let ?request = request

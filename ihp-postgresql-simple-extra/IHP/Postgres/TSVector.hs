@@ -39,7 +39,7 @@ instance FromField Tsvector where
 parseTsvectorBS :: Parser ByteString Tsvector
 parseTsvectorBS = do
     lexemes <- parseLexeme `sepBy` skipSpace1
-    case fromLexemeList lexemes of
+    case refineFromLexemeList lexemes of
         Just tv -> pure tv
         Nothing -> fail "invalid tsvector lexeme"
     where
@@ -54,11 +54,11 @@ parseTsvectorBS = do
             pure (TextEncoding.decodeUtf8 token, positions)
         parsePosition = do
             pos <- Attoparsec.decimal
-            weight <- option WeightD $ choice
-                [ char 'A' >> pure WeightA
-                , char 'B' >> pure WeightB
-                , char 'C' >> pure WeightC
-                , char 'D' >> pure WeightD
+            weight <- option DWeight $ choice
+                [ char 'A' >> pure AWeight
+                , char 'B' >> pure BWeight
+                , char 'C' >> pure CWeight
+                , char 'D' >> pure DWeight
                 ]
             pure (pos, weight)
 
@@ -75,8 +75,8 @@ instance ToField Tsvector where
             serializePosition (pos, weight) = Many
                 [ toField (fromIntegral pos :: Int)
                 , Plain $ byteString $ case weight of
-                    WeightA -> "A"
-                    WeightB -> "B"
-                    WeightC -> "C"
-                    WeightD -> ""
+                    AWeight -> "A"
+                    BWeight -> "B"
+                    CWeight -> "C"
+                    DWeight -> ""
                 ]

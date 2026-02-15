@@ -292,3 +292,5 @@ test-suite tests
         Test.Controller.CookieSpec
         Test.PGListenerSpec
         Test.MockingSpec
+        Test.HasqlEncoderSpec
+        Test.AutoRefreshSpec
