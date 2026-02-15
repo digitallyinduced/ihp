@@ -16,6 +16,7 @@ import qualified Data.Text.IO as TextIO
 import qualified Network.Socket as Socket
 import qualified System.Directory as Directory
 import qualified System.Environment as Env
+import qualified System.IO.Temp as Temp
 import qualified System.Process as Process
 import qualified System.Timeout as Timeout
 
@@ -48,7 +49,8 @@ tests = describe "IHP.IDE.Postgres" do
             commandLines `shouldSatisfy` any ("exec . initdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . createdb " `Text.isPrefixOf`)
             commandLines `shouldSatisfy` any ("exec . psql " `Text.isPrefixOf`)
-            commandLines `shouldSatisfy` any (\line -> "-f " `Text.isInfixOf` line && "IHPSchema.sql" `Text.isInfixOf` line)
+            let expectedIhpSchema = testDir <> "/IHP/ihp-ide/data/IHPSchema.sql"
+            commandLines `shouldSatisfy` any (cs ("-f " <> expectedIhpSchema) `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Schema.sql" `Text.isInfixOf`)
             commandLines `shouldSatisfy` any ("-f Application/Fixtures.sql" `Text.isInfixOf`)
             length (filter ("exec . postgres " `Text.isPrefixOf`) commandLines) `shouldSatisfy` (>= 2)
@@ -66,18 +68,14 @@ withEnvVar key value action = do
 
 withTemporaryTestDirectory :: (FilePath -> IO a) -> IO a
 withTemporaryTestDirectory callback = do
-    currentDirectory <- Directory.getCurrentDirectory
-    let testDir = currentDirectory <> "/build/test-postgres-direnv"
-    ignoreIOError (Directory.removePathForcibly testDir)
-    Directory.createDirectoryIfMissing True (testDir <> "/Application")
-    Directory.createDirectoryIfMissing True (testDir <> "/bin")
-    Directory.createDirectoryIfMissing True (testDir <> "/IHP/ihp-ide")
-    TextIO.writeFile (testDir <> "/Application/Schema.sql") "CREATE TABLE test_table (id UUID PRIMARY KEY);\n"
-    TextIO.writeFile (testDir <> "/Application/Fixtures.sql") ""
-    TextIO.writeFile (testDir <> "/IHP/ihp-ide/IHPSchema.sql") "CREATE EXTENSION IF NOT EXISTS pgcrypto;\n"
-    Exception.finally
-        (callback testDir)
-        (ignoreIOError (Directory.removePathForcibly testDir))
+    Temp.withSystemTempDirectory "ihp-test-postgres" \testDir -> do
+        Directory.createDirectoryIfMissing True (testDir <> "/Application")
+        Directory.createDirectoryIfMissing True (testDir <> "/bin")
+        Directory.createDirectoryIfMissing True (testDir <> "/IHP/ihp-ide/data")
+        TextIO.writeFile (testDir <> "/Application/Schema.sql") "CREATE TABLE test_table (id UUID PRIMARY KEY);\n"
+        TextIO.writeFile (testDir <> "/Application/Fixtures.sql") ""
+        TextIO.writeFile (testDir <> "/IHP/ihp-ide/data/IHPSchema.sql") "CREATE EXTENSION IF NOT EXISTS pgcrypto;\n"
+        callback testDir
 
 withCurrentDirectory :: FilePath -> IO a -> IO a
 withCurrentDirectory workingDirectory callback = do
@@ -87,8 +85,6 @@ withCurrentDirectory workingDirectory callback = do
         (Directory.setCurrentDirectory oldDirectory)
         callback
 
-ignoreIOError :: IO () -> IO ()
-ignoreIOError io = io `Exception.catchAny` \_ -> pure ()
 
 withTestContext :: Bool -> ((?context :: Context) => IO a) -> IO a
 withTestContext wrapWithDirenv callback = Exception.bracket createContext cleanupContext runCallback
@@ -161,6 +157,13 @@ psqlScript = Text.unlines
     , "  echo \"psql called without direnv\" >&2"
     , "  exit 1"
     , "fi"
+    , "# Verify that -f file targets exist"
+    , "while [ $# -gt 0 ]; do"
+    , "  case \"$1\" in"
+    , "    -f) shift; if [ ! -f \"$1\" ]; then echo \"psql: file not found: $1\" >&2; exit 1; fi;;"
+    , "  esac"
+    , "  shift"
+    , "done"
     ]
 
 postgresScript :: Text

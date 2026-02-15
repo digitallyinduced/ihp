@@ -137,10 +137,13 @@ waitUntilReady handle callback = do
 
 callProcessDirenvAware :: (?context :: Context) => OsPath -> [String] -> IO ()
 callProcessDirenvAware command args = do
+    baseProcess <- procDirenvAware command args
+    (_, _, _, processHandle) <- Process.createProcess baseProcess
+    exitCode <- Process.waitForProcess processHandle
     commandStr <- decodeUtf command
-    if ?context.wrapWithDirenv
-        then Process.callProcess "direnv" (["exec", ".", commandStr] <> args)
-        else Process.callProcess commandStr args
+    case exitCode of
+        ExitSuccess   -> pure ()
+        ExitFailure c -> error ("Process " <> cs commandStr <> " exited with " <> show c)
 
 waitPostgres :: (?context :: Context) => IO ()
 waitPostgres = do
