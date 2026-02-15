@@ -54,7 +54,6 @@ library
     build-depends:
             base >= 4.17.0 && < 4.22
             , ihp
-            , ihp-postgresql-simple-extra
             , aeson
             , bytestring
             , containers
