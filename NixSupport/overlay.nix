@@ -55,6 +55,7 @@ let
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
             ihp-sitemap = localPackage"ihp-sitemap";
+            ihp-typed-sql = localPackage "ihp-typed-sql";
             ihp-datasync = localPackage "ihp-datasync";
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
             wai-asset-path = localPackage "wai-asset-path";
