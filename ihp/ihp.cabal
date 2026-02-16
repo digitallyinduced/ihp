@@ -137,6 +137,10 @@ common shared-properties
             , hasql-postgresql-types
             , hasql-transaction
             , postgresql-types
+            , postgresql-libpq
+            , postgresql-types-algebra
+            , text-builder
+            , tagged
             , contravariant
     default-extensions:
         OverloadedStrings
