@@ -35,7 +35,7 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
+import Control.Exception.Safe (SomeException, fromException, try, catch, throwIO)
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
 import Network.Wai
@@ -59,7 +59,9 @@ import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
 import IHP.ActionType (setActionType, actionTypeVaultKey, ActionType(..))
 import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified IHP.Environment as Environment
 import qualified Data.Vault.Lazy as Vault
+import qualified Data.Text as Text
 import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
@@ -92,9 +94,9 @@ runAction controller = do
             (action controller)
             ErrorController.handleNoResponseReturned controller
 
-    let handleResponseException (ResponseException response) = ?respond response
-
-    doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
+    doRunAction `catch` \(exception :: SomeException) -> case fromException exception of
+        Just (ResponseException response) -> ?respond response
+        Nothing -> ErrorController.displayException exception controller ""
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -172,6 +174,7 @@ prepareRLSIfNeeded modelContext = do
     case rowLevelSecurityContext of
         Just context -> pure modelContext { rowLevelSecurity = Just context }
         Nothing -> pure modelContext
+{-# INLINE prepareRLSIfNeeded #-}
 
 rlsContextVaultKey :: Vault.Key (IORef (Maybe RowLevelSecurityContext))
 rlsContextVaultKey = unsafePerformIO Vault.newKey
@@ -267,11 +270,32 @@ getFiles =
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?request :: Request) => Aeson.Value
+requestBodyJSON :: (?request :: Request) => IO Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
-        JSONBody { jsonPayload = Just value } -> value
-        _ -> error "Expected JSON body"
+        JSONBody { jsonPayload = Just value } -> pure value
+        JSONBody { jsonPayload = Nothing, rawPayload } -> do
+            let isDev = ?request.frameworkConfig.environment == Environment.Development
+            let errorMessage = "Expected JSON body, but could not decode the request body"
+                    <> (if LBS.null rawPayload
+                        then ". The request body is empty."
+                        else if isDev
+                            then ". The raw request body was: " <> truncatePayload rawPayload
+                            else ".")
+            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
+            where
+                truncatePayload payload =
+                    let shown = show payload
+                        maxLen = 200
+                    in if length shown > maxLen
+                        then Text.pack (take maxLen shown) <> "... (truncated)"
+                        else Text.pack shown
+        FormBody {} ->
+            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
+    where
+        throwResponseException response = throwIO (ResponseException response)
 
 -- | Returns a custom config parameter
 --

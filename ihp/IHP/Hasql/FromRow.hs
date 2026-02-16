@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-|
 Module: IHP.Hasql.FromRow
 Description: Typeclass for decoding hasql result rows
@@ -14,22 +15,12 @@ Also provides parser functions used by the generated decoders for custom Postgre
 -}
 module IHP.Hasql.FromRow
 ( FromRowHasql (..)
-, HasqlDecodeValue (..)
 , HasqlDecodeColumn (..)
 ) where
 
 import Prelude
-import Data.ByteString (ByteString)
-import Data.Text (Text)
-import Data.UUID (UUID)
-import Data.Time.Clock (UTCTime, DiffTime)
-import Data.Time.Calendar (Day)
-import Data.Time.LocalTime (TimeOfDay)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
-import Data.Int (Int16, Int32, Int64)
-import Data.Scientific (Scientific)
-import qualified Data.Aeson as Aeson
 import qualified Database.PostgreSQL.Simple.Types as PG
 import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
 
@@ -42,37 +33,24 @@ class FromRowHasql a where
     -- | Decoder for a single row
     hasqlRowDecoder :: Decoders.Row a
 
--- | Typeclass mapping Haskell scalar types to hasql value decoders
-class HasqlDecodeValue a where
-    hasqlDecodeValue :: Decoders.Value a
-
-instance HasqlDecodeValue Int16 where hasqlDecodeValue = Decoders.int2
-instance HasqlDecodeValue Int32 where hasqlDecodeValue = Decoders.int4
-instance HasqlDecodeValue Int64 where hasqlDecodeValue = Decoders.int8
-instance HasqlDecodeValue Int where hasqlDecodeValue = fromIntegral <$> Decoders.int8
-instance HasqlDecodeValue Bool where hasqlDecodeValue = Decoders.bool
-instance HasqlDecodeValue Text where hasqlDecodeValue = Decoders.text
-instance HasqlDecodeValue ByteString where hasqlDecodeValue = Decoders.bytea
-instance HasqlDecodeValue UUID where hasqlDecodeValue = Decoders.uuid
-instance HasqlDecodeValue UTCTime where hasqlDecodeValue = Decoders.timestamptz
-instance HasqlDecodeValue Day where hasqlDecodeValue = Decoders.date
-instance HasqlDecodeValue TimeOfDay where hasqlDecodeValue = Decoders.time
-instance HasqlDecodeValue DiffTime where hasqlDecodeValue = Decoders.interval
-instance HasqlDecodeValue Scientific where hasqlDecodeValue = Decoders.numeric
-instance HasqlDecodeValue Double where hasqlDecodeValue = Decoders.float8
-instance HasqlDecodeValue Float where hasqlDecodeValue = Decoders.float4
-instance HasqlDecodeValue Aeson.Value where hasqlDecodeValue = Decoders.jsonb
-instance Mapping.IsScalar (PrimaryKey table) => HasqlDecodeValue (Id' table) where hasqlDecodeValue = Id <$> Mapping.decoder
-
--- | Typeclass for building column-level row decoders, handling nullable/non-nullable
+-- | Typeclass for building column-level row decoders, handling nullable/non-nullable.
+-- Uses 'Mapping.IsScalar' from hasql-mapping for value-level decoding.
 class HasqlDecodeColumn a where
     hasqlColumnDecoder :: Decoders.Row a
 
-instance {-# OVERLAPPABLE #-} HasqlDecodeValue a => HasqlDecodeColumn a where
-    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable hasqlDecodeValue)
+instance {-# OVERLAPPABLE #-} Mapping.IsScalar a => HasqlDecodeColumn a where
+    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable Mapping.decoder)
 
-instance {-# OVERLAPPING #-} HasqlDecodeValue a => HasqlDecodeColumn (Maybe a) where
-    hasqlColumnDecoder = Decoders.column (Decoders.nullable hasqlDecodeValue)
+instance {-# OVERLAPPING #-} Mapping.IsScalar a => HasqlDecodeColumn (Maybe a) where
+    hasqlColumnDecoder = Decoders.column (Decoders.nullable Mapping.decoder)
+
+-- | Decode 'Id' table' by decoding the primary key type and wrapping with 'Id'
+instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Id' table) where
+    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable (Id <$> Mapping.decoder))
+
+-- | Decode 'Maybe (Id' table)' for nullable foreign keys
+instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Maybe (Id' table)) where
+    hasqlColumnDecoder = Decoders.column (Decoders.nullable (Id <$> Mapping.decoder))
 
 -- FromRowHasql instances for PG.Only and tuples (used by sqlQuery callers like fetchCount, fetchExists)
 

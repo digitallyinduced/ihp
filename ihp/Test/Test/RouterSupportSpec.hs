@@ -98,6 +98,7 @@ instance Controller TestController where
 
 instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
+    applyAction = applyConstr (parseIntegerId @(Id Band))
 
 -- | Controller for testing customRoutes/customPathTo
 data CustomRouteController
