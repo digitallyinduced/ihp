@@ -8,6 +8,8 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.QueryBuilder
 import IHP.ModelSupport
+import IHP.Job.Types (JobStatus(..))
+import IHP.Job.Queue ()
 
 data Post = Post
         { id :: UUID
@@ -110,6 +112,19 @@ type instance GetModelByTableName "favorite_title" = FavoriteTitle
 instance Table FavoriteTitle where
     columnNames = ["title", "likes"]
     primaryKeyColumnNames = []
+
+data BackgroundJob = BackgroundJob
+    { id :: UUID
+    , status :: JobStatus
+    }
+
+type instance GetTableName BackgroundJob = "background_jobs"
+type instance GetModelByTableName "background_jobs" = BackgroundJob
+type instance PrimaryKey "background_jobs" = UUID
+
+instance Table BackgroundJob where
+    columnNames = ["id", "status"]
+    primaryKeyColumnNames = ["id"]
 
 tests = do
     describe "QueryBuilder" do
@@ -233,6 +248,24 @@ tests = do
 
                     -- Note: hasql uses parameterized null ($1) rather than literal NULL
                     (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NOT $1")
+
+        describe "filterWhereIn with JobStatus" do
+            it "should use = ANY for JobStatus IN clause" do
+                let jobColumns = "background_jobs.id, background_jobs.status"
+                let theValues :: [JobStatus] = [JobStatusSucceeded, JobStatusFailed]
+                let theQuery = query @BackgroundJob
+                        |> filterWhereIn (#status, theValues)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status = ANY ($1)")
+
+        describe "filterWhereNotIn with JobStatus" do
+            it "should use <> ALL for JobStatus NOT IN clause" do
+                let jobColumns = "background_jobs.id, background_jobs.status"
+                let theValues :: [JobStatus] = [JobStatusSucceeded, JobStatusFailed]
+                let theQuery = query @BackgroundJob
+                        |> filterWhereNotIn (#status, theValues)
+
+                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status <> ALL ($1)")
 
         describe "filterWhereIdIn" do
             it "should use = ANY for Id IN clause" do
