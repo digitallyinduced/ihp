@@ -30,27 +30,20 @@ toSnippet queryBuilderProvider = buildSnippet (buildQuery queryBuilderProvider)
 -- | Build a Snippet from a compiled SQLQuery
 buildSnippet :: SQLQuery -> Snippet
 buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
-    Snippet.sql "SELECT"
-    <> distinctSnippet distinctClause
-    <> distinctOnSnippet distinctOnClause
+    selectSnippet
     <> Snippet.sql " " <> selectorsSnippet
-    <> Snippet.sql " FROM"
-    <> Snippet.sql " " <> Snippet.sql selectFrom
+    <> Snippet.sql " FROM " <> Snippet.sql selectFrom
     <> joinSnippet (reverse (joins sqlQuery))
     <> whereSnippet (whereCondition sqlQuery)
     <> orderBySnippet orderByClause
     <> limitSnippet limitClause
     <> offsetSnippet offsetClause
     where
-        distinctSnippet :: Bool -> Snippet
-        distinctSnippet False = mempty
-        distinctSnippet True = Snippet.sql " DISTINCT"
-        {-# INLINE distinctSnippet #-}
-
-        distinctOnSnippet :: Maybe Text -> Snippet
-        distinctOnSnippet Nothing = mempty
-        distinctOnSnippet (Just col) = Snippet.sql " DISTINCT ON (" <> Snippet.sql col <> Snippet.sql ")"
-        {-# INLINE distinctOnSnippet #-}
+        -- Fold DISTINCT/DISTINCT ON into the SELECT keyword to avoid mempty <> appends
+        selectSnippet = case (distinctClause, distinctOnClause) of
+            (False, Nothing) -> Snippet.sql "SELECT"
+            (True, Nothing)  -> Snippet.sql "SELECT DISTINCT"
+            (_, Just col)    -> Snippet.sql "SELECT DISTINCT ON (" <> Snippet.sql col <> Snippet.sql ")"
 
         limitSnippet :: Maybe Int -> Snippet
         limitSnippet Nothing = mempty
@@ -82,26 +75,40 @@ whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet cond
 {-# INLINE whereSnippet #-}
 
 -- | Convert a Condition to a Snippet
+--
+-- Non-recursive wrapper that handles the common single-column case inline.
+-- GHC refuses to inline recursive functions, so splitting lets the common path
+-- (ColumnCondition) be fully inlined and specialized at call sites.
 conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (ColumnCondition column operator value applyLeft applyRight) =
+conditionToSnippet (ColumnCondition col op val al ar) = columnConditionSnippet col op val al ar
+conditionToSnippet cond = conditionToSnippetWorker cond
+{-# INLINE conditionToSnippet #-}
+
+-- | Compile a single column condition to a Snippet
+columnConditionSnippet :: Text -> FilterOperator -> Snippet -> Maybe Text -> Maybe Text -> Snippet
+columnConditionSnippet column operator value applyLeft applyRight =
     let applyFn fn snippet = case fn of
-            Just f -> Snippet.sql f <> Snippet.sql "(" <> snippet <> Snippet.sql ")"
+            Just f  -> Snippet.sql f <> Snippet.sql "(" <> snippet <> Snippet.sql ")"
             Nothing -> snippet
         colSnippet = applyFn applyLeft (Snippet.sql column)
         valSnippet = case operator of
-            InOp -> Snippet.sql "(" <> value <> Snippet.sql ")"
+            InOp    -> Snippet.sql "(" <> value <> Snippet.sql ")"
             NotInOp -> Snippet.sql "(" <> value <> Snippet.sql ")"
-            SqlOp -> value
-            _ -> applyFn applyRight value
-        opText = compileOperator operator
+            SqlOp   -> value
+            _       -> applyFn applyRight value
     in case operator of
         SqlOp -> colSnippet <> Snippet.sql " " <> valSnippet
-        _ -> colSnippet <> Snippet.sql " " <> Snippet.sql opText <> Snippet.sql " " <> valSnippet
-conditionToSnippet (OrCondition a b) =
-    Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
-conditionToSnippet (AndCondition a b) =
-    Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") AND (" <> conditionToSnippet b <> Snippet.sql ")"
-{-# INLINE conditionToSnippet #-}
+        _     -> colSnippet <> Snippet.sql (compileOperatorPadded operator) <> valSnippet
+{-# INLINE columnConditionSnippet #-}
+
+-- | Recursive worker for compound conditions (OR/AND).
+-- Not marked INLINE — compound conditions are rare and recursion prevents inlining anyway.
+conditionToSnippetWorker :: Condition -> Snippet
+conditionToSnippetWorker (ColumnCondition col op val al ar) = columnConditionSnippet col op val al ar
+conditionToSnippetWorker (OrCondition a b) =
+    Snippet.sql "(" <> conditionToSnippetWorker a <> Snippet.sql ") OR (" <> conditionToSnippetWorker b <> Snippet.sql ")"
+conditionToSnippetWorker (AndCondition a b) =
+    Snippet.sql "(" <> conditionToSnippetWorker a <> Snippet.sql ") AND (" <> conditionToSnippetWorker b <> Snippet.sql ")"
 
 -- | Compiles a 'FilterOperator' to its SQL representation
 compileOperator :: FilterOperator -> Text
@@ -123,6 +130,28 @@ compileOperator LessThanOp = "<"
 compileOperator LessThanOrEqualToOp = "<="
 compileOperator SqlOp = ""
 {-# INLINE compileOperator #-}
+
+-- | Like 'compileOperator' but with spaces pre-padded on both sides.
+-- Saves 2 @Snippet.sql@ allocations + 2 @<>@ calls per condition vs padding at the call site.
+compileOperatorPadded :: FilterOperator -> Text
+compileOperatorPadded EqOp = " = "
+compileOperatorPadded NotEqOp = " != "
+compileOperatorPadded InOp = " = ANY "
+compileOperatorPadded NotInOp = " <> ALL "
+compileOperatorPadded IsOp = " IS "
+compileOperatorPadded IsNotOp = " IS NOT "
+compileOperatorPadded (LikeOp CaseSensitive) = " LIKE "
+compileOperatorPadded (LikeOp CaseInsensitive) = " ILIKE "
+compileOperatorPadded (NotLikeOp CaseSensitive) = " NOT LIKE "
+compileOperatorPadded (NotLikeOp CaseInsensitive) = " NOT ILIKE "
+compileOperatorPadded (MatchesOp CaseSensitive) = " ~ "
+compileOperatorPadded (MatchesOp CaseInsensitive) = " ~* "
+compileOperatorPadded GreaterThanOp = " > "
+compileOperatorPadded GreaterThanOrEqualToOp = " >= "
+compileOperatorPadded LessThanOp = " < "
+compileOperatorPadded LessThanOrEqualToOp = " <= "
+compileOperatorPadded SqlOp = " "
+{-# INLINE compileOperatorPadded #-}
 
 -- | Convert ORDER BY clause to Snippet
 orderBySnippet :: [OrderByClause] -> Snippet
