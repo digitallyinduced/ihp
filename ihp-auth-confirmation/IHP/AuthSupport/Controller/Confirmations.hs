@@ -14,6 +14,7 @@ import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail)
 import IHP.Hasql.FromRow (FromRowHasql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import qualified Network.Wai
 
 confirmAction :: forall record action.
@@ -25,6 +26,7 @@ confirmAction :: forall record action.
     , record ~ GetModelByTableName (GetTableName record)
     , CanUpdate record
     , FilterPrimaryKey (GetTableName record)
+    , DefaultParamEncoder (Id' (GetTableName record))
     , KnownSymbol (GetModelName record)
     , HasField "id" record (Id record)
     , Show (PrimaryKey (GetTableName record))

@@ -54,5 +54,6 @@ library
         base >= 4.17.0 && < 4.22
         , ihp
         , ihp-mail
+        , hasql-implicits
         , text
         , wai

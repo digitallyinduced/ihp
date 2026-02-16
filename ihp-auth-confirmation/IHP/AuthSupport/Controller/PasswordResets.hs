@@ -13,6 +13,7 @@ import IHP.AuthSupport.Types
 import IHP.ViewSupport (View, Layout)
 import IHP.Mail (BuildMail, sendMail)
 import IHP.Hasql.FromRow (FromRowHasql)
+import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import qualified Network.Wai
 
 newPasswordResetAction :: forall record action.
@@ -44,6 +45,7 @@ showPasswordResetAction :: forall record action.
     , KnownSymbol (GetTableName record)
     , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
+    , DefaultParamEncoder (Id' (GetTableName record))
     , Table record
     ) => Id record -> Text -> IO ()
 showPasswordResetAction userId token = do
@@ -67,6 +69,7 @@ updatePasswordAction :: forall record action.
     , SetField "passwordHash" record Text
     , FromRowHasql record
     , FilterPrimaryKey (GetTableName record)
+    , DefaultParamEncoder (Id' (GetTableName record))
     , KnownSymbol (GetTableName record)
     , Table record
     ) => Id record -> Text -> IO ()
