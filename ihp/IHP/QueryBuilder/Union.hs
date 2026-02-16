@@ -32,11 +32,14 @@ queryUnion :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilde
 queryUnion firstQueryBuilderProvider secondQueryBuilderProvider =
     let QueryBuilder first = getQueryBuilder firstQueryBuilderProvider
         QueryBuilder second = getQueryBuilder secondQueryBuilderProvider
+        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q) && null (joins q)
         unionWhere = case (whereCondition first, whereCondition second) of
             (Nothing, wc) -> wc
             (wc, Nothing) -> wc
             (Just a, Just b) -> Just (OrCondition a b)
-    in NoJoinQueryBuilderWrapper $ QueryBuilder first { whereCondition = unionWhere }
+    in if isSimple first && isSimple second
+        then NoJoinQueryBuilderWrapper $ QueryBuilder first { whereCondition = unionWhere }
+        else error "queryUnion: Union of complex queries (with ORDER BY, LIMIT, OFFSET, or JOINs) not supported"
 {-# INLINE queryUnion #-}
 
 -- | Like 'queryUnion', but applied on all the elements on the list
@@ -61,11 +64,14 @@ queryUnionList [single] = single
 queryUnionList (first:rest) =
     let QueryBuilder firstSq = first
         QueryBuilder restSq = queryUnionList @table rest
+        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q) && null (joins q)
         unionWhere = case (whereCondition firstSq, whereCondition restSq) of
             (Nothing, wc) -> wc
             (wc, Nothing) -> wc
             (Just a, Just b) -> Just (OrCondition a b)
-    in QueryBuilder firstSq { whereCondition = unionWhere }
+    in if isSimple firstSq && isSimple restSq
+        then QueryBuilder firstSq { whereCondition = unionWhere }
+        else error "queryUnionList: Union of complex queries (with ORDER BY, LIMIT, OFFSET, or JOINs) not supported"
 
 
 -- | Adds an @a OR b@ condition
