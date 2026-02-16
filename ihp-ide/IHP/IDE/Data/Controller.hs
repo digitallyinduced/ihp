@@ -54,14 +54,14 @@ instance Controller DataController where
             let pool = ?modelContext.hasqlPool
             Just <$> if isQuery queryText then do
                     let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
-                    let statement = Snippet.toStatement snippet dynamicFieldDecoder
+                    let statement = Snippet.toPreparedStatement snippet dynamicFieldDecoder
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
                         Right rows -> pure (Right (SelectQueryResult rows))
                         Left err -> pure (Left (usageErrorToConsoleError err))
                 else do
-                    let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
+                    let statement = Snippet.toPreparedStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
@@ -190,7 +190,7 @@ instance Controller DataController where
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toStatement snippet decoder
+    let statement = Snippet.toPreparedStatement snippet decoder
     let session = Session.statement () statement
     result <- HasqlPool.use pool session
     case result of
@@ -201,7 +201,7 @@ runSnippetQuery snippet decoder = do
 runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
 runSnippetExec snippet = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toStatement snippet Decoders.noResult
+    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
     let session = Session.statement () statement
     result <- HasqlPool.use pool session
     case result of
