@@ -456,6 +456,14 @@ that is defined in flake-module.nix
                         (hsDataDir pkgs.ghc.ihp-ide.data)
                         (hsDataDir pkgs.ghc.ihp.data)
                     ];
+                    # The Makefile references $(IHP)/static/vendor/bootstrap.min.css etc.
+                    # These vendor files (bootstrap, jquery, select2) are fetched via Nix
+                    # in ihp-static, not in the ihp cabal data-files.
+                    postBuild = ''
+                        for f in ${config.packages.ihp-static}/vendor/*; do
+                            ln -sf "$f" "$out/static/vendor/$(basename "$f")" 2>/dev/null || true
+                        done
+                    '';
                 };
         };
     };
