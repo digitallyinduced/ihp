@@ -17,6 +17,7 @@ module IHP.QueryBuilder.Types
 , MatchSensitivity (..)
   -- * Helpers
 , addCondition
+, qualifyAndJoinColumns
   -- * Type-level Join Tracking
 , NoJoins
 , EmptyModelList
@@ -41,6 +42,7 @@ import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
 import qualified Hasql.Encoders as Encoders
 import qualified Prelude
+import qualified Data.Text as Text
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -195,7 +197,7 @@ instance Eq (QueryBuilder table) where
 sqlQueryEq :: SQLQuery -> SQLQuery -> Bool
 sqlQueryEq a b =
     selectFrom a == selectFrom b
-    && columns a == columns b
+    && columnsSql a == columnsSql b
     && distinctClause a == distinctClause b
     && distinctOnClause a == distinctOnClause b
     && condEq (whereCondition a) (whereCondition b)
@@ -235,6 +237,10 @@ data SQLQuery = SQLQuery
     , limitClause :: !(Maybe Int)
     , offsetClause :: !(Maybe Int)
     , columns :: ![Text]
+    , columnsSql :: !Text
+    -- ^ Pre-computed qualified column selector, e.g. @"users.id, users.name"@.
+    -- Built once at query construction time so the compiler avoids re-qualifying
+    -- and re-joining the column list on every compilation.
     } deriving (Show)
 
 
@@ -257,10 +263,13 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = QueryBuilder SQLQuery
+    def = let tn = tableName @(GetModelByTableName table)
+              cols = columnNames @(GetModelByTableName table)
+          in QueryBuilder SQLQuery
         { queryIndex = Nothing
-        , selectFrom = tableName @(GetModelByTableName table)
-        , columns = columnNames @(GetModelByTableName table)
+        , selectFrom = tn
+        , columns = cols
+        , columnsSql = qualifyAndJoinColumns tn cols
         , distinctClause = False
         , distinctOnClause = Nothing
         , whereCondition = Nothing
@@ -269,6 +278,17 @@ instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
         , limitClause = Nothing
         , offsetClause = Nothing
         }
+
+-- | Pre-compute the qualified, comma-separated column selector.
+-- E.g. @qualifyAndJoinColumns "users" ["id", "name"] = "users.id, users.name"@
+--
+-- Intentionally NOINLINE: call sites (query, def) are lifted to CAFs, so
+-- this is evaluated once per table type. NOINLINE prevents GHC from inlining
+-- the map/intercalate into every use site of the resulting SQLQuery.
+qualifyAndJoinColumns :: Text -> [Text] -> Text
+qualifyAndJoinColumns tableName columns =
+    Text.intercalate ", " (map (\c -> tableName <> "." <> c) columns)
+{-# NOINLINE qualifyAndJoinColumns #-}
 
 -- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator

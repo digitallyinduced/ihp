@@ -62,51 +62,65 @@ toSQL queryBuilderProvider =
 {-# INLINE toSQL #-}
 
 -- | Compile a full SQLQuery to SQL text + updated compile context.
+--
+-- Structured so that the Nothing/empty branches contribute no concatenation;
+-- GHC can see through the case alternatives and eliminate dead appends.
 compileQuery :: CC -> SQLQuery -> (Text, CC)
-compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
-    let selectPart = "SELECT"
-            <> compileDistinct distinctClause
-            <> compileDistinctOn distinctOnClause
-            <> " " <> compileSelectors queryIndex selectFrom columns
-            <> " FROM " <> selectFrom
-            <> compileJoins (reverse (joins sqlQuery))
-        (wherePart, cc1) = compileWhere cc0 (whereCondition sqlQuery)
-        orderByPart = compileOrderBy orderByClause
-        (limitPart, cc2) = compileLimit cc1 limitClause
-        (offsetPart, cc3) = compileOffset cc2 offsetClause
-    in (selectPart <> wherePart <> orderByPart <> limitPart <> offsetPart, cc3)
+compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columnsSql } =
+    let -- Build the fixed prefix: SELECT [DISTINCT] [DISTINCT ON (...)] cols FROM table [JOINs]
+        selectPart = case distinctClause of
+            True -> case distinctOnClause of
+                Just col -> "SELECT DISTINCT DISTINCT ON (" <> col <> ") " <> selectorsPart <> " FROM " <> selectFrom
+                Nothing  -> "SELECT DISTINCT " <> selectorsPart <> " FROM " <> selectFrom
+            False -> case distinctOnClause of
+                Just col -> "SELECT DISTINCT ON (" <> col <> ") " <> selectorsPart <> " FROM " <> selectFrom
+                Nothing  -> "SELECT " <> selectorsPart <> " FROM " <> selectFrom
+
+        selectorsPart = case queryIndex of
+            Just idx -> idx <> ", " <> columnsSql
+            Nothing  -> columnsSql
+
+        -- Joins: non-recursive, pattern-match on the list to avoid a function call for []
+        withJoins = case joins sqlQuery of
+            [] -> selectPart
+            js -> selectPart <> compileJoinList (reverse js)
+
+        -- WHERE: only append when there is a condition
+        (withWhere, cc1) = case whereCondition sqlQuery of
+            Nothing -> (withJoins, cc0)
+            Just condition ->
+                let (condText, cc') = compileCondition cc0 condition
+                in (withJoins <> " WHERE " <> condText, cc')
+
+        -- ORDER BY: only append when there are clauses
+        withOrderBy = case orderByClause of
+            [] -> withWhere
+            clauses -> withWhere <> " ORDER BY " <> compileOrderByClauses clauses
+
+        -- LIMIT: only append when set
+        (withLimit, cc2) = case limitClause of
+            Nothing -> (withOrderBy, cc1)
+            Just n ->
+                let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
+                    (placeholder, cc') = nextParam enc cc1
+                in (withOrderBy <> " LIMIT " <> placeholder, cc')
+
+        -- OFFSET: only append when set
+        (result, cc3) = case offsetClause of
+            Nothing -> (withLimit, cc2)
+            Just n ->
+                let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
+                    (placeholder, cc') = nextParam enc cc2
+                in (withLimit <> " OFFSET " <> placeholder, cc')
+
+    in (result, cc3)
 {-# INLINE compileQuery #-}
 
-compileDistinct :: Bool -> Text
-compileDistinct False = ""
-compileDistinct True = " DISTINCT"
-{-# INLINE compileDistinct #-}
-
-compileDistinctOn :: Maybe Text -> Text
-compileDistinctOn Nothing = ""
-compileDistinctOn (Just col) = " DISTINCT ON (" <> col <> ")"
-{-# INLINE compileDistinctOn #-}
-
-compileSelectors :: Maybe Text -> Text -> [Text] -> Text
-compileSelectors queryIndex selectFrom columns =
-    let indexParts = case queryIndex of
-            Just idx -> [idx]
-            Nothing -> []
-        columnParts = map (\column -> selectFrom <> "." <> column) columns
-    in mconcat $ List.intersperse ", " (indexParts <> columnParts)
-{-# INLINE compileSelectors #-}
-
-compileJoins :: [Join] -> Text
-compileJoins [] = ""
-compileJoins (j:js) = " INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> compileJoins js
-{-# INLINE compileJoins #-}
-
-compileWhere :: CC -> Maybe Condition -> (Text, CC)
-compileWhere cc Nothing = ("", cc)
-compileWhere cc (Just condition) =
-    let (condText, cc') = compileCondition cc condition
-    in (" WHERE " <> condText, cc')
-{-# INLINE compileWhere #-}
+-- | Compile a non-empty list of joins. Not called for empty join lists —
+-- the caller pattern-matches on @[]@ directly.
+compileJoinList :: [Join] -> Text
+compileJoinList [] = ""
+compileJoinList (j:js) = " INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> compileJoinList js
 
 compileCondition :: CC -> Condition -> (Text, CC)
 compileCondition cc (ColumnCondition column operator value applyLeft applyRight) =
@@ -139,29 +153,11 @@ compileConditionValue cc (Param enc) = nextParam enc cc
 compileConditionValue cc (Literal t) = (t, cc)
 {-# INLINE compileConditionValue #-}
 
-compileLimit :: CC -> Maybe Int -> (Text, CC)
-compileLimit cc Nothing = ("", cc)
-compileLimit cc (Just n) =
-    let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
-        (placeholder, cc') = nextParam enc cc
-    in (" LIMIT " <> placeholder, cc')
-{-# INLINE compileLimit #-}
-
-compileOffset :: CC -> Maybe Int -> (Text, CC)
-compileOffset cc Nothing = ("", cc)
-compileOffset cc (Just n) =
-    let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
-        (placeholder, cc') = nextParam enc cc
-    in (" OFFSET " <> placeholder, cc')
-{-# INLINE compileOffset #-}
-
-compileOrderBy :: [OrderByClause] -> Text
-compileOrderBy [] = ""
-compileOrderBy clauses = " ORDER BY " <> mconcat (List.intersperse "," (map compileOrderByClause clauses))
+compileOrderByClauses :: [OrderByClause] -> Text
+compileOrderByClauses clauses = mconcat (List.intersperse "," (map compileOrderByClause clauses))
     where
         compileOrderByClause OrderByClause { orderByColumn, orderByDirection } =
             orderByColumn <> (if orderByDirection == Desc then " DESC" else "")
-{-# INLINE compileOrderBy #-}
 
 -- | Compiles a 'FilterOperator' to its SQL representation
 compileOperator :: FilterOperator -> Text
