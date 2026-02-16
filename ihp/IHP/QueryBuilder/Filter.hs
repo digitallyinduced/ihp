@@ -178,7 +178,7 @@ filterWhereIn (name, value) queryBuilderProvider =
                 in
                     case head nonNullValues of
                         Just nonNullValue -> -- Some non null values, some null values
-                            injectQueryBuilder $ addCondition (OrCondition isNullCondition inCondition) qb
+                            injectQueryBuilder $ addCondition (OrCondition inCondition isNullCondition) qb
                         Nothing -> injectQueryBuilder $ addCondition isNullCondition qb -- All values null
     where
         -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
@@ -211,7 +211,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
                 in
                     case head nonNullValues of
                         Just _ ->
-                            injectQueryBuilder $ addCondition (OrCondition isNullCondition inCondition) qb
+                            injectQueryBuilder $ addCondition (OrCondition inCondition isNullCondition) qb
                         Nothing -> injectQueryBuilder $ addCondition isNullCondition qb
     where
         (nonNullValues, nullValues) = values |> partition (\v -> toEqOrIsOperator v == EqOp)

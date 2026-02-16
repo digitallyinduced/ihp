@@ -183,7 +183,7 @@ instance Eq Condition where
 deriving instance Show Condition
 
 instance Show (QueryBuilder table) where
-    show (QueryBuilder sq) = "QueryBuilder " <> show sq
+    show (QueryBuilder sq) = "QueryBuilder " ++ Prelude.show sq
 
 instance Eq (QueryBuilder table) where
     (QueryBuilder sq1) == (QueryBuilder sq2) = sqlQueryEq sq1 sq2
