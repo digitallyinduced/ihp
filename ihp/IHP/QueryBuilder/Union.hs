@@ -18,7 +18,7 @@ import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (query)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 
--- | Merges the results of two query builders.
+-- | Merges the results of two query builders by ORing their WHERE conditions.
 --
 -- Take a look at 'queryOr'  as well, as this might be a bit shorter.
 --
@@ -27,14 +27,16 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- > let userPages = query @Page |> filterWhere (#ownerId, currentUserId)
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
--- > -- (SELECT * FROM pages WHERE owner_id = '..') UNION (SELECT * FROM pages WHERE team_id = '..')
+-- > -- SELECT * FROM pages WHERE (owner_id = '..') OR (team_id = '..')
 queryUnion :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder r joinRegister') => queryBuilderProvider model -> r model -> NoJoinQueryBuilderWrapper model
-queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBuilderWrapper (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder })
-    where
-        firstQueryBuilder = getQueryBuilder firstQueryBuilderProvider
-        secondQueryBuilder = getQueryBuilder secondQueryBuilderProvider
-
-
+queryUnion firstQueryBuilderProvider secondQueryBuilderProvider =
+    let QueryBuilder first = getQueryBuilder firstQueryBuilderProvider
+        QueryBuilder second = getQueryBuilder secondQueryBuilderProvider
+        unionWhere = case (whereCondition first, whereCondition second) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+    in NoJoinQueryBuilderWrapper $ QueryBuilder first { whereCondition = unionWhere }
 {-# INLINE queryUnion #-}
 
 -- | Like 'queryUnion', but applied on all the elements on the list
@@ -54,9 +56,16 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >      render IndexView { .. }
 queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
 -- For empty list, create a condition that is always false: id <> id (which is always false for non-null)
-queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Snippet.sql "id"), applyLeft = Nothing, applyRight = Nothing }
-queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
-queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
+queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Snippet.sql "id") Nothing Nothing) (query @(GetModelByTableName table) @table)
+queryUnionList [single] = single
+queryUnionList (first:rest) =
+    let QueryBuilder firstSq = first
+        QueryBuilder restSq = queryUnionList @table rest
+        unionWhere = case (whereCondition firstSq, whereCondition restSq) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+    in QueryBuilder firstSq { whereCondition = unionWhere }
 
 
 -- | Adds an @a OR b@ condition
@@ -70,9 +79,13 @@ queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder,
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
 queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
-queryOr firstQuery secondQuery queryBuilder = injectQueryBuilder
-    (UnionQueryBuilder {
-        firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder,
-        secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}
-    )
+queryOr firstQuery secondQuery queryBuilderProvider =
+    let QueryBuilder firstSq = getQueryBuilder $ firstQuery queryBuilderProvider
+        QueryBuilder secondSq = getQueryBuilder $ secondQuery queryBuilderProvider
+        unionWhere = case (whereCondition firstSq, whereCondition secondSq) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+        QueryBuilder baseSq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder baseSq { whereCondition = unionWhere }
 {-# INLINE queryOr #-}
