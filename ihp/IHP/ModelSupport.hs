@@ -336,7 +336,7 @@ sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Sn
 sqlQueryHasql pool snippet decoder = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet decoder
+    let statement = Snippet.toPreparedStatement snippet decoder
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 -- In transaction: RLS already configured at BEGIN time
@@ -381,7 +381,7 @@ sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Sni
 sqlExecHasql pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.noResult
+    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement () statement
@@ -425,7 +425,7 @@ sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippe
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.rowsAffected
+    let statement = Snippet.toPreparedStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement () statement
