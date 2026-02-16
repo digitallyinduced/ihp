@@ -9,6 +9,7 @@ module IHP.QueryBuilder.Types
   QueryBuilder (..)
 , SQLQuery (..)
 , Condition (..)
+, ConditionValue (..)
 , Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
@@ -38,8 +39,7 @@ import IHP.ModelSupport
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
 import qualified Prelude
 
 -- | Represents whether string matching should be case-sensitive or not
@@ -150,22 +150,25 @@ addCondition condition (QueryBuilder sq) = QueryBuilder $ sq
     }
 {-# INLINE addCondition #-}
 
+-- | A condition value: either a parameterized encoder or a literal SQL fragment.
+data ConditionValue
+    = Param !(Encoders.Params ())   -- ^ Parameterized value: compiler assigns $N
+    | Literal !Text                 -- ^ Raw SQL text (for filterWhereSql, NULL comparisons, etc.)
+
+instance Show ConditionValue where
+    showsPrec _ (Param _) = Prelude.showString "<Param>"
+    showsPrec _ (Literal t) = Prelude.showString "Literal " . Prelude.shows t
+
+instance Eq ConditionValue where
+    Literal a == Literal b = a == b
+    _ == _ = False -- Params cannot be compared for equality
+
 -- | Represents a WHERE condition
 data Condition
-    = ColumnCondition !Text !FilterOperator !Snippet !(Maybe Text) !(Maybe Text)
-    --                ^col  ^op             ^value    ^applyLeft    ^applyRight
+    = ColumnCondition !Text !FilterOperator !ConditionValue !(Maybe Text) !(Maybe Text)
+    --                ^col  ^op             ^value           ^applyLeft    ^applyRight
     | OrCondition !Condition !Condition
     | AndCondition !Condition !Condition
-
--- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
-instance Show Snippet where
-    showsPrec _ _ = Prelude.showString "<Snippet>"
-
--- | Snippet is an opaque type with no Eq instance. We compare snippets by their
--- rendered SQL template via 'Snippet.toSql'. This only compares the SQL structure
--- (e.g. @col = $1@), not the parameter values.
-snippetEq :: Snippet -> Snippet -> Bool
-snippetEq a b = Snippet.toSql a == Snippet.toSql b
 
 -- | Returns a numeric tag for each Condition constructor.
 -- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
@@ -175,7 +178,7 @@ conditionTag OrCondition {} = 1
 conditionTag AndCondition {} = 2
 
 instance Eq Condition where
-    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && snippetEq s1 s2 && al1 == al2 && ar1 == ar2
+    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && s1 == s2 && al1 == al2 && ar1 == ar2
     (OrCondition l1 r1) == (OrCondition l2 r2) = l1 == l2 && r1 == r2
     (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
     a == b = conditionTag a == conditionTag b
