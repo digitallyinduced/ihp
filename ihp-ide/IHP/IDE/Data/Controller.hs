@@ -35,8 +35,8 @@ instance Controller DataController where
         let pageSize :: Int = paramOrDefault @Int 20 "rows"
         tableNames <- fetchTableNames
         primaryKeyFields <- tablePrimaryKeyFields tableName
-        rows <- fetchRowsPage tableName page pageSize
         tableCols <- fetchTableCols tableName
+        rows <- map (reorderFields tableCols) <$> fetchRowsPage tableName page pageSize
         totalRows <- tableLength tableName
         render ShowTableRowsView { .. }
 
@@ -81,8 +81,8 @@ instance Controller DataController where
 
     action NewRowAction { tableName } = do
         tableNames <- fetchTableNames
-        rows :: [[DynamicField]] <- fetchRows tableName
         tableCols <- fetchTableCols tableName
+        rows :: [[DynamicField]] <- map (reorderFields tableCols) <$> fetchRows tableName
         render NewRowView { .. }
 
     action CreateRowAction = do
@@ -96,12 +96,12 @@ instance Controller DataController where
     action EditRowAction { tableName, targetPrimaryKey } = do
         tableNames <- fetchTableNames
         primaryKeyFields <- tablePrimaryKeyFields tableName
-        rows :: [[DynamicField]] <- fetchRows tableName
         tableCols <- fetchTableCols tableName
+        rows :: [[DynamicField]] <- map (reorderFields tableCols) <$> fetchRows tableName
         let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
         values <- fetchRow tableName targetPrimaryKeyValues
         rowValues <- case values of
-            [rowValues] -> pure rowValues
+            [rowValues] -> pure (reorderFields tableCols rowValues)
             _ -> error ("Row not found in " <> cs tableName)
         render EditRowView { .. }
 
@@ -124,7 +124,8 @@ instance Controller DataController where
 
     action EditRowValueAction { tableName, targetName, id } = do
         tableNames <- fetchTableNames
-        rows :: [[DynamicField]] <- fetchRows tableName
+        tableCols <- fetchTableCols tableName
+        rows :: [[DynamicField]] <- map (reorderFields tableCols) <$> fetchRows tableName
         let targetId = cs id
         render EditValueView { .. }
 
@@ -338,6 +339,15 @@ sessionErrorToConsoleError (HasqlErrors.ScriptSessionError _ (HasqlErrors.Server
     SqlConsoleError { errorMessage = message, errorDetail = fromMaybe "" detail, errorHint = fromMaybe "" hint, errorState = code }
 sessionErrorToConsoleError err =
     SqlConsoleError { errorMessage = cs (HasqlErrors.toDetailedText err), errorDetail = "", errorHint = "", errorState = "" }
+
+-- | Reorder DynamicField results to match the column order from information_schema.
+-- The row_to_json → Aeson decoding returns fields in alphabetical order (KeyMap.toList),
+-- but views like EditRowView zip fields with tableCols which are in ordinal_position order.
+reorderFields :: [ColumnDefinition] -> [DynamicField] -> [DynamicField]
+reorderFields cols fields = map findField cols
+    where
+        findField col = fromMaybe (DynamicField { fieldName = cs col.columnName, fieldValue = Nothing }) $
+            List.find (\f -> f.fieldName == cs col.columnName) fields
 
 instance {-# OVERLAPS #-} ToJSON [DynamicField] where
     toJSON fields = object (map (\DynamicField { fieldName, fieldValue } -> (cs fieldName) .= (fieldValueToJSON fieldValue)) fields)
