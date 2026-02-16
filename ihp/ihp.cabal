@@ -213,6 +213,7 @@ library
         , IHP.QueryBuilder.HasqlCompiler
         , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
+        , IHP.Fetch.Statement
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.Static

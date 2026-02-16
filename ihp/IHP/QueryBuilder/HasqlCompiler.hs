@@ -73,8 +73,7 @@ buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinc
         joinSnippet :: [Join] -> Snippet
         joinSnippet [] = mempty
         joinSnippet (j:js) = Snippet.sql " INNER JOIN " <> Snippet.sql (table j) <> Snippet.sql " ON " <> Snippet.sql (tableJoinColumn j) <> Snippet.sql " = " <> Snippet.sql (table j) <> Snippet.sql "." <> Snippet.sql (otherJoinColumn j) <> joinSnippet js
--- buildSnippet takes monomorphic SQLQuery — no specialization benefit from INLINE.
--- Removing INLINE prevents duplicating the snippet compilation logic at every call site.
+{-# INLINE buildSnippet #-}
 
 -- | Convert a WHERE condition to a Snippet
 whereSnippet :: Maybe Condition -> Snippet

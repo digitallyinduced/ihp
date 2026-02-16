@@ -81,7 +81,7 @@ sqlQueryWithRLSSession ::
 sqlQueryWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toStatement snippet decoder)
+        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -102,7 +102,7 @@ sqlQueryWriteWithRLSSession ::
 sqlQueryWriteWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toStatement snippet decoder)
+        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -119,7 +119,7 @@ sqlExecWithRLSSession ::
 sqlExecWithRLSSession snippet =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toStatement snippet Decoders.noResult)
+        Tx.statement () (Snippet.toPreparedStatement snippet Decoders.noResult)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -136,7 +136,7 @@ sqlQueryScalarWithRLSSession ::
 sqlQueryScalarWithRLSSession snippet decoder =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toStatement snippet decoder)
+        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId

@@ -14,6 +14,8 @@ module IHP.QueryBuilder.Types
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+  -- * Helpers
+, addCondition
   -- * Type-level Join Tracking
 , NoJoins
 , EmptyModelList
@@ -135,17 +137,18 @@ instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTa
     getQueryIndex _ = Just $ symbolToText @foreignTable <> "." <> fieldNameToColumnName (symbolToText @indexColumn)
     {-# INLINABLE getQueryIndex #-}
 
--- | The main QueryBuilder data type, representing different query operations
-data QueryBuilder (table :: Symbol) =
-    NewQueryBuilder { selectFrom :: !Text, columns :: ![Text] }
-    | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
-    | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !Text }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(Text, FilterOperator, Snippet), applyLeft :: !(Maybe Text), applyRight :: !(Maybe Text) }
-    | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
-    | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
-    | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
-    | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
-    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
+-- | The QueryBuilder is a flat newtype over SQLQuery. Each combinator directly
+-- modifies fields of the underlying SQLQuery, avoiding any recursive tree traversal.
+newtype QueryBuilder (table :: Symbol) = QueryBuilder { unQueryBuilder :: SQLQuery }
+
+-- | Add a WHERE condition to a QueryBuilder, ANDing with any existing condition.
+addCondition :: Condition -> QueryBuilder table -> QueryBuilder table
+addCondition condition (QueryBuilder sq) = QueryBuilder $ sq
+    { whereCondition = case whereCondition sq of
+        Nothing -> Just condition
+        Just existing -> Just (AndCondition existing condition)
+    }
+{-# INLINE addCondition #-}
 
 -- | Represents a WHERE condition
 data Condition
@@ -177,33 +180,30 @@ instance Eq Condition where
     (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
     a == b = conditionTag a == conditionTag b
 
--- | Returns a numeric tag for each QueryBuilder constructor.
--- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
-queryBuilderTag :: QueryBuilder table -> Int
-queryBuilderTag NewQueryBuilder {} = 0
-queryBuilderTag DistinctQueryBuilder {} = 1
-queryBuilderTag DistinctOnQueryBuilder {} = 2
-queryBuilderTag FilterByQueryBuilder {} = 3
-queryBuilderTag OrderByQueryBuilder {} = 4
-queryBuilderTag LimitQueryBuilder {} = 5
-queryBuilderTag OffsetQueryBuilder {} = 6
-queryBuilderTag UnionQueryBuilder {} = 7
-queryBuilderTag JoinQueryBuilder {} = 8
+deriving instance Show Condition
+
+instance Show (QueryBuilder table) where
+    show (QueryBuilder sq) = "QueryBuilder " ++ Prelude.show sq
 
 instance Eq (QueryBuilder table) where
-    (NewQueryBuilder s1 c1) == (NewQueryBuilder s2 c2) = s1 == s2 && c1 == c2
-    (DistinctQueryBuilder q1) == (DistinctQueryBuilder q2) = q1 == q2
-    (DistinctOnQueryBuilder q1 d1) == (DistinctOnQueryBuilder q2 d2) = q1 == q2 && d1 == d2
-    (FilterByQueryBuilder q1 (b1, op1, sn1) l1 r1) == (FilterByQueryBuilder q2 (b2, op2, sn2) l2 r2) = q1 == q2 && b1 == b2 && op1 == op2 && snippetEq sn1 sn2 && l1 == l2 && r1 == r2
-    (OrderByQueryBuilder q1 o1) == (OrderByQueryBuilder q2 o2) = q1 == q2 && o1 == o2
-    (LimitQueryBuilder q1 l1) == (LimitQueryBuilder q2 l2) = q1 == q2 && l1 == l2
-    (OffsetQueryBuilder q1 o1) == (OffsetQueryBuilder q2 o2) = q1 == q2 && o1 == o2
-    (UnionQueryBuilder f1 s1) == (UnionQueryBuilder f2 s2) = f1 == f2 && s1 == s2
-    (JoinQueryBuilder q1 j1) == (JoinQueryBuilder q2 j2) = q1 == q2 && j1 == j2
-    a == b = queryBuilderTag a == queryBuilderTag b
+    (QueryBuilder sq1) == (QueryBuilder sq2) = sqlQueryEq sq1 sq2
 
-deriving instance Show Condition
-deriving instance Show (QueryBuilder table)
+-- | Compare two SQLQuery values. Uses snippetEq for comparing Condition fields.
+sqlQueryEq :: SQLQuery -> SQLQuery -> Bool
+sqlQueryEq a b =
+    selectFrom a == selectFrom b
+    && columns a == columns b
+    && distinctClause a == distinctClause b
+    && distinctOnClause a == distinctOnClause b
+    && condEq (whereCondition a) (whereCondition b)
+    && joins a == joins b
+    && orderByClause a == orderByClause b
+    && limitClause a == limitClause b
+    && offsetClause a == offsetClause b
+  where
+    condEq Nothing Nothing = True
+    condEq (Just c1) (Just c2) = c1 == c2
+    condEq _ _ = False
 
 -- | Display QueryBuilder's as their sql query inside HSX
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
@@ -254,7 +254,18 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = NewQueryBuilder { selectFrom = tableName @(GetModelByTableName table), columns = columnNames @(GetModelByTableName table) }
+    def = QueryBuilder SQLQuery
+        { queryIndex = Nothing
+        , selectFrom = tableName @(GetModelByTableName table)
+        , columns = columnNames @(GetModelByTableName table)
+        , distinctClause = False
+        , distinctOnClause = Nothing
+        , whereCondition = Nothing
+        , joins = []
+        , orderByClause = []
+        , limitClause = Nothing
+        , offsetClause = Nothing
+        }
 
 -- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator
