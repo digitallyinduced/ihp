@@ -34,6 +34,8 @@ import IHP.QueryBuilder.HasqlCompiler (buildSnippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
+import qualified Hasql.Statement as Hasql
+import IHP.Fetch.Statement (fetchByIdOneOrNothingStatement, fetchByIdListStatement)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -173,16 +175,25 @@ fetchExists !queryBuilder = do
 {-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
-genericFetchId :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO [model]
-genericFetchId !id = query @model |> filterWhereId id |> fetch
+genericFetchId :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder (Id' table)) => Id' table -> IO [model]
+genericFetchId !id = do
+    trackTableRead (tableName @model)
+    sqlStatementHasql ?modelContext.hasqlPool id fetchByIdListStatement
 
 {-# INLINE genericfetchIdOneOrNothing #-}
-genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO (Maybe model)
-genericfetchIdOneOrNothing !id = query @model |> filterWhereId id |> fetchOneOrNothing
+genericfetchIdOneOrNothing :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder (Id' table)) => Id' table -> IO (Maybe model)
+genericfetchIdOneOrNothing !id = do
+    trackTableRead (tableName @model)
+    sqlStatementHasql ?modelContext.hasqlPool id fetchByIdOneOrNothingStatement
 
 {-# INLINE genericFetchIdOne #-}
-genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, FilterPrimaryKey table, model ~ GetModelByTableName table, GetTableName model ~ table) => Id' table -> IO model
-genericFetchIdOne !id = query @model |> filterWhereId id |> fetchOne
+genericFetchIdOne :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder (Id' table)) => Id' table -> IO model
+genericFetchIdOne !id = do
+    trackTableRead (tableName @model)
+    result <- sqlStatementHasql ?modelContext.hasqlPool id fetchByIdOneOrNothingStatement
+    case result of
+        Just model -> pure model
+        Nothing -> throwIO RecordNotFoundException { queryAndParams = cs (Hasql.toSql (fetchByIdOneOrNothingStatement @table @model)) }
 
 {-# INLINE genericFetchIds #-}
 genericFetchIds :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> IO [model]
@@ -207,7 +218,7 @@ findMaybeBy !field !value !queryBuilder = queryBuilder |> filterWhere (field, va
 findManyBy !field !value !queryBuilder = queryBuilder |> filterWhere (field, value) |> fetch
 -- Step.findOneByWorkflowId id    ==    queryBuilder |> findBy #templateId id
 
-instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPrimaryKey table) => Fetchable (Id' table) model where
+instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPrimaryKey table, DefaultParamEncoder (Id' table)) => Fetchable (Id' table) model where
     type FetchResult (Id' table) model = model
     {-# INLINE fetch #-}
     fetch = genericFetchIdOne
@@ -216,7 +227,7 @@ instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPr
     {-# INLINE fetchOne #-}
     fetchOne = genericFetchIdOne
 
-instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPrimaryKey table) => Fetchable (Maybe (Id' table)) model where
+instance (model ~ GetModelById (Id' table), GetTableName model ~ table, FilterPrimaryKey table, DefaultParamEncoder (Id' table)) => Fetchable (Maybe (Id' table)) model where
     type FetchResult (Maybe (Id' table)) model = [model]
     {-# INLINE fetch #-}
     fetch (Just a) = genericFetchId a

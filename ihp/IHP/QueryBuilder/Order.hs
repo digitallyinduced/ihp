@@ -35,10 +35,11 @@ import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
 orderByAsc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
-orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
+orderByAsc !name queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Asc }] }
     where
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
-        queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByAsc #-}
 
 -- | Adds an @ORDER BY .. ASC@ on a joined table column to your query.
@@ -55,10 +56,11 @@ orderByAsc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder {
 -- > -- INNER JOIN users ON projects.id = users.project_id
 -- > -- ORDER BY users.username ASC
 orderByAscJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
-orderByAscJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Asc } }
+orderByAscJoinedTable !name queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Asc }] }
     where
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
-        queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByAscJoinedTable #-}
 
 -- | Adds an @ORDER BY .. DESC@ to your query.
@@ -73,10 +75,11 @@ orderByAscJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQue
 -- >     |> fetch
 -- > -- SELECT * FROM projects LIMIT 10 ORDER BY created_at DESC
 orderByDesc :: forall name model table value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
-orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
+orderByDesc !name queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Desc }] }
     where
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
-        queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByDesc #-}
 
 -- | Adds an @ORDER BY .. DESC@ on a joined table column to your query.
@@ -93,10 +96,11 @@ orderByDesc !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder 
 -- > -- INNER JOIN users ON projects.id = users.project_id
 -- > -- ORDER BY users.username DESC
 orderByDescJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. ( KnownSymbol table, KnownSymbol name, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => Proxy name -> queryBuilderProvider table' -> queryBuilderProvider table'
-orderByDescJoinedTable !name queryBuilderProvider = injectQueryBuilder OrderByQueryBuilder { queryBuilder = queryBuilder, queryOrderByClause = OrderByClause { orderByColumn = columnName, orderByDirection = Desc } }
+orderByDescJoinedTable !name queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Desc }] }
     where
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
-        queryBuilder = getQueryBuilder queryBuilderProvider
 {-# INLINE orderByDescJoinedTable #-}
 
 -- | Alias for 'orderByAsc'
@@ -119,9 +123,9 @@ orderByJoinedTable !name = orderByAscJoinedTable @model @name @table @value @que
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10
 limit :: (HasQueryBuilder queryBuilderProvider joinRegister) => Int -> queryBuilderProvider model -> queryBuilderProvider model
-limit !queryLimit queryBuilderProvider = injectQueryBuilder LimitQueryBuilder { queryBuilder, queryLimit }
-    where
-        queryBuilder = getQueryBuilder queryBuilderProvider
+limit !queryLimit queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { limitClause = Just queryLimit }
 {-# INLINE limit #-}
 
 -- | Adds an @OFFSET ..@ to your query. Most often used together with @LIMIT...@
@@ -135,9 +139,9 @@ limit !queryLimit queryBuilderProvider = injectQueryBuilder LimitQueryBuilder { 
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10 OFFSET 10
 offset :: (HasQueryBuilder queryBuilderProvider joinRegister) => Int -> queryBuilderProvider model -> queryBuilderProvider model
-offset !queryOffset queryBuilderProvider = injectQueryBuilder OffsetQueryBuilder { queryBuilder, queryOffset }
-    where
-        queryBuilder = getQueryBuilder queryBuilderProvider
+offset !queryOffset queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { offsetClause = Just queryOffset }
 {-# INLINE offset #-}
 
 -- | Adds a @DISTINCT@ to your query.
@@ -151,7 +155,9 @@ offset !queryOffset queryBuilderProvider = injectQueryBuilder OffsetQueryBuilder
 -- >     |> fetch
 -- > -- SELECT DISTINCT * FROM books
 distinct :: (HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> queryBuilderProvider table
-distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
+distinct queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { distinctClause = True }
 {-# INLINE distinct #-}
 
 -- | Adds an @DISTINCT ON .. to your query.
@@ -165,7 +171,9 @@ distinct = injectQueryBuilder . DistinctQueryBuilder . getQueryBuilder
 -- >     |> fetch
 -- > -- SELECT DISTINCT ON (category_id) * FROM books
 distinctOn :: forall name model value table queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => Proxy name -> queryBuilderProvider table -> queryBuilderProvider table
-distinctOn !name queryBuilderProvider = injectQueryBuilder DistinctOnQueryBuilder { distinctOnColumn = columnName, queryBuilder = getQueryBuilder queryBuilderProvider}
+distinctOn !name queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+    in injectQueryBuilder $ QueryBuilder sq { distinctOnClause = Just columnName }
     where
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE distinctOn #-}
