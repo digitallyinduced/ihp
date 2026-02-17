@@ -10,8 +10,8 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Hasql
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
@@ -22,13 +22,18 @@ import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
 import qualified Data.List as List
 import qualified Data.HashMap.Strict as HashMap
-import qualified IHP.QueryBuilder.HasqlHelpers as HasqlHelpers
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Functor.Contravariant (contramap)
+import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState, nextParam)
 
 data Field = Field { fieldName :: Text, fieldValue :: Value }
 
 newtype UndecodedJSON = UndecodedJSON ByteString
     deriving (Show, Eq)
+
+-- | A compiled dynamic query: SQL text with accumulated parameter state.
+data CompiledQuery = CompiledQuery !Text !CompilerState
 
 -- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
 --
@@ -156,21 +161,23 @@ data ColumnTypeInfo = ColumnTypeInfo
     , orderedColumns :: ![Text]
     } deriving (Show, Eq)
 
--- | Encode an Aeson 'Value' as a Snippet parameter using native Haskell types.
+-- | Encode an Aeson 'Value' as a parameterized SQL fragment, threading 'CompilerState'.
 --
 -- Used for expressions without column context (e.g. bare literals in WHERE clauses).
 -- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedValueParam'
 -- for correctly typed parameters.
-dynamicValueParam :: Value -> Snippet
-dynamicValueParam Aeson.Null = Snippet.sql "NULL"
-dynamicValueParam (Aeson.Bool b) = Snippet.param b
-dynamicValueParam (Aeson.String t) = Snippet.param t
-dynamicValueParam (Aeson.Number n) =
+dynamicValueParam :: Value -> CompilerState -> (Text, CompilerState)
+dynamicValueParam Aeson.Null cc = ("NULL", cc)
+dynamicValueParam (Aeson.Bool b) cc = nextParam (contramap (const b) (Encoders.param (Encoders.nonNullable Encoders.bool))) cc
+dynamicValueParam (Aeson.String t) cc = nextParam (contramap (const t) (Encoders.param (Encoders.nonNullable Encoders.text))) cc
+dynamicValueParam (Aeson.Number n) cc =
     case Scientific.floatingOrInteger n of
-        Left (d :: Double) -> Snippet.param d
-        Right (i :: Integer) -> Snippet.param (fromIntegral i :: Int64)
-dynamicValueParam (Aeson.Array arr) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
-dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :: Text)
+        Left (d :: Double) -> nextParam (contramap (const d) (Encoders.param (Encoders.nonNullable Encoders.float8))) cc
+        Right (i :: Integer) -> nextParam (contramap (const (fromIntegral i :: Int64)) (Encoders.param (Encoders.nonNullable Encoders.int8))) cc
+dynamicValueParam (Aeson.Array arr) cc =
+    let (cc', elemTexts) = List.mapAccumL (\st v -> let (t, st') = dynamicValueParam v st in (st', t)) cc (Vector.toList arr)
+    in ("ARRAY[" <> mconcat (List.intersperse ", " elemTexts) <> "]", cc')
+dynamicValueParam (Aeson.Object obj) cc = nextParam (contramap (const (cs (encode (Object obj)) :: Text)) (Encoders.param (Encoders.nonNullable Encoders.text))) cc
 
 -- | Extracts all column names referenced in a 'ConditionExpression'
 conditionColumns :: ConditionExpression -> Set.Set Text
@@ -180,13 +187,35 @@ conditionColumns (LiteralExpression _) = Set.empty
 conditionColumns (CallExpression _) = Set.empty
 conditionColumns (ListExpression _) = Set.empty
 
--- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
-wrapDynamicQuery :: Snippet -> Snippet
-wrapDynamicQuery = HasqlHelpers.wrapDynamicQuery
+-- | Wraps a SQL query so that each row is returned as a JSON object.
+--
+-- Uses a CTE (Common Table Expression) which works for both SELECT queries
+-- and DML statements (INSERT, UPDATE, DELETE) with RETURNING.
+wrapDynamicQuery :: Text -> Text
+wrapDynamicQuery innerQuery =
+    "WITH _ihp_dynamic_result AS (" <> innerQuery <> ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
 
--- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
-quoteIdentifier :: Text -> Snippet
-quoteIdentifier = HasqlHelpers.quoteIdentifier
+-- | Quote a SQL identifier (table name, column name) to prevent SQL injection.
+--
+-- Wraps the identifier in double quotes and escapes any embedded double quotes
+-- by doubling them, following the SQL standard.
+quoteIdentifier :: Text -> Text
+quoteIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
+
+-- | Extract the encoder from a 'CompilerState'.
+ccEncoder :: CompilerState -> Encoders.Params ()
+ccEncoder (CompilerState _ enc) = enc
+{-# INLINE ccEncoder #-}
+
+-- | Build a 'Hasql.Statement' from compiled SQL, state, and decoder.
+toStatement :: Text -> CompilerState -> Decoders.Result a -> Hasql.Statement () a
+toStatement sql cc decoder = Hasql.preparable sql (ccEncoder cc) decoder
+{-# INLINE toStatement #-}
+
+-- | Build an encoder for a single UUID parameter.
+uuidParam :: UUID -> Encoders.Params ()
+uuidParam id = contramap (const id) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+{-# INLINE uuidParam #-}
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)

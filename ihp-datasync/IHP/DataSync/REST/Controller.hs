@@ -13,6 +13,7 @@ import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
+import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState, nextParam)
 import qualified Data.Text as Text
 import qualified Data.List as List
 
@@ -20,7 +21,8 @@ import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
-import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Statement as Hasql
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -39,20 +41,23 @@ instance (
 
         case payload of
             Object hashMap -> do
-                let pairs = hashMap
+                let pairsList = hashMap
                         |> Aeson.toList
                         |> map (\(key, val) ->
                             let col = fieldNameToColumnName (Aeson.toText key)
-                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
+                            in (col, lookupColumnType columnTypes col, val)
                         )
 
-                let columns = map fst pairs
-                let values = map snd pairs
+                let columns = map (\(c,_,_) -> c) pairsList
+                let encodeOne st (_, colType, val) =
+                        let (t, st') = typedAesonValueToSnippet colType val st in (st', t)
+                let (cc, valueTexts) = List.mapAccumL encodeOne emptyCompilerState pairsList
 
-                let snippet = compileInsert table columns values camelCaseRenamer columnTypes
+                let CompiledQuery sql finalCc = compileInsert table columns valueTexts cc camelCaseRenamer columnTypes
+                let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
 
                 result :: Either SomeException [[Field]] <- Exception.try do
-                    sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                    sqlQueryWriteWithRLS hasqlPool stmt
 
                 case result of
                     Left e -> renderErrorJson (show e :: Text)
@@ -75,19 +80,20 @@ instance (
                             case mapM parseObject objectList of
                                 Left err -> renderErrorJson (cs err :: Text)
                                 Right hashMaps -> do
-                                    let values = hashMaps
-                                            |> map (\hashMap ->
-                                                    columns
-                                                    |> map (\col ->
-                                                        let fieldName = columnNameToFieldName col
-                                                            val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
-                                                        in typedAesonValueToSnippet (lookupColumnType columnTypes col) val
-                                                    )
-                                                )
+                                    let encodeRow ccRow hashMap = List.mapAccumL
+                                            (\st col ->
+                                                let fieldName = columnNameToFieldName col
+                                                    val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
+                                                in case typedAesonValueToSnippet (lookupColumnType columnTypes col) val st of
+                                                    (t, st') -> (st', t))
+                                            ccRow
+                                            columns
+                                    let (ccFinal, valueRows) = List.mapAccumL encodeRow emptyCompilerState hashMaps
 
-                                    let snippet = compileInsertMany table columns values camelCaseRenamer columnTypes
+                                    let CompiledQuery sql finalCc = compileInsertMany table columns valueRows ccFinal camelCaseRenamer columnTypes
+                                    let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
 
-                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
                                     renderJson result
                         _otherwise -> renderErrorJson ("Expected object" :: Text)
 
@@ -105,20 +111,23 @@ instance (
                 Object hm -> hm
                 _ -> error "Expected JSON object"
 
-        let keyValues = hashMap
+        let pairsList = hashMap
                 |> Aeson.toList
                 |> map (\(key, val) ->
                     let col = fieldNameToColumnName (Aeson.toText key)
-                    in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
+                    in (col, lookupColumnType columnTypes col, val)
                 )
 
-        let setCalls = keyValues
-                |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
-        let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
-        let whereSnippet = Snippet.sql "id = " <> Snippet.param id
-        let snippet = compileUpdate table setSnippet whereSnippet camelCaseRenamer columnTypes
+        let encodeSetClause st (col, colType, val) =
+                let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
+        let (cc0, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
+        let setSql = mconcat $ List.intersperse ", " setTexts
+        let (idPh, cc1) = nextParam (uuidParam id) cc0
+        let whereSql = "id = " <> idPh
+        let CompiledQuery sql ccFinal = compileUpdate table setSql whereSql cc1 camelCaseRenamer columnTypes
+        let stmt = toStatement (wrapDynamicQuery sql) ccFinal dynamicRowDecoder
 
-        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
 
         renderJson (head result)
 
@@ -127,7 +136,9 @@ instance (
         let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
-        sqlExecWithRLS hasqlPool (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
+        let (idPh, cc) = nextParam (uuidParam id) emptyCompilerState
+        let stmt = Hasql.preparable ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = " <> idPh) (ccEncoder cc) Decoders.noResult
+        sqlExecWithRLS hasqlPool stmt
 
         renderJson True
 
@@ -139,7 +150,10 @@ instance (
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
         let selectColumns = compileSelectedColumns camelCaseRenamer columnTypes SelectAll
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT " <> selectColumns <> Snippet.sql " FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
+        let (idPh, cc) = nextParam (uuidParam id) emptyCompilerState
+        let sql = wrapDynamicQuery ("SELECT " <> selectColumns <> " FROM " <> quoteIdentifier table <> " WHERE id = " <> idPh)
+        let stmt = toStatement sql cc dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson (head result)
 
@@ -152,8 +166,9 @@ instance (
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
-        let theSnippet = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
+        let CompiledQuery querySql queryCc = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
+        let stmt = toStatement (wrapDynamicQuery querySql) queryCc dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson result
 
