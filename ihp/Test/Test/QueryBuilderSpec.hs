@@ -147,8 +147,14 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhere (#externalUrl, Nothing)
 
-                -- Note: hasql uses parameterized null ($1) rather than literal NULL
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.external_url IS $1")
+                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.external_url IS NULL")
+
+            it "should not consume a parameter slot for IS NULL" do
+                let theQuery = query @Post
+                        |> filterWhere (#externalUrl, Nothing)
+                        |> filterWhere (#title, "Test" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.external_url IS NULL) AND (posts.title = $1)")
 
         describe "filterWhereNot" do
             it "should produce a SQL with a WHERE NOT condition" do
@@ -161,8 +167,7 @@ tests = do
                 let theQuery = query @Post
                         |> filterWhereNot (#externalUrl, Nothing)
 
-                -- Note: hasql uses parameterized null ($1) rather than literal NULL
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.external_url IS NOT $1")
+                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.external_url IS NOT NULL")
 
         describe "filterWhereIn" do
             it "should use = ANY for IN clause" do
@@ -185,8 +190,7 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereIn (#categoryId, theValues)
 
-                    -- Note: hasql uses parameterized null ($2) rather than literal NULL
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.category_id = ANY ($1)) OR (posts.category_id IS $2)")
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.category_id = ANY ($1)) OR (posts.category_id IS NULL)")
 
                 it "should handle [Just ..]" do
                     let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
@@ -200,8 +204,7 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereIn (#categoryId, theValues)
 
-                    -- Note: hasql uses parameterized null ($1) rather than literal NULL
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS $1")
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NULL")
 
         describe "filterWhereInCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
@@ -231,8 +234,7 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereNotIn (#categoryId, theValues)
 
-                    -- Note: hasql uses parameterized null ($2) rather than literal NULL
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.category_id <> ALL ($1)) AND (posts.category_id IS NOT $2)")
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.category_id <> ALL ($1)) AND (posts.category_id IS NOT NULL)")
 
                 it "should handle [Just ..]" do
                     let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574"]
@@ -246,8 +248,7 @@ tests = do
                     let theQuery = query @Post
                             |> filterWhereNotIn (#categoryId, theValues)
 
-                    -- Note: hasql uses parameterized null ($1) rather than literal NULL
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NOT $1")
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NOT NULL")
 
         describe "filterWhereIn with JobStatus" do
             it "should use = ANY for JobStatus IN clause" do
@@ -613,5 +614,4 @@ tests = do
                         |> orderBy #title
                         |> limit 10
 
-                -- Note: hasql uses parameterized null ($3) rather than literal NULL
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (((posts.title = $1) AND (posts.public = $2)) AND (posts.external_url IS $3)) OR (posts.created_by = $4) ORDER BY posts.created_at,posts.title LIMIT $5")
+                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (((posts.title = $1) AND (posts.public = $2)) AND (posts.external_url IS NULL)) OR (posts.created_by = $3) ORDER BY posts.created_at,posts.title LIMIT $4")
