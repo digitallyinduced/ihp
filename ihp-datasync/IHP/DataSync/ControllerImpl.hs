@@ -9,7 +9,6 @@ import qualified Data.Aeson.Key as Aeson
 
 import Data.Aeson.TH
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
@@ -30,8 +29,6 @@ import GHC.Conc (ThreadId, myThreadId, atomically)
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
 import qualified Data.List as List
-import Data.Functor.Contravariant (contramap)
-import Data.Functor.Contravariant.Divisible (conquer)
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
 $(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
