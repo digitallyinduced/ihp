@@ -9,6 +9,7 @@ module IHP.QueryBuilder.Types
   QueryBuilder (..)
 , SQLQuery (..)
 , Condition (..)
+, ConditionValue (..)
 , Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
@@ -16,6 +17,7 @@ module IHP.QueryBuilder.Types
 , MatchSensitivity (..)
   -- * Helpers
 , addCondition
+, qualifyAndJoinColumns
   -- * Type-level Join Tracking
 , NoJoins
 , EmptyModelList
@@ -38,9 +40,9 @@ import IHP.ModelSupport
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
 import qualified Prelude
+import qualified Data.Text as Text
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -150,22 +152,25 @@ addCondition condition (QueryBuilder sq) = QueryBuilder $ sq
     }
 {-# INLINE addCondition #-}
 
+-- | A condition value: either a parameterized encoder or a literal SQL fragment.
+data ConditionValue
+    = Param !(Encoders.Params ())   -- ^ Parameterized value: compiler assigns $N
+    | Literal !Text                 -- ^ Raw SQL text (for filterWhereSql, NULL comparisons, etc.)
+
+instance Show ConditionValue where
+    showsPrec _ (Param _) = Prelude.showString "<Param>"
+    showsPrec _ (Literal t) = Prelude.showString "Literal " . Prelude.shows t
+
+instance Eq ConditionValue where
+    Literal a == Literal b = a == b
+    _ == _ = False -- Params cannot be compared for equality
+
 -- | Represents a WHERE condition
 data Condition
-    = ColumnCondition !Text !FilterOperator !Snippet !(Maybe Text) !(Maybe Text)
-    --                ^col  ^op             ^value    ^applyLeft    ^applyRight
+    = ColumnCondition !Text !FilterOperator !ConditionValue !(Maybe Text) !(Maybe Text)
+    --                ^col  ^op             ^value           ^applyLeft    ^applyRight
     | OrCondition !Condition !Condition
     | AndCondition !Condition !Condition
-
--- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
-instance Show Snippet where
-    showsPrec _ _ = Prelude.showString "<Snippet>"
-
--- | Snippet is an opaque type with no Eq instance. We compare snippets by their
--- rendered SQL template via 'Snippet.toSql'. This only compares the SQL structure
--- (e.g. @col = $1@), not the parameter values.
-snippetEq :: Snippet -> Snippet -> Bool
-snippetEq a b = Snippet.toSql a == Snippet.toSql b
 
 -- | Returns a numeric tag for each Condition constructor.
 -- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
@@ -175,7 +180,7 @@ conditionTag OrCondition {} = 1
 conditionTag AndCondition {} = 2
 
 instance Eq Condition where
-    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && snippetEq s1 s2 && al1 == al2 && ar1 == ar2
+    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && s1 == s2 && al1 == al2 && ar1 == ar2
     (OrCondition l1 r1) == (OrCondition l2 r2) = l1 == l2 && r1 == r2
     (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
     a == b = conditionTag a == conditionTag b
@@ -192,7 +197,7 @@ instance Eq (QueryBuilder table) where
 sqlQueryEq :: SQLQuery -> SQLQuery -> Bool
 sqlQueryEq a b =
     selectFrom a == selectFrom b
-    && columns a == columns b
+    && columnsSql a == columnsSql b
     && distinctClause a == distinctClause b
     && distinctOnClause a == distinctOnClause b
     && condEq (whereCondition a) (whereCondition b)
@@ -232,6 +237,10 @@ data SQLQuery = SQLQuery
     , limitClause :: !(Maybe Int)
     , offsetClause :: !(Maybe Int)
     , columns :: ![Text]
+    , columnsSql :: !Text
+    -- ^ Pre-computed qualified column selector, e.g. @"users.id, users.name"@.
+    -- Built once at query construction time so the compiler avoids re-qualifying
+    -- and re-joining the column list on every compilation.
     } deriving (Show)
 
 
@@ -254,10 +263,13 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = QueryBuilder SQLQuery
+    def = let tn = tableName @(GetModelByTableName table)
+              cols = columnNames @(GetModelByTableName table)
+          in QueryBuilder SQLQuery
         { queryIndex = Nothing
-        , selectFrom = tableName @(GetModelByTableName table)
-        , columns = columnNames @(GetModelByTableName table)
+        , selectFrom = tn
+        , columns = cols
+        , columnsSql = qualifyAndJoinColumns tn cols
         , distinctClause = False
         , distinctOnClause = Nothing
         , whereCondition = Nothing
@@ -266,6 +278,17 @@ instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
         , limitClause = Nothing
         , offsetClause = Nothing
         }
+
+-- | Pre-compute the qualified, comma-separated column selector.
+-- E.g. @qualifyAndJoinColumns "users" ["id", "name"] = "users.id, users.name"@
+--
+-- Intentionally NOINLINE: call sites (query, def) are lifted to CAFs, so
+-- this is evaluated once per table type. NOINLINE prevents GHC from inlining
+-- the map/intercalate into every use site of the resulting SQLQuery.
+qualifyAndJoinColumns :: Text -> [Text] -> Text
+qualifyAndJoinColumns tableName columns =
+    Text.intercalate ", " (map (\c -> tableName <> "." <> c) columns)
+{-# NOINLINE qualifyAndJoinColumns #-}
 
 -- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator

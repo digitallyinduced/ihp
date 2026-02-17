@@ -16,7 +16,6 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (query)
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 
 -- | Merges the results of two query builders by ORing their WHERE conditions.
 --
@@ -59,7 +58,7 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider =
 -- >      render IndexView { .. }
 queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
 -- For empty list, create a condition that is always false: id <> id (which is always false for non-null)
-queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Snippet.sql "id") Nothing Nothing) (query @(GetModelByTableName table) @table)
+queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Literal "id") Nothing Nothing) (query @(GetModelByTableName table) @table)
 queryUnionList [single] = single
 queryUnionList (first:rest) =
     let QueryBuilder firstSq = first

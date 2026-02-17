@@ -54,10 +54,13 @@ negateFilterOperator SqlOp = SqlOp
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
 query :: forall model table. (table ~ GetTableName model, Table model) => DefaultScope table => QueryBuilder table
-query = (defaultScope @table) QueryBuilder { unQueryBuilder = SQLQuery
+query = let tn = tableName @model
+            cols = columnNames @model
+        in (defaultScope @table) QueryBuilder { unQueryBuilder = SQLQuery
     { queryIndex = Nothing
-    , selectFrom = tableName @model
-    , columns = columnNames @model
+    , selectFrom = tn
+    , columns = cols
+    , columnsSql = qualifyAndJoinColumns tn cols
     , distinctClause = False
     , distinctOnClause = Nothing
     , whereCondition = Nothing
