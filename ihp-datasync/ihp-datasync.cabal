@@ -63,6 +63,7 @@ common shared-properties
             , postgresql-types
             , hasql-mapping
             , hasql-postgresql-types
+            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
