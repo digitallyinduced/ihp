@@ -19,7 +19,7 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState, nextParam)
+import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), nextParam)
 import PostgresqlTypes.Point (Point, fromCoordinates)
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()

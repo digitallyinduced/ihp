@@ -48,6 +48,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Mood) where
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Mood] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
