@@ -276,10 +276,14 @@ hsxAttributeName = do
             "data-" `Text.isPrefixOf` name
             || "aria-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
+            -- "_" is a valid HTML attribute name per the WHATWG spec, and is useful
+            -- syntax for inline scripting libraries such as hyperscript
             || name == "_"
             || name `Set.member` attributes
             || name `Set.member` ?settings.additionalAttributeNames
 
+        -- '_' is included as it is a valid HTML attribute name character, needed
+        -- to parse the "_" attribute used by inline scripting libraries such as hyperscript
         rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-' || c == '_' || c == ':')
 
 
