@@ -13,7 +13,7 @@ import Data.String (IsString(..))
 import Data.String.Conversions (cs)
 import Data.Data (Typeable)
 import GHC.TypeLits (KnownSymbol, symbolVal)
-import Database.PostgreSQL.Simple.FromField (FromField(..), ResultError(..), returnError)
+import Database.PostgreSQL.Simple.FromField (FromField(..))
 import Database.PostgreSQL.Simple.ToField (ToField(..), Action(..))
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.Types as PG
