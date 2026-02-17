@@ -167,7 +167,7 @@ instance Controller DataController where
 
     action ShowForeignKeyHoverCardAction { tableName, id, columnName } = do
         hovercardData <- do
-            let fetchIdSnippet = Snippet.sql "SELECT " <> quoteIdentifier columnName <> Snippet.sql "::text FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE id = " <> Snippet.param id
+            let fetchIdSnippet = Snippet.sql "SELECT " <> quoteIdentifier columnName <> Snippet.sql "::text FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql "::uuid"
             foreignIdResult <- runSnippetQuery fetchIdSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
             case foreignIdResult of
