@@ -256,7 +256,7 @@ tests = do
                 let theQuery = query @BackgroundJob
                         |> filterWhereIn (#status, theValues)
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status = ANY ($1)")
+                (toSQL theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status = ANY ($1)")
 
         describe "filterWhereNotIn with JobStatus" do
             it "should use <> ALL for JobStatus NOT IN clause" do
@@ -265,7 +265,7 @@ tests = do
                 let theQuery = query @BackgroundJob
                         |> filterWhereNotIn (#status, theValues)
 
-                (snippetToSQL $ toSnippet theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status <> ALL ($1)")
+                (toSQL theQuery) `shouldBe` ("SELECT " <> jobColumns <> " FROM background_jobs WHERE background_jobs.status <> ALL ($1)")
 
         describe "filterWhereIdIn" do
             it "should use = ANY for Id IN clause" do
