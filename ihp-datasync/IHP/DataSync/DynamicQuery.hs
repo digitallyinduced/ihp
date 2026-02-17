@@ -25,7 +25,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Functor.Contravariant (contramap)
-import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState, nextParam)
+import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), nextParam)
 
 data Field = Field { fieldName :: Text, fieldValue :: Value }
 
