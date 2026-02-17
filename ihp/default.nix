@@ -11,12 +11,12 @@
 , inflections, interpolate, lens
 , lib, mime-types, minio-hs, mono-traversable, mtl
 , neat-interpolation, network, network-uri, parser-combinators
-, postgresql-libpq, postgresql-simple, postgresql-types
-, postgresql-types-algebra, process, pwstore-fast
+, postgresql-simple, postgresql-simple-postgresql-types, postgresql-types
+, process, pwstore-fast
 , random, random-strings, regex-tdfa, resource-pool, resourcet
 , safe-exceptions, scientific, slugger, split, stm
-, string-conversions, tagged, template-haskell, temporary, text
-, text-builder, time
+, string-conversions, template-haskell, temporary, text
+, time
 , transformers, typerep-map, unagi-chan, unix, unliftio
 , unordered-containers, uri-encode, uuid, vault, vector, wai
 , wai-app-static, wai-asset-path, wai-cors, wai-extra
@@ -41,13 +41,13 @@ mkDerivation {
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
     ihp-pglistener inflections interpolate
     lens mime-types minio-hs mono-traversable mtl neat-interpolation
-    network network-uri parser-combinators postgresql-libpq
-    postgresql-simple
-    postgresql-types postgresql-types-algebra process pwstore-fast
+    network network-uri parser-combinators
+    postgresql-simple postgresql-simple-postgresql-types
+    postgresql-types process pwstore-fast
     random random-strings
     regex-tdfa resource-pool resourcet safe-exceptions scientific
-    slugger split stm string-conversions tagged template-haskell
-    temporary text text-builder time transformers typerep-map
+    slugger split stm string-conversions template-haskell
+    temporary text time transformers typerep-map
     unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
@@ -67,13 +67,13 @@ mkDerivation {
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
     ihp-pglistener inflections interpolate
     lens mime-types minio-hs mono-traversable mtl neat-interpolation
-    network network-uri parser-combinators postgresql-libpq
-    postgresql-simple
-    postgresql-types postgresql-types-algebra process pwstore-fast
+    network network-uri parser-combinators
+    postgresql-simple postgresql-simple-postgresql-types
+    postgresql-types process pwstore-fast
     random random-strings
     regex-tdfa resource-pool resourcet safe-exceptions scientific
-    slugger split stm string-conversions tagged template-haskell
-    temporary text text-builder time transformers typerep-map
+    slugger split stm string-conversions template-haskell
+    temporary text time transformers typerep-map
     unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
