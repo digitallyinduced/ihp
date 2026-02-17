@@ -2,6 +2,7 @@ module IHP.Pagination.ViewFunctions (
     module IHP.Pagination.Types,
     renderPagination,
     renderFilter,
+    renderFilterFor,
 ) where
 
 import IHP.Prelude
@@ -26,9 +27,11 @@ import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPag
 -- to allow users to change pages, including "Next" and "Previous".
 -- If there is only one page, this will not render anything.
 renderPagination :: (?context :: ControllerContext, ?request :: Request) => Pagination -> Html
-renderPagination pagination@Pagination {currentPage, window, pageSize} =
+renderPagination pagination@Pagination {currentPage, window, pageSize, paramSuffix} =
         when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
+            suffix = paramSuffix
+
             paginationView = PaginationView
                 { cssFramework = theCSSFramework
                 , pagination = pagination
@@ -37,6 +40,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                 , linkNext = linkNext
                 , pageDotDotItems = pageDotDotItems
                 , itemsPerPageSelector = itemsPerPageSelector
+                , paramSuffix = suffix
                 }
 
             linkPrevious =
@@ -63,7 +67,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     path = theRequest.rawPathInfo
                     queryString = theRequest.queryString
                     newQueryString = queryString
-                        |> setQueryValue "page" (cs $ show n)
+                        |> setQueryValue (cs $ "page" <> suffix) (cs $ show n)
                         |> maybeFilter
                         |> maybeMaxItems
 
@@ -72,21 +76,21 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     path = theRequest.rawPathInfo
                     queryString = theRequest.queryString
                     newQueryString = queryString
-                        |> setQueryValue "maxItems" (cs $ tshow n)
+                        |> setQueryValue (cs $ "maxItems" <> suffix) (cs $ tshow n)
                         -- If we change the number of items, we should jump back to the first page
                         -- so we are not out of the items bound.
-                        |> setQueryValue "page" (cs $ show 1)
+                        |> setQueryValue (cs $ "page" <> suffix) (cs $ show 1)
 
             maybeFilter queryString =
-                case paramOrNothing @Text "filter" of
+                case paramOrNothing @Text ("filter" <> suffix) of
                     Nothing -> queryString
                     Just "" -> queryString
-                    Just filterValue -> queryString |> setQueryValue "filter" (cs filterValue)
+                    Just filterValue -> queryString |> setQueryValue (cs $ "filter" <> suffix) (cs filterValue)
 
             maybeMaxItems queryString =
-                case paramOrNothing @Int "maxItems" of
+                case paramOrNothing @Int ("maxItems" <> suffix) of
                     Nothing -> queryString
-                    Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
+                    Just m -> queryString |> setQueryValue (cs $ "maxItems" <> suffix) (cs $ tshow m)
 
             processedPages (pg0:pg1:rest) =
                 if pg1 == pg0 + 1 then
@@ -123,7 +127,9 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                         List.nubInt $ 1 : [max 1 lowerBound..min (getLastPage pagination) upperBound] ++ [totalPages]
 
 -- | Render a filtering box in your view. Allows the user to type in a query and filter
--- results according to what they type.
+-- results according to what they type. Uses no suffix (backward compatible).
+--
+-- For multiple paginations per page, use 'renderFilterFor' instead.
 --
 -- Below is an example of how this might be used in your index. Replace the existing <h1> with:
 --        <div class="container">
@@ -139,14 +145,26 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 renderFilter :: (?context::ControllerContext, ?request :: Request) =>
     Text    -- ^ Placeholder text for the text box
     -> Html
-renderFilter placeholder =
+renderFilter = renderFilterFor ""
+
+-- | Like 'renderFilter', but takes a 'Pagination' to use the correct query parameter suffix.
+-- Use this when you have multiple paginations on the same page.
+--
+-- Example:
+--
+-- > {renderFilterFor pagination.paramSuffix "Username"}
+renderFilterFor :: (?context::ControllerContext, ?request :: Request) =>
+    Text    -- ^ The param suffix from a 'Pagination' (e.g. @""@, @"_2"@)
+    -> Text -- ^ Placeholder text for the text box
+    -> Html
+renderFilterFor suffix placeholder =
     [hsx|
         <form method="GET" action="" class="mt-2 float-end">
             <div class="row">
                 <div class="col-auto">
-                <label class="visually-hidden" for="inlineFormInput">Name</label>
-                <input type="hidden" name="page" value="1"/>
-                <input name="filter" type="text" class="form-control mb-2" id="inlineFormInput" placeholder={placeholder} value={boxValue}>
+                <label class="visually-hidden" for={inputId}>Name</label>
+                <input type="hidden" name={pageParam} value="1"/>
+                <input name={filterParam} type="text" class="form-control mb-2" id={inputId} placeholder={placeholder} value={boxValue}>
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-2 me-2">Filter</button>
@@ -156,13 +174,16 @@ renderFilter placeholder =
         </form>
     |]
         where
-            boxValue = fromMaybe "" (paramOrNothing "filter") :: Text
+            pageParam = "page" <> suffix :: Text
+            filterParam = "filter" <> suffix :: Text
+            inputId = "inlineFormInput" <> suffix :: Text
+            boxValue = fromMaybe "" (paramOrNothing filterParam) :: Text
             clearFilterUrl = path <> Query.renderQuery True newQueryString
                 where
                     path = theRequest.rawPathInfo
                     queryString = theRequest.queryString
                     newQueryString = queryString
-                        |> removeQueryItem "filter"
+                        |> removeQueryItem (cs filterParam)
 
 
 -- | Set or replace a query string item

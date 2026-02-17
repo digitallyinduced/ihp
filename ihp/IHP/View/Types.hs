@@ -127,6 +127,8 @@ data PaginationView =
     , pageDotDotItems :: !Blaze.Html
     -- Selector changing the number of allowed items per page.
     , itemsPerPageSelector :: !Blaze.Html
+    -- | Suffix for HTML element IDs to support multiple paginations per page.
+    , paramSuffix :: !Text
     }
 
 -- | Render functions to render with Bootstrap, Tailwind CSS etc.
