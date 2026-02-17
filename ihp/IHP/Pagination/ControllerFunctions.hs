@@ -18,12 +18,13 @@ import IHP.Controller.Param ( paramOrDefault, paramOrNothing )
 import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
-import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
-import IHP.Hasql.FromRow (FromRowHasql)
-import IHP.Hasql.Encoders (ToSnippetParams(..))
+import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql, Table)
+import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
+import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import Network.Wai (Request)
-
-import Database.PostgreSQL.Simple (Query(..), Only(Only), (:.)(..))
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Data.Text.Encoding (encodeUtf8)
 
 -- | Counter stored in the controller context to auto-assign unique suffixes
 -- to each pagination on a page.
@@ -207,12 +208,11 @@ defaultPaginationOptions =
 paginatedSqlQuery
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ToSnippetParams (parameters :. Only Int :. Only Int)
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Request
      )
-  => Query -> parameters -> IO ([model], Pagination)
+  => Text -> parameters -> IO ([model], Pagination)
 paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 
 -- | Runs a raw sql query and adds pagination to it.
@@ -232,15 +232,18 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 paginatedSqlQueryWithOptions
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ToSnippetParams (parameters :. Only Int :. Only Int)
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
      , ?request :: Request
      )
-  => Options -> Query -> parameters -> IO ([model], Pagination)
+  => Options -> Text -> parameters -> IO ([model], Pagination)
 paginatedSqlQueryWithOptions options sql placeholders = do
     suffix <- nextPaginationSuffix
-    count :: Int <- sqlQueryScalar ("SELECT count(subquery.*) FROM (" <> sql <> ") as subquery") placeholders
+    let pool = ?modelContext.hasqlPool
+    let baseParams = toSnippetParams placeholders
+
+    let countSnippet = sqlToSnippet ("SELECT count(subquery.*) FROM (" <> encodeUtf8 sql <> ") as subquery") baseParams
+    count :: Int <- sqlQueryHasql pool countSnippet (Decoders.singleRow hasqlColumnDecoder)
 
     let pageSize = pageSizeWithSuffix options suffix
         currentPage = pageWithSuffix suffix
@@ -252,9 +255,8 @@ paginatedSqlQueryWithOptions options sql placeholders = do
             , paramSuffix = suffix
             }
 
-    results :: [model] <- sqlQuery
-        ("SELECT subquery.* FROM (" <> sql <> ") as subquery LIMIT ? OFFSET ?")
-        (placeholders :. Only pageSize :. Only (offset' pageSize currentPage))
+    let resultsSnippet = sqlToSnippet ("SELECT subquery.* FROM (" <> encodeUtf8 sql <> ") as subquery LIMIT ? OFFSET ?") (baseParams <> [Snippet.param pageSize, Snippet.param (offset' pageSize currentPage)])
+    results :: [model] <- sqlQueryHasql pool resultsSnippet (Decoders.rowList hasqlRowDecoder)
 
     pure (results, pagination)
 
