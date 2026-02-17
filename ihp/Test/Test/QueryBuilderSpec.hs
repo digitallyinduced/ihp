@@ -169,6 +169,13 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.external_url IS NOT NULL")
 
+            it "should not consume a parameter slot for IS NOT NULL" do
+                let theQuery = query @Post
+                        |> filterWhereNot (#externalUrl, Nothing)
+                        |> filterWhere (#title, "Test" :: Text)
+
+                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.external_url IS NOT NULL) AND (posts.title = $1)")
+
         describe "filterWhereIn" do
             it "should use = ANY for IN clause" do
                 let theValues :: [Text] = ["first", "second"]
@@ -205,6 +212,14 @@ tests = do
                             |> filterWhereIn (#categoryId, theValues)
 
                     (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NULL")
+
+                it "should not consume a parameter slot for IS NULL in mixed list" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574", Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereIn (#categoryId, theValues)
+                            |> filterWhere (#title, "Test" :: Text)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE ((posts.category_id = ANY ($1)) OR (posts.category_id IS NULL)) AND (posts.title = $2)")
 
         describe "filterWhereInCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
@@ -249,6 +264,14 @@ tests = do
                             |> filterWhereNotIn (#categoryId, theValues)
 
                     (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.category_id IS NOT NULL")
+
+                it "should not consume a parameter slot for IS NOT NULL in mixed list" do
+                    let theValues :: [Maybe UUID] = ["44dcf2cf-a79d-4caf-a2ea-427838ba3574", Nothing]
+                    let theQuery = query @Post
+                            |> filterWhereNotIn (#categoryId, theValues)
+                            |> filterWhere (#title, "Test" :: Text)
+
+                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE ((posts.category_id <> ALL ($1)) AND (posts.category_id IS NOT NULL)) AND (posts.title = $2)")
 
         describe "filterWhereIn with JobStatus" do
             it "should use = ANY for JobStatus IN clause" do
