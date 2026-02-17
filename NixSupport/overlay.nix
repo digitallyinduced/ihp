@@ -134,8 +134,8 @@ let
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
             postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callCabal2nix "postgresql-simple-postgresql-types" (builtins.fetchTarball {
-                url = "https://github.com/nikita-volkov/postgresql-simple-postgresql-types/archive/1aebd39.tar.gz";
-                sha256 = "1saz10qyhp5ag13kq5x3rl12nc9mv6xiycik941rcpqcdkcirny4";
+                url = "https://github.com/mpscholten/postgresql-simple-postgresql-types/archive/cd614d3.tar.gz";
+                sha256 = "02400hhy50i0p60v4f9bxjdkcilf6chw815g43c48hpvvdbik32j";
             }) {}));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
