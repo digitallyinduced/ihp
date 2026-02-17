@@ -5,7 +5,8 @@ import Test.Hspec
 import IHP.Pagination.ControllerFunctions
 import IHP.Pagination.Types (Options(..), Pagination(..))
 import IHP.Controller.Context
-import IHP.ModelSupport (createModelContext, releaseModelContext)
+import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..))
+import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
 import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
@@ -28,7 +29,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100) AS n"
+                        "SELECT generate_series(1, 100)::int AS n"
                         ()
 
                 length results `shouldBe` 50
@@ -44,7 +45,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100) AS n"
+                        "SELECT generate_series(1, 100)::int AS n"
                         ()
 
                 length results `shouldBe` 50
@@ -63,7 +64,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100) AS n"
+                        "SELECT generate_series(1, 100)::int AS n"
                         ()
 
                 length results `shouldBe` 10
@@ -79,7 +80,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         options
-                        "SELECT generate_series(1, 100) AS n"
+                        "SELECT generate_series(1, 100)::int AS n"
                         ()
 
                 length results `shouldBe` 25
@@ -94,7 +95,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 500) AS n"
+                        "SELECT generate_series(1, 500)::int AS n"
                         ()
 
                 length results `shouldBe` 200
@@ -109,7 +110,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 10) AS n"
+                        "SELECT generate_series(1, 10)::int AS n"
                         ()
 
                 length results `shouldBe` 0
@@ -124,7 +125,7 @@ tests = do
                 (results :: [PG.Only Int], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100) AS n"
+                        "SELECT generate_series(1, 100)::int AS n"
                         ()
 
                 length results `shouldBe` 10
@@ -143,14 +144,17 @@ contextWithParams params =
         customFields = TypeMap.insert request TypeMap.empty
     in FrozenControllerContext { customFields }
 
--- | Run a test with a database connection, skipping if PostgreSQL is not available
+-- | Run a test with a database connection, skipping if PostgreSQL is not available.
+-- Only connection failures are caught and marked as pending; test assertion errors propagate normally.
 withDB :: (ModelContext -> IO ()) -> IO ()
 withDB action = do
     envUrl <- lookupEnv "DATABASE_URL"
     let databaseUrl = maybe "postgresql:///postgres" cs envUrl
-    result <- Exception.try do
-        logger <- Log.newLogger def { level = Warn }
-        Exception.bracket (createModelContext databaseUrl logger) releaseModelContext action
+    logger <- Log.newLogger def { level = Warn }
+    modelContext <- createModelContext databaseUrl logger
+    result <- Exception.try (action modelContext `Exception.finally` releaseModelContext modelContext)
     case result of
         Right () -> pure ()
-        Left (e :: Exception.SomeException) -> pendingWith (cs ("PostgreSQL not available: " <> tshow e))
+        Left (HasqlError (HasqlPool.ConnectionUsageError _)) ->
+            pendingWith "PostgreSQL not available"
+        Left e -> Exception.throwIO e
