@@ -29,8 +29,6 @@ common shared-properties
             , text
             , hasql
             , hasql-pool
-            , hasql-dynamic-statements
-            , hasql-implicits
             , hasql-transaction
             , bytestring
             , aeson
