@@ -113,6 +113,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe Province) where
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Province] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -143,6 +145,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PropertyType) where
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [PropertyType] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
