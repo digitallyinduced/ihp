@@ -212,6 +212,12 @@ toStatement :: Text -> CompilerState -> Decoders.Result a -> Hasql.Statement () 
 toStatement sql cc decoder = Hasql.preparable sql (ccEncoder cc) decoder
 {-# INLINE toStatement #-}
 
+-- | Convert a 'CompiledQuery' into a prepared statement that returns dynamic JSON rows.
+-- Wraps the query SQL with the CTE that produces @row_to_json@ output.
+compiledQueryStatement :: CompiledQuery -> Hasql.Statement () [[Field]]
+compiledQueryStatement (CompiledQuery sql cc) = toStatement (wrapDynamicQuery sql) cc dynamicRowDecoder
+{-# INLINE compiledQueryStatement #-}
+
 -- | Build an encoder for a single UUID parameter.
 uuidParam :: UUID -> Encoders.Params ()
 uuidParam id = contramap (const id) (Encoders.param (Encoders.nonNullable Encoders.uuid))

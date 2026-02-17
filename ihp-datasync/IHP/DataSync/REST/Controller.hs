@@ -53,8 +53,8 @@ instance (
                         let (t, st') = typedAesonValueToSnippet colType val st in (st', t)
                 let (cc, valueTexts) = List.mapAccumL encodeOne emptyCompilerState pairsList
 
-                let CompiledQuery sql finalCc = compileInsert table columns valueTexts cc camelCaseRenamer columnTypes
-                let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
+                let insertResult = compileInsert table columns valueTexts cc camelCaseRenamer columnTypes
+                let stmt = compiledQueryStatement insertResult
 
                 result :: Either SomeException [[Field]] <- Exception.try do
                     sqlQueryWriteWithRLS hasqlPool stmt
@@ -90,8 +90,8 @@ instance (
                                             columns
                                     let (ccFinal, valueRows) = List.mapAccumL encodeRow emptyCompilerState hashMaps
 
-                                    let CompiledQuery sql finalCc = compileInsertMany table columns valueRows ccFinal camelCaseRenamer columnTypes
-                                    let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
+                                    let insertResult = compileInsertMany table columns valueRows ccFinal camelCaseRenamer columnTypes
+                                    let stmt = compiledQueryStatement insertResult
 
                                     result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
                                     renderJson result
@@ -111,21 +111,10 @@ instance (
                 Object hm -> hm
                 _ -> error "Expected JSON object"
 
-        let pairsList = hashMap
-                |> Aeson.toList
-                |> map (\(key, val) ->
-                    let col = fieldNameToColumnName (Aeson.toText key)
-                    in (col, lookupColumnType columnTypes col, val)
-                )
-
-        let encodeSetClause st (col, colType, val) =
-                let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
-        let (cc0, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
-        let setSql = mconcat $ List.intersperse ", " setTexts
+        let (setSql, cc0) = encodeKeyMapToSetSql columnTypes hashMap
         let (idPh, cc1) = nextParam (uuidParam id) cc0
-        let whereSql = "id = " <> idPh
-        let CompiledQuery sql ccFinal = compileUpdate table setSql whereSql cc1 camelCaseRenamer columnTypes
-        let stmt = toStatement (wrapDynamicQuery sql) ccFinal dynamicRowDecoder
+        let updateResult = compileUpdate table setSql ("id = " <> idPh) cc1 camelCaseRenamer columnTypes
+        let stmt = compiledQueryStatement updateResult
 
         result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
 
@@ -166,8 +155,8 @@ instance (
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
-        let CompiledQuery querySql queryCc = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
-        let stmt = toStatement (wrapDynamicQuery querySql) queryCc dynamicRowDecoder
+        let queryResult = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
+        let stmt = compiledQueryStatement queryResult
         result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson result
@@ -203,6 +192,20 @@ instance ParamReader OrderByClause where
             parseOrder "asc" = Right Asc
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
+
+-- | Encode an Aeson KeyMap (from REST JSON payload) into a SQL SET clause and accumulated 'CompilerState'.
+encodeKeyMapToSetSql :: ColumnTypeInfo -> Aeson.KeyMap Value -> (Text, CompilerState)
+encodeKeyMapToSetSql columnTypes hashMap =
+    let pairsList = hashMap
+            |> Aeson.toList
+            |> map (\(key, val) ->
+                let col = fieldNameToColumnName (Aeson.toText key)
+                in (col, lookupColumnType columnTypes col, val)
+            )
+        encodeSetClause st (col, colType, val) =
+            let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
+        (cc, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
+    in (mconcat $ List.intersperse ", " setTexts, cc)
 
 renderErrorJson :: (?context :: ControllerContext, ?request :: Request) => ToJSON json => json -> IO ()
 renderErrorJson json = renderJsonWithStatusCode status400 json

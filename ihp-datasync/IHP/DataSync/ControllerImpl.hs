@@ -127,8 +127,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 ensureRLSEnabled (query.table)
 
                 columnTypes <- columnTypeLookup query.table
-                let CompiledQuery querySql queryCc = compileQueryTyped (renamer query.table) columnTypes query
-                let stmt = toStatement (wrapDynamicQuery querySql) queryCc dynamicRowDecoder
+                let queryResult = compileQueryTyped (renamer query.table) columnTypes query
+                let stmt = compiledQueryStatement queryResult
 
                 result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -149,7 +149,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 columnTypes <- columnTypeLookup query.table
                 let theQuery@(CompiledQuery querySql queryCc) = compileQueryTyped (renamer query.table) columnTypes query
-                let stmt = toStatement (wrapDynamicQuery querySql) queryCc dynamicRowDecoder
+                let stmt = compiledQueryStatement theQuery
 
                 result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
@@ -175,6 +175,26 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 -- Make sure the database triggers are there
                 installTableChangeTriggers tableNameRLS
 
+                let handleUpdate id getChanges = do
+                        isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
+                        when isWatchingRecord do
+                            changes <- getChanges
+                            let changedCols = Set.fromList (map (.col) changes)
+                            let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
+                            let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                            if affectsFilterOrRLS
+                                then do
+                                    let (idPh, cc') = nextParam (uuidParam id) queryCc
+                                    let existsStmt = toStatement ("SELECT EXISTS(SELECT * FROM (" <> querySql <> ") AS records WHERE records.id = " <> idPh <> " LIMIT 1)") cc' (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
+                                    if isRecordInResultSet
+                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                                        else do
+                                            modifyIORef' watchedRecordIdsRef (Set.delete id)
+                                            sendJSON DidDelete { subscriptionId, id }
+                                else
+                                    sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+
                 let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
                                 -- The new record could not be accessible to the current user with a RLS policy
@@ -198,46 +218,10 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
-                            ChangeNotifications.DidUpdate { id, changeSet } -> do
-                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
-                                when isWatchingRecord do
-                                    changes <- ChangeNotifications.retrieveChanges hasqlPool changeSet
-                                    let changedCols = Set.fromList (map (.col) changes)
-                                    let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
-                                    let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
-                                    if affectsFilterOrRLS
-                                        then do
-                                            -- Changed column overlaps with WHERE or RLS — must verify
-                                            let (idPh, cc') = nextParam (uuidParam id) queryCc
-                                            let existsStmt = toStatement ("SELECT EXISTS(SELECT * FROM (" <> querySql <> ") AS records WHERE records.id = " <> idPh <> " LIMIT 1)") cc' (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-                                            isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
-                                            if isRecordInResultSet
-                                                then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                                                else do
-                                                    modifyIORef' watchedRecordIdsRef (Set.delete id)
-                                                    sendJSON DidDelete { subscriptionId, id }
-                                        else
-                                            -- Safe to skip — record can't leave result set or change RLS visibility
-                                            sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                            ChangeNotifications.DidUpdateLarge { id, payloadId } -> do
-                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
-                                when isWatchingRecord do
-                                    changes <- ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId })
-                                    let changedCols = Set.fromList (map (.col) changes)
-                                    let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
-                                    let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
-                                    if affectsFilterOrRLS
-                                        then do
-                                            let (idPh, cc') = nextParam (uuidParam id) queryCc
-                                            let existsStmt = toStatement ("SELECT EXISTS(SELECT * FROM (" <> querySql <> ") AS records WHERE records.id = " <> idPh <> " LIMIT 1)") cc' (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-                                            isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
-                                            if isRecordInResultSet
-                                                then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                                                else do
-                                                    modifyIORef' watchedRecordIdsRef (Set.delete id)
-                                                    sendJSON DidDelete { subscriptionId, id }
-                                        else
-                                            sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                            ChangeNotifications.DidUpdate { id, changeSet } ->
+                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool changeSet)
+                            ChangeNotifications.DidUpdateLarge { id, payloadId } ->
+                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId }))
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
@@ -324,8 +308,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let encodeOne st (_, colType, val) =
                         let (t, st') = typedAesonValueToSnippet colType val st in (st', t)
                 let (cc, valueTexts) = List.mapAccumL encodeOne emptyCompilerState pairsList
-                let CompiledQuery sql finalCc = compileInsert table columns valueTexts cc (renamer table) columnTypes
-                let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
+                let insertResult = compileInsert table columns valueTexts cc (renamer table) columnTypes
+                let stmt = compiledQueryStatement insertResult
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -354,8 +338,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 (zip fieldNames columns)
                         let (ccFinal, valueRows) = List.mapAccumL encodeRow emptyCompilerState records
 
-                        let CompiledQuery sql finalCc = compileInsertMany table columns valueRows ccFinal (renamer table) columnTypes
-                        let stmt = toStatement (wrapDynamicQuery sql) finalCc dynamicRowDecoder
+                        let insertResult = compileInsertMany table columns valueRows ccFinal (renamer table) columnTypes
+                        let stmt = compiledQueryStatement insertResult
 
                         records :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -368,21 +352,10 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 columnTypes <- columnTypeLookup table
 
-                let pairsList = patch
-                        |> HashMap.toList
-                        |> map (\(fieldName, val) ->
-                            let col = (renamer table).fieldToColumn fieldName
-                            in (col, lookupColumnType columnTypes col, val)
-                        )
-
-                let encodeSetClause st (col, colType, val) =
-                        let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
-                let (cc0, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
-                let setSql = mconcat $ List.intersperse ", " setTexts
+                let (setSql, cc0) = encodePatchToSetSql (renamer table) columnTypes patch
                 let (idPh, cc1) = nextParam (uuidParam id) cc0
-                let whereSql = "id = " <> idPh
-                let CompiledQuery sql ccFinal = compileUpdate table setSql whereSql cc1 (renamer table) columnTypes
-                let stmt = toStatement (wrapDynamicQuery sql) ccFinal dynamicRowDecoder
+                let updateResult = compileUpdate table setSql ("id = " <> idPh) cc1 (renamer table) columnTypes
+                let stmt = compiledQueryStatement updateResult
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -398,22 +371,11 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 columnTypes <- columnTypeLookup table
 
-                let pairsList = patch
-                        |> HashMap.toList
-                        |> map (\(fieldName, val) ->
-                            let col = (renamer table).fieldToColumn fieldName
-                            in (col, lookupColumnType columnTypes col, val)
-                        )
-
-                let encodeSetClause st (col, colType, val) =
-                        let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
-                let (cc0, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
-                let setSql = mconcat $ List.intersperse ", " setTexts
+                let (setSql, cc0) = encodePatchToSetSql (renamer table) columnTypes patch
                 let (cc1, idPhs) = List.mapAccumL (\st uuid -> case nextParam (uuidParam uuid) st of (t, st') -> (st', t)) cc0 ids
                 let inList = mconcat $ List.intersperse ", " idPhs
-                let whereSql = "id IN (" <> inList <> ")"
-                let CompiledQuery sql ccFinal = compileUpdate table setSql whereSql cc1 (renamer table) columnTypes
-                let stmt = toStatement (wrapDynamicQuery sql) ccFinal dynamicRowDecoder
+                let updateResult = compileUpdate table setSql ("id IN (" <> inList <> ")") cc1 (renamer table) columnTypes
+                let stmt = compiledQueryStatement updateResult
 
                 records <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -535,6 +497,21 @@ maxSubscriptionsPerConnection :: (?context :: ControllerContext) => Int
 maxSubscriptionsPerConnection =
     case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
+
+-- | Encode a JSON patch (field name -> value) into a SQL SET clause like @"col1" = $1, "col2" = $2@
+-- and the accumulated 'CompilerState'.
+encodePatchToSetSql :: Renamer -> ColumnTypeInfo -> HashMap Text Value -> (Text, CompilerState)
+encodePatchToSetSql ren columnTypes patch =
+    let pairsList = patch
+            |> HashMap.toList
+            |> map (\(fieldName, val) ->
+                let col = ren.fieldToColumn fieldName
+                in (col, lookupColumnType columnTypes col, val)
+            )
+        encodeSetClause st (col, colType, val) =
+            let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
+        (cc, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
+    in (mconcat $ List.intersperse ", " setTexts, cc)
 
 sqlQueryWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
