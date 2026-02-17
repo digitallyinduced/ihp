@@ -26,10 +26,11 @@ import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Statement as Hasql
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 import IHP.Hasql.Encoders ()
 import qualified Data.Text as Text
+import Data.Functor.Contravariant.Divisible (conquer)
 import Control.Concurrent.STM (TBQueue, atomically, writeTBQueue, STM)
 import Control.Concurrent.STM.TBQueue (isFullTBQueue)
 
@@ -53,30 +54,27 @@ fetchNextJob :: forall job.
     , Table job
     ) => UUID -> IO (Maybe job)
 fetchNextJob workerId = do
-    let tableNameText = tableName @job
-    let returningColumns = Text.intercalate ", " (columnNames @job)
-    let snippet =
-            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
-            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRunning
-            <> Snippet.sql ", locked_at = NOW(), locked_by = " <> Snippet.param workerId
-            <> Snippet.sql ", attempts_count = attempts_count + 1"
-            <> Snippet.sql " WHERE id IN (SELECT id FROM " <> Snippet.sql tableNameText
-            <> Snippet.sql " WHERE " <> pendingJobCondition
-            <> Snippet.sql " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
-            <> Snippet.sql " RETURNING " <> Snippet.sql returningColumns
-    let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
+    let tn = tableName @job
+    let cols = Text.intercalate ", " (columnNames @job)
+    let sql = "UPDATE " <> tn
+            <> " SET status = 'job_status_running', locked_at = NOW(), locked_by = $1"
+            <> ", attempts_count = attempts_count + 1"
+            <> " WHERE id IN (SELECT id FROM " <> tn
+            <> " WHERE " <> pendingJobConditionSQL
+            <> " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
+            <> " RETURNING " <> cols
+    let statement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowMaybe (hasqlRowDecoder @job))
 
     pool <- getHasqlPool
-    withoutQueryLogging (sqlQueryHasql pool snippet decoder)
+    withoutQueryLogging (sqlStatementHasql pool workerId statement)
 
--- | Shared WHERE condition for fetching pending jobs.
+-- | Shared WHERE condition for fetching pending jobs as a SQL text fragment.
 -- Matches jobs that are either not started or in retry state,
 -- not locked, and whose run_at time has passed.
-pendingJobCondition :: Snippet.Snippet
-pendingJobCondition =
-    Snippet.sql "(status = " <> Snippet.param JobStatusNotStarted
-    <> Snippet.sql " OR status = " <> Snippet.param JobStatusRetry
-    <> Snippet.sql ") AND locked_by IS NULL AND run_at <= NOW()"
+-- Enum values are inlined as SQL string literals (PostgreSQL casts them to job_status).
+pendingJobConditionSQL :: Text
+pendingJobConditionSQL =
+    "(status = 'job_status_not_started' OR status = 'job_status_retry') AND locked_by IS NULL AND run_at <= NOW()"
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
@@ -116,17 +114,16 @@ watchForJob pgListener tableName pollInterval onNewJob = do
 --
 pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob tableName pollInterval onNewJob = do
-    let snippet =
-            Snippet.sql "SELECT COUNT(*) FROM " <> Snippet.sql tableName
-            <> Snippet.sql " WHERE " <> pendingJobCondition
-    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
+    let sql = "SELECT COUNT(*) FROM " <> tableName
+            <> " WHERE " <> pendingJobConditionSQL
+    let statement = Hasql.preparable sql conquer (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
     let handler = do
             let ?context = ?modelContext
             pool <- getHasqlPool
             forever do
                 result <- Exception.tryAny do
                     -- We don't log the queries to the console as it's filling up the log entries with noise
-                    count :: Int <- fromIntegral <$> withoutQueryLogging (sqlQueryHasql pool snippet decoder)
+                    count :: Int <- fromIntegral <$> withoutQueryLogging (sqlStatementHasql pool () statement)
 
                     -- For every job we send one signal to the job workers
                     -- This way we use full concurrency when we find multiple jobs
@@ -295,28 +292,29 @@ recoverStaleJobs :: forall job.
     , Table job
     ) => NominalDiffTime -> IO ()
 recoverStaleJobs staleThreshold = do
-    let tableNameText = tableName @job
+    let tn = tableName @job
+
     -- Tier 1: Recently stale jobs (threshold..24h) → retry
-    let retrySnippet =
-            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
-            <> Snippet.sql " SET status = " <> Snippet.param JobStatusRetry
-            <> Snippet.sql ", locked_by = NULL, locked_at = NULL, run_at = NOW()"
-            <> Snippet.sql " WHERE status = " <> Snippet.param JobStatusRunning
-            <> Snippet.sql " AND locked_at < NOW() - interval '1 second' * " <> Snippet.param (round staleThreshold :: Int)
-            <> Snippet.sql " AND locked_at > NOW() - interval '1 day'"
+    let retrySql = "UPDATE " <> tn
+            <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL, run_at = NOW()"
+            <> " WHERE status = 'job_status_running'"
+            <> " AND locked_at < NOW() - interval '1 second' * $1"
+            <> " AND locked_at > NOW() - interval '1 day'"
+    let retryStatement = Hasql.preparable retrySql
+            (Encoders.param (Encoders.nonNullable Encoders.int4))
+            Decoders.noResult
 
     -- Tier 2: Ancient stale jobs (>24h) → mark failed
-    let failSnippet =
-            Snippet.sql "UPDATE " <> Snippet.sql tableNameText
-            <> Snippet.sql " SET status = " <> Snippet.param JobStatusFailed
-            <> Snippet.sql ", locked_by = NULL, locked_at = NULL"
-            <> Snippet.sql ", last_error = 'Stale job: worker likely crashed'"
-            <> Snippet.sql " WHERE status = " <> Snippet.param JobStatusRunning
-            <> Snippet.sql " AND locked_at < NOW() - interval '1 day'"
+    let failSql = "UPDATE " <> tn
+            <> " SET status = 'job_status_failed', locked_by = NULL, locked_at = NULL"
+            <> ", last_error = 'Stale job: worker likely crashed'"
+            <> " WHERE status = 'job_status_running'"
+            <> " AND locked_at < NOW() - interval '1 day'"
+    let failStatement = Hasql.preparable failSql conquer Decoders.noResult
 
     pool <- getHasqlPool
-    withoutQueryLogging (sqlExecHasql pool retrySnippet)
-    withoutQueryLogging (sqlExecHasql pool failSnippet)
+    withoutQueryLogging (sqlExecStatement pool (round staleThreshold :: Int32) retryStatement)
+    withoutQueryLogging (sqlExecStatement pool () failStatement)
 
 -- | Mapping for @JOB_STATUS@:
 --

@@ -13,6 +13,9 @@ module IHP.QueryBuilder.HasqlCompiler
 , buildWrappedStatement
 , toSQL
 , compileOperator
+, CompilerState(..)
+, emptyCompilerState
+, nextParam
 ) where
 
 import IHP.Prelude
