@@ -26,22 +26,22 @@ import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.List as List
 
 -- | Compile context: parameter counter + accumulated encoder.
-data CC = CC !Int !(Encoders.Params ())
+data CompilerState = CompilerState !Int !(Encoders.Params ())
 
 -- | Initial compile context: counter starts at 1, no params.
-emptyCC :: CC
-emptyCC = CC 1 conquer
-{-# INLINE emptyCC #-}
+emptyCompilerState :: CompilerState
+emptyCompilerState = CompilerState 1 conquer
+{-# INLINE emptyCompilerState #-}
 
 -- | Assign the next @$N@ placeholder and accumulate the encoder.
-nextParam :: Encoders.Params () -> CC -> (Text, CC)
-nextParam enc (CC n acc) = ("$" <> tshow n, CC (n + 1) (acc <> enc))
+nextParam :: Encoders.Params () -> CompilerState -> (Text, CompilerState)
+nextParam enc (CompilerState n acc) = ("$" <> tshow n, CompilerState (n + 1) (acc <> enc))
 {-# INLINE nextParam #-}
 
 -- | Build a Hasql 'Statement' from a compiled 'SQLQuery' and a result decoder.
 buildStatement :: SQLQuery -> Decoders.Result a -> Hasql.Statement () a
 buildStatement sqlQuery decoder =
-    let (sql, CC _ encoder) = compileQuery emptyCC sqlQuery
+    let (sql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
     in Hasql.preparable sql encoder decoder
 {-# INLINE buildStatement #-}
 
@@ -49,7 +49,7 @@ buildStatement sqlQuery decoder =
 -- Used for @SELECT COUNT(*) FROM (inner) AS alias@ patterns.
 buildWrappedStatement :: Text -> SQLQuery -> Text -> Decoders.Result a -> Hasql.Statement () a
 buildWrappedStatement prefix sqlQuery suffix decoder =
-    let (innerSql, CC _ encoder) = compileQuery emptyCC sqlQuery
+    let (innerSql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
     in Hasql.preparable (prefix <> innerSql <> suffix) encoder decoder
 {-# INLINE buildWrappedStatement #-}
 
@@ -57,7 +57,7 @@ buildWrappedStatement prefix sqlQuery suffix decoder =
 -- Discards the encoder.
 toSQL :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Text
 toSQL queryBuilderProvider =
-    let (sql, _) = compileQuery emptyCC (buildQuery queryBuilderProvider)
+    let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilderProvider)
     in sql
 {-# INLINE toSQL #-}
 
@@ -65,7 +65,7 @@ toSQL queryBuilderProvider =
 --
 -- Structured so that the Nothing/empty branches contribute no concatenation;
 -- GHC can see through the case alternatives and eliminate dead appends.
-compileQuery :: CC -> SQLQuery -> (Text, CC)
+compileQuery :: CompilerState -> SQLQuery -> (Text, CompilerState)
 compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columnsSql } =
     let -- Build the fixed prefix: SELECT [DISTINCT] [DISTINCT ON (...)] cols FROM table [JOINs]
         selectPart = case distinctClause of
@@ -122,7 +122,7 @@ compileJoinList :: [Join] -> Text
 compileJoinList [] = ""
 compileJoinList (j:js) = " INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> compileJoinList js
 
-compileCondition :: CC -> Condition -> (Text, CC)
+compileCondition :: CompilerState -> Condition -> (Text, CompilerState)
 compileCondition cc (ColumnCondition column operator value applyLeft applyRight) =
     let applyFn fn txt = case fn of
             Just f -> f <> "(" <> txt <> ")"
@@ -148,7 +148,7 @@ compileCondition cc (AndCondition a b) =
     in ("(" <> aText <> ") AND (" <> bText <> ")", cc2)
 {-# INLINE compileCondition #-}
 
-compileConditionValue :: CC -> ConditionValue -> (Text, CC)
+compileConditionValue :: CompilerState -> ConditionValue -> (Text, CompilerState)
 compileConditionValue cc (Param enc) = nextParam enc cc
 compileConditionValue cc (Literal t) = (t, cc)
 {-# INLINE compileConditionValue #-}
