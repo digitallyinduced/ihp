@@ -3,16 +3,14 @@ Module: IHP.View.CSSFramework.Bootstrap
 Description: Bootstrap CSS framework implementations
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.View.CSSFramework.Bootstrap (bootstrap, bootstrap4) where
+module IHP.View.CSSFramework.Bootstrap (bootstrap, bootstrap4, bootstrapBase) where
 
 import Prelude hiding (null)
-import Data.Text (Text, null)
+import Data.Text (null)
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
-import Data.Default (def)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
-import IHP.ModelSupport.Types (Violation(..))
 import IHP.InputValue (inputValue)
 import qualified Text.Blaze.Html5 as Blaze
 import IHP.HSX.QQ (hsx)
@@ -23,58 +21,21 @@ import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.View.CSSFramework.Unstyled ()
+import IHP.View.CSSFramework.Unstyled (unstyled)
 
-bootstrap :: CSSFramework
-bootstrap = def
+-- | Shared Bootstrap rendering used by both 'bootstrap' and 'bootstrap4'
+bootstrapBase :: CSSFramework
+bootstrapBase = unstyled
     { styledFlashMessage
-    , styledSubmitButtonClass
-    , styledFormGroupClass
-    , styledFormFieldHelp
     , styledInputClass
     , styledInputInvalidClass
     , styledValidationResultClass
-    }
-    where
-        styledFlashMessage _ (SuccessFlashMessage message) = [hsx|<div class="alert alert-success">{message}</div>|]
-        styledFlashMessage _ (ErrorFlashMessage message) = [hsx|<div class="alert alert-danger">{message}</div>|]
-
-        styledInputClass _ FormField { fieldType = FileInput } = "form-control-file"
-        styledInputClass _ FormField {} = "form-control"
-        styledInputInvalidClass _ _ = "is-invalid"
-
-        styledFormFieldHelp _ FormField { helpText = "" } = mempty
-        styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text">{helpText}</small>|]
-
-        styledFormGroupClass = "mb-3"
-
-        styledValidationResultClass = "invalid-feedback"
-
-        styledSubmitButtonClass = "btn btn-primary"
-
-bootstrap4 :: CSSFramework
-bootstrap4 = def
-    { styledFlashMessage
-    , styledFormField
-    , styledTextFormField
-    , styledTextareaFormField
+    , styledSubmitButtonClass
     , styledCheckboxFormField
-    , styledSelectFormField
-    , styledFormGroup
-    , styledSubmitButton
-    , styledSubmitButtonClass
-    , styledFormFieldHelp
-    , styledInputClass
-    , styledInputInvalidClass
-    , styledFormGroupClass
-    , styledValidationResult
-    , styledValidationResultClass
-    , styledPagination
+    , styledRadioFormField
     , styledPaginationPageLink
     , styledPaginationDotDot
     , styledPaginationItemsPerPageSelector
-    , styledPaginationLinkPrevious
-    , styledPaginationLinkNext
     , styledBreadcrumb
     , styledBreadcrumbItem
     }
@@ -86,49 +47,8 @@ bootstrap4 = def
         styledInputClass _ FormField {} = "form-control"
         styledInputInvalidClass _ _ = "is-invalid"
 
-        styledFormFieldHelp _ FormField { helpText = "" } = mempty
-        styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text text-muted">{helpText}</small>|]
-
-        styledFormGroupClass = "form-group"
-
         styledValidationResultClass = "invalid-feedback"
-
         styledSubmitButtonClass = "btn btn-primary"
-
-
-        styledFormField :: CSSFramework -> FormField -> Blaze.Html
-        styledFormField cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField} formField =
-            formGroup renderInner
-            where
-                renderInner = case formField.fieldType of
-                    TextInput -> styledTextFormField cssFramework "text" formField validationResult
-                    NumberInput -> styledTextFormField cssFramework "number" formField validationResult
-                    PasswordInput -> styledTextFormField cssFramework "password" formField validationResult
-                    ColorInput -> styledTextFormField cssFramework "color" formField validationResult
-                    EmailInput -> styledTextFormField cssFramework "email" formField validationResult
-                    DateInput -> styledTextFormField cssFramework "date" formField validationResult
-                    DateTimeInput -> styledTextFormField cssFramework "datetime-local" formField validationResult
-                    UrlInput -> styledTextFormField cssFramework "url" formField validationResult
-                    CheckboxInput -> styledCheckboxFormField cssFramework formField validationResult
-                    HiddenInput -> styledTextFormField cssFramework "hidden" formField { disableLabel = True, disableGroup = True, disableValidationResult = True } validationResult
-                    TextareaInput -> styledTextareaFormField cssFramework formField validationResult
-                    SelectInput {} -> styledSelectFormField cssFramework formField validationResult
-                    RadioInput {} -> styledRadioFormField cssFramework formField validationResult
-                    FileInput -> styledTextFormField cssFramework "file" formField validationResult
-
-                validationResult :: Blaze.Html
-                validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)
-
-                -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
-                formGroup :: Blaze.Html -> Blaze.Html
-                formGroup renderInner = case formField of
-                    FormField { disableGroup = True } -> renderInner
-                    FormField { fieldInputId } -> styledFormGroup cssFramework fieldInputId renderInner
-
-
-        styledFormGroup :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html
-        styledFormGroup cssFramework@CSSFramework {styledFormGroupClass} fieldInputId renderInner =
-            [hsx|<div class={styledFormGroupClass} id={"form-group-" <> fieldInputId}>{renderInner}</div>|]
 
         styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
         styledCheckboxFormField cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
@@ -137,9 +57,6 @@ bootstrap4 = def
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
 
-                -- If the checkbox is checked off, the browser will not send the parameter as part of the form.
-                -- This will then make it impossible to set a field to False using a checkbox.
-                -- For that we add the "hidden" input type.
                 theInput = [hsx|
                                 <input
                                     type="checkbox"
@@ -155,7 +72,6 @@ bootstrap4 = def
 
                                 <input type="hidden" name={fieldName} value={inputValue False} />
                         |]
-
 
                 element = if disableLabel
                     then [hsx|<div>
@@ -177,108 +93,164 @@ bootstrap4 = def
                             {helpText}
                         |]
 
-        styledTextFormField :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
-        styledTextFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} inputType formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
+        styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
             [hsx|
                 {label}
-                <input
-                    type={inputType}
-                    name={fieldName}
-                    placeholder={placeholder}
-                    id={fieldInputId}
-                    class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                    value={maybeValue}
-                    required={required}
-                    disabled={disabled}
-                    autofocus={autofocus}
-                    {...additionalAttributes}
-                />
-
-                {validationResult}
-                {helpText}
-          |]
-            where
-                label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                inputClass = (styledInputClass cssFramework formField, True)
-                inputInvalidClass = styledInputInvalidClass cssFramework formField
-                helpText = styledFormFieldHelp cssFramework formField
-                -- If there's no value, then we want to hide the "value" attribute.
-                -- Exception: date and datetime inputs need the value attribute even when empty
-                -- for HTML5 validation to work properly with the required attribute.
-                maybeValue = if fieldValue == "" && inputType /= "date" && inputType /= "datetime-local"
-                    then Nothing
-                    else Just fieldValue
-
-        styledSelectFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
-        styledSelectFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
-            [hsx|
-                {label}
-                <select
-                    name={fieldName}
-                    id={fieldInputId}
-                    class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                    value={fieldValue}
-                    disabled={disabled}
-                    required={required}
-                    autofocus={autofocus}
-                    {...additionalAttributes}
-                >
-                    <option selected={not isValueSelected} disabled={True}>{placeholder}</option>
-                    {forEach (options fieldType) (getOption)}
-                </select>
+                <fieldset>
+                    {forEach (options fieldType) (getRadio)}
+                </fieldset>
 
                 {validationResult}
                 {helpText}
             |]
             where
-                label = unless disableLabel [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                inputClass = (styledInputClass cssFramework formField, True)
+                label = unless disableLabel [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
                 inputInvalidClass = styledInputInvalidClass cssFramework formField
                 helpText = styledFormFieldHelp cssFramework formField
 
-                isValueSelected = any (\(_, optionValue) -> optionValue == fieldValue) (options fieldType)
+                getRadio (optionLabel, optionValue) = [hsx|
+                    <div class="form-check">
+                        <input
+                            class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                            type="radio"
+                            id={optionId}
+                            name={fieldName}
+                            value={optionValue}
+                            checked={optionValue == fieldValue}
+                            disabled={disabled}
+                            required={required}
+                            autofocus={autofocus}
+                            {...additionalAttributes}
+                        />
+                        {radioLabel}
+                    </div>
+                |]
+                    where
+                        optionId = fieldInputId <> "_" <> optionValue
+                        radioLabel = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
-                -- Get a single option.
-                getOption (optionLabel, optionValue) = [hsx|
-                    <option value={optionValue} selected={optionValue == fieldValue}>
-                        {optionLabel}
-                    </option>
+        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+        styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
+            let
+                linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
+            in
+                [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
+
+        styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+        styledPaginationDotDot _ _ =
+            [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
+
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
+            let
+                oneOption :: Int -> Blaze.Html
+                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
+            in
+                [hsx|{forEach [10,20,50,100,200] oneOption}|]
+
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumb _ _ breadcrumbsView = [hsx|
+            <nav>
+                <ol class="breadcrumb">
+                    {breadcrumbsView.breadcrumbItems}
+
+                </ol>
+            </nav>
+        |]
+
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
+            let
+                breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
+            in
+            case url of
+                Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]
+                Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{breadcrumbLabel}</a></li>|]
+
+bootstrap :: CSSFramework
+bootstrap = bootstrapBase
+    { styledLabelClass
+    , styledFormGroupClass
+    , styledFormFieldHelp
+    , styledPagination
+    , styledPaginationLinkPrevious
+    , styledPaginationLinkNext
+    }
+    where
+        styledLabelClass = "form-label"
+        styledFormGroupClass = "mb-3"
+
+        styledFormFieldHelp _ FormField { helpText = "" } = mempty
+        styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text">{helpText}</small>|]
+
+        styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+        styledPagination _ paginationView =
+            [hsx|
+
+            <div class="d-flex justify-content-md-center">
+                <nav aria-label="Page Navigator" class="me-2">
+                    <ul class="pagination">
+                        {paginationView.linkPrevious}
+                        {paginationView.pageDotDotItems}
+                        {paginationView.linkNext}
+                    </ul>
+                </nav>
+
+                <div class="row">
+                    <div class="col-auto me-2">
+                        <select class="form-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                            {paginationView.itemsPerPageSelector}
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+            |]
+
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
+            let
+                prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+                url = if hasPreviousPage pagination then pageUrl else "#"
+            in
+                [hsx|
+                    <li class={prevClass}>
+                        <a class="page-link" href={url} aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                            <span class="visually-hidden">Previous</span>
+                        </a>
+                    </li>
                 |]
 
-        styledTextareaFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
-        styledTextareaFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
-            [hsx|
-                {label}
-                <textarea
-                    name={fieldName}
-                    placeholder={placeholder}
-                    id={fieldInputId}
-                    class={classes [inputClass, (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
-                    required={required}
-                    disabled={disabled}
-                    autofocus={autofocus}
-                    {...additionalAttributes}
-                >{fieldValue}</textarea>{validationResult}{helpText}|]
-            where
-                label = unless (disableLabel || null fieldLabel) [hsx|<label class={labelClass} for={fieldInputId}>{fieldLabel}</label>|]
-                inputClass = (styledInputClass cssFramework formField, True)
-                inputInvalidClass = styledInputInvalidClass cssFramework formField
-                helpText = styledFormFieldHelp cssFramework formField
-
-        styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
-        styledValidationResult cssFramework formField@FormField { validatorResult = Just violation } =
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
             let
-                className :: Text = cssFramework.styledValidationResultClass
-                message = case violation of
-                    TextViolation text -> [hsx|{text}|]
-                    HtmlViolation html -> Blaze.preEscapedToHtml html
+                nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+                url = if hasNextPage pagination then pageUrl else "#"
             in
-                [hsx|<div class={className}>{message}</div>|]
-        styledValidationResult _ _ = mempty
+                [hsx|
+                    <li class={nextClass}>
+                        <a class="page-link" href={url} aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                            <span class="visually-hidden">Next</span>
+                        </a>
+                    </li>
+                |]
 
-        styledSubmitButton cssFramework SubmitButton { label, buttonClass, buttonDisabled } =
-            let className :: Text = cssFramework.styledSubmitButtonClass
-            in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} disabled={buttonDisabled} type="submit">{label}</button>|]
+bootstrap4 :: CSSFramework
+bootstrap4 = bootstrapBase
+    { styledFormGroupClass
+    , styledFormFieldHelp
+    , styledPagination
+    , styledPaginationLinkPrevious
+    , styledPaginationLinkNext
+    }
+    where
+        styledFormGroupClass = "form-group"
+
+        styledFormFieldHelp _ FormField { helpText = "" } = mempty
+        styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text text-muted">{helpText}</small>|]
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
         styledPagination _ paginationView =
@@ -303,26 +275,6 @@ bootstrap4 = def
 
             </div>
             |]
-
-        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
-        styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
-            let
-                linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
-            in
-                [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
-
-
-        styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
-        styledPaginationDotDot _ _ =
-            [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
-
-        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
-        styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
-            let
-                oneOption :: Int -> Blaze.Html
-                oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
-            in
-                [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
         styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
@@ -353,23 +305,3 @@ bootstrap4 = def
                         </a>
                     </li>
                 |]
-
-        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
-        styledBreadcrumb _ _ breadcrumbsView = [hsx|
-            <nav>
-                <ol class="breadcrumb">
-                    {breadcrumbsView.breadcrumbItems}
-
-                </ol>
-            </nav>
-        |]
-
-
-        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
-        styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
-            let
-                breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
-            in
-            case url of
-                Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]
-                Just url -> [hsx|<li class={breadcrumbsClasses}><a href={url}>{breadcrumbLabel}</a></li>|]
