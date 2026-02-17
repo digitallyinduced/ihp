@@ -4,7 +4,8 @@ Description: Unstyled CSSFramework (base implementation)
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.CSSFramework.Unstyled
-( styledFlashMessageDefault
+( unstyled
+, styledFlashMessageDefault
 , styledFlashMessagesDefault
 , styledFormFieldDefault
 , styledFormGroupDefault
@@ -32,7 +33,6 @@ import Prelude hiding (null)
 import Data.Text (Text, null)
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
-import Data.Default (Default(..), def)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
 import IHP.ModelSupport.Types (Violation(..))
@@ -50,8 +50,8 @@ import IHP.Pagination.Types
 -- | Provides an unstyled CSSFramework
 --
 -- This way we can later add more properties to the CSSFramework without having to update all the CSS Frameworks manually
-instance Default CSSFramework where
-    def = CSSFramework
+unstyled :: CSSFramework
+unstyled = CSSFramework
             { styledFlashMessage = styledFlashMessageDefault
             , styledFlashMessages = styledFlashMessagesDefault
             , styledFormField = styledFormFieldDefault
@@ -67,6 +67,7 @@ instance Default CSSFramework where
             , styledInputClass = styledInputClassDefault
             , styledInputInvalidClass = styledInputInvalidClassDefault
             , styledFormGroupClass = ""
+            , styledLabelClass = "form-label"
             , styledValidationResult = styledValidationResultDefault
             , styledValidationResultClass = ""
             , styledPagination = styledPaginationDefault
@@ -88,9 +89,14 @@ styledFlashMessagesDefault :: CSSFramework -> [FlashMessage] -> Blaze.Html
 styledFlashMessagesDefault cssFramework flashMessages = forEach flashMessages (cssFramework.styledFlashMessage cssFramework)
 
 styledFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html
-styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField, styledFormGroup} formField =
+styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField, styledFormGroup} formField0 =
     formGroup renderInner
     where
+        -- Hidden inputs don't need labels, groups, or validation display
+        formField = case formField0.fieldType of
+            HiddenInput -> formField0 { disableLabel = True, disableGroup = True, disableValidationResult = True }
+            _ -> formField0
+
         renderInner = case formField.fieldType of
             TextInput -> styledTextFormField cssFramework "text" formField validationResult
             NumberInput -> styledTextFormField cssFramework "number" formField validationResult
@@ -184,7 +190,7 @@ styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledIn
         {helpText}
   |]
     where
-        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -214,7 +220,7 @@ styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styled
         {helpText}
     |]
     where
-        label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless disableLabel [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -279,7 +285,7 @@ styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styl
             {...additionalAttributes}
         >{fieldValue}</textarea>{validationResult}{helpText}|]
     where
-        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
