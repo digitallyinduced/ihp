@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.CSSFramework.Bootstrap (bootstrap, bootstrap4, bootstrapBase) where
 
 import Prelude hiding (null)
-import Data.Text (Text, null)
+import Data.Text (null)
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
 import Control.Monad (unless)
