@@ -130,16 +130,11 @@ worker :: forall job.
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
-    , SetField "attemptsCount" job Int
-    , SetField "lockedBy" job (Maybe UUID)
-    , SetField "status" job JobStatus
-    , SetField "updatedAt" job UTCTime
-    , SetField "runAt" job UTCTime
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
-    , SetField "lastError" job (Maybe Text)
     , Job job
-    , CanUpdate job
     , Show job
     , Table job
     ) => JobWorker
@@ -151,22 +146,18 @@ jobWorkerFetchAndRunLoop :: forall job.
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
-    , SetField "attemptsCount" job Int
-    , SetField "lockedBy" job (Maybe UUID)
-    , SetField "status" job JobStatus
-    , SetField "updatedAt" job UTCTime
-    , SetField "runAt" job UTCTime
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
-    , SetField "lastError" job (Maybe Text)
     , Job job
-    , CanUpdate job
     , Show job
     , Table job
     ) => JobWorkerArgs -> ResourceT IO JobWorkerProcess
 jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     let ?context = frameworkConfig
     let ?modelContext = modelContext
+    let pool = modelContext.hasqlPool
     action <- liftIO $ atomically $ newTBQueue (fromIntegral (maxConcurrency @job))
     -- Seed the queue with one initial JobAvailable so the dispatcher attempts a fetch on startup
     liftIO $ atomically $ writeTBQueue action JobAvailable
@@ -175,7 +166,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     activeWorkers <- liftIO $ newTVarIO ([] :: [Async ()])
 
     let runJobLoop = do
-            fetchResult <- Exception.tryAny (Queue.fetchNextJob @job workerId)
+            fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
             case fetchResult of
                 Left exception -> do
                     Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
@@ -188,10 +179,10 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                     resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
                     case resultOrException of
                         Left exception -> do
-                            Queue.jobDidFail job exception
+                            Queue.jobDidFail pool job exception
                             when (Exception.isAsyncException exception) (Exception.throwIO exception)
-                        Right Nothing -> Queue.jobDidTimeout job
-                        Right (Just _) -> Queue.jobDidSucceed job
+                        Right Nothing -> Queue.jobDidTimeout pool job
+                        Right (Just _) -> Queue.jobDidSucceed pool job
 
                     runJobLoop -- try next job immediately
                 Right Nothing -> pure ()
@@ -234,14 +225,14 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
     dispatcher <- allocate (async (dispatcherLoop `Exception.finally` cancelAllWorkers)) cancel
 
-    (subscription, pollerReleaseKey) <- Queue.watchForJob pgListener (tableName @job) (queuePollInterval @job) action
+    (subscription, pollerReleaseKey) <- Queue.watchForJob pool pgListener (tableName @job) (queuePollInterval @job) action
 
     -- Start stale job recovery if configured
     staleRecoveryReleaseKey <- case staleJobTimeout @job of
         Just threshold -> do
             let intervalMicroseconds = round (threshold / 2) * 1000000
             let recoveryLoop = forever do
-                    Queue.recoverStaleJobs @job threshold
+                    Queue.recoverStaleJobs @job pool threshold
                     -- Signal workers to check for recovered jobs
                     _ <- atomically $ tryWriteTBQueue action JobAvailable
                     pure ()
