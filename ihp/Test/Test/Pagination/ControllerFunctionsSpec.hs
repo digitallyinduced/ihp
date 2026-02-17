@@ -16,6 +16,7 @@ import qualified Network.Wai as Wai
 import qualified Database.PostgreSQL.Simple.Types as PG
 import System.Environment (lookupEnv)
 import qualified Control.Exception as Exception
+import Data.IORef (newIORef)
 
 tests :: Spec
 tests = do
@@ -23,7 +24,7 @@ tests = do
         describe "paginatedSqlQueryWithOptions" do
             it "should return first page with default options" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams []
+                ?context <- contextWithParams []
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -39,7 +40,7 @@ tests = do
 
             it "should return second page" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams [("page", "2")]
+                ?context <- contextWithParams [("page", "2")]
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -58,7 +59,7 @@ tests = do
 
             it "should respect maxItems from request param" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams [("maxItems", "10")]
+                ?context <- contextWithParams [("maxItems", "10")]
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -73,7 +74,7 @@ tests = do
 
             it "should respect custom options maxItems" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams []
+                ?context <- contextWithParams []
                 let ?request = ?context.request
                 let options = Options { maxItems = 25, windowSize = 3 }
 
@@ -89,7 +90,7 @@ tests = do
 
             it "should cap maxItems at 200" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams [("maxItems", "9999")]
+                ?context <- contextWithParams [("maxItems", "9999")]
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -104,7 +105,7 @@ tests = do
 
             it "should return empty results for page beyond data" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams [("page", "100")]
+                ?context <- contextWithParams [("page", "100")]
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -119,7 +120,7 @@ tests = do
 
             it "should handle page + maxItems together" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                let ?context = contextWithParams [("page", "3"), ("maxItems", "10")]
+                ?context <- contextWithParams [("page", "3"), ("maxItems", "10")]
                 let ?request = ?context.request
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -136,13 +137,15 @@ tests = do
                     (PG.Only first : _) -> first `shouldBe` 21
                     _ -> expectationFailure "Expected non-empty results"
 
--- | Create a ControllerContext with the given request params
-contextWithParams :: [(ByteString, ByteString)] -> ControllerContext
-contextWithParams params =
+-- | Create a mutable ControllerContext with the given request params.
+-- Must be mutable (not frozen) because pagination functions use 'putContext'
+-- to track the pagination counter.
+contextWithParams :: [(ByteString, ByteString)] -> IO ControllerContext
+contextWithParams params = do
     let requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-        customFields = TypeMap.insert request TypeMap.empty
-    in FrozenControllerContext { customFields }
+    customFieldsRef <- newIORef (TypeMap.insert request TypeMap.empty)
+    pure ControllerContext { customFieldsRef }
 
 -- | Run a test with a database connection, skipping if PostgreSQL is not available.
 -- Only connection failures are caught and marked as pending; test assertion errors propagate normally.
