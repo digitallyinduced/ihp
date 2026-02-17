@@ -271,7 +271,8 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: Test
-    build-depends: ihp 
+    ghc-options: -threaded
+    build-depends: ihp
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -293,3 +294,4 @@ test-suite tests
         Test.ControllerSupportSpec
         Test.HasqlEncoderSpec
         Test.AutoRefreshSpec
+        Test.Pagination.ControllerFunctionsSpec
