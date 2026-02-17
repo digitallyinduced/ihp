@@ -65,6 +65,7 @@ that is defined in flake-module.nix
 
             # Override checks that need a running PostgreSQL for integration tests
             // {
+                default = withTestPostgres self.packages.${system}.default;
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
