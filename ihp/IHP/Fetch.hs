@@ -30,7 +30,7 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
-import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement, toSQL)
+import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import qualified Hasql.Statement as Hasql
