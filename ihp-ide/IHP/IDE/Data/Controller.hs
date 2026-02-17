@@ -191,7 +191,7 @@ instance Controller DataController where
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toPreparedStatement snippet decoder
+    let statement = Snippet.toStatement snippet decoder
     let session = Session.statement () statement
     result <- HasqlPool.use pool session
     case result of
@@ -202,7 +202,7 @@ runSnippetQuery snippet decoder = do
 runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
 runSnippetExec snippet = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
+    let statement = Snippet.toStatement snippet Decoders.noResult
     let session = Session.statement () statement
     result <- HasqlPool.use pool session
     case result of
