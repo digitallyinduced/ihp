@@ -335,10 +335,7 @@ sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                -- In transaction: RLS already configured at BEGIN time
-                Hasql.statement input statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement input statement
@@ -400,7 +397,7 @@ sqlExecStatement pool input statement = do
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement input statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement input statement
@@ -450,9 +447,7 @@ sqlExecHasqlCount pool snippet = do
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement

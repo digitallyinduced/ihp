@@ -137,6 +137,7 @@ common shared-properties
             , hasql-postgresql-types
             , hasql-transaction
             , postgresql-types
+            , postgresql-simple-postgresql-types
             , contravariant
     default-extensions:
         OverloadedStrings
