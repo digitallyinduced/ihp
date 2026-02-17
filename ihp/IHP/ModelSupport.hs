@@ -335,10 +335,7 @@ sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                -- In transaction: RLS already configured at BEGIN time
-                Hasql.statement input statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement input statement
@@ -380,7 +377,7 @@ sqlStatementHasql pool input statement = do
 --
 sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
 sqlQueryHasql pool snippet decoder =
-    sqlStatementHasql pool () (Snippet.toPreparedStatement snippet decoder)
+    sqlStatementHasql pool () (Snippet.toStatement snippet decoder)
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
@@ -391,11 +388,9 @@ sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Sni
 sqlExecHasql pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
+    let statement = Snippet.toStatement snippet Decoders.noResult
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement
@@ -435,11 +430,9 @@ sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippe
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toPreparedStatement snippet Decoders.rowsAffected
+    let statement = Snippet.toStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement

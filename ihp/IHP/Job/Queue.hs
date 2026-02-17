@@ -377,6 +377,10 @@ textToEnumJobStatus t = HashMap.lookup t textToEnumJobStatusMap
 instance DefaultParamEncoder JobStatus where
     defaultParam = Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
 
+-- | DefaultParamEncoder for lists of JobStatus, needed for filterWhereIn/filterWhereNotIn
+instance DefaultParamEncoder [JobStatus] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
+
 getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
 getHasqlPool = pure ?modelContext.hasqlPool
 

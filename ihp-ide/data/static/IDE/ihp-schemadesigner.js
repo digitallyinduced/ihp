@@ -187,10 +187,13 @@ function initCodeEditor() {
 }
 
 function initTooltip() {
+    // Remove any orphaned tooltip elements left over from Turbolinks/morphdom transitions
+    document.querySelectorAll('body > .tooltip').forEach(function (el) { el.remove(); });
+
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
         var existing = bootstrap.Tooltip.getInstance(el);
         if (existing) existing.dispose();
-        new bootstrap.Tooltip(el, { container: 'body' });
+        new bootstrap.Tooltip(el, { container: 'body', popperConfig: { strategy: 'fixed' } });
     });
 }
 
@@ -199,6 +202,14 @@ document.addEventListener('turbolinks:load', initCodeEditor);
 document.addEventListener('turbolinks:load', initQueryAce);
 document.addEventListener('turbolinks:load', initTooltip);
 document.addEventListener('turbolinks:load', initDataEditorForeignKeyAutocomplete);
+
+// Dispose all tooltips before Turbolinks replaces the page to prevent orphaned tooltip elements
+document.addEventListener('turbolinks:before-render', function () {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+    });
+});
 
 function initQueryAce() {
     var editorEl = document.getElementById('queryInput');

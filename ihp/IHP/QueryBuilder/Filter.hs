@@ -45,10 +45,16 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (negateFilterOperator)
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.Implicits.Encoders (DefaultParamEncoder)
+import qualified Hasql.Encoders as Encoders
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import IHP.Hasql.Encoders () -- Import for DefaultParamEncoder instances
 import IHP.QueryBuilder.Compiler (qualifiedColumnName)
+import Data.Functor.Contravariant (contramap)
+
+-- | Build a 'ConditionValue' from any 'DefaultParamEncoder' value.
+paramValue :: DefaultParamEncoder a => a -> ConditionValue
+paramValue value = Param (contramap (const value) (Encoders.param defaultParam))
+{-# INLINE paramValue #-}
 
 -- | Adds a simple @WHERE x = y@ condition to the query.
 --
@@ -87,7 +93,7 @@ import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 filterWhere :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhere (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (toEqOrIsOperator value) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (toEqOrIsOperator value) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhere #-}
 
@@ -104,7 +110,7 @@ filterWhere (name, value) queryBuilderProvider = injectQueryBuilder $ addConditi
 filterWhereJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (toEqOrIsOperator value) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (toEqOrIsOperator value) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereJoinedTable #-}
 
@@ -121,7 +127,7 @@ filterWhereJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $
 filterWhereCaseInsensitiveJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereCaseInsensitiveJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (toEqOrIsOperator value) (Snippet.param value) (Just "LOWER") (Just "LOWER")
+        condition = ColumnCondition columnName (toEqOrIsOperator value) (paramValue value) (Just "LOWER") (Just "LOWER")
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereCaseInsensitiveJoinedTable #-}
 
@@ -137,7 +143,7 @@ filterWhereCaseInsensitiveJoinedTable (name, value) queryBuilderProvider = injec
 filterWhereNot :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereNot (name, value) queryBuilder = addCondition condition queryBuilder
     where
-        condition = ColumnCondition columnName (negateFilterOperator (toEqOrIsOperator value)) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (negateFilterOperator (toEqOrIsOperator value)) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereNot #-}
 
@@ -154,7 +160,7 @@ filterWhereNot (name, value) queryBuilder = addCondition condition queryBuilder
 filterWhereNotJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereNotJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (negateFilterOperator (toEqOrIsOperator value)) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (negateFilterOperator (toEqOrIsOperator value)) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereNotJoinedTable #-}
 -- | Adds a @WHERE x IN (y)@ condition to the query.
@@ -174,7 +180,7 @@ filterWhereIn (name, value) queryBuilderProvider =
             Nothing -> injectQueryBuilder $ addCondition inCondition qb -- All values non null
             Just nullValue ->
                 let
-                    isNullCondition = ColumnCondition columnName IsOp (Snippet.param nullValue) Nothing Nothing
+                    isNullCondition = ColumnCondition columnName IsOp (paramValue nullValue) Nothing Nothing
                 in
                     case head nonNullValues of
                         Just nonNullValue -> -- Some non null values, some null values
@@ -186,7 +192,7 @@ filterWhereIn (name, value) queryBuilderProvider =
         --
         (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        inCondition = ColumnCondition columnName InOp (Snippet.param nonNullValues) Nothing Nothing
+        inCondition = ColumnCondition columnName InOp (paramValue nonNullValues) Nothing Nothing
 
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
         qb = getQueryBuilder queryBuilderProvider
@@ -207,7 +213,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
             Nothing -> injectQueryBuilder $ addCondition inCondition qb
             Just nullValue ->
                 let
-                    isNullCondition = ColumnCondition columnName IsOp (Snippet.param nullValue) Nothing Nothing
+                    isNullCondition = ColumnCondition columnName IsOp (paramValue nullValue) Nothing Nothing
                 in
                     case head nonNullValues of
                         Just _ ->
@@ -218,7 +224,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
 
         lowerValues = map toLower nonNullValues
 
-        inCondition = ColumnCondition lowerColumnName InOp (Snippet.param lowerValues) Nothing Nothing
+        inCondition = ColumnCondition lowerColumnName InOp (paramValue lowerValues) Nothing Nothing
 
         lowerColumnName = "LOWER(" <> columnName <> ")"
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
@@ -239,7 +245,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilderProvider =
 filterWhereInJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder [value], HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, [value]) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName InOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName InOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereInJoinedTable #-}
 
@@ -262,15 +268,15 @@ filterWhereNotIn (name, value) queryBuilderProvider =
             Nothing -> injectQueryBuilder $ addCondition notInCondition qb -- All values non null
             Just nullValue ->
                 case head nonNullValues of
-                    Just nonNullValue -> injectQueryBuilder $ addCondition (ColumnCondition columnName IsNotOp (Snippet.param nullValue) Nothing Nothing) (addCondition notInCondition qb) -- Some non null values, some null values
-                    Nothing -> injectQueryBuilder $ addCondition (ColumnCondition columnName IsNotOp (Snippet.param nullValue) Nothing Nothing) qb -- All values null
+                    Just nonNullValue -> injectQueryBuilder $ addCondition (ColumnCondition columnName IsNotOp (paramValue nullValue) Nothing Nothing) (addCondition notInCondition qb) -- Some non null values, some null values
+                    Nothing -> injectQueryBuilder $ addCondition (ColumnCondition columnName IsNotOp (paramValue nullValue) Nothing Nothing) qb -- All values null
     where
         -- Only NOT NULL values can be compares inside the IN expression, NULL values have to be compares using a manual appended IS expression
         -- https://github.com/digitallyinduced/ihp/issues/906
         --
         (nonNullValues, nullValues) = value |> partition (\v -> toEqOrIsOperator v == EqOp)
 
-        notInCondition = ColumnCondition columnName NotInOp (Snippet.param nonNullValues) Nothing Nothing
+        notInCondition = ColumnCondition columnName NotInOp (paramValue nonNullValues) Nothing Nothing
 
         columnName = qualifiedColumnName (symbolToText @table) (symbolToText @name)
         qb = getQueryBuilder queryBuilderProvider
@@ -289,7 +295,7 @@ filterWhereNotInJoinedTable :: forall model name table  value queryBuilderProvid
 filterWhereNotInJoinedTable (_, []) queryBuilderProvider = queryBuilderProvider -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName NotInOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName NotInOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereNotInJoinedTable #-}
 
@@ -305,7 +311,7 @@ filterWhereNotInJoinedTable (name, value) queryBuilderProvider = injectQueryBuil
 filterWhereLike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (LikeOp CaseSensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (LikeOp CaseSensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereLike #-}
 
@@ -321,7 +327,7 @@ filterWhereLike (name, value) queryBuilderProvider = injectQueryBuilder $ addCon
 filterWhereLikeJoinedTable :: forall model name table value queryBuilderProvider joinRegister table'. (KnownSymbol name, KnownSymbol table, table ~ GetTableName model, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (LikeOp CaseSensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (LikeOp CaseSensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereLikeJoinedTable #-}
 
@@ -337,7 +343,7 @@ filterWhereLikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuild
 filterWhereILike :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (LikeOp CaseInsensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (LikeOp CaseInsensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereILike #-}
 
@@ -353,7 +359,7 @@ filterWhereILike (name, value) queryBuilderProvider = injectQueryBuilder $ addCo
 filterWhereILikeJoinedTable :: forall model table name table' model' value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, model' ~ GetModelByTableName table', HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (LikeOp CaseInsensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (LikeOp CaseInsensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereILikeJoinedTable #-}
 
@@ -369,7 +375,7 @@ filterWhereILikeJoinedTable (name, value) queryBuilderProvider = injectQueryBuil
 filterWhereMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (MatchesOp CaseSensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (MatchesOp CaseSensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereMatches #-}
 
@@ -386,7 +392,7 @@ filterWhereMatches (name, value) queryBuilderProvider = injectQueryBuilder $ add
 filterWhereMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (MatchesOp CaseSensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (MatchesOp CaseSensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereMatchesJoinedTable #-}
 
@@ -395,7 +401,7 @@ filterWhereMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBu
 filterWhereIMatches :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (MatchesOp CaseInsensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (MatchesOp CaseInsensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereIMatches #-}
 
@@ -403,7 +409,7 @@ filterWhereIMatches (name, value) queryBuilderProvider = injectQueryBuilder $ ad
 filterWhereIMatchesJoinedTable :: forall model table name value queryBuilderProvider joinRegister table'. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, HasQueryBuilder queryBuilderProvider joinRegister, IsJoined model joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table' -> queryBuilderProvider table'
 filterWhereIMatchesJoinedTable (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (MatchesOp CaseInsensitive) (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName (MatchesOp CaseInsensitive) (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereIMatchesJoinedTable #-}
 
@@ -463,7 +469,7 @@ filterWhereFuture name = filterWhereSql (name, "> NOW()")
 filterWhereGreaterThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereGreaterThan (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName GreaterThanOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName GreaterThanOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereGreaterThan #-}
 
@@ -492,7 +498,7 @@ filterWhereLarger = filterWhereGreaterThan
 filterWhereGreaterThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereGreaterThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName GreaterThanOrEqualToOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName GreaterThanOrEqualToOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereGreaterThanOrEqualTo #-}
 
@@ -521,7 +527,7 @@ filterWhereAtLeast = filterWhereGreaterThanOrEqualTo
 filterWhereLessThan :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereLessThan (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName LessThanOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName LessThanOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereLessThan #-}
 
@@ -550,7 +556,7 @@ filterWhereSmaller = filterWhereLessThan
 filterWhereLessThanOrEqualTo :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereLessThanOrEqualTo (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName LessThanOrEqualToOp (Snippet.param value) Nothing Nothing
+        condition = ColumnCondition columnName LessThanOrEqualToOp (paramValue value) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereLessThanOrEqualTo #-}
 
@@ -581,7 +587,7 @@ filterWhereAtMost = filterWhereLessThanOrEqualTo
 filterWhereSql :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, Text) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName SqlOp (Snippet.sql sqlCondition) Nothing Nothing
+        condition = ColumnCondition columnName SqlOp (Literal sqlCondition) Nothing Nothing
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereSql #-}
 
@@ -601,7 +607,7 @@ filterWhereSql (name, sqlCondition) queryBuilderProvider = injectQueryBuilder $ 
 filterWhereCaseInsensitive :: forall name table model value queryBuilderProvider joinRegister. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, Table model) => (Proxy name, value) -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
     where
-        condition = ColumnCondition columnName (toEqOrIsOperator value) (Snippet.param value) (Just "LOWER") (Just "LOWER")
+        condition = ColumnCondition columnName (toEqOrIsOperator value) (paramValue value) (Just "LOWER") (Just "LOWER")
         columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
 {-# INLINE filterWhereCaseInsensitive #-}
 
@@ -612,7 +618,7 @@ filterWhereIdIn values queryBuilderProvider =
     -- Extract the raw primary key values from the Id wrappers
     let
         rawPrimaryKeys = map (\(Id pk) -> pk) values
-        condition = ColumnCondition (primaryKeyConditionColumnSelector @model) InOp (Snippet.param rawPrimaryKeys) Nothing Nothing
+        condition = ColumnCondition (primaryKeyConditionColumnSelector @model) InOp (paramValue rawPrimaryKeys) Nothing Nothing
      in
         injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)
 {-# INLINE filterWhereIdIn #-}
