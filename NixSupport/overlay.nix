@@ -135,7 +135,7 @@ let
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
             postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callCabal2nix "postgresql-simple-postgresql-types" (builtins.fetchTarball {
                 url = "https://github.com/nikita-volkov/postgresql-simple-postgresql-types/archive/1aebd39.tar.gz";
-                sha256 = "0000000000000000000000000000000000000000000000000000";
+                sha256 = "1saz10qyhp5ag13kq5x3rl12nc9mv6xiycik941rcpqcdkcirny4";
             }) {}));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
