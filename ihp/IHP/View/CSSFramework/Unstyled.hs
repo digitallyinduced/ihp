@@ -47,7 +47,7 @@ import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 
--- | Provides an unstyled CSSFramework
+-- | Provides a truly unstyled CSSFramework with no CSS classes
 --
 -- This way we can later add more properties to the CSSFramework without having to update all the CSS Frameworks manually
 unstyled :: CSSFramework
@@ -67,7 +67,7 @@ unstyled = CSSFramework
             , styledInputClass = styledInputClassDefault
             , styledInputInvalidClass = styledInputInvalidClassDefault
             , styledFormGroupClass = ""
-            , styledLabelClass = "form-label"
+            , styledLabelClass = ""
             , styledValidationResult = styledValidationResultDefault
             , styledValidationResultClass = ""
             , styledPagination = styledPaginationDefault
@@ -128,7 +128,7 @@ styledFormGroupDefault cssFramework@CSSFramework {styledFormGroupClass} fieldInp
 
 styledCheckboxFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
 styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
-    [hsx|<div class="form-check">{element}</div>|]
+    [hsx|<div>{element}</div>|]
     where
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -137,7 +137,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
                         <input
                             type="checkbox"
                             name={fieldName}
-                            class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                            class={classes [(inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                             id={fieldInputId}
                             checked={fieldValue == "yes"}
                             required={required}
@@ -159,7 +159,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
             else [hsx|
                     {theInput}
                     <label
-                        class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
+                        class={classes [(labelClass, labelClass /= "")]}
                         for={fieldInputId}
                     >
                         {fieldLabel}
@@ -245,14 +245,14 @@ styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledI
         {helpText}
     |]
     where
-        label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless disableLabel [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
 
         getRadio (optionLabel, optionValue) = [hsx|
-            <div class="form-check">
+            <div>
                 <input
-                    class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                    class={classes [(inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                     type="radio"
                     id={optionId}
                     name={fieldName}
@@ -268,7 +268,7 @@ styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledI
         |]
             where
                 optionId = fieldInputId <> "_" <> optionValue
-                radioLabel = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
+                radioLabel = unless disableLabel [hsx|<label class={classes [(labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
 styledTextareaFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
 styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
@@ -320,36 +320,30 @@ styledPaginationDefault :: CSSFramework -> PaginationView -> Blaze.Html
 styledPaginationDefault _ paginationView =
     [hsx|
 
-    <div class="d-flex justify-content-md-center">
-        <nav aria-label="Page Navigator" class="me-2">
-            <ul class="pagination">
-                {paginationView.linkPrevious}
-                {paginationView.pageDotDotItems}
-                {paginationView.linkNext}
-            </ul>
-        </nav>
+    <nav aria-label="Page Navigator">
+        <ul>
+            {paginationView.linkPrevious}
+            {paginationView.pageDotDotItems}
+            {paginationView.linkNext}
+        </ul>
+    </nav>
 
-        <div class="row">
-            <div class="col-auto me-2">
-                <select class="form-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                    {paginationView.itemsPerPageSelector}
-                </select>
-            </div>
-        </div>
+    <select id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+        {paginationView.itemsPerPageSelector}
+    </select>
 
-    </div>
     |]
 
 styledPaginationPageLinkDefault :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
 styledPaginationPageLinkDefault _ pagination@Pagination {currentPage} pageUrl pageNumber =
     let
-        linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
+        linkClass = classes [("active", pageNumber == currentPage)]
     in
-        [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
+        [hsx|<li class={linkClass}><a href={pageUrl}>{show pageNumber}</a></li>|]
 
 styledPaginationDotDotDefault :: CSSFramework -> Pagination -> Blaze.Html
 styledPaginationDotDotDefault _ _ =
-    [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
+    [hsx|<li><a>…</a></li>|]
 
 styledPaginationItemsPerPageSelectorDefault :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
 styledPaginationItemsPerPageSelectorDefault _ pagination@Pagination {pageSize} itemsPerPageUrl =
@@ -362,14 +356,13 @@ styledPaginationItemsPerPageSelectorDefault _ pagination@Pagination {pageSize} i
 styledPaginationLinkPreviousDefault :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
 styledPaginationLinkPreviousDefault _ pagination@Pagination {currentPage} pageUrl =
     let
-        prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+        prevClass = classes [("disabled", not $ hasPreviousPage pagination)]
         url = if hasPreviousPage pagination then pageUrl else "#"
     in
         [hsx|
             <li class={prevClass}>
-                <a class="page-link" href={url} aria-label="Previous">
+                <a href={url} aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
-                    <span class="visually-hidden">Previous</span>
                 </a>
             </li>
         |]
@@ -377,14 +370,13 @@ styledPaginationLinkPreviousDefault _ pagination@Pagination {currentPage} pageUr
 styledPaginationLinkNextDefault :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
 styledPaginationLinkNextDefault _ pagination@Pagination {currentPage} pageUrl =
     let
-        nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+        nextClass = classes [("disabled", not $ hasNextPage pagination)]
         url = if hasNextPage pagination then pageUrl else "#"
     in
         [hsx|
             <li class={nextClass}>
-                <a class="page-link" href={url} aria-label="Next">
+                <a href={url} aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
-                    <span class="visually-hidden">Next</span>
                 </a>
             </li>
         |]
@@ -392,7 +384,7 @@ styledPaginationLinkNextDefault _ pagination@Pagination {currentPage} pageUrl =
 styledBreadcrumbDefault :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
 styledBreadcrumbDefault _ _ breadcrumbsView = [hsx|
     <nav>
-        <ol class="breadcrumb">
+        <ol>
             {breadcrumbsView.breadcrumbItems}
 
         </ol>
@@ -402,7 +394,7 @@ styledBreadcrumbDefault _ _ breadcrumbsView = [hsx|
 styledBreadcrumbItemDefault :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
 styledBreadcrumbItemDefault _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
     let
-        breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
+        breadcrumbsClasses = classes [("active", isLast)]
     in
     case url of
         Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]
