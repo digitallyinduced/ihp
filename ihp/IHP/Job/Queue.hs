@@ -7,7 +7,6 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Job.Queue where
 
 import IHP.Prelude
-import Data.Int (Int32)
 import IHP.Job.Types
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
