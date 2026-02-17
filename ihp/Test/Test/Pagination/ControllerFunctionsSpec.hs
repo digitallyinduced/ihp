@@ -26,10 +26,10 @@ tests = do
                 let ?context = contextWithParams []
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100)::int AS n"
+                        "SELECT generate_series(1, 100) AS n"
                         ()
 
                 length results `shouldBe` 50
@@ -42,10 +42,10 @@ tests = do
                 let ?context = contextWithParams [("page", "2")]
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100)::int AS n"
+                        "SELECT generate_series(1, 100) AS n"
                         ()
 
                 length results `shouldBe` 50
@@ -61,10 +61,10 @@ tests = do
                 let ?context = contextWithParams [("maxItems", "10")]
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100)::int AS n"
+                        "SELECT generate_series(1, 100) AS n"
                         ()
 
                 length results `shouldBe` 10
@@ -77,10 +77,10 @@ tests = do
                 let ?request = ?context.request
                 let options = Options { maxItems = 25, windowSize = 3 }
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         options
-                        "SELECT generate_series(1, 100)::int AS n"
+                        "SELECT generate_series(1, 100) AS n"
                         ()
 
                 length results `shouldBe` 25
@@ -92,10 +92,10 @@ tests = do
                 let ?context = contextWithParams [("maxItems", "9999")]
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 500)::int AS n"
+                        "SELECT generate_series(1, 500) AS n"
                         ()
 
                 length results `shouldBe` 200
@@ -107,10 +107,10 @@ tests = do
                 let ?context = contextWithParams [("page", "100")]
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 10)::int AS n"
+                        "SELECT generate_series(1, 10) AS n"
                         ()
 
                 length results `shouldBe` 0
@@ -122,10 +122,10 @@ tests = do
                 let ?context = contextWithParams [("page", "3"), ("maxItems", "10")]
                 let ?request = ?context.request
 
-                (results :: [PG.Only Int], pagination) <-
+                (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
                         defaultPaginationOptions
-                        "SELECT generate_series(1, 100)::int AS n"
+                        "SELECT generate_series(1, 100) AS n"
                         ()
 
                 length results `shouldBe` 10
