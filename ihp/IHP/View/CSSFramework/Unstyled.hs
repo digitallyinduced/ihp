@@ -312,7 +312,8 @@ styledInputInvalidClassDefault _ _ = "invalid"
 
 styledPaginationDefault :: CSSFramework -> PaginationView -> Blaze.Html
 styledPaginationDefault _ paginationView =
-    [hsx|
+    let selectId = "maxItemsSelect" <> paginationView.paramSuffix
+    in [hsx|
 
     <div class="d-flex justify-content-md-center">
         <nav aria-label="Page Navigator" class="me-2">
@@ -325,7 +326,7 @@ styledPaginationDefault _ paginationView =
 
         <div class="row">
             <div class="col-auto me-2">
-                <select class="form-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                <select class="form-select" id={selectId} onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                     {paginationView.itemsPerPageSelector}
                 </select>
             </div>

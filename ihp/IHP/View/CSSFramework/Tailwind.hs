@@ -286,6 +286,8 @@ tailwind = def
                         </a>
                     |]
 
+                selectId = "maxItemsSelect" <> paginationView.paramSuffix
+
             in
             [hsx|
                 <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
@@ -295,7 +297,7 @@ tailwind = def
                     </div>
                     <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                         <div class="text-sm text-gray-700">
-                            <select class="px-4 py-3" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                            <select class="px-4 py-3" id={selectId} onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                                 {paginationView.itemsPerPageSelector}
                             </select>
                         </div>

@@ -282,7 +282,8 @@ bootstrap4 = def
 
         styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
         styledPagination _ paginationView =
-            [hsx|
+            let selectId = "maxItemsSelect" <> paginationView.paramSuffix
+            in [hsx|
 
             <div class="d-flex justify-content-md-center">
                 <nav aria-label="Page Navigator" class="mr-2">
@@ -295,7 +296,7 @@ bootstrap4 = def
 
                 <div class="form-row">
                     <div class="col-auto mr-2">
-                        <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+                        <select class="custom-select" id={selectId} onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
                             {paginationView.itemsPerPageSelector}
                         </select>
                     </div>

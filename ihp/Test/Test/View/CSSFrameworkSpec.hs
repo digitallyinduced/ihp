@@ -287,6 +287,7 @@ tests = do
                         ,   totalItems = 12
                         ,   currentPage = 2
                         ,   window = 3
+                        ,   paramSuffix = ""
                         }
                 it "should render previous link" do
                     let pagination = basePagination
@@ -318,6 +319,7 @@ tests = do
                             , linkNext = mempty
                             , pageDotDotItems = mempty
                             , itemsPerPageSelector = mempty
+                            , paramSuffix = ""
                             }
 
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
@@ -329,6 +331,7 @@ tests = do
                             , totalItems = 15
                             , currentPage = 1
                             , window = 3
+                            , paramSuffix = ""
                             }
 
                     context <- createControllerContextWithCSSFramework cssFramework
@@ -345,6 +348,7 @@ tests = do
                             , totalItems = 5
                             , currentPage = 1
                             , window = 3
+                            , paramSuffix = ""
                             }
 
                     context <- createControllerContextWithCSSFramework cssFramework
@@ -586,6 +590,7 @@ tests = do
                         ,   totalItems = 12
                         ,   currentPage = 2
                         ,   window = 3
+                        ,   paramSuffix = ""
                         }
                 it "should render previous link" do
                     let pagination = basePagination
@@ -617,6 +622,7 @@ tests = do
                             , linkNext = mempty
                             , pageDotDotItems = mempty
                             , itemsPerPageSelector = mempty
+                            , paramSuffix = ""
                             }
 
                     let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
@@ -628,6 +634,7 @@ tests = do
                             , totalItems = 15
                             , currentPage = 1
                             , window = 3
+                            , paramSuffix = ""
                             }
 
                     context <- createControllerContextWithCSSFramework cssFramework
@@ -644,6 +651,7 @@ tests = do
                             , totalItems = 5
                             , currentPage = 1
                             , window = 3
+                            , paramSuffix = ""
                             }
 
                     context <- createControllerContextWithCSSFramework cssFramework

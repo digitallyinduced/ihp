@@ -26,6 +26,24 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Data.Text.Encoding (encodeUtf8)
 
+-- | Counter stored in the controller context to auto-assign unique suffixes
+-- to each pagination on a page.
+newtype PaginationCounter = PaginationCounter Int
+    deriving (Typeable)
+
+-- | Get the next pagination suffix and increment the counter.
+--
+-- Returns @""@ for the first pagination (backward compatible),
+-- @"_2"@ for the second, @"_3"@ for the third, etc.
+nextPaginationSuffix :: (?context :: ControllerContext) => IO Text
+nextPaginationSuffix = do
+    counter <- maybeFromContext @PaginationCounter
+    let n = case counter of
+                Just (PaginationCounter c) -> c
+                Nothing -> 0
+    putContext (PaginationCounter (n + 1))
+    pure $ if n == 0 then "" else "_" <> tshow (n + 1)
+
 -- | Paginate a query, with the following default options:
 --
 -- 1. Maximum items per page: 50. Each page will show at most 50 items.
@@ -40,6 +58,11 @@ import Data.Text.Encoding (encodeUtf8)
 --        of 100 to display results 100 through 150.
 --     2. Returns a 'Pagination' state which should be passed through to your view and then,
 --        in turn, 'renderPagination'.
+--
+-- Each call to 'paginate' (or 'paginateWithOptions', 'paginatedSqlQuery', 'paginatedSqlQueryWithOptions')
+-- within a single request automatically gets a unique suffix for its query parameters, so multiple
+-- paginations on the same page don't conflict. The first call uses no suffix (backward compatible),
+-- subsequent calls use @_2@, @_3@, etc.
 --
 -- Example:
 --
@@ -92,20 +115,23 @@ paginateWithOptions :: forall controller table queryBuilderProvider joinRegister
     -> queryBuilderProvider table
     -> IO (queryBuilderProvider table, Pagination)
 paginateWithOptions options query = do
+    suffix <- nextPaginationSuffix
     count <- query
         |> fetchCount
 
-    let pageSize = pageSize' options
+    let pageSize = pageSizeWithSuffix options suffix
+        currentPage = pageWithSuffix suffix
         pagination = Pagination
-            { currentPage = page
+            { currentPage = currentPage
             , totalItems = fromIntegral count
             , pageSize = pageSize
             , window = windowSize options
+            , paramSuffix = suffix
             }
 
     let results = query
             |> limit pageSize
-            |> offset (offset' pageSize page)
+            |> offset (offset' pageSize currentPage)
 
     pure
         ( results
@@ -212,21 +238,24 @@ paginatedSqlQueryWithOptions
      )
   => Options -> Text -> parameters -> IO ([model], Pagination)
 paginatedSqlQueryWithOptions options sql placeholders = do
+    suffix <- nextPaginationSuffix
     let pool = ?modelContext.hasqlPool
     let baseParams = toSnippetParams placeholders
 
     let countSnippet = sqlToSnippet ("SELECT count(subquery.*) FROM (" <> encodeUtf8 sql <> ") as subquery") baseParams
     count :: Int <- sqlQueryHasql pool countSnippet (Decoders.singleRow hasqlColumnDecoder)
 
-    let pageSize = pageSize' options
+    let pageSize = pageSizeWithSuffix options suffix
+        currentPage = pageWithSuffix suffix
         pagination = Pagination
             { pageSize = pageSize
             , totalItems = fromIntegral count
-            , currentPage = fromIntegral page
+            , currentPage = currentPage
             , window = windowSize options
+            , paramSuffix = suffix
             }
 
-    let resultsSnippet = sqlToSnippet ("SELECT subquery.* FROM (" <> encodeUtf8 sql <> ") as subquery LIMIT ? OFFSET ?") (baseParams <> [Snippet.param pageSize, Snippet.param (offset' pageSize page)])
+    let resultsSnippet = sqlToSnippet ("SELECT subquery.* FROM (" <> encodeUtf8 sql <> ") as subquery LIMIT ? OFFSET ?") (baseParams <> [Snippet.param pageSize, Snippet.param (offset' pageSize currentPage)])
     results :: [model] <- sqlQueryHasql pool resultsSnippet (Decoders.rowList hasqlRowDecoder)
 
     pure (results, pagination)
@@ -234,12 +263,12 @@ paginatedSqlQueryWithOptions options sql placeholders = do
 -- We limit the page size to a maximum of 200, to prevent users from
 -- passing in query params with a value that could overload the
 -- database (e.g. maxItems=100000)
-pageSize' :: (?request :: Request) => Options -> Int
-pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
+pageSizeWithSuffix :: (?request :: Request) => Options -> Text -> Int
+pageSizeWithSuffix options suffix = min (max 1 $ paramOrDefault @Int (maxItems options) ("maxItems" <> suffix)) 200
 
 -- Page and page size shouldn't be lower than 1.
-page :: (?request :: Request) => Int
-page = max 1 $ paramOrDefault @Int 1 "page"
+pageWithSuffix :: (?request :: Request) => Text -> Int
+pageWithSuffix suffix = max 1 $ paramOrDefault @Int 1 ("page" <> suffix)
 
 offset' :: Int -> Int -> Int
 offset' pageSize page = (page - 1) * pageSize

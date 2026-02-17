@@ -1,15 +1,18 @@
 module IHP.Pagination.Types where
 
 import Prelude
+import Data.Text (Text)
 import IHP.HaskellSupport (SetField(..))
 
-data Pagination = 
+data Pagination =
     Pagination
     {
         pageSize :: Int     -- the number of items per page
     ,   totalItems :: Int   -- the total number of items in the result
     ,   currentPage :: Int  -- the currently-selected page
     ,   window :: Int       -- The size of the window
+    ,   paramSuffix :: Text -- ^ Suffix for query param names to support multiple paginations per page.
+                            -- First pagination gets @""@, second gets @"_2"@, third @"_3"@, etc.
     }
     deriving(Show)
 
