@@ -83,9 +83,10 @@ fetchNextJob pool workerId = do
     let statement = Hasql.unpreparable sql encoder decoder
     runPool pool (HasqlSession.statement workerId statement)
 
--- | Shared WHERE condition for fetching pending jobs.
+-- | Shared WHERE condition for fetching pending jobs as a SQL text fragment.
 -- Matches jobs that are either not started or in retry state,
 -- not locked, and whose run_at time has passed.
+-- Enum values are inlined as SQL string literals (PostgreSQL casts them to job_status).
 pendingJobConditionSQL :: Text
 pendingJobConditionSQL =
     "(status = 'job_status_not_started'"

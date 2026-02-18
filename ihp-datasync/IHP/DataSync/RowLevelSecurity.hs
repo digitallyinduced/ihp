@@ -22,8 +22,6 @@ where
 
 import IHP.ControllerPrelude hiding (sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Hasql.Pool
-import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
@@ -77,11 +75,11 @@ sqlQueryWithRLSSession ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Decoders.Result [result] -> Session.Session [result]
-sqlQueryWithRLSSession snippet decoder =
+    ) => Statement.Statement () [result] -> Session.Session [result]
+sqlQueryWithRLSSession statement =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
+        Tx.statement () statement
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -98,11 +96,11 @@ sqlQueryWriteWithRLSSession ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Decoders.Result [result] -> Session.Session [result]
-sqlQueryWriteWithRLSSession snippet decoder =
+    ) => Statement.Statement () [result] -> Session.Session [result]
+sqlQueryWriteWithRLSSession statement =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
+        Tx.statement () statement
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -115,11 +113,11 @@ sqlExecWithRLSSession ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Session.Session ()
-sqlExecWithRLSSession snippet =
+    ) => Statement.Statement () () -> Session.Session ()
+sqlExecWithRLSSession statement =
     Tx.transaction Tx.ReadCommitted Tx.Write $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toPreparedStatement snippet Decoders.noResult)
+        Tx.statement () statement
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -132,11 +130,11 @@ sqlQueryScalarWithRLSSession ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Snippet -> Decoders.Result result -> Session.Session result
-sqlQueryScalarWithRLSSession snippet decoder =
+    ) => Statement.Statement () result -> Session.Session result
+sqlQueryScalarWithRLSSession statement =
     Tx.transaction Tx.ReadCommitted Tx.Read $ do
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
-        Tx.statement () (Snippet.toPreparedStatement snippet decoder)
+        Tx.statement () statement
     where
         encodedUserId = case (.id) <$> currentUserOrNothing of
             Just userId -> tshow userId
@@ -151,8 +149,8 @@ sqlQueryWithRLS ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
-sqlQueryWithRLS pool snippet decoder = runSession pool (sqlQueryWithRLSSession snippet decoder)
+    ) => Hasql.Pool.Pool -> Statement.Statement () [result] -> IO [result]
+sqlQueryWithRLS pool statement = runSession pool (sqlQueryWithRLSSession statement)
 {-# INLINE sqlQueryWithRLS #-}
 
 -- | Like 'sqlQueryWithRLS', but uses a write transaction.
@@ -165,8 +163,8 @@ sqlQueryWriteWithRLS ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result [result] -> IO [result]
-sqlQueryWriteWithRLS pool snippet decoder = runSession pool (sqlQueryWriteWithRLSSession snippet decoder)
+    ) => Hasql.Pool.Pool -> Statement.Statement () [result] -> IO [result]
+sqlQueryWriteWithRLS pool statement = runSession pool (sqlQueryWriteWithRLSSession statement)
 {-# INLINE sqlQueryWriteWithRLS #-}
 
 sqlExecWithRLS ::
@@ -175,8 +173,8 @@ sqlExecWithRLS ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Hasql.Pool.Pool -> Snippet -> IO ()
-sqlExecWithRLS pool snippet = runSession pool (sqlExecWithRLSSession snippet)
+    ) => Hasql.Pool.Pool -> Statement.Statement () () -> IO ()
+sqlExecWithRLS pool statement = runSession pool (sqlExecWithRLSSession statement)
 {-# INLINE sqlExecWithRLS #-}
 
 sqlQueryScalarWithRLS ::
@@ -185,8 +183,8 @@ sqlQueryScalarWithRLS ::
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    ) => Hasql.Pool.Pool -> Snippet -> Decoders.Result result -> IO result
-sqlQueryScalarWithRLS pool snippet decoder = runSession pool (sqlQueryScalarWithRLSSession snippet decoder)
+    ) => Hasql.Pool.Pool -> Statement.Statement () result -> IO result
+sqlQueryScalarWithRLS pool statement = runSession pool (sqlQueryScalarWithRLSSession statement)
 {-# INLINE sqlQueryScalarWithRLS #-}
 
 -- | Returns a proof that RLS is enabled for a table

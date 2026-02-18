@@ -13,6 +13,9 @@ module IHP.QueryBuilder.HasqlCompiler
 , buildWrappedStatement
 , toSQL
 , compileOperator
+, CompilerState(..)
+, emptyCompilerState
+, nextParam
 ) where
 
 import IHP.Prelude
@@ -129,7 +132,10 @@ compileCondition cc (ColumnCondition column operator value applyLeft applyRight)
             Nothing -> txt
         colText = applyFn applyLeft column
         opText = compileOperator operator
-        (valText, cc') = compileConditionValue cc value
+        (valText, cc') = case operator of
+            IsOp -> ("NULL", cc)
+            IsNotOp -> ("NULL", cc)
+            _ -> compileConditionValue cc value
         valWrapped = case operator of
             InOp -> "(" <> valText <> ")"
             NotInOp -> "(" <> valText <> ")"

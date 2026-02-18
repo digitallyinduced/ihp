@@ -602,6 +602,8 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> modelName <> ") where\n"
         <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> modelName <> "] where\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
