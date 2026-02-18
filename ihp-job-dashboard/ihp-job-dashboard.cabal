@@ -23,6 +23,7 @@ library
             , blaze-html
             , blaze-markup
             , ihp
+            , ihp-auto-refresh
             , ihp-hsx
             , http-types
             , wai-request-params
