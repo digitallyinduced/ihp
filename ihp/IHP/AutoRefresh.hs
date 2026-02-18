@@ -54,7 +54,12 @@ getOrCreateAutoRefreshServer =
 -- | Limits the client-side morphing to the DOM node matching the given CSS selector.
 -- Useful when combining Auto Refresh with fragment based renderers such as HTMX.
 setAutoRefreshTarget :: (?context :: ControllerContext) => Text -> IO ()
-setAutoRefreshTarget selector = putContext (AutoRefreshTarget selector)
+setAutoRefreshTarget selector = do
+    let currentRequest = ?context.request
+    let newRequest = currentRequest { vault = Vault.insert autoRefreshTargetVaultKey (AutoRefreshTarget selector) currentRequest.vault }
+    case ?context of
+        ControllerContext { customFieldsRef } -> modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
+        FrozenControllerContext {} -> error "setAutoRefreshTarget cannot be called while rendering a frozen context"
 
 -- | Options for fine-grained auto refresh via 'autoRefreshWith'.
 --
@@ -112,13 +117,14 @@ autoRefreshInternal config runAction = do
 
             id <- UUID.nextRandom
 
-            -- Update the vault with AutoRefreshEnabled so that autoRefreshMeta can read it
-            let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
+            -- Update the request stored in the controller context so existing vault entries
+            -- (e.g. AutoRefreshTarget set before autoRefresh) are preserved.
+            let currentRequest = ?context.request
+            let newRequest = currentRequest { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) currentRequest.vault }
             let ?request = newRequest
             -- Update request in controller context so freeze captures the updated state
             let ControllerContext { customFieldsRef } = ?context
             modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
-            putContext (AutoRefreshEnabled id)
 
             -- We save the current state of the controller context here. This includes e.g. all current
             -- flash messages, the current user, ...
@@ -507,3 +513,7 @@ fetchAutoRefreshPayload payloadId = do
 autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshStateVaultKey #-}
+
+autoRefreshTargetVaultKey :: Vault.Key AutoRefreshTarget
+autoRefreshTargetVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE autoRefreshTargetVaultKey #-}
