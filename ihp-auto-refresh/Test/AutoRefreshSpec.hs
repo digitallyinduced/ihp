@@ -1,11 +1,11 @@
 {-|
-Module: Test.AutoRefreshSpec
+Module: AutoRefreshSpec
 Tests that AutoRefresh preserves query parameters when re-rendering
 with a bare WebSocket request (no query params).
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Test.AutoRefreshSpec where
+module AutoRefreshSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Environment

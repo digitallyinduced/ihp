@@ -68,8 +68,8 @@ library
 test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
-    main-is: Test/Main.hs
-    hs-source-dirs: .
+    main-is: Main.hs
+    hs-source-dirs: Test
     ghc-options: -threaded
     build-depends:
           base >= 4.17.0 && < 4.22
@@ -86,4 +86,4 @@ test-suite tests
         , bytestring
         , wai-request-params
     other-modules:
-        Test.AutoRefreshSpec
+        AutoRefreshSpec
