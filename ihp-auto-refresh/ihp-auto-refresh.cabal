@@ -58,6 +58,7 @@ library
         , blaze-html
         , text
         , bytestring
+        , typerep-map
         , wai-request-params
     exposed-modules:
           IHP.AutoRefresh
