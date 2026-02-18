@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
 import Network.Wai (responseLBS, responseBuilder, responseFile)
 import Network.HTTP.Types (Status, status200, status406)
@@ -26,12 +25,24 @@ renderPlain text = respondAndExitWithHeaders $ responseLBS status200 [(hContentT
 respondHtml :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
 respondHtml html = do
         let !bs = Blaze.renderHtml html
+        -- We force the full evaluation of the blaze html to catch any runtime errors
+        -- with the IHP error middleware. Without this, certain thunks might only cause
+        -- an error when warp is building the response string. But then it's already too
+        -- late to catch the exception and the user will only get the default warp error
+        -- message instead of our nice IHP error message design.
+        _ <- evaluate (LazyByteString.length bs)
+        respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
+{-# INLINE respondHtml #-}
+
+-- | Like 'respondHtml', but always prepends 'autoRefreshMeta' to the response body.
+--
+-- Intended for fragment-style responses (e.g. HTMX) where a full layout is not rendered.
+respondHtmlFragment :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
+respondHtmlFragment html = do
+        let !bs = Blaze.renderHtml html
         frozenContext <- Context.freeze ?context
         let meta = let ?context = frozenContext in Blaze.renderHtml autoRefreshMeta
-        let bs' =
-                if LazyByteString.null meta || ByteString.isInfixOf "ihp-auto-refresh-id" (LazyByteString.toStrict bs)
-                    then bs
-                    else meta <> bs
+        let bs' = meta <> bs
         -- We force the full evaluation of the blaze html to catch any runtime errors
         -- with the IHP error middleware. Without this, certain thunks might only cause
         -- an error when warp is building the response string. But then it's already too
@@ -39,7 +50,7 @@ respondHtml html = do
         -- message instead of our nice IHP error message design.
         _ <- evaluate (LazyByteString.length bs')
         respondAndExitWithHeaders $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs'
-{-# INLINE respondHtml #-}
+{-# INLINE respondHtmlFragment #-}
 
 respondSvg :: (?request :: Request) => Html -> IO ()
 respondSvg html = respondAndExitWithHeaders $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
@@ -57,6 +68,19 @@ renderHtml !view = do
     let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
     pure boundHtml
 {-# INLINE renderHtml #-}
+
+-- | Like 'renderHtml', but does not apply the current layout.
+--
+-- Useful for endpoint fragments that should return only partial HTML.
+renderHtmlFragment :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request) => view -> IO Html
+renderHtmlFragment !view = do
+    let ?view = view
+    ViewSupport.beforeRender view
+    frozenContext <- Context.freeze ?context
+
+    let ?context = frozenContext
+    pure (ViewSupport.html ?view)
+{-# INLINE renderHtmlFragment #-}
 
 renderFile :: (?request :: Request) => String -> ByteString -> IO ()
 renderFile filePath contentType = respondAndExitWithHeaders $ responseFile status200 [(hContentType, contentType)] filePath Nothing
@@ -121,6 +145,10 @@ renderPolymorphic PolymorphicRender { html, json } = do
 polymorphicRender :: PolymorphicRender
 polymorphicRender = PolymorphicRender Nothing Nothing
 
+-- | Render a view fragment without layout and respond with 'autoRefreshMeta' prepended.
+renderFragment :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request) => view -> IO ()
+renderFragment !view = (renderHtmlFragment view) >>= respondHtmlFragment
+{-# INLINE renderFragment #-}
 
 {-# INLINE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()

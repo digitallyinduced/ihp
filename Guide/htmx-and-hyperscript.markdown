@@ -65,7 +65,12 @@ data CounterController
 
 Add `parseRoute @CounterController` to the list of `instance FrontController WebApplication` in `FrontController.hs` (or you'll get a 404 on calling it), and add an `instance AutoRoute CounterController` to `Routes.hs` (or you'll get a compilation error about it not being an instance of AutoRoute).
 
-Instead of using the `render` function, htmx routes are better used with `respondHtml` to avoid the layout being shipped as part of the response. The same function can be used for initializing the view as well as updating.
+For HTMX endpoints, use different render helpers depending on the response:
+
+- Full page responses: use `render`
+- Fragment responses: use `respondHtmlFragment` (or `renderFragment` when returning a `View`)
+
+This avoids shipping the layout in fragment responses.
 
 ```haskell
 module Web.Controller.Counter where
@@ -85,15 +90,15 @@ instance Controller CounterController where
     action IncrementCountAction{counterId} = do
         counter <- fetch counterId
         updatedCounter <- counter |> incrementField #count |> updateRecord
-        respondHtml $ counterView updatedCounter
+        respondHtmlFragment $ counterView updatedCounter
 
     action DecrementCountAction{counterId} = do
         counter <- fetch counterId
         updatedCounter <- counter |> decrementField #count |> updateRecord
-        respondHtml $ counterView updatedCounter
+        respondHtmlFragment $ counterView updatedCounter
 ```
 
-We define the `CounterView` like this, separating the `counterView` function into a function that can be used be the initial view as well as the updater routes (`IncrementCountAction` and `DecrementCountAction`).
+We define the `CounterView` like this, separating `counterView` into a reusable function for both the initial page and the fragment update routes (`IncrementCountAction` and `DecrementCountAction`).
 
 ```haskell
 module Web.View.Counter.Counter where

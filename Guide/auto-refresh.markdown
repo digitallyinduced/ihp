@@ -233,26 +233,13 @@ Use `/ihp-auto-refresh.js` for full-page morphing without HTMX.
 Use `/ihp-auto-refresh-htmx.js` when HTMX controls fragment swaps.  
 Do not include both scripts on the same page.
 
-#### How Auto Refresh decides what to update
-
-After a fragment has been swapped into the DOM, Auto Refresh needs a target selector.
-
-It chooses the target in this order:
-
-1. If the meta tag contains `data-ihp-auto-refresh-target`, that selector is used
-2. Otherwise it tries to infer the selector from the HTMX swap target `id`
-3. If no target can be determined, Auto Refresh falls back to full-page updates
-
-In practice this means:
-
-- Prefer stable `id`s on HTMX swap targets
-- Use [`setAutoRefreshTarget`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:setAutoRefreshTarget) when your target is selected by class or another custom selector
+For HTMX fragment actions, prefer `renderFragment`. It skips the layout and includes the Auto Refresh meta tag.
 
 #### End-to-end example
 
 Let's say we want a project page where comments are loaded by HTMX and then kept live by Auto Refresh.
 
-In the parent page we render an HTMX target container:
+In the parent page we render a target container with a stable `id`:
 
 ```haskell
 [hsx|
@@ -267,6 +254,8 @@ In the parent page we render an HTMX target container:
 |]
 ```
 
+This is the recommended default setup. With a stable target `id`, Auto Refresh can usually infer the correct target automatically.
+
 The fragment action enables Auto Refresh and renders only the fragment content:
 
 ```haskell
@@ -275,7 +264,7 @@ action CommentsFragmentAction { projectId } = autoRefresh do
         |> filterWhere (#projectId, projectId)
         |> orderByDesc #createdAt
         |> fetch
-    render CommentsFragmentView { .. }
+    renderFragment CommentsFragmentView { .. }
 ```
 
 The fragment view:
@@ -289,8 +278,8 @@ instance View CommentsFragmentView where
 
 Whenever a comment row changes, Auto Refresh re-runs the fragment action and morphs the target container.
 
-You usually don't need to render `{autoRefreshMeta}` manually in fragment views:
-`respondHtml` injects it automatically when missing.
+`renderFragment` renders the view without layout and prepends `autoRefreshMeta`, so you usually don't need to include
+`{autoRefreshMeta}` manually in HTMX fragment responses.
 
 Write actions can simply return `204` and let Auto Refresh update the fragment:
 
@@ -314,10 +303,41 @@ When the HTMX target does not have a stable `id`, set the target explicitly:
 action SidebarFragmentAction = autoRefresh do
     setAutoRefreshTarget ".sidebar-pane"
     items <- query @Item |> fetch
-    render SidebarFragmentView { .. }
+    renderFragment SidebarFragmentView { .. }
 ```
 
 Use this when class-based or attribute-based selectors are part of your layout.
+
+#### Choosing the update target
+
+In practice, a **stable `id`** means:
+
+- The element that receives the HTMX swap has an `id`
+- The same `id` is kept across all swaps
+- There is only one element with that `id` on the page
+- With `hx-swap="innerHTML"`, this `id` is on the outer container (the response fragment itself does not need that `id`)
+
+To keep fragment updates predictable:
+
+1. Prefer a stable `id` on your HTMX target container
+2. If you cannot use an `id`, call `setAutoRefreshTarget` with a selector (for example `.sidebar-pane`)
+3. If neither is provided, Auto Refresh updates the full page
+
+As long as HTMX swaps HTML into a target element, the common verbs (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) work the same way.
+
+#### What is handled well
+
+- `hx-swap="innerHTML"` with a target element that has a stable `id`
+- `hx-swap="outerHTML"` when the returned element still matches the same selector (same `id` or explicit `setAutoRefreshTarget`)
+- Fragments loaded by `hx-get`, and later updated by any HTMX verb, as long as swaps happen into a resolvable target
+- Pages with multiple fragments, each with its own target and action
+
+#### Cases to avoid (or configure explicitly)
+
+- No target `id` and no `setAutoRefreshTarget`: updates fall back to full-page morphing
+- `hx-swap="none"` (or responses that do not swap HTML): no target can be inferred from the swap
+- Changing/removing the target selector over time (for example changing `id` between swaps): updates can stop applying
+- Duplicate `id`s for swap targets: update behavior becomes unpredictable
 
 #### Multiple fragments on the same page
 
