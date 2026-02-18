@@ -249,4 +249,11 @@ tests = do
                     mempty
                         |> insertRowChange "users" userPayload
                         |> insertRowChange "projects" projectPayload
-            anyChangeWithField @"userId" userId changeSet `shouldBe` True
+            anyChangeWithField @"userId" (== userId) changeSet `shouldBe` True
+
+        it "supports custom field predicates" do
+            let userRow = Aeson.object ["id" Aeson..= ("u-1" :: Text), "status" Aeson..= ("archived" :: Text)]
+            let payload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshUpdate, payloadOldRow = Nothing, payloadNewRow = Just userRow, payloadLargePayloadId = Nothing }
+            let changeSet = insertRowChange "users" payload mempty
+            anyChangeWithField @"status" (`elem` ["active" :: Text, "archived"]) changeSet `shouldBe` True
+            anyChangeWithField @"status" (== ("active" :: Text)) changeSet `shouldBe` False
