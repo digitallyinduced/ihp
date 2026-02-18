@@ -179,7 +179,7 @@ action MyAction { userId } =
         render MyView { .. }
   where
     shouldRefresh changes =
-        pure (anyChangeWithField @"userId" userId changes)
+        pure (anyChangeWithField @"userId" (== userId) changes)
 ```
 
 Tip: Keep `shouldRefresh` fast and avoid extra SQL queries inside it whenever possible.

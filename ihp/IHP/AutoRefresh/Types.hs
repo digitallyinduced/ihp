@@ -116,14 +116,14 @@ rowsForTable tableName changeSet =
 anyChangeOnTable :: Text -> AutoRefreshChangeSet -> Bool
 anyChangeOnTable tableName = not . null . changesForTable tableName
 
--- | Checks if any changed row (across all tables) contains the given field with the expected value.
+-- | Checks if any changed row (across all tables) contains the given field value matching a predicate.
 --
 -- The field name is treated as a Haskell record field name and converted to snake_case to match SQL column names:
 --
--- > anyChangeWithField @"userId" userId changes
-anyChangeWithField :: forall field value. (KnownSymbol field, Aeson.FromJSON value, Eq value) => value -> AutoRefreshChangeSet -> Bool
-anyChangeWithField value (AutoRefreshChangeSet existing) =
-    any (\change -> rowField @field change == Just value) existing
+-- > anyChangeWithField @"userId" (== userId) changes
+anyChangeWithField :: forall field value. (KnownSymbol field, Aeson.FromJSON value) => (value -> Bool) -> AutoRefreshChangeSet -> Bool
+anyChangeWithField predicate (AutoRefreshChangeSet existing) =
+    any (\change -> maybe False predicate (rowField @field change)) existing
 
 -- | Reads a field from the changed row data.
 --
