@@ -870,7 +870,7 @@ startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 {-# INLINABLE withPrefix #-}
 
-frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
+frontControllerToWAIApp :: forall app. (FrontController app, InitControllerContext ()) => Middleware -> app -> Application -> Application
 frontControllerToWAIApp middleware application notFoundAction waiRequest waiRespond = do
     let
         -- Use lazy pattern to defer vault lookup until environment is actually needed
@@ -885,7 +885,7 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
         handleException :: SomeException -> IO (Either String Application)
         handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
 
-        routes = let ?application = application in router [let ?application = () in webSocketApp @autoRefreshApp]
+        routes = let ?application = application in router []
 
     routedAction :: Either String Application <-
         (do

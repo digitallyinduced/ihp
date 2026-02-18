@@ -24,7 +24,6 @@ module IHP.ViewPrelude (
     (!),
     module Data.Data,
     module Data.Aeson,
-    module IHP.AutoRefresh.View,
     module IHP.View.Classes,
     module IHP.FlashMessages,
     module IHP.Controller.Context,
@@ -53,7 +52,6 @@ import IHP.ModelSupport
 import IHP.FrameworkConfig
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..), KeyValue (..))
-import IHP.AutoRefresh.View
 import IHP.View.Types
 import IHP.View.Classes
 import IHP.FlashMessages

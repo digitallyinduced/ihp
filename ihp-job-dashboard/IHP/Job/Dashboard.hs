@@ -34,6 +34,7 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
+import IHP.AutoRefresh (autoRefresh)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
