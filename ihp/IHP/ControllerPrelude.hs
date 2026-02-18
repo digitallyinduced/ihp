@@ -74,7 +74,7 @@ import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
-import IHP.AutoRefresh (autoRefresh, autoRefreshWith, setAutoRefreshTarget, AutoRefreshOptions (..))
+import IHP.AutoRefresh (autoRefresh, autoRefreshWith, AutoRefreshOptions (..))
 import IHP.AutoRefresh.ChangeSet
 
 import IHP.LoginSupport.Helper.Controller

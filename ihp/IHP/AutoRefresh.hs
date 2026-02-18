@@ -51,16 +51,6 @@ getOrCreateAutoRefreshServer =
             pure (Just server, server)
 
 
--- | Limits the client-side morphing to the DOM node matching the given CSS selector.
--- Useful when combining Auto Refresh with fragment based renderers such as HTMX.
-setAutoRefreshTarget :: (?context :: ControllerContext) => Text -> IO ()
-setAutoRefreshTarget selector = do
-    let currentRequest = ?context.request
-    let newRequest = currentRequest { vault = Vault.insert autoRefreshTargetVaultKey (AutoRefreshTarget selector) currentRequest.vault }
-    case ?context of
-        ControllerContext { customFieldsRef } -> modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
-        FrozenControllerContext {} -> error "setAutoRefreshTarget cannot be called while rendering a frozen context"
-
 -- | Options for fine-grained auto refresh via 'autoRefreshWith'.
 --
 -- The callback should be fast and ideally avoid additional SQL queries. It runs on the server and decides whether a
@@ -117,8 +107,7 @@ autoRefreshInternal config runAction = do
 
             id <- UUID.nextRandom
 
-            -- Update the request stored in the controller context so existing vault entries
-            -- (e.g. AutoRefreshTarget set before autoRefresh) are preserved.
+            -- Update the request stored in the controller context so existing vault entries are preserved.
             let currentRequest = ?context.request
             let newRequest = currentRequest { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) currentRequest.vault }
             let ?request = newRequest
@@ -513,7 +502,3 @@ fetchAutoRefreshPayload payloadId = do
 autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE autoRefreshStateVaultKey #-}
-
-autoRefreshTargetVaultKey :: Vault.Key AutoRefreshTarget
-autoRefreshTargetVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE autoRefreshTargetVaultKey #-}

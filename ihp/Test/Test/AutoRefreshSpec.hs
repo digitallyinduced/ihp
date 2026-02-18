@@ -17,7 +17,7 @@ import IHP.AutoRefresh.View
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar, autoRefreshStateVaultKey, autoRefreshTargetVaultKey)
+import IHP.AutoRefresh (globalAutoRefreshServerVar, autoRefreshStateVaultKey)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import IHP.Controller.Response (ResponseException(..))
@@ -164,12 +164,6 @@ tests = do
                         MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
 
     describe "AutoRefresh meta tag" do
-        it "stores AutoRefreshTarget in the request vault" do
-            withFreshContext \context -> do
-                let ?context = context
-                setAutoRefreshTarget "#chat-pane"
-                Vault.lookup autoRefreshTargetVaultKey context.request.vault `shouldBe` Just (AutoRefreshTarget "#chat-pane")
-
         it "renders nothing when disabled" do
             withFreshContext \context -> do
                 frozen <- freeze context
@@ -184,17 +178,6 @@ tests = do
                 frozen <- freeze context
                 let ?context = frozen
                 (cs renderMeta :: String) `shouldContain` "ihp-auto-refresh-id"
-
-        it "renders target attribute when target is set" do
-            let requestWithAutoRefresh = Wai.defaultRequest
-                    { Wai.vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled UUID.nil) Wai.defaultRequest.vault
-                    }
-            withFreshContextWithRequest requestWithAutoRefresh \context -> do
-                let ?context = context
-                setAutoRefreshTarget "#chat-pane"
-                frozen <- freeze context
-                let ?context = frozen
-                (cs renderMeta :: String) `shouldContain` "data-ihp-auto-refresh-target=\"#chat-pane\""
 
     describe "AutoRefresh change set" do
         it "stores row json and allows field access" do
