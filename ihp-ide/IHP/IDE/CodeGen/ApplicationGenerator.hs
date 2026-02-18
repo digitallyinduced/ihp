@@ -133,6 +133,7 @@ generateGenericApplication applicationName =
                 <> "    <meta property=\"og:type\" content=\"website\"/>\n"
                 <> "    <meta property=\"og:url\" content=\"TODO\"/>\n"
                 <> "    <meta property=\"og:description\" content=\"TODO\"/>\n"
+                <> "    {autoRefreshMeta}\n"
                 <> "|]\n"
 
             viewPreludeHs =
