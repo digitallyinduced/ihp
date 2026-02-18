@@ -58,7 +58,7 @@ instance View NewRowView where
                             <a class="text-muted row-form">{col.columnType}</a>
                         </span>
 
-                        <div class="d-flex">
+                        <div class="input-group">
                             {renderInputMethod col}
                         </div>
                     </div>|]
