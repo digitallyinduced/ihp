@@ -225,13 +225,30 @@ scripts :: Html
 scripts = [hsx|
         <script src={assetPath "/vendor/htmx.min.js"}></script>
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/helpers-htmx.js"}></script>
         <script src={assetPath "/ihp-auto-refresh-htmx.js"}></script>
+        <script src={assetPath "/app.js"}></script>
     |]
 ```
+
+`/helpers-htmx.js` + `/ihp-auto-refresh-htmx.js` is the HTMX equivalent of the classic
+`/helpers.js` + `/ihp-auto-refresh.js` setup:
+
+- `helpers-htmx.js` handles HTMX morphdom swaps and helper compatibility (`ihp:load`, `ihp:unload`, date/time formatting, flatpickr init, toggle/back/file preview helpers, alert dismiss on request)
+- `ihp-auto-refresh-htmx.js` handles Auto Refresh WebSocket sessions, target-based fragment updates, and pause/resume around HTMX requests
+
+Keep this script order:
+
+1. `htmx.min.js`
+2. `morphdom-umd.min.js`
+3. `helpers-htmx.js`
+4. `ihp-auto-refresh-htmx.js`
+5. `app.js`
 
 Use `/ihp-auto-refresh.js` for full-page morphing without HTMX.  
 Use `/ihp-auto-refresh-htmx.js` when HTMX controls fragment swaps.  
 Do not include both scripts on the same page.
+Also do not include both `/helpers.js` and `/helpers-htmx.js` on the same page.
 
 For HTMX fragment actions, prefer `renderFragment`. It skips the layout and includes the Auto Refresh meta tag.
 
@@ -295,19 +312,6 @@ action CreateCommentAction = do
                 respondAndExitWithHeaders (responseLBS status204 [] "")
 ```
 
-#### Using custom selectors with `setAutoRefreshTarget`
-
-When the HTMX target does not have a stable `id`, set the target explicitly:
-
-```haskell
-action SidebarFragmentAction = autoRefresh do
-    setAutoRefreshTarget ".sidebar-pane"
-    items <- query @Item |> fetch
-    renderFragment SidebarFragmentView { .. }
-```
-
-Use this when class-based or attribute-based selectors are part of your layout.
-
 #### Choosing the update target
 
 In practice, a **stable `id`** means:
@@ -320,21 +324,21 @@ In practice, a **stable `id`** means:
 To keep fragment updates predictable:
 
 1. Prefer a stable `id` on your HTMX target container
-2. If you cannot use an `id`, call `setAutoRefreshTarget` with a selector (for example `.sidebar-pane`)
-3. If neither is provided, Auto Refresh updates the full page
+2. Keep that `id` unchanged across swaps
+3. If no stable `id` is available, Auto Refresh falls back to full-page updates
 
 As long as HTMX swaps HTML into a target element, the common verbs (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) work the same way.
 
 #### What is handled well
 
 - `hx-swap="innerHTML"` with a target element that has a stable `id`
-- `hx-swap="outerHTML"` when the returned element still matches the same selector (same `id` or explicit `setAutoRefreshTarget`)
+- `hx-swap="outerHTML"` when the returned element still has the same stable `id`
 - Fragments loaded by `hx-get`, and later updated by any HTMX verb, as long as swaps happen into a resolvable target
 - Pages with multiple fragments, each with its own target and action
 
 #### Cases to avoid (or configure explicitly)
 
-- No target `id` and no `setAutoRefreshTarget`: updates fall back to full-page morphing
+- No target `id`: updates fall back to full-page morphing
 - `hx-swap="none"` (or responses that do not swap HTML): no target can be inferred from the swap
 - Changing/removing the target selector over time (for example changing `id` between swaps): updates can stop applying
 - Duplicate `id`s for swap targets: update behavior becomes unpredictable
@@ -345,7 +349,7 @@ You can have multiple independent HTMX + Auto Refresh fragments on one page. Giv
 
 1. Its own swap target
 2. Its own action
-3. Its own target selector (explicit or inferred by `id`)
+3. A stable `id` on the swap target
 
 ```haskell
 [hsx|
@@ -361,4 +365,4 @@ Each fragment gets its own Auto Refresh session and updates independently.
 - Do not include both `/ihp-auto-refresh.js` and `/ihp-auto-refresh-htmx.js`
 - With `hx-swap="innerHTML"`, return only inner content, not another wrapper with the same `id`
 - Keep the target container stable across renders so morphdom can preserve `hx-*` attributes and input state
-- If updates affect too much UI, narrow the target via `setAutoRefreshTarget` or switch to `autoRefreshWith` filtering
+- If updates affect too much UI, split the page into smaller HTMX fragments or switch to `autoRefreshWith` filtering

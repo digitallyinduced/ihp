@@ -153,8 +153,6 @@ rowFieldByColumnName columnName = \case
 
 data AutoRefreshState = AutoRefreshDisabled | AutoRefreshEnabled { sessionId :: !UUID }
 
-newtype AutoRefreshTarget = AutoRefreshTarget Text deriving (Eq, Show)
-
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
