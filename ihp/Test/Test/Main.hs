@@ -22,7 +22,6 @@ import qualified Test.PGListenerSpec
 import qualified Test.MockingSpec
 import qualified Test.HasqlEncoderSpec
 import qualified Test.ControllerSupportSpec
-import qualified Test.AutoRefreshSpec
 import qualified Test.Pagination.ControllerFunctionsSpec
 
 main :: IO ()
@@ -46,5 +45,4 @@ main = hspec do
     Test.MockingSpec.tests
     Test.HasqlEncoderSpec.tests
     Test.ControllerSupportSpec.tests
-    Test.AutoRefreshSpec.tests
     Test.Pagination.ControllerFunctionsSpec.tests

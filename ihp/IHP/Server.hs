@@ -17,7 +17,6 @@ import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig
 import IHP.ModelSupport (withModelContext)
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
-import IHP.AutoRefresh (AutoRefreshWSApp)
 import qualified IHP.Job.Runner as Job
 import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
@@ -180,7 +179,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
 application :: (FrontController RootApplication) => Application -> Middleware -> Application
 application staticApp middleware request respond = do
-    frontControllerToWAIApp @RootApplication @AutoRefreshWSApp middleware RootApplication staticApp request respond
+    frontControllerToWAIApp @RootApplication middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()

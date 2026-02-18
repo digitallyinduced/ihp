@@ -33,7 +33,6 @@ import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
 import System.Info
 import qualified IHP.EnvVar as EnvVar
-import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
@@ -111,7 +110,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
         staticApp <- initStaticApp
 
         let innerApplication :: Wai.Application = \request respond -> do
-                frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
+                frontControllerToWAIApp @ToolServerApplication (\app -> app) toolServerApplication staticApp request respond
 
         let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
         let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing

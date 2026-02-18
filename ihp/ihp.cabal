@@ -229,9 +229,6 @@ library
         , IHP.ScriptSupport
         , IHP.AuthSupport.View.Sessions.New
         , IHP.AuthSupport.Controller.Sessions
-        , IHP.AutoRefresh
-        , IHP.AutoRefresh.Types
-        , IHP.AutoRefresh.View
         , IHP.WebSocket
         , IHP.View.Classes
         , IHP.View.CSSFramework
@@ -293,5 +290,4 @@ test-suite tests
         Test.MockingSpec
         Test.ControllerSupportSpec
         Test.HasqlEncoderSpec
-        Test.AutoRefreshSpec
         Test.Pagination.ControllerFunctionsSpec

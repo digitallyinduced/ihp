@@ -1,0 +1,88 @@
+cabal-version:       2.2
+name:                ihp-auto-refresh
+version:             1.4.0
+synopsis:            AutoRefresh for IHP
+description:         Provides automatically diff-based refreshing views after page load via WebSocket and PostgreSQL LISTEN/NOTIFY.
+license:             MIT
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+build-type:          Simple
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , ihp
+        , ihp-hsx
+        , ihp-pglistener
+        , ihp-log
+        , ihp-context
+        , basic-prelude
+        , string-conversions
+        , uuid
+        , vault
+        , wai
+        , websockets
+        , containers
+        , async
+        , binary
+        , time
+        , hasql
+        , hasql-pool
+        , hasql-dynamic-statements
+        , blaze-html
+        , text
+        , bytestring
+        , wai-request-params
+    exposed-modules:
+          IHP.AutoRefresh
+        , IHP.AutoRefresh.Types
+        , IHP.AutoRefresh.View
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: .
+    ghc-options: -threaded
+    build-depends:
+          base >= 4.17.0 && < 4.22
+        , ihp
+        , ihp-auto-refresh
+        , ihp-pglistener
+        , ihp-log
+        , ihp-context
+        , hspec
+        , basic-prelude
+        , string-conversions
+        , wai
+        , http-types
+        , bytestring
+        , wai-request-params
+    other-modules:
+        Test.AutoRefreshSpec
