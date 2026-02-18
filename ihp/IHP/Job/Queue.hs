@@ -13,7 +13,7 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception.Safe as Exception
-import IHP.ModelSupport (HasqlError(..), Table(..), isCachedPlanError, GetModelByTableName, GetTableName, InputValue(..))
+import IHP.ModelSupport (HasqlError(..), Table(..), isCachedPlanError, GetModelByTableName, InputValue(..))
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import IHP.Controller.Param
 import qualified System.Random as Random
