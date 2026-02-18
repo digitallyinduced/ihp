@@ -213,9 +213,12 @@ The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSuppor
 
 ### Using Auto Refresh with HTMX
 
-You can keep HTMX for fragment loading and let Auto Refresh keep those fragments live.
+HTMX and Auto Refresh work well together:
 
-For HTMX fragment pages, use:
+- HTMX loads/replaces fragments in response to user interactions
+- Auto Refresh keeps those fragments up-to-date when database rows change
+
+For pages that use HTMX fragments, include the HTMX-specific Auto Refresh client:
 
 ```haskell
 scripts :: Html
@@ -226,57 +229,103 @@ scripts = [hsx|
     |]
 ```
 
-Use `/ihp-auto-refresh.js` for full-page auto refresh.  
-Use `/ihp-auto-refresh-htmx.js` for HTMX fragments.  
-Do not include both on the same page.
+Use `/ihp-auto-refresh.js` for full-page morphing without HTMX.  
+Use `/ihp-auto-refresh-htmx.js` when HTMX controls fragment swaps.  
+Do not include both scripts on the same page.
 
-#### Basic recipe
+#### How Auto Refresh decides what to update
 
-1. Add a stable HTMX target container:
+After a fragment has been swapped into the DOM, Auto Refresh needs a target selector.
+
+It chooses the target in this order:
+
+1. If the meta tag contains `data-ihp-auto-refresh-target`, that selector is used
+2. Otherwise it tries to infer the selector from the HTMX swap target `id`
+3. If no target can be determined, Auto Refresh falls back to full-page updates
+
+In practice this means:
+
+- Prefer stable `id`s on HTMX swap targets
+- Use [`setAutoRefreshTarget`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:setAutoRefreshTarget) when your target is selected by class or another custom selector
+
+#### End-to-end example
+
+Let's say we want a project page where comments are loaded by HTMX and then kept live by Auto Refresh.
+
+In the parent page we render an HTMX target container:
 
 ```haskell
 [hsx|
 <div
-    id="todo-list-fragment"
-    hx-get={pathTo TodoListFragmentAction}
+    id="comments-pane"
+    hx-get={pathTo CommentsFragmentAction { projectId }}
     hx-trigger="load"
     hx-swap="innerHTML"
-></div>
+>
+    <div class="text-muted">Loading comments ...</div>
+</div>
 |]
 ```
 
-2. Render that fragment with `autoRefresh`:
+The fragment action enables Auto Refresh and renders only the fragment content:
 
 ```haskell
-action TodoListFragmentAction = do
-    setAutoRefreshTarget "#todo-list-fragment"
-    autoRefresh do
-        todos <- query @Todo |> orderByDesc #createdAt |> fetch
-        html <- renderHtml TodoListFragmentView { .. }
-        respondHtml html
+action CommentsFragmentAction { projectId } = autoRefresh do
+    comments <- query @Comment
+        |> filterWhere (#projectId, projectId)
+        |> orderByDesc #createdAt
+        |> fetch
+    render CommentsFragmentView { .. }
 ```
 
-`respondHtml` injects the Auto Refresh meta tag automatically, so you usually don't need to add `{autoRefreshMeta}` manually.
-
-3. Keep write actions simple. For example, a create form can return no content:
+The fragment view:
 
 ```haskell
-action CreateTodoAction = do
-    let newTodo = newRecord @Todo
-    newTodo
-        |> fill @'["title"]
+instance View CommentsFragmentView where
+    html CommentsFragmentView { comments } = [hsx|
+        {forEach comments renderComment}
+    |]
+```
+
+Whenever a comment row changes, Auto Refresh re-runs the fragment action and morphs the target container.
+
+You usually don't need to render `{autoRefreshMeta}` manually in fragment views:
+`respondHtml` injects it automatically when missing.
+
+Write actions can simply return `204` and let Auto Refresh update the fragment:
+
+```haskell
+action CreateCommentAction = do
+    let comment = newRecord @Comment
+    comment
+        |> fill @'["projectId", "body"]
         |> ifValid \case
             Left _ -> respondAndExitWithHeaders (responseLBS status422 [] "")
-            Right todo -> do
-                todo |> createRecord
+            Right validComment -> do
+                validComment |> createRecord
                 respondAndExitWithHeaders (responseLBS status204 [] "")
 ```
 
-The list updates via Auto Refresh after the database change.
+#### Using custom selectors with `setAutoRefreshTarget`
 
-#### Multiple fragments on one page
+When the HTMX target does not have a stable `id`, set the target explicitly:
 
-Give each fragment its own container and action:
+```haskell
+action SidebarFragmentAction = autoRefresh do
+    setAutoRefreshTarget ".sidebar-pane"
+    items <- query @Item |> fetch
+    render SidebarFragmentView { .. }
+```
+
+Use this when class-based or attribute-based selectors are part of your layout.
+
+#### Multiple fragments on the same page
+
+You can have multiple independent HTMX + Auto Refresh fragments on one page. Give each fragment:
+
+1. Its own swap target
+2. Its own action
+3. Its own target selector (explicit or inferred by `id`)
 
 ```haskell
 [hsx|
@@ -286,3 +335,10 @@ Give each fragment its own container and action:
 ```
 
 Each fragment gets its own Auto Refresh session and updates independently.
+
+#### Common pitfalls
+
+- Do not include both `/ihp-auto-refresh.js` and `/ihp-auto-refresh-htmx.js`
+- With `hx-swap="innerHTML"`, return only inner content, not another wrapper with the same `id`
+- Keep the target container stable across renders so morphdom can preserve `hx-*` attributes and input state
+- If updates affect too much UI, narrow the target via `setAutoRefreshTarget` or switch to `autoRefreshWith` filtering
