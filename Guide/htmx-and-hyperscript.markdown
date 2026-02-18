@@ -51,7 +51,7 @@ scripts = [hsx|
     |]
 ```
 
-If you want to replace `helpers.js`, follow the migration section below and swap to `/helpers-htmx.js` + `/ihp-auto-refresh-htmx.js`.
+The `helpers.js` script from ihp can interfer with htmx, but ihp provides a `/helpers-htmx.js` and `/ihp-auto-refresh-htmx.js` that are drop in replacement for working with htmx.
 
 ### Replacing `helpers.js` with HTMX + morphdom
 
@@ -104,7 +104,6 @@ scripts = [hsx|
 ```
 
 `/helpers-htmx.js` is designed to be used together with `/ihp-auto-refresh-htmx.js`.
-This pair is the HTMX equivalent of `/helpers.js` + `/ihp-auto-refresh.js`:
 
 - `helpers-htmx.js` provides HTMX morphdom swap behavior and helper compatibility hooks
 - `ihp-auto-refresh-htmx.js` provides Auto Refresh session management and fragment updates
@@ -114,9 +113,6 @@ Do not mix legacy and HTMX variants on the same page:
 - Not together: `/helpers.js` and `/helpers-htmx.js`
 - Not together: `/ihp-auto-refresh.js` and `/ihp-auto-refresh-htmx.js`
 
-#### Official `morphdom-swap` vs `helpers-htmx.js`
-
-`helpers-htmx.js` is intentionally different from HTMX's official `morphdom-swap` extension.
 
 | Difference | What official extension does | What `helpers-htmx.js` does | Do you need this? |
 | --- | --- | --- | --- |
@@ -167,7 +163,6 @@ If you use Auto Refresh with HTMX, use `/ihp-auto-refresh-htmx.js`.
 
 #### Detailed migration recipes
 
-`helpers-htmx.js` now includes built-in compatibility for all "easy custom code" items from the table.
 That means you should not need to re-implement these in `app.js`:
 
 1. `.js-back` (and `[data-js-back]`) back button handling
