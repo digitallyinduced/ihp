@@ -4,7 +4,6 @@ import ClassyPrelude
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
 import Network.Wai (responseLBS, responseBuilder, responseFile)
-import qualified Network.Wai
 import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
 import qualified IHP.ViewSupport as ViewSupport
@@ -16,7 +15,6 @@ import qualified Network.HTTP.Media as Accept
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import Text.Blaze.Html (Html)
 import IHP.AutoRefresh.View (autoRefreshMeta)
-import IHP.Controller.Context (ControllerContext, putContext)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)

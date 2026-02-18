@@ -213,132 +213,76 @@ The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSuppor
 
 ### Using Auto Refresh with HTMX
 
-HTMX endpoints often render just a fragment and swap it into an existing container. Auto Refresh can cooperate with that flow as long as the client knows which element to morph and the fragment exposes the session meta data. You can use multiple Auto Refresh-powered HTMX fragments on one page as long as each swap target has its own stable `id`.
+You can keep HTMX for fragment loading and let Auto Refresh keep those fragments live.
 
-Auto Refresh decides which DOM node to update by looking at a target selector stored on the meta tag:
-
-- If the meta tag has `data-ihp-auto-refresh-target`, that selector is used.
-- Otherwise, after an HTMX swap, the client uses the swap target `id` (from `htmx:afterSwap`) and treats it as `#id`.
-- If neither is available, Auto Refresh falls back to the full page, which is usually not what you want for fragments.
-
-In practice:
-
-1. Wrap the HTMX action in `autoRefresh`.
-2. `{autoRefreshMeta}` is injected automatically. If you already render it manually inside the fragment that's fine too (Auto Refresh will not duplicate it). The meta tag can be anywhere in the fragment; the client moves it into `<head>` after the swap.
-3. Give the swap target a stable `id` so Auto Refresh can infer `#id`. If the target has no `id`, Auto Refresh will generate one in the browser (e.g. `ihp-auto-refresh-target-1`). If you want a different selector, set it explicitly with [`setAutoRefreshTarget`](https://ihp.digitallyinduced.com/api-docs/IHP-AutoRefresh.html#v:setAutoRefreshTarget).
-4. Keep the container stable (e.g. the same `id`) so morphdom can update its children without losing your `hx-*` attributes.
-
-#### Example 1: Basic fragment swap (no setAutoRefreshTarget)
+For HTMX fragment pages, use:
 
 ```haskell
--- Controller
-action RefineChatPaneAction { chatId } = autoRefresh do
-    messages <- query @Message
-        |> filterWhere (#chatId, chatId)
-        |> orderByDesc #createdAt
-        |> fetch
-    render RefineChatPaneView { .. }
-
--- View
-instance View RefineChatPaneView where
-    html RefineChatPaneView { .. } = [hsx|
-        {autoRefreshMeta}
-        {forEach messages renderMessage}
+scripts :: Html
+scripts = [hsx|
+        <script src={assetPath "/vendor/htmx.min.js"}></script>
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/ihp-auto-refresh-htmx.js"}></script>
     |]
 ```
 
-On the page you can keep your skeleton loader and HTMX setup. Because HTMX swaps into `<div id="chat-pane">`, the `htmx:afterSwap` handler derives the target selector `#chat-pane` automatically:
+Use `/ihp-auto-refresh.js` for full-page auto refresh.  
+Use `/ihp-auto-refresh-htmx.js` for HTMX fragments.  
+Do not include both on the same page.
+
+#### Basic recipe
+
+1. Add a stable HTMX target container:
 
 ```haskell
 [hsx|
 <div
-    id="chat-pane"
-    class="h-full"
-    hx-get={pathTo RefineChatPaneAction { chatId }}
-    hx-trigger="load once"
+    id="todo-list-fragment"
+    hx-get={pathTo TodoListFragmentAction}
+    hx-trigger="load"
     hx-swap="innerHTML"
->
-    {skeleton}
-</div>
+></div>
 |]
 ```
 
-After HTMX swaps in the fragment, the Auto Refresh client moves the meta tag into `<head>`, reuses the session id, reconnects the WebSocket, and limits updates to `#chat-pane`. Avoid rendering another `#chat-pane` inside the fragment when using `hx-swap="innerHTML"`, or you will end up with duplicate `id` values.
-
-#### Example 2: No `id` on the swap target (use setAutoRefreshTarget)
-
-If the HTMX target is selected by class or some other selector, Auto Refresh cannot infer the target. Set it explicitly:
+2. Render that fragment with `autoRefresh`:
 
 ```haskell
--- Controller
-action SidebarAction = autoRefresh do
-    setAutoRefreshTarget ".sidebar-pane"
-    items <- query @Item |> fetch
-    render SidebarView { .. }
-
--- View
-instance View SidebarView where
-    html SidebarView { .. } = [hsx|
-        {autoRefreshMeta}
-        {forEach items renderItem}
-    |]
+action TodoListFragmentAction = do
+    setAutoRefreshTarget "#todo-list-fragment"
+    autoRefresh do
+        todos <- query @Todo |> orderByDesc #createdAt |> fetch
+        html <- renderHtml TodoListFragmentView { .. }
+        respondHtml html
 ```
+
+`respondHtml` injects the Auto Refresh meta tag automatically, so you usually don't need to add `{autoRefreshMeta}` manually.
+
+3. Keep write actions simple. For example, a create form can return no content:
+
+```haskell
+action CreateTodoAction = do
+    let newTodo = newRecord @Todo
+    newTodo
+        |> fill @'["title"]
+        |> ifValid \case
+            Left _ -> respondAndExitWithHeaders (responseLBS status422 [] "")
+            Right todo -> do
+                todo |> createRecord
+                respondAndExitWithHeaders (responseLBS status204 [] "")
+```
+
+The list updates via Auto Refresh after the database change.
+
+#### Multiple fragments on one page
+
+Give each fragment its own container and action:
 
 ```haskell
 [hsx|
-<aside
-    class="sidebar-pane"
-    hx-get={pathTo SidebarAction}
-    hx-trigger="load once"
-    hx-swap="innerHTML"
-></aside>
+<div id="todo-list-fragment" hx-get={pathTo TodoListFragmentAction} hx-trigger="load" hx-swap="innerHTML"></div>
+<div id="activity-fragment" hx-get={pathTo ActivityFragmentAction} hx-trigger="load" hx-swap="innerHTML"></div>
 |]
 ```
 
-#### Example 3: Outer swap (fragment includes the container)
-
-If you want the fragment to include the wrapper, use `hx-swap="outerHTML"`:
-
-```haskell
--- View
-instance View RefineChatPaneView where
-    html RefineChatPaneView { .. } = [hsx|
-        {autoRefreshMeta}
-        <div id="chat-pane" class="h-full">
-            {forEach messages renderMessage}
-        </div>
-    |]
-```
-
-```haskell
-[hsx|
-<div
-    id="chat-pane"
-    class="h-full"
-    hx-get={pathTo RefineChatPaneAction { chatId }}
-    hx-trigger="load once"
-    hx-swap="outerHTML"
->
-    {skeleton}
-</div>
-|]
-```
-
-#### Example 4: Multiple fragments on one page
-
-Each fragment has its own target `id` and its own Auto Refresh session:
-
-```haskell
-[hsx|
-<div id="chat-pane" hx-get={pathTo RefineChatPaneAction { chatId }} hx-trigger="load once" hx-swap="innerHTML"></div>
-<div id="activity-pane" hx-get={pathTo ActivityPaneAction} hx-trigger="load once" hx-swap="innerHTML"></div>
-|]
-```
-
-```haskell
--- RefineChatPaneView
-[hsx|{autoRefreshMeta}{forEach messages renderMessage}|]
-
--- ActivityPaneView
-[hsx|{autoRefreshMeta}{forEach activities renderActivity}|]
-```
+Each fragment gets its own Auto Refresh session and updates independently.
