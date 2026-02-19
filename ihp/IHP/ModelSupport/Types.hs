@@ -82,8 +82,9 @@ data ModelContext = ModelContext
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     -- | Logs all queries to this logger at log level info
     , logger :: Logger
-    -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (Text -> IO ())
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query.
+    -- The second argument is a list of fetched row IDs (empty list means IDs are unknown, e.g. raw SQL / fetchCount).
+    , trackTableReadCallback :: Maybe (Text -> [Text] -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }

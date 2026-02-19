@@ -40,6 +40,7 @@ import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 import qualified Text.Read as Read
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Pool.Config as HasqlPoolConfig
@@ -1019,13 +1020,27 @@ instance Default Aeson.Value where
 --
 trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
-    Just callback -> callback tableName
+    Just callback -> callback tableName []
     Nothing -> pure ()
 {-# INLINABLE trackTableRead #-}
+
+-- | Like 'trackTableRead' but also records the IDs of fetched rows.
+--
+-- This is used internally by 'IHP.Fetch.commonFetch' so that AutoRefresh can skip
+-- notifications for rows not in the current view.
+trackTableReadWithIds :: (?modelContext :: ModelContext) => Text -> [Text] -> IO ()
+trackTableReadWithIds tableName ids = case ?modelContext.trackTableReadCallback of
+    Just callback -> callback tableName ids
+    Nothing -> pure ()
+{-# INLINABLE trackTableReadWithIds #-}
 
 -- | Track all tables in SELECT queries executed within the given IO action.
 --
 -- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+--
+-- Also tracks fetched row IDs per table via @?trackedIds@. When a table is read with IDs, the IDs are accumulated.
+-- When a table is read without IDs (e.g. raw SQL, fetchCount), the ID set for that table is removed
+-- to indicate that filtering is not possible.
 --
 -- __Example:__
 --
@@ -1036,13 +1051,19 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text), ?trackedIds :: IORef (Map.Map Text (Set.Set Text))) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
-    let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
+    trackedIdsVar <- newIORef Map.empty
+    let trackTableReadCallback = Just \tableName ids -> do
+            modifyIORef' touchedTablesVar (Set.insert tableName)
+            case ids of
+                [] -> modifyIORef' trackedIdsVar (Map.delete tableName)
+                _ -> modifyIORef' trackedIdsVar (Map.insertWith Set.union tableName (Set.fromList ids))
     let oldModelContext = ?modelContext
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
+    let ?trackedIds = trackedIdsVar
     trackedSection
 
 
