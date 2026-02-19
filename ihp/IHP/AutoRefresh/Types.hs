@@ -15,6 +15,7 @@ import Data.Semigroup (Semigroup (..))
 import qualified Data.UUID as UUID
 import qualified IHP.PGListener as PGListener
 import IHP.Prelude
+import qualified Data.Map.Strict as Map
 import Network.Wai (Request)
 import Wai.Request.Params.Middleware (Respond)
 
@@ -165,6 +166,9 @@ data AutoRefreshSession = AutoRefreshSession
         , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
         , lastPing :: !UTCTime
+        -- | Tracked row IDs per table. 'Nothing' for a table means we can't filter (raw SQL / fetchCount).
+        -- 'Just ids' means only these IDs are relevant. Used by smart auto refresh to skip unrelated notifications.
+        , trackedIds :: !(Map.Map Text (Set Text))
         }
     | AutoRefreshSessionWithChanges
         { id :: !UUID
@@ -185,6 +189,9 @@ data AutoRefreshSession = AutoRefreshSession
         , pendingChanges :: !(IORef (Maybe AutoRefreshChangeSet))
         -- | Decide if a refresh should run for the accumulated changes
         , shouldRefresh :: !(AutoRefreshChangeSet -> IO Bool)
+        -- | Tracked row IDs per table. 'Nothing' for a table means we can't filter (raw SQL / fetchCount).
+        -- 'Just ids' means only these IDs are relevant. Used by smart auto refresh to skip unrelated notifications.
+        , trackedIds :: !(Map.Map Text (Set Text))
         }
 
 data AutoRefreshServer = AutoRefreshServer
