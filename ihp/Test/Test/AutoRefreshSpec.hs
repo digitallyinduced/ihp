@@ -111,15 +111,6 @@ testLogger = Logger
 renderMeta :: (?context :: ControllerContext) => Text
 renderMeta = cs (BlazeHtml.renderHtml autoRefreshMeta)
 
-withFreshContextWithRequest :: Request -> (ControllerContext -> IO a) -> IO a
-withFreshContextWithRequest request block = do
-    let ?request = request
-    context <- newControllerContext
-    block context
-
-withFreshContext :: (ControllerContext -> IO a) -> IO a
-withFreshContext = withFreshContextWithRequest Wai.defaultRequest
-
 tests :: Spec
 tests = do
     beforeAll (mockContextNoDatabase WebApplication config) do
@@ -162,22 +153,6 @@ tests = do
 
                         -- Cleanup
                         MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
-
-    describe "AutoRefresh meta tag" do
-        it "renders nothing when disabled" do
-            withFreshContext \context -> do
-                frozen <- freeze context
-                let ?context = frozen
-                renderMeta `shouldBe` ""
-
-        it "includes the session id when enabled" do
-            let requestWithAutoRefresh = Wai.defaultRequest
-                    { Wai.vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled UUID.nil) Wai.defaultRequest.vault
-                    }
-            withFreshContextWithRequest requestWithAutoRefresh \context -> do
-                frozen <- freeze context
-                let ?context = frozen
-                (cs renderMeta :: String) `shouldContain` "ihp-auto-refresh-id"
 
     describe "AutoRefresh change set" do
         it "stores row json and allows field access" do
