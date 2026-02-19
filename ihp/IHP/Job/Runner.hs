@@ -169,8 +169,10 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
             fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
             case fetchResult of
                 Left exception -> do
+                    when (Exception.isAsyncException exception) (Exception.throwIO exception)
                     Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
                     Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
+                    runJobLoop -- retry after transient error
                 Right (Just job) -> do
                     Log.info ("Starting job: " <> tshow job)
 

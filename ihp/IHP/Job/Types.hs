@@ -31,12 +31,13 @@ class Job job where
     timeoutInMicroseconds :: Maybe Int
     timeoutInMicroseconds = Nothing
 
-    -- | While jobs are typically fetch using pg_notiy, we have to poll the queue table
-    -- periodically to catch jobs with a @run_at@ in the future
+    -- | While jobs are typically fetched using pg_notify, we also poll the queue table
+    -- periodically as a fallback to catch jobs with a @run_at@ in the future and
+    -- as a safety net in case a notification is missed.
     --
-    -- By default we only poll every minute
+    -- By default we poll every 10 seconds
     queuePollInterval :: Int
-    queuePollInterval = 60 * 1000000
+    queuePollInterval = 10 * 1000000
 
     -- | How many jobs of this type can be executed at the same time
     --

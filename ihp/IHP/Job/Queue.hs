@@ -116,7 +116,11 @@ watchForJob pool pgListener tableName pollInterval onNewJob = do
         runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
 
     poller <- pollForJob pool tableName pollInterval onNewJob
-    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable; pure ()))
+    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
+        Log.debug ("Received pg_notify for " <> tableName)
+        didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
+        unless didWrite (Log.warn ("Job queue full, pg_notify for " <> tableName <> " dropped"))
+        ))
 
     pure (subscription, poller)
 
