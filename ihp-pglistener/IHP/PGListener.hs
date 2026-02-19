@@ -19,6 +19,7 @@ module IHP.PGListener
 , subscribe
 , subscribeJSON
 , unsubscribe
+, onReconnect
 ) where
 
 import Prelude hiding (init, show, error)
@@ -98,6 +99,7 @@ data PGListener = PGListener
     , listenTo :: !(MVar Channel)
     , subscriptions :: !(IORef (HashMap Channel [Subscription]))
     , notifyLoopAsync :: !(Async ())
+    , reconnectCallbacks :: !(IORef [Hasql.Connection -> IO ()])
     }
 
 -- | Creates a new 'PGListener' object
@@ -112,9 +114,10 @@ init databaseUrl logger = do
     listeningTo <- MVar.newMVar Set.empty
     subscriptions <- newIORef HashMap.empty
     listenTo <- MVar.newEmptyMVar
+    reconnectCallbacks <- newIORef []
 
-    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions)
-    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync }
+    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions reconnectCallbacks)
+    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync, reconnectCallbacks }
 
 -- | Stops the database listener async and releases the database connection
 --
@@ -207,6 +210,20 @@ unsubscribe subscription@(Subscription { .. }) pgListener = do
     uninterruptibleCancel reader
     pure ()
 
+-- | Register a callback to be called when the PGListener reconnects after a connection loss.
+--
+-- The callback receives the live 'Hasql.Connection' so callers can run SQL directly
+-- on the known-good connection (e.g. to recreate notification triggers).
+--
+-- > PGListener.onReconnect (\connection -> do
+-- >     Hasql.Session.run (Hasql.Session.script triggerSQL) connection
+-- >     pure ()
+-- > ) pgListener
+--
+onReconnect :: (Hasql.Connection -> IO ()) -> PGListener -> IO ()
+onReconnect callback pgListener =
+    modifyIORef' (pgListener.reconnectCallbacks) (callback :)
+
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel
 listenToChannelIfNeeded :: Channel -> PGListener -> IO ()
 listenToChannelIfNeeded channel pgListener = do
@@ -229,8 +246,8 @@ acquireConnection databaseUrl = do
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
 -- Todo: What happens when the connection dies?
-notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
-notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
+notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IORef [Hasql.Connection -> IO ()] -> IO ()
+notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnectCallbacksRef = do
     -- Wait until the first LISTEN is requested before opening a database connection
     MVar.readMVar listenToVar
 
@@ -243,6 +260,14 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
                 -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
                 listeningTo <- MVar.readMVar listeningToVar
                 forM_ listeningTo (listenToChannel connection)
+
+                -- Fire reconnection callbacks (non-empty listeningTo = reconnection, not initial connect)
+                unless (Set.null listeningTo) do
+                    callbacks <- readIORef reconnectCallbacksRef
+                    forM_ callbacks \callback ->
+                        Exception.tryAny (callback connection) >>= \case
+                            Left e -> let ?context = LogContext logger in Log.info ("PGListener reconnect callback failed: " <> displayException e)
+                            Right _ -> pure ()
 
                 -- We use 'race' to alternate between waiting for notifications and
                 -- processing new LISTEN requests. This avoids a deadlock: both

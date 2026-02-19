@@ -27,6 +27,7 @@ import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Connection as HasqlConnection
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Decoders as Decoders
 import qualified Data.Text as Text
@@ -115,8 +116,18 @@ watchForJob pool pgListener tableName pollInterval onNewJob = do
     liftIO do
         runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
 
+        -- Recreate notification triggers when PGListener reconnects (e.g. after `make db` drops the database)
+        PGListener.onReconnect (\connection -> do
+            _ <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
+            pure ()
+            ) pgListener
+
     poller <- pollForJob pool tableName pollInterval onNewJob
-    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable; pure ()))
+    subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
+            Log.debug ("Received pg_notify for " <> tableName)
+            didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
+            unless didWrite (Log.warn ("Job queue full for " <> tableName))
+            ))
 
     pure (subscription, poller)
 
