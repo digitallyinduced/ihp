@@ -118,8 +118,10 @@ watchForJob pool pgListener tableName pollInterval onNewJob = do
 
         -- Recreate notification triggers when PGListener reconnects (e.g. after `make db` drops the database)
         PGListener.onReconnect (\connection -> do
-            _ <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
-            pure ()
+            result <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
+            case result of
+                Left err -> Log.warn ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller.")
+                Right _ -> Log.info ("Recreated notification triggers for " <> tableName)
             ) pgListener
 
     poller <- pollForJob pool tableName pollInterval onNewJob
