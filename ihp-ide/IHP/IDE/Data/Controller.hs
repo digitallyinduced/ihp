@@ -74,7 +74,7 @@ instance Controller DataController where
         primaryKeyFields <- tablePrimaryKeyFields tableName
         let primaryKeyValues = T.splitOn "---" primaryKey
         let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields primaryKeyValues
+                zipWith (\field val -> quoteIdentifier field <> Snippet.sql "::text = " <> Snippet.param val) primaryKeyFields primaryKeyValues
         let snippet = Snippet.sql "DELETE FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> whereClause
         runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
@@ -116,7 +116,7 @@ instance Controller DataController where
         let setClause = mconcat $ List.intersperse (Snippet.sql ", ") $
                 zipWith (\col val -> quoteIdentifier col <> Snippet.sql " = " <> val) columns values
         let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                map (\pkey -> quoteIdentifier pkey <> Snippet.sql " = " <> Snippet.param (param @Text (cs pkey <> "-pk"))) primaryKeyFields
+                map (\pkey -> quoteIdentifier pkey <> Snippet.sql "::text = " <> Snippet.param (param @Text (cs pkey <> "-pk"))) primaryKeyFields
 
         let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> setClause <> Snippet.sql " WHERE " <> whereClause
         runSnippetExec snippet
@@ -135,7 +135,7 @@ instance Controller DataController where
         primaryKeyFields <- tablePrimaryKeyFields tableName
         let targetPrimaryKeyValues = T.splitOn "---" targetPrimaryKey
         let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-                zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) primaryKeyFields targetPrimaryKeyValues
+                zipWith (\field val -> quoteIdentifier field <> Snippet.sql "::text = " <> Snippet.param val) primaryKeyFields targetPrimaryKeyValues
         let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetName <> Snippet.sql " = NOT " <> quoteIdentifier targetName <> Snippet.sql " WHERE " <> whereClause
         runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
@@ -145,7 +145,7 @@ instance Controller DataController where
         let tableName = param "tableName"
         let targetCol = param @Text "targetName"
         let targetValue = param @Text "targetValue"
-        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetCol <> Snippet.sql " = " <> Snippet.param targetValue <> Snippet.sql " WHERE id = " <> Snippet.param (cs id :: Text)
+        let snippet = Snippet.sql "UPDATE " <> quoteIdentifier tableName <> Snippet.sql " SET " <> quoteIdentifier targetCol <> Snippet.sql " = " <> Snippet.param targetValue <> Snippet.sql " WHERE " <> quoteIdentifier "id" <> Snippet.sql "::text = " <> Snippet.param (cs id :: Text)
         runSnippetExec snippet
         redirectTo ShowTableRowsAction { .. }
 
@@ -167,7 +167,7 @@ instance Controller DataController where
 
     action ShowForeignKeyHoverCardAction { tableName, id, columnName } = do
         hovercardData <- do
-            let fetchIdSnippet = Snippet.sql "SELECT " <> quoteIdentifier columnName <> Snippet.sql "::text FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE id = " <> Snippet.param id <> Snippet.sql "::uuid"
+            let fetchIdSnippet = Snippet.sql "SELECT " <> quoteIdentifier columnName <> Snippet.sql "::text FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> quoteIdentifier "id" <> Snippet.sql "::text = " <> Snippet.param id
             foreignIdResult <- runSnippetQuery fetchIdSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
             case foreignIdResult of
@@ -176,7 +176,7 @@ instance Controller DataController where
 
                     case foreignKeyInfo of
                         Just (foreignTable, foreignColumn) -> do
-                            let fetchRecordSnippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier foreignTable <> Snippet.sql " WHERE " <> quoteIdentifier foreignColumn <> Snippet.sql " = " <> Snippet.param foreignId <> Snippet.sql "::uuid LIMIT 1")
+                            let fetchRecordSnippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier foreignTable <> Snippet.sql " WHERE " <> quoteIdentifier foreignColumn <> Snippet.sql "::text = " <> Snippet.param foreignId <> Snippet.sql " LIMIT 1")
                             records <- runSnippetQuery fetchRecordSnippet dynamicFieldDecoder
                             case records of
                                 [record] -> pure $ Just (record, foreignTable)
@@ -226,7 +226,7 @@ fetchRow :: (?modelContext :: ModelContext) => Text -> [Text] -> IO [[DynamicFie
 fetchRow tableName primaryKeyValues = do
     pkFields <- tablePrimaryKeyFields tableName
     let whereClause = mconcat $ List.intersperse (Snippet.sql " AND ") $
-            zipWith (\field val -> quoteIdentifier field <> Snippet.sql " = " <> Snippet.param val) pkFields primaryKeyValues
+            zipWith (\field val -> quoteIdentifier field <> Snippet.sql "::text = " <> Snippet.param val) pkFields primaryKeyValues
     let snippet = wrapDynamicQuery (Snippet.sql "SELECT * FROM " <> quoteIdentifier tableName <> Snippet.sql " WHERE " <> whereClause)
     runSnippetQuery snippet dynamicFieldDecoder
 
