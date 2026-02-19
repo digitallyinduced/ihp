@@ -14,7 +14,7 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar)
+import IHP.AutoRefresh (autoRefresh, globalAutoRefreshServerVar)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import IHP.Controller.Response (ResponseException(..))
