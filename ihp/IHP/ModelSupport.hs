@@ -300,8 +300,9 @@ sqlExec theQuery theParameters = do
 -- > sqlExecDiscardResult "CREATE TABLE users ()" ()
 sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
 sqlExecDiscardResult theQuery theParameters = do
-    _ <- sqlExec theQuery theParameters
-    pure ()
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlExecHasql pool snippet
 {-# INLINABLE sqlExecDiscardResult #-}
 
 
