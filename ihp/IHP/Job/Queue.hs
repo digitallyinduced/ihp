@@ -13,7 +13,8 @@ import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception.Safe as Exception
-import IHP.ModelSupport
+import IHP.ModelSupport (HasqlError(..), Table(..), isCachedPlanError, GetModelByTableName, InputValue(..))
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
@@ -28,11 +29,25 @@ import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Decoders as Decoders
-import IHP.Hasql.Encoders ()
 import qualified Data.Text as Text
-import Data.Functor.Contravariant.Divisible (conquer)
 import Control.Concurrent.STM (TBQueue, atomically, writeTBQueue, STM)
 import Control.Concurrent.STM.TBQueue (isFullTBQueue)
+import Data.Functor.Contravariant (contramap)
+
+-- | Run a hasql session against the pool, retrying once on cached plan errors.
+runPool :: HasqlPool.Pool -> HasqlSession.Session a -> IO a
+runPool pool session = do
+    result <- HasqlPool.use pool session
+    case result of
+        Left err
+            | isCachedPlanError err -> do
+                HasqlPool.release pool
+                retryResult <- HasqlPool.use pool session
+                case retryResult of
+                    Left retryErr -> throwIO (HasqlError retryErr)
+                    Right a -> pure a
+            | otherwise -> throwIO (HasqlError err)
+        Right a -> pure a
 
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
@@ -43,30 +58,30 @@ import Control.Concurrent.STM.TBQueue (isFullTBQueue)
 -- __Example:__ Locking a SendMailJob
 --
 -- > let workerId :: UUID = "faa5ba30-1d76-4adf-bf01-2d1f95cddc04"
--- > job <- fetchNextJob @SendMailJob workerId
+-- > job <- fetchNextJob @SendMailJob pool workerId
 --
 -- After you're done with the job, call 'jobDidFail' or 'jobDidSucceed' to make it available to the queue again.
 fetchNextJob :: forall job.
-    ( ?modelContext :: ModelContext
-    , job ~ GetModelByTableName (GetTableName job)
+    ( job ~ GetModelByTableName (GetTableName job)
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
     , Table job
-    ) => UUID -> IO (Maybe job)
-fetchNextJob workerId = do
-    let tn = tableName @job
-    let cols = Text.intercalate ", " (columnNames @job)
-    let sql = "UPDATE " <> tn
-            <> " SET status = 'job_status_running', locked_at = NOW(), locked_by = $1"
+    ) => HasqlPool.Pool -> UUID -> IO (Maybe job)
+fetchNextJob pool workerId = do
+    let tableNameText = tableName @job
+    let returningColumns = Text.intercalate ", " (columnNames @job)
+    let sql = "UPDATE " <> tableNameText
+            <> " SET status = 'job_status_running'"
+            <> ", locked_at = NOW(), locked_by = $1"
             <> ", attempts_count = attempts_count + 1"
-            <> " WHERE id IN (SELECT id FROM " <> tn
+            <> " WHERE id IN (SELECT id FROM " <> tableNameText
             <> " WHERE " <> pendingJobConditionSQL
             <> " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
-            <> " RETURNING " <> cols
-    let statement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowMaybe (hasqlRowDecoder @job))
-
-    pool <- getHasqlPool
-    withoutQueryLogging (sqlStatementHasql pool workerId statement)
+            <> " RETURNING " <> returningColumns
+    let encoder = Encoders.param (Encoders.nonNullable Encoders.uuid)
+    let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)
+    let statement = Hasql.unpreparable sql encoder decoder
+    runPool pool (HasqlSession.statement workerId statement)
 
 -- | Shared WHERE condition for fetching pending jobs as a SQL text fragment.
 -- Matches jobs that are either not started or in retry state,
@@ -74,7 +89,9 @@ fetchNextJob workerId = do
 -- Enum values are inlined as SQL string literals (PostgreSQL casts them to job_status).
 pendingJobConditionSQL :: Text
 pendingJobConditionSQL =
-    "(status = 'job_status_not_started' OR status = 'job_status_retry') AND locked_by IS NULL AND run_at <= NOW()"
+    "(status = 'job_status_not_started'"
+    <> " OR status = 'job_status_retry'"
+    <> ") AND locked_by IS NULL AND run_at <= NOW()"
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
@@ -92,14 +109,13 @@ pendingJobConditionSQL =
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 --
-watchForJob :: (?modelContext :: ModelContext) => PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
-watchForJob pgListener tableName pollInterval onNewJob = do
+watchForJob :: (?context :: context, HasField "logger" context Log.Logger) => HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
+watchForJob pool pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     liftIO do
-        pool <- getHasqlPool
-        withoutQueryLogging (runSessionHasql pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS)))
+        runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
 
-    poller <- pollForJob tableName pollInterval onNewJob
+    poller <- pollForJob pool tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable; pure ()))
 
     pure (subscription, poller)
@@ -112,18 +128,16 @@ watchForJob pgListener tableName pollInterval onNewJob = do
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 --
-pollForJob :: (?modelContext :: ModelContext) => Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
-pollForJob tableName pollInterval onNewJob = do
+pollForJob :: (?context :: context, HasField "logger" context Log.Logger) => HasqlPool.Pool -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
+pollForJob pool tableName pollInterval onNewJob = do
     let sql = "SELECT COUNT(*) FROM " <> tableName
             <> " WHERE " <> pendingJobConditionSQL
-    let statement = Hasql.preparable sql conquer (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
+    let statement = Hasql.unpreparable sql Encoders.noParams decoder
     let handler = do
-            let ?context = ?modelContext
-            pool <- getHasqlPool
             forever do
                 result <- Exception.tryAny do
-                    -- We don't log the queries to the console as it's filling up the log entries with noise
-                    count :: Int <- fromIntegral <$> withoutQueryLogging (sqlStatementHasql pool () statement)
+                    count :: Int <- fromIntegral <$> runPool pool (HasqlSession.statement () statement)
 
                     -- For every job we send one signal to the job workers
                     -- This way we use full concurrency when we find multiple jobs
@@ -178,21 +192,16 @@ channelName tableName = "job_available_" <> tableName
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
 jobDidFail :: forall job context.
-    ( job ~ GetModelByTableName (GetTableName job)
-    , SetField "lockedBy" job (Maybe UUID)
-    , SetField "status" job JobStatus
-    , SetField "updatedAt" job UTCTime
-    , SetField "runAt" job UTCTime
+    ( Table job
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , HasField "attemptsCount" job Int
-    , SetField "lastError" job (Maybe Text)
+    , HasField "runAt" job UTCTime
     , Job job
-    , CanUpdate job
-    , Show job
-    , ?modelContext :: ModelContext
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => job -> SomeException -> IO ()
-jobDidFail job exception = do
+    ) => HasqlPool.Pool -> job -> SomeException -> IO ()
+jobDidFail pool job exception = do
     now <- getCurrentTime
 
     Log.warn ("Failed job with exception: " <> tshow exception)
@@ -200,33 +209,33 @@ jobDidFail job exception = do
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusFailed
-    let nextRunAt = addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
-    job
-        |> set #status status
-        |> set #lockedBy Nothing
-        |> set #updatedAt now
-        |> set #lastError (Just (tshow exception))
-        |> (if canRetry then set #runAt nextRunAt else id)
-        |> updateRecord
-
-    pure ()
+    let nextRunAt = if canRetry
+            then addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
+            else job.runAt
+    let Id jobId = job.id
+    let tableNameText = tableName @job
+    let sql = "UPDATE " <> tableNameText
+            <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+    let encoder =
+            contramap (\(s,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,u,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,e,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    let statement = Hasql.unpreparable sql encoder Decoders.noResult
+    runPool pool (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId) statement)
 
 jobDidTimeout :: forall job context.
-    ( job ~ GetModelByTableName (GetTableName job)
-    , SetField "lockedBy" job (Maybe UUID)
-    , SetField "status" job JobStatus
-    , SetField "updatedAt" job UTCTime
-    , SetField "runAt" job UTCTime
+    ( Table job
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , HasField "attemptsCount" job Int
-    , SetField "lastError" job (Maybe Text)
+    , HasField "runAt" job UTCTime
     , Job job
-    , CanUpdate job
-    , Show job
-    , ?modelContext :: ModelContext
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => job -> IO ()
-jobDidTimeout job = do
+    ) => HasqlPool.Pool -> job -> IO ()
+jobDidTimeout pool job = do
     now <- getCurrentTime
 
     Log.warn ("Job timed out" :: Text)
@@ -234,43 +243,43 @@ jobDidTimeout job = do
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
     let status = if canRetry then JobStatusRetry else JobStatusTimedOut
-    let nextRunAt = addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
-    job
-        |> set #status status
-        |> set #lockedBy Nothing
-        |> set #updatedAt now
-        |> setJust #lastError "Timeout reached"
-        |> (if canRetry then set #runAt nextRunAt else id)
-        |> updateRecord
-
-    pure ()
+    let nextRunAt = if canRetry
+            then addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
+            else job.runAt
+    let Id jobId = job.id
+    let tableNameText = tableName @job
+    let sql = "UPDATE " <> tableNameText
+            <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+    let encoder =
+            contramap (\(s,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,u,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,e,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    let statement = Hasql.unpreparable sql encoder Decoders.noResult
+    runPool pool (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId) statement)
 
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
 jobDidSucceed :: forall job context.
-    ( job ~ GetModelByTableName (GetTableName job)
-    , SetField "lockedBy" job (Maybe UUID)
-    , SetField "status" job JobStatus
-    , SetField "updatedAt" job UTCTime
-    , HasField "attemptsCount" job Int
-    , SetField "lastError" job (Maybe Text)
-    , Job job
-    , CanUpdate job
-    , Show job
-    , ?modelContext :: ModelContext
+    ( Table job
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => job -> IO ()
-jobDidSucceed job = do
+    ) => HasqlPool.Pool -> job -> IO ()
+jobDidSucceed pool job = do
     Log.info ("Succeeded job" :: Text)
     updatedAt <- getCurrentTime
-    job
-        |> set #status JobStatusSucceeded
-        |> set #lockedBy Nothing
-        |> set #updatedAt updatedAt
-        |> updateRecord
-
-    pure ()
+    let Id jobId = job.id
+    let tableNameText = tableName @job
+    let sql = "UPDATE " <> tableNameText
+            <> " SET status = 'job_status_succeeded', locked_by = NULL, updated_at = $1 WHERE id = $2"
+    let encoder =
+            contramap fst (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.uuid))
+    let statement = Hasql.unpreparable sql encoder Decoders.noResult
+    runPool pool (HasqlSession.statement (updatedAt, jobId) statement)
 
 -- | Compute the delay before the next retry attempt.
 --
@@ -288,33 +297,32 @@ backoffDelay (ExponentialBackoff {delayInSeconds}) attempts =
 -- - Recently stale jobs (within 24h) are set back to retry
 -- - Ancient stale jobs (older than 24h) are marked as failed
 recoverStaleJobs :: forall job.
-    ( ?modelContext :: ModelContext
-    , Table job
-    ) => NominalDiffTime -> IO ()
-recoverStaleJobs staleThreshold = do
-    let tn = tableName @job
-
-    -- Tier 1: Recently stale jobs (threshold..24h) → retry
-    let retrySql = "UPDATE " <> tn
+    ( Table job
+    ) => HasqlPool.Pool -> NominalDiffTime -> IO ()
+recoverStaleJobs pool staleThreshold = do
+    let tableNameText = tableName @job
+    -- Tier 1: Recently stale jobs (threshold..24h) -> retry
+    let retrySql =
+            "UPDATE " <> tableNameText
             <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL, run_at = NOW()"
             <> " WHERE status = 'job_status_running'"
             <> " AND locked_at < NOW() - interval '1 second' * $1"
             <> " AND locked_at > NOW() - interval '1 day'"
-    let retryStatement = Hasql.preparable retrySql
-            (Encoders.param (Encoders.nonNullable Encoders.int4))
-            Decoders.noResult
+    let retryEncoder = Encoders.param (Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8))
+    let retryStatement = Hasql.unpreparable retrySql retryEncoder Decoders.noResult
 
-    -- Tier 2: Ancient stale jobs (>24h) → mark failed
-    let failSql = "UPDATE " <> tn
+    -- Tier 2: Ancient stale jobs (>24h) -> mark failed
+    let failSql =
+            "UPDATE " <> tableNameText
             <> " SET status = 'job_status_failed', locked_by = NULL, locked_at = NULL"
             <> ", last_error = 'Stale job: worker likely crashed'"
             <> " WHERE status = 'job_status_running'"
             <> " AND locked_at < NOW() - interval '1 day'"
-    let failStatement = Hasql.preparable failSql conquer Decoders.noResult
+    let failStatement = Hasql.unpreparable failSql Encoders.noParams Decoders.noResult
 
-    pool <- getHasqlPool
-    withoutQueryLogging (sqlExecStatement pool (round staleThreshold :: Int32) retryStatement)
-    withoutQueryLogging (sqlExecStatement pool () failStatement)
+    let thresholdSeconds = round staleThreshold :: Int
+    runPool pool (HasqlSession.statement thresholdSeconds retryStatement)
+    runPool pool (HasqlSession.statement () failStatement)
 
 -- | Mapping for @JOB_STATUS@:
 --
@@ -378,9 +386,6 @@ instance DefaultParamEncoder JobStatus where
 -- | DefaultParamEncoder for lists of JobStatus, needed for filterWhereIn/filterWhereNotIn
 instance DefaultParamEncoder [JobStatus] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
-
-getHasqlPool :: (?modelContext :: ModelContext) => IO HasqlPool.Pool
-getHasqlPool = pure ?modelContext.hasqlPool
 
 -- | Non-blocking write to a TBQueue. Returns True if the value was written,
 -- False if the queue was full.

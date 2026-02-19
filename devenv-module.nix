@@ -233,7 +233,7 @@ that is defined in flake-module.nix
                         # Development Specific Tools (not in ihp.nix)
                         hspec
                         ihp-hsx
-                        ihp-postgresql-simple-extra
+                        postgresql-simple-postgresql-types
                         tasty-bench
 
                         # Packages needed for ghci to load IHP modules

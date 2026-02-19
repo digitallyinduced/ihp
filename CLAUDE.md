@@ -73,7 +73,6 @@ This is a monorepo with multiple Haskell packages:
 | `ihp-hspec/` | Testing utilities |
 | `ihp-openai/` | OpenAI integration |
 | `ihp-ssc/` | Server-side components |
-| `ihp-postgresql-simple-extra/` | PostgreSQL utilities |
 
 ## Core Framework Architecture (`ihp/IHP/`)
 

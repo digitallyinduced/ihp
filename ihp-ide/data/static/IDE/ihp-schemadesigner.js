@@ -49,8 +49,11 @@ function initSchemaDesigner() {
             $('#typeSelector').val('DATE').trigger('change');
         }
     });
-    $('.select2').select2({ tags: true });
-    $('.select2-simple').select2();
+    var $modal = $('.modal');
+    var select2Options = $modal.length ? { tags: true, dropdownParent: $modal } : { tags: true };
+    var select2SimpleOptions = $modal.length ? { dropdownParent: $modal } : {};
+    $('.select2').select2(select2Options);
+    $('.select2-simple').select2(select2SimpleOptions);
     $('#typeSelector').change(function () {
         switch (this.value) {
             case "UUID":
@@ -352,8 +355,9 @@ function checkBeforeUnload() {
 function initDataEditorForeignKeyAutocomplete() {
     const elements = document.querySelectorAll('.form-control.is-foreign-key-column');
 
+    var $modal = $('.modal');
     for (const element of elements) {
-        $(element).select2({
+        var options = {
             ajax: {
                 url: element.dataset.selectUrl,
                 processResults: data => ({ results: data }),
@@ -394,6 +398,8 @@ function initDataEditorForeignKeyAutocomplete() {
                 return row.id;
             },
             placeholder:' Search ...'
-        })
+        };
+        if ($modal.length) options.dropdownParent = $modal;
+        $(element).select2(options);
     }
 }
