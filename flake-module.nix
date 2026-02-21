@@ -387,6 +387,9 @@ ihpFlake:
 
                 env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
 
+                # Use Overmind so when running tests in GitHub actions, we can execute `devenv up &` without an error.
+                process.implementation = "overmind";
+
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
                         echo "usage: deploy-to-nixos <target-host>"
