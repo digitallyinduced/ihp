@@ -27,7 +27,7 @@ module IHP.FetchPipelined
 , fetchCountPipelined
 , fetchExistsPipelined
 , pipeline
-, Pipeline
+, Pipeline.Pipeline
 ) where
 
 import IHP.Prelude
@@ -37,33 +37,13 @@ import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
-import qualified Hasql.Pipeline as HasqlPipeline
+import qualified Hasql.Pipeline as Pipeline
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as HasqlStatement
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
-
--- | An Applicative pipeline that accumulates table reads for AutoRefresh
--- tracking alongside the underlying hasql pipeline.
---
--- This is 'Applicative' but NOT 'Monad', which enforces at the type level
--- that only independent queries can be pipelined.
-data Pipeline a = Pipeline
-    { readTables :: ![Text]
-    , hasqlPipeline :: !(HasqlPipeline.Pipeline a)
-    }
-
-instance Functor Pipeline where
-    fmap f (Pipeline tables p) = Pipeline tables (fmap f p)
-    {-# INLINE fmap #-}
-
-instance Applicative Pipeline where
-    pure a = Pipeline [] (pure a)
-    {-# INLINE pure #-}
-    Pipeline t1 f <*> Pipeline t2 a = Pipeline (t1 <> t2) (f <*> a)
-    {-# INLINE (<*>) #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning all matching rows.
 --
@@ -79,11 +59,8 @@ fetchPipelined :: forall model table queryBuilderProvider joinRegister.
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> Pipeline [model]
-fetchPipelined !queryBuilder = Pipeline
-    { readTables = [tableName @model]
-    , hasqlPipeline = HasqlPipeline.statement () (buildQueryListStatement queryBuilder)
-    }
+    ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
+fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
 {-# INLINE fetchPipelined #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning at most one row.
@@ -100,11 +77,8 @@ fetchOneOrNothingPipelined :: forall model table queryBuilderProvider joinRegist
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> Pipeline (Maybe model)
-fetchOneOrNothingPipelined !queryBuilder = Pipeline
-    { readTables = [tableName @model]
-    , hasqlPipeline = HasqlPipeline.statement () (buildQueryMaybeStatement queryBuilder)
-    }
+    ) => queryBuilderProvider table -> Pipeline.Pipeline (Maybe model)
+fetchOneOrNothingPipelined !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
 {-# INLINE fetchOneOrNothingPipelined #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a count.
@@ -118,11 +92,8 @@ fetchOneOrNothingPipelined !queryBuilder = Pipeline
 fetchCountPipelined :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> Pipeline Int
-fetchCountPipelined !queryBuilder = Pipeline
-    { readTables = [symbolToText @table]
-    , hasqlPipeline = fromIntegral <$> HasqlPipeline.statement () (buildCountStatement queryBuilder)
-    }
+    ) => queryBuilderProvider table -> Pipeline.Pipeline Int
+fetchCountPipelined !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
 {-# INLINE fetchCountPipelined #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a boolean.
@@ -136,11 +107,8 @@ fetchCountPipelined !queryBuilder = Pipeline
 fetchExistsPipelined :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> Pipeline Bool
-fetchExistsPipelined !queryBuilder = Pipeline
-    { readTables = [symbolToText @table]
-    , hasqlPipeline = HasqlPipeline.statement () (buildExistsStatement queryBuilder)
-    }
+    ) => queryBuilderProvider table -> Pipeline.Pipeline Bool
+fetchExistsPipelined !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
 {-# INLINE fetchExistsPipelined #-}
 
 -- | Execute a 'Pipeline' in a single database round trip.
@@ -148,8 +116,6 @@ fetchExistsPipelined !queryBuilder = Pipeline
 -- When row-level security (RLS) is enabled, the pipeline is automatically wrapped
 -- with @set_config@ / reset statements to preserve the request's RLS context.
 -- These are included in the same pipeline batch, adding no extra round trips.
---
--- Table reads are automatically tracked for AutoRefresh support.
 --
 -- __Example:__
 --
@@ -160,8 +126,8 @@ fetchExistsPipelined !queryBuilder = Pipeline
 -- >         commentCount <- query @Comment |> fetchCountPipelined
 -- >         pure (users, posts, commentCount)
 -- >     render DashboardView { .. }
-pipeline :: (?modelContext :: ModelContext) => Pipeline a -> IO a
-pipeline (Pipeline tables thePipeline) = do
+pipeline :: (?modelContext :: ModelContext) => Pipeline.Pipeline a -> IO a
+pipeline thePipeline = do
     let pool = ?modelContext.hasqlPool
     -- When RLS is enabled and we're not already in a transaction, wrap the
     -- pipeline with session-scoped set_config/reset statements.  These are
@@ -171,9 +137,9 @@ pipeline (Pipeline tables thePipeline) = do
     let effectivePipeline = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 (\_ a _ -> a)
-                    <$> HasqlPipeline.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigPipelineStatement
+                    <$> Pipeline.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigPipelineStatement
                     <*> thePipeline
-                    <*> HasqlPipeline.statement () resetRLSConfigPipelineStatement
+                    <*> Pipeline.statement () resetRLSConfigPipelineStatement
             _ -> thePipeline
     let session = HasqlSession.pipeline effectivePipeline
     let ?context = ?modelContext
@@ -193,9 +159,7 @@ pipeline (Pipeline tables thePipeline) = do
                                 Right a -> pure a
                         | otherwise -> throwIO (HasqlError err)
                     Right a -> pure a
-    logQueryTiming currentLogLevel "🔍 Pipeline" do
-        mapM_ trackTableRead tables
-        runQuery
+    logQueryTiming currentLogLevel "🔍 Pipeline" runQuery
 {-# INLINABLE pipeline #-}
 
 -- | Session-scoped RLS config for pipeline mode.
