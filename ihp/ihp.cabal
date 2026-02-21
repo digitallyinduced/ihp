@@ -78,6 +78,7 @@ common shared-properties
             , interpolate
             , split
             , containers
+            , dlist
             , http-media
             , cookie
             , process

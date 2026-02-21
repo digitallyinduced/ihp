@@ -25,6 +25,8 @@ initAuthentication :: forall user normalizedModel.
         , GetTableName normalizedModel ~ GetTableName user
         , FilterPrimaryKey (GetTableName normalizedModel)
         , KnownSymbol (GetModelName user)
+        , HasField "id" normalizedModel (Id' (GetTableName user))
+        , Show (PrimaryKey (GetTableName normalizedModel))
     ) => IO ()
 initAuthentication = do
     user <- getSession @(Id user) (sessionKey @user)

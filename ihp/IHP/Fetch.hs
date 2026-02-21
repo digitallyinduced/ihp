@@ -29,12 +29,14 @@ where
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
+import IHP.QueryBuilder.Types (SQLQuery(..))
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.QueryBuilder.HasqlCompiler (buildStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import qualified Hasql.Statement as Hasql
-import IHP.Fetch.Statement (fetchByIdOneOrNothingStatement, fetchByIdListStatement, buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch.Statement (fetchByIdOneOrNothingStatement, fetchByIdListStatement, buildCountStatement, buildExistsStatement)
+import Data.Dynamic (toDyn)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -91,9 +93,11 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColum
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
         let pool = ?modelContext.hasqlPool
-        let statement = buildStatement (buildQuery queryBuilderProvider) (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
+        let !sqlQuery' = buildQuery queryBuilderProvider
+        let statement = buildStatement sqlQuery' (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
         results <- sqlStatementHasql pool () statement
         trackTableReadWithIds (tableName @model) (map (\m -> tshow (get #id m.contentValue)) results)
+        trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
         pure results
 
     {-# INLINE fetchOneOrNothing #-}
@@ -113,6 +117,7 @@ commonFetch !queryBuilder = do
     let pool = ?modelContext.hasqlPool
     results <- sqlStatementHasql pool () (buildStatement sqlQuery' (Decoders.rowList (hasqlRowDecoder @model)))
     trackTableReadWithIds (tableName @model) (map (\m -> tshow (get #id m)) results)
+    trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
     pure results
 
 {-# INLINE commonFetchOneOrNothing #-}
@@ -124,6 +129,7 @@ commonFetchOneOrNothing !queryBuilder = do
     case result of
         Just m -> trackTableReadWithIds (tableName @model) [tshow (get #id m)]
         Nothing -> trackTableReadWithIds (tableName @model) []
+    trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
     pure result
 
 {-# INLINE commonFetchOne #-}
