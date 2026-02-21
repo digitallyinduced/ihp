@@ -34,7 +34,7 @@ Once you have created your project, the first step is to define a database schem
 
 In a new project, this file will be empty.
 
-If you are using PostgreSQL 18 or newer, you can set the environment variable `IHP_POSTGRES_VERSION=18` to use the native `uuidv7()` function as the default for new tables and jobs instead of `uuid_generate_v4()`. UUIDv7 provides time-ordered UUIDs that are better for database indexing.
+IHP uses PostgreSQL 18 by default, which provides the native `uuidv7()` function for time-ordered UUIDs that are better for database indexing. New tables and jobs will use `uuidv7()` as the default UUID function. If you need to use PostgreSQL 17, set the environment variable `IHP_POSTGRES_VERSION=17` to fall back to `uuid_generate_v4()`.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
