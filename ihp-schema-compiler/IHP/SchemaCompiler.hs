@@ -116,6 +116,10 @@ tableModule options table =
             module $moduleName where
             $defaultImports
             import Generated.ActualTypes
+            import IHP.Fetch
+            import IHP.FetchRelated (CollectionFetchRelated(..), CollectionFetchRelatedOrNothing(..), collectionFetchRelatedById, collectionFetchRelatedOrNothingById)
+            import qualified IHP.HSX.Attribute as HSX
+            import IHP.Controller.Param (ParamReader(..))
         |]
 
 tableIncludeModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
@@ -141,6 +145,9 @@ tableModuleBody options table = Text.unlines
     , compileUpdate table
     , compileBuild table
     , compileFilterPrimaryKeyInstance table
+    , if tableHasPrimaryKey table
+            then compileIdNewtypeModelInstances table
+            else ""
     , if needsHasFieldId table
             then compileHasFieldId table
             else ""
@@ -260,15 +267,15 @@ compileActualTypesForTable table = Text.unlines
     , compileTableInstance table
     ]
 
--- | Like 'compileActualTypesForTable' but includes PrimaryKey and Default Id' instances inline.
+-- | Like 'compileActualTypesForTable' but includes PrimaryKey, Id newtype, and all instances inline.
 -- Used by 'compileStatementPreviewWith' so the IDE preview and tests see a self-contained output.
 compileActualTypesForTablePreview :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileActualTypesForTablePreview table = Text.unlines
     [ compileData table
     , compilePrimaryKeyInstance table
+    , compileIdNewtype table
     , compileTypeAlias table
     , compileHasTableNameInstance table
-    , compileDefaultIdInstance table
     , compileTableInstance table
     ]
 
@@ -334,6 +341,7 @@ defaultImports = [trimming|
     import IHP.Job.Queue (textToEnumJobStatus)
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
+    import Data.Hashable (Hashable)
     import Data.Scientific
     import IHP.Hasql.FromRow (FromRowHasql(..))
     import qualified Hasql.Decoders as Decoders
@@ -383,18 +391,20 @@ compilePrimaryKeysModule schema@(Schema statements) =
         , statements
             |> mapMaybe (\case
                 StatementCreateTable table | tableHasPrimaryKey table ->
-                    Just (compilePrimaryKeyInstance table <> compileDefaultIdInstance table)
+                    Just (compilePrimaryKeyInstance table <> "\n" <> compileIdNewtype table)
                 _ -> Nothing)
             |> Text.intercalate "\n"
         ]
     where
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving, DerivingStrategies, GeneralizedNewtypeDeriving, DeriveDataTypeable, PatternSynonyms, ViewPatterns  #-}
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
             module Generated.ActualTypes.PrimaryKeys where
             $defaultImports
+            import qualified Prelude
             import Generated.Enums
+            import qualified Data.Functor.Contravariant
         |]
 
 compileStatementPreview :: [Statement] -> Statement -> Text
@@ -436,7 +446,7 @@ compileTypeAlias table@(CreateTable { name, columns }) =
             | otherwise = ""
 
 primaryKeyTypeName :: Text -> Text
-primaryKeyTypeName name = "Id' " <> tshow name <> ""
+primaryKeyTypeName name = tableNameToModelName name <> "Id"
 
 compileData :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileData table@(CreateTable { name, columns }) =
@@ -999,8 +1009,125 @@ compileBuild table@(CreateTable { name, columns }) =
         <> "    newRecord = " <> constructor <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> qbDefaults <> " def\n"
 
 
-compileDefaultIdInstance :: CreateTable -> Text
-compileDefaultIdInstance table = "instance Default (Id' \"" <> table.name <> "\") where def = Id def"
+-- | Generates the per-table Id newtype, type family instances, and all required typeclass instances.
+--
+-- For a table "users" with UUID primary key, generates:
+--
+-- > newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, NFData, FromField, ToField, ToJSON, FromJSON, Mapping.IsScalar) deriving stock (Data)
+-- > type instance Id' "users" = UserId
+-- > type instance GetTableForId UserId = "users"
+-- > instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
+-- > instance Default UserId where def = UserId def
+-- > ...
+compileIdNewtype :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileIdNewtype table = case primaryKeyColumns table of
+    [column] -> compileSingleColumnIdNewtype table column
+    _ -> compileCompositeIdNewtype table
+
+-- | Generate Id newtype for single-column primary key tables.
+-- Only generates the newtype and instances that don't reference the model type.
+-- Instances that need the model type (Fetchable, CollectionFetchRelated, ParamReader,
+-- HSX.ApplyAttribute) are generated by 'compileIdNewtypeModelInstances' in the per-table module.
+compileSingleColumnIdNewtype :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Column -> Text
+compileSingleColumnIdNewtype table column = Text.unlines
+    [ "newtype " <> idTypeName <> " = " <> idTypeName <> " " <> pkType
+        <> " deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar)"
+        <> " deriving stock (Data)"
+    , "type instance Id' " <> tshow table.name <> " = " <> idTypeName
+    , "type instance GetTableForId " <> idTypeName <> " = " <> tshow table.name
+    , "instance IdNewtype " <> idTypeName <> " " <> pkType <> " where { toId = " <> idTypeName <> "; fromId (" <> idTypeName <> " x) = x }"
+    , "instance Default " <> idTypeName <> " where def = " <> idTypeName <> " def"
+    , "instance IsEmpty " <> idTypeName <> " where isEmpty (" <> idTypeName <> " x) = isEmpty x"
+    , "instance InputValue " <> idTypeName <> " where inputValue (" <> idTypeName <> " x) = inputValue x"
+    , "instance IsString " <> idTypeName <> " where"
+    , "    fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of"
+    , "        Just pk -> " <> idTypeName <> " pk"
+    , "        Nothing -> Prelude.error (\"Unable to convert \" <> Prelude.show str <> \" to " <> idTypeName <> "\")"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> idTypeName <> " where"
+    , "    defaultParam = Hasql.Encoders.nonNullable Mapping.encoder"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> idTypeName <> "] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> idTypeName <> ") where"
+    , "    defaultParam = Hasql.Encoders.nullable Mapping.encoder"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe " <> idTypeName <> "] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder"
+    ]
+    where
+        idTypeName = primaryKeyTypeName table.name
+        pkType = atomicType column.columnType
+
+-- | Generates instances that reference the model type (Fetchable, CollectionFetchRelated,
+-- ParamReader, HSX.ApplyAttribute). These go into per-table modules where the model type is in scope.
+compileIdNewtypeModelInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileIdNewtypeModelInstances table = case primaryKeyColumns table of
+    [_column] -> Text.unlines
+        [ "instance HSX.ApplyAttribute " <> idTypeName <> " where"
+        , "    applyAttribute attr attr' (" <> idTypeName <> " x) h = HSX.applyAttribute attr attr' (inputValue x) h"
+        , "instance ParamReader " <> idTypeName <> " where"
+        , "    readParameter bytes = " <> idTypeName <> " <$> readParameter bytes"
+        , "    readParameterJSON value = " <> idTypeName <> " <$> readParameterJSON value"
+        , compileFetchableIdInstances table
+        , "instance CollectionFetchRelated " <> idTypeName <> " " <> modelName <> " where"
+        , "    collectionFetchRelated = collectionFetchRelatedById"
+        , "instance CollectionFetchRelatedOrNothing " <> idTypeName <> " " <> modelName <> " where"
+        , "    collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById"
+        ]
+    _ -> "" -- Composite PKs don't get these instances
+    where
+        idTypeName = primaryKeyTypeName table.name
+        modelName = tableNameToModelName table.name
+
+-- | Generate Fetchable instances for a single-column Id newtype
+compileFetchableIdInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileFetchableIdInstances table = Text.intercalate "\n"
+    [ "instance Fetchable " <> idTypeName <> " " <> modelName <> " where"
+    , "    type FetchResult " <> idTypeName <> " " <> modelName <> " = " <> modelName
+    , "    {-# INLINE fetch #-}"
+    , "    fetch = genericFetchIdOne"
+    , "    {-# INLINE fetchOneOrNothing #-}"
+    , "    fetchOneOrNothing = genericfetchIdOneOrNothing"
+    , "    {-# INLINE fetchOne #-}"
+    , "    fetchOne = genericFetchIdOne"
+    , "instance Fetchable (Maybe " <> idTypeName <> ") " <> modelName <> " where"
+    , "    type FetchResult (Maybe " <> idTypeName <> ") " <> modelName <> " = [" <> modelName <> "]"
+    , "    {-# INLINE fetch #-}"
+    , "    fetch (Just a) = genericFetchId a"
+    , "    fetch Nothing = pure []"
+    , "    {-# INLINE fetchOneOrNothing #-}"
+    , "    fetchOneOrNothing Nothing = pure Nothing"
+    , "    fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a"
+    , "    {-# INLINE fetchOne #-}"
+    , "    fetchOne (Just a) = genericFetchIdOne a"
+    , "    fetchOne Nothing = error \"Fetchable (Maybe " <> idTypeName <> "): Failed to fetch because given id is 'Nothing', 'Just id' was expected\""
+    , "instance Fetchable [" <> idTypeName <> "] " <> modelName <> " where"
+    , "    type FetchResult [" <> idTypeName <> "] " <> modelName <> " = [" <> modelName <> "]"
+    , "    {-# INLINE fetch #-}"
+    , "    fetch = genericFetchIds"
+    , "    {-# INLINE fetchOneOrNothing #-}"
+    , "    fetchOneOrNothing = genericfetchIdsOneOrNothing"
+    , "    {-# INLINE fetchOne #-}"
+    , "    fetchOne = genericFetchIdsOne"
+    ]
+    where
+        idTypeName = primaryKeyTypeName table.name
+        modelName = tableNameToModelName table.name
+
+-- | Generate Id handling for composite primary key tables.
+-- These get simpler treatment - the PrimaryKey type is a tuple, wrapped in Id for pattern matching.
+compileCompositeIdNewtype :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileCompositeIdNewtype table = Text.unlines
+    [ "newtype " <> idTypeName <> " = " <> idTypeName <> " (" <> pkTupleType <> ")"
+        <> " deriving stock (Eq, Ord, Data)"
+    , "type instance Id' " <> tshow table.name <> " = " <> idTypeName
+    , "type instance GetTableForId " <> idTypeName <> " = " <> tshow table.name
+    , "instance IdNewtype " <> idTypeName <> " (" <> pkTupleType <> ") where { toId = " <> idTypeName <> "; fromId (" <> idTypeName <> " x) = x }"
+    , "instance Default " <> idTypeName <> " where def = " <> idTypeName <> " def"
+    , "instance Show " <> idTypeName <> " where show (" <> idTypeName <> " x) = Prelude.show x"
+    ]
+    where
+        idTypeName = primaryKeyTypeName table.name
+        pkColumns = primaryKeyColumns table
+        pkTupleType = intercalate ", " (map (\col -> haskellType table col) pkColumns)
 
 
 toDefaultValueExpr :: Column -> Text
@@ -1045,7 +1172,7 @@ compilePrimaryKeyInstance table@(CreateTable { name, columns, constraints }) = [
         idType = case primaryKeyColumns table of
                 [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
                 [column] -> atomicType column.columnType -- PrimaryKey User = UUID
-                cs -> "(" <> intercalate ", " (map colType cs) <> ")" -- PrimaryKey PostsTag = (Id' "posts", Id' "tags")
+                cs -> "(" <> intercalate ", " (map colType cs) <> ")" -- PrimaryKey PostsTag = (PostId, TagId)
             where
                 colType column = haskellType table column
 
@@ -1160,7 +1287,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
-instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
+instance HasField "id" #{tableNameToModelName name} (#{primaryKeyTypeName name}) where
     getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
     {-# INLINE getField #-}
 |]

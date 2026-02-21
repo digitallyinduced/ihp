@@ -7,7 +7,6 @@ module Test.QueryBuilderSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.QueryBuilder
-import IHP.ModelSupport
 import IHP.Job.Types (JobStatus(..))
 import IHP.Job.Queue ()
 import Test.ModelFixtures

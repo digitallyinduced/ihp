@@ -1,20 +1,48 @@
+{-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
 module Test.HasqlEncoderSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
-import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (PrimaryKey)
+import Test.ModelFixtures (UserId(..))
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
-import Hasql.Implicits.Encoders ()
+import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import qualified Hasql.Encoders as Encoders
 import Database.PostgreSQL.Simple (Only(..), (:.)(..))
+import qualified Hasql.Mapping.IsScalar as Mapping
+import Data.Functor.Contravariant (contramap)
 
 -- Test type family instances for non-UUID primary keys
 type instance PrimaryKey "countries" = Text
 type instance PrimaryKey "serial_table" = Int
-type instance PrimaryKey "users" = UUID
+-- Test Id newtypes (mirroring what the schema compiler generates)
+newtype CountryId = CountryId Text
+    deriving newtype (Eq, Ord, Show, IsString, Mapping.IsScalar)
+type instance Id' "countries" = CountryId
+instance IdNewtype CountryId Text where
+    toId = CountryId
+    fromId (CountryId x) = x
+instance DefaultParamEncoder CountryId where defaultParam = Encoders.nonNullable Mapping.encoder
+instance DefaultParamEncoder (Maybe CountryId) where defaultParam = Encoders.nullable Mapping.encoder
+instance DefaultParamEncoder [CountryId] where defaultParam = (Encoders.nonNullable . Encoders.array . Encoders.dimension foldl' . Encoders.element . Encoders.nonNullable) Mapping.encoder
+
+newtype SerialTableId = SerialTableId Int
+    deriving newtype (Eq, Ord, Show, Num, Mapping.IsScalar)
+type instance Id' "serial_table" = SerialTableId
+instance IdNewtype SerialTableId Int where
+    toId = SerialTableId
+    fromId (SerialTableId x) = x
+instance DefaultParamEncoder SerialTableId where defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- UserId for "users" table is imported from Test.ModelFixtures
+instance Mapping.IsScalar UserId where
+    encoder = contramap fromId Mapping.encoder
+    decoder = toId <$> Mapping.decoder
+instance DefaultParamEncoder UserId where defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Convert a Snippet to its SQL text representation for testing.
 -- Parameters become $1, $2, etc.

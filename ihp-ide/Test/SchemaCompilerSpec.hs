@@ -193,16 +193,35 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User' = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (UserId), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
+
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    type instance Id' "users" = UserId
+                    type instance GetTableForId UserId = "users"
+                    instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
+                    instance Default UserId where def = UserId def
+                    instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
+                    instance InputValue UserId where inputValue (UserId x) = inputValue x
+                    instance IsString UserId where
+                        fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
+                            Just pk -> UserId pk
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
                     type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
-                    instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
@@ -277,6 +296,43 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance HSX.ApplyAttribute UserId where
+                        applyAttribute attr attr' (UserId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+                    instance ParamReader UserId where
+                        readParameter bytes = UserId <$> readParameter bytes
+                        readParameterJSON value = UserId <$> readParameterJSON value
+                    instance Fetchable UserId User where
+                        type FetchResult UserId User = User
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIdOne
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdOne
+                    instance Fetchable (Maybe UserId) User where
+                        type FetchResult (Maybe UserId) User = [User]
+                        {-# INLINE fetch #-}
+                        fetch (Just a) = genericFetchId a
+                        fetch Nothing = pure []
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing Nothing = pure Nothing
+                        fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+                        {-# INLINE fetchOne #-}
+                        fetchOne (Just a) = genericFetchIdOne a
+                        fetchOne Nothing = error "Fetchable (Maybe UserId): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
+                    instance Fetchable [UserId] User where
+                        type FetchResult [UserId] User = [User]
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIds
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdsOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdsOne
+                    instance CollectionFetchRelated UserId User where
+                        collectionFetchRelated = collectionFetchRelatedById
+                    instance CollectionFetchRelatedOrNothing UserId User where
+                        collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById
                 |]
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable (table "users")
@@ -290,16 +346,35 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User' = User {id :: (Id' "users"), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (UserId), ids :: (Maybe [UUID]), electricityUnitPrice :: Double, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
+
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    type instance Id' "users" = UserId
+                    type instance GetTableForId UserId = "users"
+                    instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
+                    instance Default UserId where def = UserId def
+                    instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
+                    instance InputValue UserId where inputValue (UserId x) = inputValue x
+                    instance IsString UserId where
+                        fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
+                            Just pk -> UserId pk
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
                     type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
-                    instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
@@ -374,6 +449,43 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance HSX.ApplyAttribute UserId where
+                        applyAttribute attr attr' (UserId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+                    instance ParamReader UserId where
+                        readParameter bytes = UserId <$> readParameter bytes
+                        readParameterJSON value = UserId <$> readParameterJSON value
+                    instance Fetchable UserId User where
+                        type FetchResult UserId User = User
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIdOne
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdOne
+                    instance Fetchable (Maybe UserId) User where
+                        type FetchResult (Maybe UserId) User = [User]
+                        {-# INLINE fetch #-}
+                        fetch (Just a) = genericFetchId a
+                        fetch Nothing = pure []
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing Nothing = pure Nothing
+                        fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+                        {-# INLINE fetchOne #-}
+                        fetchOne (Just a) = genericFetchIdOne a
+                        fetchOne Nothing = error "Fetchable (Maybe UserId): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
+                    instance Fetchable [UserId] User where
+                        type FetchResult [UserId] User = [User]
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIds
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdsOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdsOne
+                    instance CollectionFetchRelated UserId User where
+                        collectionFetchRelated = collectionFetchRelatedById
+                    instance CollectionFetchRelatedOrNothing UserId User where
+                        collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById
                 |]
             it "should not touch GENERATED columns" do
                 let statement = StatementCreateTable (table "users")
@@ -386,16 +498,35 @@ tests = do
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data User' = User {id :: (Id' "users"), ts :: (Maybe Tsvector), meta :: MetaBag} deriving (Eq, Show)
+                    data User' = User {id :: (UserId), ts :: (Maybe Tsvector), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "users" = UUID
+
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    type instance Id' "users" = UserId
+                    type instance GetTableForId UserId = "users"
+                    instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
+                    instance Default UserId where def = UserId def
+                    instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
+                    instance InputValue UserId where inputValue (UserId x) = inputValue x
+                    instance IsString UserId where
+                        fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
+                            Just pk -> UserId pk
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
                     type instance GetTableName (User') = "users"
                     type instance GetModelByTableName "users" = User
 
-                    instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
                         tableName = "users"
@@ -468,6 +599,43 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance HSX.ApplyAttribute UserId where
+                        applyAttribute attr attr' (UserId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+                    instance ParamReader UserId where
+                        readParameter bytes = UserId <$> readParameter bytes
+                        readParameterJSON value = UserId <$> readParameterJSON value
+                    instance Fetchable UserId User where
+                        type FetchResult UserId User = User
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIdOne
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdOne
+                    instance Fetchable (Maybe UserId) User where
+                        type FetchResult (Maybe UserId) User = [User]
+                        {-# INLINE fetch #-}
+                        fetch (Just a) = genericFetchId a
+                        fetch Nothing = pure []
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing Nothing = pure Nothing
+                        fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+                        {-# INLINE fetchOne #-}
+                        fetchOne (Just a) = genericFetchIdOne a
+                        fetchOne Nothing = error "Fetchable (Maybe UserId): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
+                    instance Fetchable [UserId] User where
+                        type FetchResult [UserId] User = [User]
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIds
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdsOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdsOne
+                    instance CollectionFetchRelated UserId User where
+                        collectionFetchRelated = collectionFetchRelatedById
+                    instance CollectionFetchRelatedOrNothing UserId User where
+                        collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById
                 |]
             it "should handle tablets with generated columns" do
                 let statement = StatementCreateTable CreateTable
@@ -518,16 +686,35 @@ tests = do
                 let compileOutput = compileStatementPreview statements statement |> Text.strip
 
                 compileOutput `shouldBe` [trimming|
-                    data LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages = LandingPage {id :: (Id' "landing_pages"), paragraphCtasLandingPages :: paragraphCtasLandingPages, paragraphCtasToLandingPages :: paragraphCtasToLandingPages, meta :: MetaBag} deriving (Eq, Show)
+                    data LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages = LandingPage {id :: (LandingPageId), paragraphCtasLandingPages :: paragraphCtasLandingPages, paragraphCtasToLandingPages :: paragraphCtasToLandingPages, meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "landing_pages" = UUID
-                    
+
+                    newtype LandingPageId = LandingPageId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    type instance Id' "landing_pages" = LandingPageId
+                    type instance GetTableForId LandingPageId = "landing_pages"
+                    instance IdNewtype LandingPageId UUID where { toId = LandingPageId; fromId (LandingPageId x) = x }
+                    instance Default LandingPageId where def = LandingPageId def
+                    instance IsEmpty LandingPageId where isEmpty (LandingPageId x) = isEmpty x
+                    instance InputValue LandingPageId where inputValue (LandingPageId x) = inputValue x
+                    instance IsString LandingPageId where
+                        fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
+                            Just pk -> LandingPageId pk
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to LandingPageId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder LandingPageId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [LandingPageId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe LandingPageId) where
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe LandingPageId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
+
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
                     type instance GetTableName (LandingPage' _ _) = "landing_pages"
                     type instance GetModelByTableName "landing_pages" = LandingPage
 
-                    instance Default (Id' "landing_pages") where def = Id def
 
                     instance IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
                         tableName = "landing_pages"
@@ -598,6 +785,43 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance HSX.ApplyAttribute LandingPageId where
+                        applyAttribute attr attr' (LandingPageId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+                    instance ParamReader LandingPageId where
+                        readParameter bytes = LandingPageId <$> readParameter bytes
+                        readParameterJSON value = LandingPageId <$> readParameterJSON value
+                    instance Fetchable LandingPageId LandingPage where
+                        type FetchResult LandingPageId LandingPage = LandingPage
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIdOne
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdOne
+                    instance Fetchable (Maybe LandingPageId) LandingPage where
+                        type FetchResult (Maybe LandingPageId) LandingPage = [LandingPage]
+                        {-# INLINE fetch #-}
+                        fetch (Just a) = genericFetchId a
+                        fetch Nothing = pure []
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing Nothing = pure Nothing
+                        fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+                        {-# INLINE fetchOne #-}
+                        fetchOne (Just a) = genericFetchIdOne a
+                        fetchOne Nothing = error "Fetchable (Maybe LandingPageId): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
+                    instance Fetchable [LandingPageId] LandingPage where
+                        type FetchResult [LandingPageId] LandingPage = [LandingPage]
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIds
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdsOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdsOne
+                    instance CollectionFetchRelated LandingPageId LandingPage where
+                        collectionFetchRelated = collectionFetchRelatedById
+                    instance CollectionFetchRelatedOrNothing LandingPageId LandingPage where
+                        collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById
                 |]
             it "should not use DEFAULT for array columns" do
                 let statement = StatementCreateTable (table "users")
@@ -783,16 +1007,35 @@ tests = do
 
                 -- data Post' has no type parameters, no QueryBuilder field, and userId has concrete type
                 compileOutput `shouldBe` [trimming|
-                    data Post' = Post {id :: (Id' "posts"), title :: Text, userId :: (Id' "users"), meta :: MetaBag} deriving (Eq, Show)
+                    data Post' = Post {id :: (PostId), title :: Text, userId :: (UserId), meta :: MetaBag} deriving (Eq, Show)
 
                     type instance PrimaryKey "posts" = UUID
+
+                    newtype PostId = PostId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    type instance Id' "posts" = PostId
+                    type instance GetTableForId PostId = "posts"
+                    instance IdNewtype PostId UUID where { toId = PostId; fromId (PostId x) = x }
+                    instance Default PostId where def = PostId def
+                    instance IsEmpty PostId where isEmpty (PostId x) = isEmpty x
+                    instance InputValue PostId where inputValue (PostId x) = inputValue x
+                    instance IsString PostId where
+                        fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
+                            Just pk -> PostId pk
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to PostId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder PostId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [PostId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PostId) where
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe PostId] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type Post = Post'
 
                     type instance GetTableName (Post') = "posts"
                     type instance GetModelByTableName "posts" = Post
 
-                    instance Default (Id' "posts") where def = Id def
 
                     instance IHP.ModelSupport.Table (Post') where
                         tableName = "posts"
@@ -867,6 +1110,43 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance HSX.ApplyAttribute PostId where
+                        applyAttribute attr attr' (PostId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+                    instance ParamReader PostId where
+                        readParameter bytes = PostId <$> readParameter bytes
+                        readParameterJSON value = PostId <$> readParameterJSON value
+                    instance Fetchable PostId Post where
+                        type FetchResult PostId Post = Post
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIdOne
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdOne
+                    instance Fetchable (Maybe PostId) Post where
+                        type FetchResult (Maybe PostId) Post = [Post]
+                        {-# INLINE fetch #-}
+                        fetch (Just a) = genericFetchId a
+                        fetch Nothing = pure []
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing Nothing = pure Nothing
+                        fetchOneOrNothing (Just a) = genericfetchIdOneOrNothing a
+                        {-# INLINE fetchOne #-}
+                        fetchOne (Just a) = genericFetchIdOne a
+                        fetchOne Nothing = error "Fetchable (Maybe PostId): Failed to fetch because given id is 'Nothing', 'Just id' was expected"
+                    instance Fetchable [PostId] Post where
+                        type FetchResult [PostId] Post = [Post]
+                        {-# INLINE fetch #-}
+                        fetch = genericFetchIds
+                        {-# INLINE fetchOneOrNothing #-}
+                        fetchOneOrNothing = genericfetchIdsOneOrNothing
+                        {-# INLINE fetchOne #-}
+                        fetchOne = genericFetchIdsOne
+                    instance CollectionFetchRelated PostId Post where
+                        collectionFetchRelated = collectionFetchRelatedById
+                    instance CollectionFetchRelatedOrNothing PostId Post where
+                        collectionFetchRelatedOrNothing = collectionFetchRelatedOrNothingById
                 |]
             it "should produce no type parameters for a table that is referenced by other tables" do
                 let statements = parseSqlStatements [trimming|

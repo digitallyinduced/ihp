@@ -19,7 +19,7 @@ import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.QQ (hsx)
 import           IHP.HSX.ToHtml
-import           IHP.ModelSupport (Id', InputValue, didTouchField, getModelName, inputValue, isNew)
+import           IHP.ModelSupport (InputValue, didTouchField, getModelName, inputValue, isNew)
 import           IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.Classes ()

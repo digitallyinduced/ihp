@@ -14,7 +14,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception.Safe as Exception
 import IHP.ModelSupport (HasqlError(..), Table(..), isCachedPlanError, GetModelByTableName, InputValue(..))
-import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (PrimaryKey)
 import IHP.Controller.Param
 import qualified System.Random as Random
 import qualified IHP.PGListener as PGListener
@@ -208,6 +208,7 @@ jobDidFail :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -225,7 +226,7 @@ jobDidFail pool job exception = do
     let nextRunAt = if canRetry
             then addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
             else job.runAt
-    let Id jobId = job.id
+    let jobId = fromId job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
             <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
@@ -242,6 +243,7 @@ jobDidTimeout :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -259,7 +261,7 @@ jobDidTimeout pool job = do
     let nextRunAt = if canRetry
             then addUTCTime (backoffDelay (backoffStrategy @job) job.attemptsCount) now
             else job.runAt
-    let Id jobId = job.id
+    let jobId = fromId job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
             <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
@@ -278,13 +280,14 @@ jobDidSucceed :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , ?context :: context
     , HasField "logger" context Log.Logger
     ) => HasqlPool.Pool -> job -> IO ()
 jobDidSucceed pool job = do
     Log.info ("Succeeded job" :: Text)
     updatedAt <- getCurrentTime
-    let Id jobId = job.id
+    let jobId = fromId job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
             <> " SET status = 'job_status_succeeded', locked_by = NULL, updated_at = $1 WHERE id = $2"

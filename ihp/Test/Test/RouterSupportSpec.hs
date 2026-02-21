@@ -4,6 +4,8 @@ Module: Test.RouterSupportSpec
 Tests for typed auto routing.
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Test.RouterSupportSpec where
 import ClassyPrelude
@@ -18,6 +20,37 @@ import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
+
+newtype BandId = BandId Integer
+    deriving newtype (Eq, Ord, Show, Num)
+    deriving stock (Data)
+type instance Id' "bands" = BandId
+instance IdNewtype BandId Integer where
+    toId = BandId
+    fromId (BandId x) = x
+instance Default BandId where def = BandId 0
+
+newtype PerformanceId = PerformanceId UUID
+    deriving newtype (Eq, Ord, Show)
+    deriving stock (Data)
+type instance Id' "performances" = PerformanceId
+instance IdNewtype PerformanceId UUID where
+    toId = PerformanceId
+    fromId (PerformanceId x) = x
+instance Default PerformanceId where def = PerformanceId def
+instance IsString PerformanceId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> PerformanceId pk
+        Nothing -> ClassyPrelude.error ("Unable to convert " <> ClassyPrelude.show str <> " to PerformanceId")
+
+newtype TextModelId = TextModelId Text
+    deriving newtype (Eq, Ord, Show, IsString)
+    deriving stock (Data)
+type instance Id' "textModel" = TextModelId
+instance IdNewtype TextModelId Text where
+    toId = TextModelId
+    fromId (TextModelId x) = x
+instance Default TextModelId where def = TextModelId ""
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -115,7 +148,7 @@ instance Controller CustomRouteController where
 instance AutoRoute CustomRouteController where
     customRoutes = do
         string "/performances/"
-        performanceId <- parseId
+        performanceId <- parseId @"performances"
         endOfInput
         onlyAllowMethods [GET, HEAD]
         pure ShowPerformanceAction { performanceId }

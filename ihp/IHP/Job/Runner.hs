@@ -132,6 +132,7 @@ worker :: forall job.
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , Job job
@@ -148,6 +149,7 @@ jobWorkerFetchAndRunLoop :: forall job.
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "runAt" job UTCTime
     , HasField "attemptsCount" job Int
     , Job job

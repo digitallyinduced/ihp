@@ -1,6 +1,7 @@
 module Test.TypedSqlSpec where
 
 import qualified Control.Exception                 as Exception
+import qualified Data.Char                         as Char
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
@@ -542,6 +543,41 @@ runtimeTest description moduleText =
             assertGhciSuccess ghciOutput
             ghciOutput `shouldContainText` "RUNTIME_OK"
 
+-- | Generate Id newtype boilerplate for a test table.
+-- E.g. for "typed_sql_test_items" generates TypedSqlTestItemId newtype.
+mkTestIdNewtype :: Text -> [Text]
+mkTestIdNewtype tableName =
+    let idName = tableNameToIdName tableName
+    in  [ "type instance PrimaryKey \"" <> tableName <> "\" = UUID"
+        , "newtype " <> idName <> " = " <> idName <> " UUID deriving newtype (Eq, Ord, Show, Mapping.IsScalar)"
+        , "type instance Id' \"" <> tableName <> "\" = " <> idName
+        , "instance IdNewtype " <> idName <> " UUID where { toId = " <> idName <> "; fromId (" <> idName <> " x) = x }"
+        , "instance IsString " <> idName <> " where"
+        , "    fromString str = case readMay str of"
+        , "        Just pk -> " <> idName <> " pk"
+        , "        Nothing -> error \"Unable to convert to " <> idName <> "\""
+        , "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> idName <> " where defaultParam = Hasql.Encoders.nonNullable Mapping.encoder"
+        , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> idName <> "] where defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder"
+        , ""
+        ]
+
+-- | Convert a table name like "typed_sql_test_items" to an Id type name like "TypedSqlTestItemId".
+tableNameToIdName :: Text -> Text
+tableNameToIdName tableName =
+    let parts = Text.splitOn "_" tableName
+        capitalize t = case Text.uncons t of
+            Just (c, rest) -> Text.cons (Char.toUpper c) rest
+            Nothing -> t
+        -- Singularize: drop trailing 's' from last part
+        singularize t = fromMaybe t (Text.stripSuffix "s" t)
+        modelName = mconcat (map capitalize (initOrEmpty parts) <> [singularize (capitalize (lastOrEmpty parts))])
+    in modelName <> "Id"
+    where
+        initOrEmpty [] = []
+        initOrEmpty xs = init xs
+        lastOrEmpty [] = ""
+        lastOrEmpty xs = last xs
+
 -- | Build a test module from a type signature and body expression.
 -- Used for both compile-pass and compile-fail tests.
 mkTestModule :: Text -> Text -> Text
@@ -562,6 +598,8 @@ mkTestModule typeSig body = Text.unlines
 mkTestModuleWithPK :: [Text] -> Text -> Text -> Text
 mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE DerivingStrategies #-}"
+    , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
@@ -569,11 +607,14 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     , "module TypedSqlCase where"
     , ""
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
+    , "import IHP.ModelSupport (Id', PrimaryKey, IdNewtype(..))"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Mapping.IsScalar as Mapping"
     , ""
     ]
-    <> map (\t -> "type instance PrimaryKey \"" <> t <> "\" = UUID") pkTables
+    <> concatMap mkTestIdNewtype pkTables
     <>
     [ ""
     , "query :: " <> typeSig
@@ -583,8 +624,10 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
 -- Test modules ---------------------------------------------------------------
 
 compilePassModule :: Text
-compilePassModule = Text.unlines
+compilePassModule = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE DerivingStrategies #-}"
+    , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
@@ -593,14 +636,19 @@ compilePassModule = Text.unlines
     , "module TypedSqlCompilePass where"
     , ""
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
+    , "import IHP.ModelSupport (Id', PrimaryKey, IdNewtype(..))"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Mapping.IsScalar as Mapping"
     , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
+    ]
+    <> mkTestIdNewtype "typed_sql_test_items"
+    <> mkTestIdNewtype "typed_sql_test_authors"
+    <>
+    [ ""
     , "data TypedSqlTestItem = TypedSqlTestItem"
     , "    { typedSqlTestItemId :: Id' \"typed_sql_test_items\""
     , "    , typedSqlTestItemAuthorId :: Maybe (Id' \"typed_sql_test_authors\")"
@@ -730,8 +778,10 @@ compilePassModule = Text.unlines
     ]
 
 runtimeModule :: Text
-runtimeModule = Text.unlines
+runtimeModule = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE DerivingStrategies #-}"
+    , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
@@ -742,15 +792,20 @@ runtimeModule = Text.unlines
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id', ModelContext, PrimaryKey, IdNewtype(..), createModelContext, releaseModelContext)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Mapping.IsScalar as Mapping"
     , "import System.Environment (lookupEnv)"
     , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
+    ]
+    <> mkTestIdNewtype "typed_sql_test_items"
+    <> mkTestIdNewtype "typed_sql_test_authors"
+    <>
+    [ ""
     , "data TypedSqlTestItem = TypedSqlTestItem"
     , "    { typedSqlTestItemId :: Id' \"typed_sql_test_items\""
     , "    , typedSqlTestItemAuthorId :: Maybe (Id' \"typed_sql_test_authors\")"
@@ -974,8 +1029,10 @@ runtimeModule = Text.unlines
     ]
 
 runtimeUpdateDeleteModule :: Text
-runtimeUpdateDeleteModule = Text.unlines
+runtimeUpdateDeleteModule = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE DerivingStrategies #-}"
+    , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
@@ -986,13 +1043,18 @@ runtimeUpdateDeleteModule = Text.unlines
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id', ModelContext, PrimaryKey, IdNewtype(..), createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Mapping.IsScalar as Mapping"
     , "import System.Environment (lookupEnv)"
     , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
+    ]
+    <> mkTestIdNewtype "typed_sql_test_items"
+    <> mkTestIdNewtype "typed_sql_test_authors"
+    <>
+    [ ""
     , "assertTest :: Text -> Bool -> IO ()"
     , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
     , "assertTest name False = error (\"FAIL: \" <> name)"
@@ -1062,8 +1124,10 @@ runtimeUpdateDeleteModule = Text.unlines
     ]
 
 runtimeEdgeCasesModule :: Text
-runtimeEdgeCasesModule = Text.unlines
+runtimeEdgeCasesModule = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE DerivingStrategies #-}"
+    , "{-# LANGUAGE GeneralizedNewtypeDeriving #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
@@ -1074,13 +1138,18 @@ runtimeEdgeCasesModule = Text.unlines
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id', ModelContext, PrimaryKey, IdNewtype(..), createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Mapping.IsScalar as Mapping"
     , "import System.Environment (lookupEnv)"
     , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
+    ]
+    <> mkTestIdNewtype "typed_sql_test_items"
+    <> mkTestIdNewtype "typed_sql_test_authors"
+    <>
+    [ ""
     , "assertTest :: Text -> Bool -> IO ()"
     , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
     , "assertTest name False = error (\"FAIL: \" <> name)"

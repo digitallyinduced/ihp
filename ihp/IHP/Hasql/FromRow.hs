@@ -22,7 +22,7 @@ import Prelude
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (LabeledData(..))
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -43,14 +43,6 @@ instance {-# OVERLAPPABLE #-} Mapping.IsScalar a => HasqlDecodeColumn a where
 
 instance {-# OVERLAPPING #-} Mapping.IsScalar a => HasqlDecodeColumn (Maybe a) where
     hasqlColumnDecoder = Decoders.column (Decoders.nullable Mapping.decoder)
-
--- | Decode 'Id' table' by decoding the primary key type and wrapping with 'Id'
-instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Id' table) where
-    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable (Id <$> Mapping.decoder))
-
--- | Decode 'Maybe (Id' table)' for nullable foreign keys
-instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Maybe (Id' table)) where
-    hasqlColumnDecoder = Decoders.column (Decoders.nullable (Id <$> Mapping.decoder))
 
 -- FromRowHasql instances for PG.Only and tuples (used by sqlQuery callers like fetchCount, fetchExists)
 
