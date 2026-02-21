@@ -53,7 +53,6 @@ library
     build-depends:
             base >= 4.17.0 && < 4.22
             , ihp
-            , ihp-postgresql-simple-extra
             , aeson
             , bytestring
             , containers
@@ -62,7 +61,7 @@ library
             , hasql-pool
             , haskell-src-meta
             , postgresql-syntax >= 0.4 && < 0.5
-            , ip
+            , postgresql-types
             , postgresql-libpq
             , scientific
             , string-conversions

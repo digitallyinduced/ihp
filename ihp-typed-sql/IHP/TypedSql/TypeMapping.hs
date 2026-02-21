@@ -17,13 +17,13 @@ import qualified Data.Set                 as Set
 import qualified Data.String.Conversions  as CS
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Language.Haskell.TH      as TH
-import           Net.IP                   (IP)
 import           IHP.ModelSupport.Types   (Id')
 import           IHP.Prelude
-import qualified IHP.Postgres.Point       as PGPoint
-import qualified IHP.Postgres.Polygon     as PGPolygon
-import qualified IHP.Postgres.TimeParser  as PGTime
-import qualified IHP.Postgres.TSVector    as PGTs
+import           PostgresqlTypes.Point    (Point)
+import           PostgresqlTypes.Polygon  (Polygon)
+import           PostgresqlTypes.Inet     (Inet)
+import           PostgresqlTypes.Tsvector (Tsvector)
+import           PostgresqlTypes.Interval (Interval)
 
 import           IHP.TypedSql.Metadata    (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
 
@@ -123,11 +123,11 @@ hsTypeForPg typeInfo nullable PgTypeInfo { ptiName, ptiElem, ptiType } = do
         _ | ptiName == "float4" -> pure (TH.ConT ''Float)
         _ | ptiName == "float8" -> pure (TH.ConT ''Double)
         _ | ptiName == "numeric" -> pure (TH.ConT ''Scientific)
-        _ | ptiName == "point" -> pure (TH.ConT ''PGPoint.Point)
-        _ | ptiName == "polygon" -> pure (TH.ConT ''PGPolygon.Polygon)
-        _ | ptiName == "inet" -> pure (TH.ConT ''IP)
-        _ | ptiName == "tsvector" -> pure (TH.ConT ''PGTs.TSVector)
-        _ | ptiName == "interval" -> pure (TH.ConT ''PGTime.PGInterval)
+        _ | ptiName == "point" -> pure (TH.ConT ''Point)
+        _ | ptiName == "polygon" -> pure (TH.ConT ''Polygon)
+        _ | ptiName == "inet" -> pure (TH.ConT ''Inet)
+        _ | ptiName == "tsvector" -> pure (TH.ConT ''Tsvector)
+        _ | ptiName == "interval" -> pure (TH.ConT ''Interval)
         _ | ptiType == Just 'e' ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
         _ | ptiType == Just 'c' ->

@@ -1,8 +1,8 @@
 { mkDerivation, aeson, base, bytestring, containers, directory
 , filepath, haskell-src-meta, hasql, hasql-dynamic-statements
-, hasql-pool, hspec, ihp, ihp-postgresql-simple-extra, ip, lib
-, postgresql-libpq, postgresql-syntax, process, scientific
-, string-conversions, template-haskell, temporary, text
+, hasql-pool, hspec, ihp, lib
+, postgresql-libpq, postgresql-syntax, postgresql-types, process
+, scientific, string-conversions, template-haskell, temporary, text
 }:
 mkDerivation {
   pname = "ihp-typed-sql";
@@ -10,9 +10,9 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson base bytestring containers haskell-src-meta hasql
-    hasql-dynamic-statements hasql-pool ihp ihp-postgresql-simple-extra
-    ip postgresql-libpq postgresql-syntax scientific string-conversions
-    template-haskell text
+    hasql-dynamic-statements hasql-pool ihp
+    postgresql-libpq postgresql-syntax postgresql-types scientific
+    string-conversions template-haskell text
   ];
   testHaskellDepends = [
     base directory filepath hspec ihp process string-conversions
