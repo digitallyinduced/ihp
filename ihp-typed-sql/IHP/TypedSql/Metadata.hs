@@ -85,7 +85,6 @@ fromOidInt32 :: Int32 -> PQ.Oid
 fromOidInt32 oid = PQ.Oid (fromIntegral oid)
 
 -- | Describe a statement by asking a real Postgres server.
--- typedSql uses this when not running in bootstrap mode.
 describeStatement :: BS.ByteString -> IO DescribeResult
 describeStatement sql = do
     dbUrl <- defaultDatabaseUrl

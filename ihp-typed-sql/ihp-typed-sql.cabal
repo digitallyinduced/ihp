@@ -48,7 +48,6 @@ library
         IHP.TypedSql.Placeholders
         IHP.TypedSql.ParamHints
         IHP.TypedSql.Metadata
-        IHP.TypedSql.Bootstrap
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
     build-depends:

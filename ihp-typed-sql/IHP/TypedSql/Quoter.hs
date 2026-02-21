@@ -8,18 +8,15 @@ module IHP.TypedSql.Quoter
     ) where
 
 import           Data.Coerce                    (coerce)
-import qualified Data.Char                      as Char
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
-import           System.Environment              (lookupEnv)
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
-import           IHP.TypedSql.Bootstrap         (describeUsingBootstrap)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
@@ -48,13 +45,7 @@ typedSqlExp rawSql = do
     let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
     parsedExprs <- mapM parseExpr ppExprs
 
-    bootstrapEnv <- TH.runIO (lookupEnv "IHP_TYPED_SQL_BOOTSTRAP")
-    loc <- TH.location
-    let useBootstrap = isBootstrapEnabled bootstrapEnv
-    describeResult <- TH.runIO $
-        if useBootstrap
-            then describeUsingBootstrap (TH.loc_filename loc) ppDescribeSql
-            else describeStatement (CS.cs ppDescribeSql)
+    describeResult <- TH.runIO $ describeStatement (CS.cs ppDescribeSql)
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult
     when (length drParams /= length parsedExprs) $
@@ -131,11 +122,3 @@ interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
 interleave xs [] = xs
 interleave (x:xs) (y:ys) = x : y : interleave xs ys
-
--- | Interpret IHP_TYPED_SQL_BOOTSTRAP to decide between live DB and bootstrap mode.
-isBootstrapEnabled :: Maybe String -> Bool
-isBootstrapEnabled = \case
-    Nothing -> False
-    Just raw ->
-        let value = map Char.toLower raw
-        in not (value `elem` ["", "0", "false", "no", "off"])
