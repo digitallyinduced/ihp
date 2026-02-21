@@ -30,234 +30,151 @@ tests = do
                 ghciOutput <- ghciLoadModule compilePassModule
                 assertGhciSuccess ghciOutput
 
-        it "fails when a scalar parameter has the wrong type" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailWrongScalarParameter
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when a scalar parameter has the wrong type"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(\"not an int\" :: Text)} LIMIT 1 |]")
+            []
 
-        it "fails when a foreign-key parameter has the wrong type" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailWrongForeignKeyParameter
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when a foreign-key parameter has the wrong type"
+            (mkCompileFailModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${(\"not-an-id\" :: Text)} LIMIT 1 |]")
+            []
 
-        it "fails when an IN parameter has the wrong element type" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailWrongInParameter
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when an IN parameter has the wrong element type"
+            (mkCompileFailModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+                "let authorIds = [\"one\" :: Text, \"two\" :: Text]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]")
+            []
 
-        it "fails when a placeholder expression is invalid Haskell" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailInvalidPlaceholderExpression
-                assertGhciFailure ghciOutput ["failed to parse expression"]
+        compileFailTest "fails when a placeholder expression is invalid Haskell"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(} LIMIT 1 |]")
+            ["failed to parse expression"]
 
-        it "fails when SQL parameter count does not match ${...} placeholders" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailPlaceholderCountMismatch
-                assertGhciFailure ghciOutput ["placeholder count mismatch"]
+        compileFailTest "fails when SQL parameter count does not match ${...} placeholders"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = $1 LIMIT 1 |]")
+            ["placeholder count mismatch"]
 
-        it "fails when selecting a single composite value without expansion" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailSingleCompositeColumn
-                assertGhciFailure ghciOutput ["composite columns must be expanded"]
+        compileFailTest "fails when selecting a single composite value without expansion"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT ROW(name, views)::typed_sql_test_pair FROM typed_sql_test_items LIMIT 1 |]")
+            ["composite columns must be expanded"]
 
-        it "fails when SQL references an unknown column" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailUnknownColumn
-                assertGhciFailure ghciOutput ["does not exist"]
+        compileFailTest "fails when SQL references an unknown column"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT no_such_column FROM typed_sql_test_items LIMIT 1 |]")
+            ["does not exist"]
 
-        it "fails when primary-key result type is annotated as UUID instead of Id" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailPrimaryKeyResultAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when primary-key result type is annotated as UUID instead of Id"
+            (mkCompileFailModuleWithPK ["typed_sql_test_items"] "TypedQuery UUID"
+                "[typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when nullable column result is annotated as non-Maybe" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailNullableResultAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when nullable column result is annotated as non-Maybe"
+            (mkCompileFailModule "TypedQuery Double"
+                "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when LEFT JOIN nullable side is not annotated as Maybe" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailLeftJoinNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when LEFT JOIN nullable side is not annotated as Maybe"
+            (mkCompileFailModule "TypedQuery (Text, Text)"
+                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
+            []
 
-        it "fails when RIGHT JOIN nullable side is not annotated as Maybe" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailRightJoinNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when RIGHT JOIN nullable side is not annotated as Maybe"
+            (mkCompileFailModule "TypedQuery (Text, Text)"
+                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
+            []
 
-        it "fails when tuple arity does not match selected columns" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailTupleArityMismatch
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when tuple arity does not match selected columns"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when boolean expression result is annotated as Int" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailBooleanResultAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when boolean expression result is annotated as Int"
+            (mkCompileFailModule "TypedQuery Int"
+                "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when boolean expression result is annotated as non-Maybe Bool" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailBooleanNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when boolean expression result is annotated as non-Maybe Bool"
+            (mkCompileFailModule "TypedQuery Bool"
+                "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when COUNT(*) result is annotated as non-Maybe Integer" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailCountNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when COUNT(*) result is annotated as non-Maybe Integer"
+            (mkCompileFailModule "TypedQuery Integer"
+                "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
+            []
 
-        it "fails when COALESCE expression is annotated as non-Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailCoalesceNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when COALESCE expression is annotated as non-Maybe Text"
+            (mkCompileFailModule "TypedQuery (Text, Text)"
+                "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
+            []
 
-        it "fails when literal expression result is annotated as non-Maybe Int" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailLiteralNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when literal expression result is annotated as non-Maybe Int"
+            (mkCompileFailModule "TypedQuery Int"
+                "[typedSql| SELECT 1 |]")
+            []
 
-        it "fails when arithmetic expression result is annotated as non-Maybe Int" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailArithmeticNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when arithmetic expression result is annotated as non-Maybe Int"
+            (mkCompileFailModule "TypedQuery Int"
+                "[typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when CASE expression result is annotated as non-Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailCaseNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when CASE expression result is annotated as non-Maybe Text"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when EXISTS expression result is annotated as non-Maybe Bool" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailExistsNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when EXISTS expression result is annotated as non-Maybe Bool"
+            (mkCompileFailModule "TypedQuery Bool"
+                "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
+            []
 
-        it "fails when NULL literal result is annotated as non-Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailNullLiteralNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when NULL literal result is annotated as non-Maybe Text"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT NULL::text |]")
+            []
 
-        it "fails when CTE result is annotated as Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailCteMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when CTE result is annotated as Maybe Text"
+            (mkCompileFailModule "TypedQuery (Maybe Text)"
+                "[typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]")
+            []
 
-        it "fails when subquery result is annotated as Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailSubqueryMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when subquery result is annotated as Maybe Text"
+            (mkCompileFailModule "TypedQuery (Maybe Text)"
+                "[typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]")
+            []
 
-        it "fails when UNION result is annotated as non-Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailUnionNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when UNION result is annotated as non-Maybe Text"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
+            []
 
-        it "fails when window function result is annotated as non-Maybe Integer" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailWindowNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when window function result is annotated as non-Maybe Integer"
+            (mkCompileFailModule "TypedQuery Integer"
+                "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
-        it "fails when grouped COUNT(*) result is annotated as non-Maybe Integer" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailGroupedCountNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when grouped COUNT(*) result is annotated as non-Maybe Integer"
+            (mkCompileFailModule "TypedQuery (Text, Integer)"
+                "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
+            []
 
-        it "fails when array literal result is annotated as non-Maybe [Text]" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailArrayLiteralNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when array literal result is annotated as non-Maybe [Text]"
+            (mkCompileFailModule "TypedQuery [Text]"
+                "[typedSql| SELECT ARRAY['x','y']::text[] |]")
+            []
 
-        it "fails when NULLIF expression result is annotated as non-Maybe Text" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciLoadModule compileFailNullIfNonMaybeAnnotation
-                assertGhciFailure ghciOutput []
+        compileFailTest "fails when NULLIF expression result is annotated as non-Maybe Text"
+            (mkCompileFailModule "TypedQuery Text"
+                "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
+            []
 
     describe "TypedSql macro runtime execution" do
-        it "executes typedSql queries end-to-end via ghci" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciRunModule runtimeModule
-                assertGhciSuccess ghciOutput
-                ghciOutput `shouldContainText` "RUNTIME_OK"
-
-        it "UPDATE and DELETE with parameters" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciRunModule runtimeUpdateDeleteModule
-                assertGhciSuccess ghciOutput
-                ghciOutput `shouldContainText` "RUNTIME_OK"
-
-        it "empty results and edge cases" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciRunModule runtimeEdgeCasesModule
-                assertGhciSuccess ghciOutput
-                ghciOutput `shouldContainText` "RUNTIME_OK"
-
-        it "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" do
-            requirePostgresTestHook
-            withTestModelContext do
-                setupSchema
-                ghciOutput <- ghciRunModule runtimeExtraTypesModule
-                assertGhciSuccess ghciOutput
-                ghciOutput `shouldContainText` "RUNTIME_OK"
+        runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
+        runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
+        runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
+        runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
 
     describe "TypedSql SQL parser (pure, no postgres)" do
         it "parseSql succeeds on simple SELECT" do
@@ -285,6 +202,8 @@ tests = do
         it "extractJoinNullableTables returns empty for plain FROM" do
             let sql = " SELECT name FROM items LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.empty
+
+-- Test helpers ---------------------------------------------------------------
 
 requirePostgresTestHook :: IO ()
 requirePostgresTestHook = do
@@ -343,6 +262,8 @@ setupSchema = do
         ()
 
     pure ()
+
+-- GHCi infrastructure --------------------------------------------------------
 
 ghciLoadModule :: Text -> IO Text
 ghciLoadModule source =
@@ -458,6 +379,8 @@ applyEnvironmentOverrides :: [(String, String)] -> [(String, String)] -> [(Strin
 applyEnvironmentOverrides overrides base =
     overrides <> filter (\(name, _) -> name `notElem` map fst overrides) base
 
+-- Assertion helpers ----------------------------------------------------------
+
 assertGhciSuccess :: Text -> IO ()
 assertGhciSuccess output =
     when (containsCompileError output) do
@@ -492,6 +415,68 @@ shouldContainText haystack needle =
                 <> "\nactual output:\n"
                 <> cs haystack
             )
+
+-- Module generators ----------------------------------------------------------
+
+-- | Spec helper: compile-fail test with shared boilerplate.
+compileFailTest :: Text -> Text -> [Text] -> SpecWith ()
+compileFailTest description moduleText expectedFragments =
+    it (cs description) do
+        requirePostgresTestHook
+        withTestModelContext do
+            setupSchema
+            ghciOutput <- ghciLoadModule moduleText
+            assertGhciFailure ghciOutput expectedFragments
+
+-- | Spec helper: runtime test with shared boilerplate.
+runtimeTest :: Text -> Text -> SpecWith ()
+runtimeTest description moduleText =
+    it (cs description) do
+        requirePostgresTestHook
+        withTestModelContext do
+            setupSchema
+            ghciOutput <- ghciRunModule moduleText
+            assertGhciSuccess ghciOutput
+            ghciOutput `shouldContainText` "RUNTIME_OK"
+
+-- | Build a compile-fail module from just a type signature and body expression.
+mkCompileFailModule :: Text -> Text -> Text
+mkCompileFailModule typeSig body = Text.unlines
+    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    , "bad :: " <> typeSig
+    , "bad = " <> body
+    ]
+
+-- | Build a compile-fail module that also needs PrimaryKey type instances.
+mkCompileFailModuleWithPK :: [Text] -> Text -> Text -> Text
+mkCompileFailModuleWithPK pkTables typeSig body = Text.unlines $
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (PrimaryKey)"
+    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , ""
+    ]
+    <> map (\t -> "type instance PrimaryKey \"" <> t <> "\" = UUID") pkTables
+    <>
+    [ ""
+    , "bad :: " <> typeSig
+    , "bad = " <> body
+    ]
+
+-- Test modules ---------------------------------------------------------------
 
 compilePassModule :: Text
 compilePassModule = Text.unlines
@@ -638,417 +623,6 @@ compilePassModule = Text.unlines
     , ""
     , "qRightJoinCoalesced :: TypedQuery (Maybe Text, Text)"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
-    ]
-
-compileFailWrongScalarParameter :: Text
-compileFailWrongScalarParameter = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailWrongScalarParameter where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(\"not an int\" :: Text)} LIMIT 1 |]"
-    ]
-
-compileFailWrongForeignKeyParameter :: Text
-compileFailWrongForeignKeyParameter = Text.unlines
-    [ "{-# LANGUAGE DataKinds #-}"
-    , "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "{-# LANGUAGE TypeFamilies #-}"
-    , "module TypedSqlCompileFailWrongForeignKeyParameter where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.ModelSupport (PrimaryKey)"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${(\"not-an-id\" :: Text)} LIMIT 1 |]"
-    ]
-
-compileFailWrongInParameter :: Text
-compileFailWrongInParameter = Text.unlines
-    [ "{-# LANGUAGE DataKinds #-}"
-    , "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "{-# LANGUAGE TypeFamilies #-}"
-    , "module TypedSqlCompileFailWrongInParameter where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.ModelSupport (PrimaryKey)"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad ="
-    , "    let authorIds = [\"one\" :: Text, \"two\" :: Text]"
-    , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]"
-    ]
-
-compileFailInvalidPlaceholderExpression :: Text
-compileFailInvalidPlaceholderExpression = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailInvalidPlaceholderExpression where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(} LIMIT 1 |]"
-    ]
-
-compileFailPlaceholderCountMismatch :: Text
-compileFailPlaceholderCountMismatch = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailPlaceholderCountMismatch where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE views = $1 LIMIT 1 |]"
-    ]
-
-compileFailSingleCompositeColumn :: Text
-compileFailSingleCompositeColumn = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailSingleCompositeColumn where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT ROW(name, views)::typed_sql_test_pair FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailUnknownColumn :: Text
-compileFailUnknownColumn = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailUnknownColumn where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT no_such_column FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailPrimaryKeyResultAnnotation :: Text
-compileFailPrimaryKeyResultAnnotation = Text.unlines
-    [ "{-# LANGUAGE DataKinds #-}"
-    , "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "{-# LANGUAGE TypeFamilies #-}"
-    , "module TypedSqlCompileFailPrimaryKeyResultAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.ModelSupport (PrimaryKey)"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
-    , ""
-    , "bad :: TypedQuery UUID"
-    , "bad = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailNullableResultAnnotation :: Text
-compileFailNullableResultAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailNullableResultAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Double"
-    , "bad = [typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailLeftJoinNonMaybeAnnotation :: Text
-compileFailLeftJoinNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailLeftJoinNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Text, Text)"
-    , "bad = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
-    ]
-
-compileFailRightJoinNonMaybeAnnotation :: Text
-compileFailRightJoinNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailRightJoinNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Text, Text)"
-    , "bad = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]"
-    ]
-
-compileFailTupleArityMismatch :: Text
-compileFailTupleArityMismatch = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailTupleArityMismatch where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailBooleanResultAnnotation :: Text
-compileFailBooleanResultAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailBooleanResultAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Int"
-    , "bad = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailBooleanNonMaybeAnnotation :: Text
-compileFailBooleanNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailBooleanNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Bool"
-    , "bad = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailCountNonMaybeAnnotation :: Text
-compileFailCountNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailCountNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Integer"
-    , "bad = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
-    ]
-
-compileFailCoalesceNonMaybeAnnotation :: Text
-compileFailCoalesceNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailCoalesceNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Text, Text)"
-    , "bad = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
-    ]
-
-compileFailLiteralNonMaybeAnnotation :: Text
-compileFailLiteralNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailLiteralNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Int"
-    , "bad = [typedSql| SELECT 1 |]"
-    ]
-
-compileFailArithmeticNonMaybeAnnotation :: Text
-compileFailArithmeticNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailArithmeticNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Int"
-    , "bad = [typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailCaseNonMaybeAnnotation :: Text
-compileFailCaseNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailCaseNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailExistsNonMaybeAnnotation :: Text
-compileFailExistsNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailExistsNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Bool"
-    , "bad = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
-    ]
-
-compileFailNullLiteralNonMaybeAnnotation :: Text
-compileFailNullLiteralNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailNullLiteralNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT NULL::text |]"
-    ]
-
-compileFailCteMaybeAnnotation :: Text
-compileFailCteMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailCteMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Maybe Text)"
-    , "bad = [typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]"
-    ]
-
-compileFailSubqueryMaybeAnnotation :: Text
-compileFailSubqueryMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailSubqueryMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Maybe Text)"
-    , "bad = [typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]"
-    ]
-
-compileFailUnionNonMaybeAnnotation :: Text
-compileFailUnionNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailUnionNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
-    ]
-
-compileFailWindowNonMaybeAnnotation :: Text
-compileFailWindowNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailWindowNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Integer"
-    , "bad = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
-    ]
-
-compileFailGroupedCountNonMaybeAnnotation :: Text
-compileFailGroupedCountNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailGroupedCountNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery (Text, Integer)"
-    , "bad = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
-    ]
-
-compileFailArrayLiteralNonMaybeAnnotation :: Text
-compileFailArrayLiteralNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailArrayLiteralNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery [Text]"
-    , "bad = [typedSql| SELECT ARRAY['x','y']::text[] |]"
-    ]
-
-compileFailNullIfNonMaybeAnnotation :: Text
-compileFailNullIfNonMaybeAnnotation = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
-    , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailNullIfNonMaybeAnnotation where"
-    , ""
-    , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
-    , ""
-    , "bad :: TypedQuery Text"
-    , "bad = [typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]"
     ]
 
 runtimeModule :: Text
