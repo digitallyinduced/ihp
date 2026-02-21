@@ -341,6 +341,7 @@ defaultImports = [trimming|
     import IHP.Job.Queue (textToEnumJobStatus)
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
+    import Data.Hashable (Hashable)
     import Data.Scientific
     import IHP.Hasql.FromRow (FromRowHasql(..))
     import qualified Hasql.Decoders as Decoders
@@ -402,7 +403,6 @@ compilePrimaryKeysModule schema@(Schema statements) =
             module Generated.ActualTypes.PrimaryKeys where
             $defaultImports
             import Generated.Enums
-            import Data.Hashable (Hashable)
             import qualified Data.Functor.Contravariant
         |]
 
