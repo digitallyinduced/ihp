@@ -98,91 +98,11 @@ action MyAction = do -- <-- We don't enable auto refresh at the action start in 
         render MyView { expensiveModels, cheap }
 ```
 
-### Fine-grained Auto Refresh (experimental)
+### Smart Filtering
 
-By default `autoRefresh` works on the table level: **any** `INSERT`, `UPDATE` or `DELETE` on a tracked table will wake the
-auto refresh session and trigger a server-side re-render.
+`autoRefresh` automatically tracks the row IDs fetched during your action and uses them to skip unnecessary re-renders. When an `UPDATE` or `DELETE` notification arrives for a row whose ID is not in the tracked set, the re-render is skipped. `INSERT` notifications always trigger a re-render since the new row could match your query filters.
 
-This is great for simple pages, but it can become expensive when:
-
-- You have many concurrent auto refresh sessions (many open tabs / users)
-- You track a high-churn table (e.g. background jobs, logs, metrics, audit events)
-- Only a small subset of rows can actually affect the rendered HTML (e.g. scoped by `projectId`, `userId`, foreign keys, etc.)
-
-In those cases you can use `autoRefreshWith` and decide, based on the changed rows, whether the page should re-render.
-This can significantly reduce unnecessary re-renders and make auto refresh scale better under write-heavy workloads.
-
-`autoRefreshWith` uses row-level notifications and provides helpers like `changesForTable`, `rowFieldNew`, and
-`rowFieldOld`. For updates and deletes the payload includes both the old and the new row data, so you can decide based on
-what changed.
-
-The change information is only used on the server to decide whether to re-render. It is **not** sent to the browser.
-
-If you want row-level filtering, you can decide on refreshes based on row JSON:
-
-```haskell
-action ShowProjectAction { projectId } =
-    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
-        project <- fetch projectId
-        render ShowView { .. }
-  where
-    shouldRefresh changes =
-        let projectChanges = changesForTable "projects" changes
-            isTarget change = rowFieldNew @"id" change == Just projectId || rowFieldOld @"id" change == Just projectId
-        in pure (any isTarget projectChanges)
-```
-
-### Filtering by ids or foreign keys
-
-The change set includes full row JSON for each change,
-so you can filter directly on any column without extra SQL.
-
-Example: refresh when any changed project belongs to the current user.
-
-```haskell
-action ProjectsAction { userId } =
-    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
-        projects <- query @Project |> filterWhere (#userId, userId) |> fetch
-        render ProjectsView { .. }
-  where
-    shouldRefresh changes =
-        let changedProjects = changesForTable "projects" changes
-            belongsToUser change = rowFieldNew @"userId" change == Just userId || rowFieldOld @"userId" change == Just userId
-        in pure (any belongsToUser changedProjects)
-```
-
-Example: multiple table tracking with mixed checks.
-
-```haskell
-action DashboardAction { projectId, userId } =
-    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
-        project <- fetch projectId
-        tasks <- query @Task |> filterWhere (#projectId, projectId) |> fetch
-        comments <- query @Comment |> filterWhere (#projectId, projectId) |> fetch
-        render DashboardView { .. }
-  where
-    shouldRefresh changes =
-        let projectMatches = any (\change -> rowFieldNew @"id" change == Just projectId || rowFieldOld @"id" change == Just projectId) (changesForTable "projects" changes)
-            taskMatches = any (\change -> rowFieldNew @"projectId" change == Just projectId || rowFieldOld @"projectId" change == Just projectId) (changesForTable "tasks" changes)
-            commentMatches = any (\change -> rowFieldNew @"projectId" change == Just projectId || rowFieldOld @"projectId" change == Just projectId) (changesForTable "comments" changes)
-        in pure (projectMatches || taskMatches || commentMatches)
-```
-
-Deletes are passed to `shouldRefresh` like any other change, so you can decide when to re-render.
-
-If you want to check across all tables without filtering by table name:
-
-```haskell
-action MyAction { userId } =
-    autoRefreshWith AutoRefreshOptions { shouldRefresh } do
-        -- ...
-        render MyView { .. }
-  where
-    shouldRefresh changes =
-        pure (anyChangeWithField @"userId" (== userId) changes)
-```
-
-Tip: Keep `shouldRefresh` fast and avoid extra SQL queries inside it whenever possible.
+This happens transparently — no configuration needed. For tables accessed via raw SQL or `fetchCount` (where individual row IDs aren't available), auto refresh falls back to refreshing on every change.
 
 ### Custom SQL Queries with Auto Refresh
 

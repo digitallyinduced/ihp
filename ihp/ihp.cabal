@@ -231,7 +231,6 @@ library
         , IHP.AuthSupport.View.Sessions.New
         , IHP.AuthSupport.Controller.Sessions
         , IHP.AutoRefresh
-        , IHP.AutoRefresh.ChangeSet
         , IHP.AutoRefresh.Types
         , IHP.AutoRefresh.View
         , IHP.WebSocket
