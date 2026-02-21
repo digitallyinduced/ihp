@@ -51,7 +51,6 @@ common shared-properties
             , wai-extra
             , http-types
             , inflections
-            , ip
             , text
             , postgresql-simple
             , ihp-pglistener
@@ -261,8 +260,7 @@ library
         , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
-    other-modules:
-        Paths_ihp
+    other-modules: Paths_ihp
 
 source-repository head
     type:     git
