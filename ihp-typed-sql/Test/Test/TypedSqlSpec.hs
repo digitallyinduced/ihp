@@ -91,18 +91,18 @@ tests = do
                 ghciOutput <- ghciLoadModule compileFailNullableResultAnnotation
                 assertGhciFailure ghciOutput []
 
-        it "fails when LEFT JOIN result is annotated as Maybe" do
+        it "fails when LEFT JOIN nullable side is not annotated as Maybe" do
             requirePostgresTestHook
             withTestModelContext do
                 setupSchema
-                ghciOutput <- ghciLoadModule compileFailLeftJoinMaybeAnnotation
+                ghciOutput <- ghciLoadModule compileFailLeftJoinNonMaybeAnnotation
                 assertGhciFailure ghciOutput []
 
-        it "fails when RIGHT JOIN result is annotated as Maybe" do
+        it "fails when RIGHT JOIN nullable side is not annotated as Maybe" do
             requirePostgresTestHook
             withTestModelContext do
                 setupSchema
-                ghciOutput <- ghciLoadModule compileFailRightJoinMaybeAnnotation
+                ghciOutput <- ghciLoadModule compileFailRightJoinNonMaybeAnnotation
                 assertGhciFailure ghciOutput []
 
         it "fails when tuple arity does not match selected columns" do
@@ -561,10 +561,10 @@ compilePassModule = Text.unlines
     , "qInnerJoin :: TypedQuery (Text, Text)"
     , "qInnerJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qLeftJoin :: TypedQuery (Text, Text)"
+    , "qLeftJoin :: TypedQuery (Text, Maybe Text)"
     , "qLeftJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoin :: TypedQuery (Text, Text)"
+    , "qRightJoin :: TypedQuery (Maybe Text, Text)"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
     , "qRightJoinCoalesced :: TypedQuery (Maybe Text, Text)"
@@ -716,31 +716,31 @@ compileFailNullableResultAnnotation = Text.unlines
     , "bad = [typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]"
     ]
 
-compileFailLeftJoinMaybeAnnotation :: Text
-compileFailLeftJoinMaybeAnnotation = Text.unlines
+compileFailLeftJoinNonMaybeAnnotation :: Text
+compileFailLeftJoinNonMaybeAnnotation = Text.unlines
     [ "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailLeftJoinMaybeAnnotation where"
+    , "module TypedSqlCompileFailLeftJoinNonMaybeAnnotation where"
     , ""
     , "import IHP.Prelude"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
     , ""
-    , "bad :: TypedQuery (Text, Maybe Text)"
+    , "bad :: TypedQuery (Text, Text)"
     , "bad = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     ]
 
-compileFailRightJoinMaybeAnnotation :: Text
-compileFailRightJoinMaybeAnnotation = Text.unlines
+compileFailRightJoinNonMaybeAnnotation :: Text
+compileFailRightJoinNonMaybeAnnotation = Text.unlines
     [ "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
-    , "module TypedSqlCompileFailRightJoinMaybeAnnotation where"
+    , "module TypedSqlCompileFailRightJoinNonMaybeAnnotation where"
     , ""
     , "import IHP.Prelude"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
     , ""
-    , "bad :: TypedQuery (Maybe Text, Text)"
+    , "bad :: TypedQuery (Text, Text)"
     , "bad = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]"
     ]
 
@@ -1197,7 +1197,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY i.name"
     , "        |]"
     , ""
-    , "        when ((leftJoinRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\")]) do"
+    , "        when ((leftJoinRows :: [(Text, Maybe Text)]) /= [(\"First\", Just \"Alice\"), (\"Second\", Just \"Alice\")]) do"
     , "            error (\"unexpected rows from left join: \" <> show leftJoinRows)"
     , ""
     , "        rightJoinRows <- sqlQueryTyped [typedSql|"
@@ -1208,7 +1208,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY a.name, i.name"
     , "        |]"
     , ""
-    , "        when ((rightJoinRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\")]) do"
+    , "        when ((rightJoinRows :: [(Maybe Text, Text)]) /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\")]) do"
     , "            error (\"unexpected rows from right join: \" <> show rightJoinRows)"
     , ""
     , "        rightJoinCoalescedRows <- sqlQueryTyped [typedSql|"

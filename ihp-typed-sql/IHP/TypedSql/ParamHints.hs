@@ -1,6 +1,7 @@
 module IHP.TypedSql.ParamHints
     ( ParamHint (..)
     , extractParamHints
+    , extractJoinNullableTables
     , resolveParamHintTypes
     ) where
 
@@ -41,6 +42,66 @@ extractParamHints sql =
             let aliasMap = buildAliasMapFromStmt stmt
                 defTable = singleTable aliasMap
             in collectFromStmt aliasMap defTable stmt
+
+-- | Extract table names that are on the nullable side of outer JOINs.
+-- LEFT JOIN: right-side tables are nullable.
+-- RIGHT JOIN: left-side tables are nullable.
+-- FULL [OUTER] JOIN: both sides are nullable.
+extractJoinNullableTables :: String -> Set.Set Text
+extractJoinNullableTables sql =
+    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
+        Left _err -> Set.empty
+        Right stmt -> nullableTablesFromStmt stmt
+
+nullableTablesFromStmt :: Ast.PreparableStmt -> Set.Set Text
+nullableTablesFromStmt = \case
+    Ast.SelectPreparableStmt selectStmt -> nullableTablesFromSelectStmt selectStmt
+    _ -> Set.empty
+
+nullableTablesFromSelectStmt :: Ast.SelectStmt -> Set.Set Text
+nullableTablesFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    nullableTablesFromSelectClause selectClause
+nullableTablesFromSelectStmt (Right _) = Set.empty
+
+nullableTablesFromSelectClause :: Ast.SelectClause -> Set.Set Text
+nullableTablesFromSelectClause (Left simpleSelect) = nullableTablesFromSimpleSelect simpleSelect
+nullableTablesFromSelectClause (Right _) = Set.empty
+
+nullableTablesFromSimpleSelect :: Ast.SimpleSelect -> Set.Set Text
+nullableTablesFromSimpleSelect = \case
+    Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window ->
+        case maybeFrom of
+            Just fromClause -> foldMap nullableTablesFromTableRef (toList fromClause)
+            Nothing -> Set.empty
+    Ast.BinSimpleSelect _op left _distinct right ->
+        Set.union (nullableTablesFromSelectClause left) (nullableTablesFromSelectClause right)
+    _ -> Set.empty
+
+nullableTablesFromTableRef :: Ast.TableRef -> Set.Set Text
+nullableTablesFromTableRef = \case
+    Ast.JoinTableRef joinedTable _alias -> nullableTablesFromJoinedTable joinedTable
+    _ -> Set.empty
+
+nullableTablesFromJoinedTable :: Ast.JoinedTable -> Set.Set Text
+nullableTablesFromJoinedTable = \case
+    Ast.InParensJoinedTable inner -> nullableTablesFromJoinedTable inner
+    Ast.MethJoinedTable meth left right ->
+        let nested = Set.union (nullableTablesFromTableRef left) (nullableTablesFromTableRef right)
+        in case joinTypeFromMeth meth of
+            Just (Ast.LeftJoinType _)  -> Set.union nested (tableNamesFromTableRef right)
+            Just (Ast.RightJoinType _) -> Set.union nested (tableNamesFromTableRef left)
+            Just (Ast.FullJoinType _)  -> Set.union nested (Set.union (tableNamesFromTableRef left) (tableNamesFromTableRef right))
+            _ -> nested
+
+joinTypeFromMeth :: Ast.JoinMeth -> Maybe Ast.JoinType
+joinTypeFromMeth = \case
+    Ast.QualJoinMeth maybeJoinType _ -> maybeJoinType
+    Ast.NaturalJoinMeth maybeJoinType -> maybeJoinType
+    Ast.CrossJoinMeth -> Nothing
+
+-- | Collect all resolved table names from a TableRef.
+tableNamesFromTableRef :: Ast.TableRef -> Set.Set Text
+tableNamesFromTableRef = Set.fromList . Map.elems . buildAliasMapFromTableRef
 
 -- | Get the text from an Ident, lowercased.
 identToText :: Ast.Ident -> Text
@@ -339,7 +400,7 @@ resolveParamHintTypes tables typeInfo hints = do
                 case findColumn tmColumns phColumn of
                     Nothing -> pure Nothing
                     Just (attnum, ColumnMeta { cmTypeOid }) -> do
-                        baseType <- hsTypeForColumn typeInfo tables DescribeColumn
+                        baseType <- hsTypeForColumn typeInfo tables Set.empty DescribeColumn
                             { dcName = CS.cs phColumn
                             , dcType = cmTypeOid
                             , dcTable = tableOid

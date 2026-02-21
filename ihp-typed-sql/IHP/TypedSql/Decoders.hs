@@ -20,21 +20,21 @@ import           IHP.TypedSql.TypeMapping        (detectFullTable)
 
 -- | Build a hasql result decoder for the described SQL columns.
 -- For full-table selections we reuse FromRowHasql; otherwise we decode a scalar/tuple.
-resultDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> TH.ExpQ
-resultDecoderForColumns typeInfo tables columns = do
+resultDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.ExpQ
+resultDecoderForColumns typeInfo tables joinNullableOids columns = do
     case detectFullTable tables columns of
         Just _ ->
             pure (TH.VarE 'HasqlFromRow.hasqlRowDecoder)
         Nothing -> do
             rowDecoder <- case columns of
                 [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
-                [column] -> rowDecoderForColumn typeInfo tables column
-                _ -> tupleRowDecoderForColumns typeInfo tables columns
+                [column] -> rowDecoderForColumn typeInfo tables joinNullableOids column
+                _ -> tupleRowDecoderForColumns typeInfo tables joinNullableOids columns
             pure rowDecoder
 
-tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> TH.ExpQ
-tupleRowDecoderForColumns typeInfo tables columns = do
-    columnDecoders <- mapM (rowDecoderForColumn typeInfo tables) columns
+tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.ExpQ
+tupleRowDecoderForColumns typeInfo tables joinNullableOids columns = do
+    columnDecoders <- mapM (rowDecoderForColumn typeInfo tables joinNullableOids) columns
     case columnDecoders of
         [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
         firstDecoder:restDecoders -> do
@@ -42,20 +42,23 @@ tupleRowDecoderForColumns typeInfo tables columns = do
             let withFirst = TH.AppE (TH.AppE (TH.VarE '(<$>)) tupleConstructor) firstDecoder
             pure (foldl (\acc decoder -> TH.AppE (TH.AppE (TH.VarE '(<*>)) acc) decoder) withFirst restDecoders)
 
-rowDecoderForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> DescribeColumn -> TH.ExpQ
-rowDecoderForColumn typeInfo tables DescribeColumn { dcType, dcTable, dcAttnum } =
+rowDecoderForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> DescribeColumn -> TH.ExpQ
+rowDecoderForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTable, dcAttnum } =
     case (Map.lookup dcTable tables, dcAttnum) of
         (Just TableMeta { tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum)
             | attnum `Set.member` tmPrimaryKeys -> do
-                let nullable = maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+                let joinNullable = dcTable `Set.member` joinNullableOids
+                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
                 columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
                 decodeIdColumn typeInfo nullable columnTypeOid
             | attnum `Map.member` tmForeignKeys -> do
-                let nullable = maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+                let joinNullable = dcTable `Set.member` joinNullableOids
+                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
                 columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
                 decodeIdColumn typeInfo nullable columnTypeOid
             | otherwise -> do
-                let nullable = maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+                let joinNullable = dcTable `Set.member` joinNullableOids
+                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
                 columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
                 decodeColumnByOid typeInfo nullable columnTypeOid
         _ ->

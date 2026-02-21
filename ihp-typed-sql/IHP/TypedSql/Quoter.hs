@@ -10,6 +10,7 @@ module IHP.TypedSql.Quoter
 import           Data.Coerce                    (coerce)
 import qualified Data.Char                      as Char
 import qualified Data.Map.Strict                as Map
+import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
@@ -20,9 +21,9 @@ import           IHP.Hasql.Encoders              ()
 
 import           IHP.TypedSql.Bootstrap         (describeUsingBootstrap)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
-import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..),
+import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
-import           IHP.TypedSql.ParamHints        (extractParamHints,
+import           IHP.TypedSql.ParamHints        (extractParamHints, extractJoinNullableTables,
                                                  resolveParamHintTypes)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
@@ -74,7 +75,14 @@ typedSqlExp rawSql = do
                 parsedExprs
                 paramTypes
 
-    resultType <- hsTypeForColumns drTypes drTables drColumns
+    let nullableTableNames = extractJoinNullableTables ppDescribeSql
+    let joinNullableOids = drTables
+            |> Map.toList
+            |> filter (\(_, TableMeta { tmName }) -> tmName `Set.member` nullableTableNames)
+            |> map fst
+            |> Set.fromList
+
+    resultType <- hsTypeForColumns drTypes drTables joinNullableOids drColumns
 
     let isCompositeColumn =
             case drColumns of
@@ -87,7 +95,7 @@ typedSqlExp rawSql = do
         fail
             ("typedSql: composite columns must be expanded (use SELECT table.* "
                 <> "or list columns explicitly)")
-    resultDecoder <- resultDecoderForColumns drTypes drTables drColumns
+    resultDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids drColumns
     snippetExpr <- buildSnippetExpression ppRuntimeSql annotatedParams
     let typedQueryExpr =
             TH.AppE

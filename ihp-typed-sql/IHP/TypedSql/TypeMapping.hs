@@ -36,13 +36,13 @@ hsTypeForParam typeInfo oid = maybe (fail (CS.cs unknown)) (hsTypeForPg typeInfo
 
 -- | Build the result type for the described columns.
 -- High-level: pick a model type for table.* or a tuple type for ad-hoc select lists.
-hsTypeForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> TH.TypeQ
-hsTypeForColumns typeInfo tables cols = do
+hsTypeForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.TypeQ
+hsTypeForColumns typeInfo tables joinNullableOids cols = do
     case detectFullTable tables cols of
         Just tableName ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName tableName))))
         Nothing -> do
-            hsCols <- mapM (hsTypeForColumn typeInfo tables) cols
+            hsCols <- mapM (hsTypeForColumn typeInfo tables joinNullableOids) cols
             case hsCols of
                 [single] -> pure single
                 _ -> pure $ foldl TH.AppT (TH.TupleT (length hsCols)) hsCols
@@ -69,12 +69,13 @@ detectFullTable tables cols = do
         _ -> Nothing
 
 -- | Map a single column into a Haskell type, with key-aware rules.
-hsTypeForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> DescribeColumn -> TH.TypeQ
-hsTypeForColumn typeInfo tables DescribeColumn { dcType, dcTable, dcAttnum } =
+hsTypeForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> DescribeColumn -> TH.TypeQ
+hsTypeForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTable, dcAttnum } =
     case (Map.lookup dcTable tables, dcAttnum) of
         (Just TableMeta { tmName = tableName, tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum) -> do
             let baseType = Map.lookup attnum tmColumns >>= \ColumnMeta { cmTypeOid } -> Map.lookup cmTypeOid typeInfo
-            let nullable = maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+            let joinNullable = dcTable `Set.member` joinNullableOids
+            let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
             case () of
                 _ | attnum `Set.member` tmPrimaryKeys ->
                     pure (wrapNull nullable (idType tableName))
