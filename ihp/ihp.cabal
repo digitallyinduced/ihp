@@ -215,6 +215,7 @@ library
         , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
         , IHP.Fetch.Statement
+        , IHP.FetchPipelined
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.Static
@@ -295,3 +296,5 @@ test-suite tests
         Test.HasqlEncoderSpec
         Test.AutoRefreshSpec
         Test.Pagination.ControllerFunctionsSpec
+        Test.FetchPipelinedSpec
+        Test.ModelFixtures
