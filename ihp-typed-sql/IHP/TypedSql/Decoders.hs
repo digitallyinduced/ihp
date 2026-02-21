@@ -13,7 +13,6 @@ import qualified Hasql.Decoders                   as HasqlDecoders
 import qualified Hasql.Mapping.IsScalar           as Mapping
 import qualified Language.Haskell.TH              as TH
 import           IHP.Hasql.FromRow                as HasqlFromRow
-import           IHP.ModelSupport.Types           (Id' (..))
 import           IHP.Prelude
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
