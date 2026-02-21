@@ -40,7 +40,6 @@ import qualified Hasql.Statement as HasqlStatement
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
 import Control.Exception (finally)
-import Data.Time.Clock (getCurrentTime, diffUTCTime)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
 
