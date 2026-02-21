@@ -1,6 +1,6 @@
 {-|
 Module: Test.FetchPipelinedSpec
-Description: Tests for IHP.Fetch.Statement builders and IHP.FetchPipelined
+Description: Integration tests for IHP.FetchPipelined
 Copyright: (c) digitally induced GmbH, 2026
 -}
 module Test.FetchPipelinedSpec where
@@ -8,64 +8,138 @@ module Test.FetchPipelinedSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.QueryBuilder
-import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
-import qualified Hasql.Statement as Hasql
-import Test.ModelFixtures
+import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..), Table(..), GetModelByTableName)
+import IHP.ModelSupport.Types (GetTableName, PrimaryKey, Id'(..))
+import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
+import IHP.FetchPipelined
+import qualified Hasql.Pool as HasqlPool
+import qualified Hasql.Session as Session
+import qualified IHP.Log as Log
+import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
+import System.Environment (lookupEnv)
+import qualified Control.Exception as Exception
 
--- Helper to extract SQL from a Hasql Statement
-stmtSql :: Hasql.Statement a b -> Text
-stmtSql = Hasql.toSql
+-- Model mapping to a temp table created during tests
+
+data FpItem = FpItem
+    { id :: UUID
+    , name :: Text
+    , active :: Bool
+    }
+    deriving (Show, Eq)
+
+type instance GetTableName FpItem = "fp_items"
+type instance GetModelByTableName "fp_items" = FpItem
+type instance PrimaryKey "fp_items" = UUID
+
+instance Table FpItem where
+    columnNames = ["id", "name", "active"]
+    primaryKeyColumnNames = ["id"]
+
+instance FromRowHasql FpItem where
+    hasqlRowDecoder = FpItem
+        <$> hasqlColumnDecoder
+        <*> hasqlColumnDecoder
+        <*> hasqlColumnDecoder
+
+-- | Run a test with a database connection, creating/dropping a temp table.
+-- Skips if PostgreSQL is not available.
+withDB :: (ModelContext -> IO ()) -> IO ()
+withDB action = do
+    envUrl <- lookupEnv "DATABASE_URL"
+    let databaseUrl = maybe "postgresql:///postgres" cs envUrl
+    logger <- Log.newLogger def { level = Warn }
+    modelContext <- createModelContext databaseUrl logger
+    let pool = modelContext.hasqlPool
+    let setup = do
+            result <- HasqlPool.use pool $ Session.script
+                "CREATE TABLE IF NOT EXISTS fp_items (id UUID PRIMARY KEY, name TEXT NOT NULL, active BOOL NOT NULL);\
+                \INSERT INTO fp_items (id, name, active) VALUES \
+                \('a0000000-0000-0000-0000-000000000001', 'alpha', true),\
+                \('a0000000-0000-0000-0000-000000000002', 'beta', true),\
+                \('a0000000-0000-0000-0000-000000000003', 'gamma', false);"
+            case result of
+                Left err -> Exception.throwIO (HasqlError err)
+                Right () -> pure ()
+    let teardown = do
+            _ <- HasqlPool.use pool $ Session.script "DROP TABLE IF EXISTS fp_items;"
+            releaseModelContext modelContext
+    result <- Exception.try (setup >> action modelContext `Exception.finally` teardown)
+    case result of
+        Right () -> pure ()
+        Left (HasqlError (HasqlPool.ConnectionUsageError _)) ->
+            pendingWith "PostgreSQL not available (set DATABASE_URL or start a local Postgres)"
+        Left e -> Exception.throwIO e
 
 tests :: Spec
 tests = do
-    let postColumns = "posts.id, posts.title, posts.external_url, posts.created_at, posts.public, posts.created_by, posts.category_id"
-    let userColumns = "users.id, users.name"
+    describe "IHP.FetchPipelined" do
+        describe "fetchPipelined" do
+            it "should fetch all rows with toPipelineStatement" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                items <- fetchPipelined $
+                    query @FpItem |> toPipelineStatement
+                length items `shouldBe` 3
 
-    describe "IHP.Fetch.Statement" do
-        describe "buildQueryListStatement" do
-            it "should produce SELECT for all rows" do
-                let stmt = buildQueryListStatement (query @Post)
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts")
+            it "should apply filterWhere" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                items <- fetchPipelined $
+                    query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
+                length items `shouldBe` 2
 
-            it "should include WHERE for filterWhere" do
-                let stmt = buildQueryListStatement (query @Post |> filterWhere (#title, "Test" :: Text))
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.title = $1")
+            it "should fetch multiple queries in one pipeline" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                (allItems, activeItems) <- fetchPipelined $ (,)
+                    <$> (query @FpItem |> toPipelineStatement)
+                    <*> (query @FpItem |> filterWhere (#active, True) |> toPipelineStatement)
+                length allItems `shouldBe` 3
+                length activeItems `shouldBe` 2
 
-            it "should include ORDER BY" do
-                let stmt = buildQueryListStatement (query @Post |> orderByDesc #createdAt)
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at DESC")
+            it "should pipeline three queries" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                (items, count, exists) <- fetchPipelined $ (,,)
+                    <$> (query @FpItem |> filterWhere (#active, True) |> toPipelineStatement)
+                    <*> (query @FpItem |> toPipelineStatementCount)
+                    <*> (query @FpItem |> filterWhere (#active, False) |> toPipelineStatementExists)
+                length items `shouldBe` 2
+                count `shouldBe` 3
+                exists `shouldBe` True
 
-            it "should include LIMIT as parameter" do
-                let stmt = buildQueryListStatement (query @Post |> limit 10)
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT $1")
+        describe "toPipelineStatementOneOrNothing" do
+            it "should return Just for matching row" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                result <- fetchPipelined $
+                    query @FpItem |> filterWhere (#name, "alpha" :: Text) |> toPipelineStatementOneOrNothing
+                ((.name) <$> result) `shouldBe` Just "alpha"
 
-            it "should work with a different model" do
-                let stmt = buildQueryListStatement (query @User)
-                stmtSql stmt `shouldBe` ("SELECT " <> userColumns <> " FROM users")
+            it "should return Nothing for no match" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                result <- fetchPipelined $
+                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> toPipelineStatementOneOrNothing
+                result `shouldBe` Nothing
 
-        describe "buildQueryMaybeStatement" do
-            it "should add LIMIT for single-row fetch" do
-                let stmt = buildQueryMaybeStatement (query @Post)
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts LIMIT $1")
+        describe "toPipelineStatementCount" do
+            it "should count all rows" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                count <- fetchPipelined $
+                    query @FpItem |> toPipelineStatementCount
+                count `shouldBe` 3
 
-            it "should include WHERE and LIMIT" do
-                let stmt = buildQueryMaybeStatement (query @Post |> filterWhere (#title, "Test" :: Text))
-                stmtSql stmt `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.title = $1 LIMIT $2")
+            it "should count filtered rows" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                count <- fetchPipelined $
+                    query @FpItem |> filterWhere (#active, False) |> toPipelineStatementCount
+                count `shouldBe` 1
 
-        describe "buildCountStatement" do
-            it "should wrap query in COUNT(*)" do
-                let stmt = buildCountStatement (query @Post)
-                stmtSql stmt `shouldBe` ("SELECT COUNT(*) FROM (SELECT " <> postColumns <> " FROM posts) AS _count_values")
+        describe "toPipelineStatementExists" do
+            it "should return True when rows exist" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                exists <- fetchPipelined $
+                    query @FpItem |> toPipelineStatementExists
+                exists `shouldBe` True
 
-            it "should preserve WHERE in inner query" do
-                let stmt = buildCountStatement (query @Post |> filterWhere (#public, True))
-                stmtSql stmt `shouldBe` ("SELECT COUNT(*) FROM (SELECT " <> postColumns <> " FROM posts WHERE posts.public = $1) AS _count_values")
-
-        describe "buildExistsStatement" do
-            it "should wrap query in EXISTS" do
-                let stmt = buildExistsStatement (query @Post)
-                stmtSql stmt `shouldBe` ("SELECT EXISTS (SELECT " <> postColumns <> " FROM posts) AS _exists_values")
-
-            it "should preserve WHERE in inner query" do
-                let stmt = buildExistsStatement (query @Post |> filterWhere (#public, True))
-                stmtSql stmt `shouldBe` ("SELECT EXISTS (SELECT " <> postColumns <> " FROM posts WHERE posts.public = $1) AS _exists_values")
+            it "should return False when no rows match" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                exists <- fetchPipelined $
+                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> toPipelineStatementExists
+                exists `shouldBe` False
