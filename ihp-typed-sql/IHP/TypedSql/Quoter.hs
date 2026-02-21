@@ -54,6 +54,8 @@ typedSqlExp rawSql = do
     paramTypes <- mapM (hsTypeForParam drTypes) drParams
 
     let parsedAst = parseSql ppDescribeSql
+    when (isNothing parsedAst) do
+        TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints and LEFT/RIGHT JOIN nullability detection are disabled for this query."
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 

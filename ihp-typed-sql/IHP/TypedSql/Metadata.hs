@@ -99,9 +99,10 @@ describeStatementWith dbUrl sql = do
         status <- PQ.status conn
         unless (status == PQ.ConnectionOk) do
             err <- PQ.errorMessage conn
-            fail ("typedSql: could not connect to database at "
-                <> CS.cs dbUrl <> ": " <> CS.cs (fromMaybe "" err)
-                <> "\nHint: ensure your development database is running (e.g. devenv up).")
+            fail ("typedSql: could not connect to the database: " <> CS.cs (fromMaybe "" err)
+                <> "\nThe typedSql quasiquoter connects to PostgreSQL at compile time to infer types."
+                <> "\nEnsure your development database is running (e.g. devenv up) and DATABASE_URL is set."
+                <> "\nUsing: " <> CS.cs dbUrl)
 
         let statementName = "ihp_typed_sql_stmt"
         _ <- ensureOk "prepare" =<< PQ.prepare conn statementName sql Nothing

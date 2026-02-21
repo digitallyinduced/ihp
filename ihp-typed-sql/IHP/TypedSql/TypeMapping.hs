@@ -132,5 +132,5 @@ hsTypeForPg typeInfo nullable PgTypeInfo { ptiName, ptiElem, ptiType } = do
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
         _ | ptiType == 'c' ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
-        _ -> pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
+        _ -> fail (CS.cs ("typedSql: unsupported column type '" <> ptiName <> "' (typtype=" <> cs [ptiType] <> "). Consider filing a feature request."))
     pure (wrapNull nullable base)
