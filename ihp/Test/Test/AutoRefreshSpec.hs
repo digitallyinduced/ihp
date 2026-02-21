@@ -6,8 +6,6 @@ with a bare WebSocket request (no query params).
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.AutoRefreshSpec where
-import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
 import Test.Hspec
 import IHP.Prelude
 import IHP.Environment
@@ -29,6 +27,7 @@ import IHP.Test.Mocking
 import qualified Network.Wai as Wai
 import qualified Data.Vault.Lazy as Vault
 import qualified Text.Blaze.Html.Renderer.Text as BlazeHtml
+import qualified Data.UUID as UUID
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -72,29 +71,20 @@ callActionWithQueryParams
     -> IO Response
 callActionWithQueryParams pgListener controller queryParams = do
     let MockContext { frameworkConfig, modelContext } = ?mocking
-
-    -- Build request with query params (GET-style, not POST body)
     let baseRequest = ?request
             { Wai.queryString = map (\(k,v) -> (k, Just v)) queryParams
             , Wai.rawQueryString = renderSimpleQuery True queryParams
             }
-
-    -- Capture the response
     responseRef <- newIORef Nothing
     let captureRespond response = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
-
-    -- Create the controller app
     let controllerApp req respond = do
             let ?request = req
             let ?respond = respond
             runActionWithNewContext controller
-
-    -- Run through middleware stack with PGListener enabled
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
     _ <- middlewareStack controllerApp baseRequest captureRespond
-
     readIORef responseRef >>= \case
         Just response -> pure response
         Nothing -> error "callActionWithQueryParams: No response was returned by the controller"
@@ -178,82 +168,3 @@ tests = do
                 frozen <- freeze context
                 let ?context = frozen
                 (cs renderMeta :: String) `shouldContain` "ihp-auto-refresh-id"
-
-    describe "AutoRefresh change set" do
-        it "stores row json and allows field access" do
-            let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a001"
-            let row = Aeson.object ["id" Aeson..= userId, "user_id" Aeson..= userId, "name" Aeson..= ("Riley" :: Text)]
-            let payload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshUpdate, payloadOldRow = Nothing, payloadNewRow = Just row, payloadLargePayloadId = Nothing }
-            let changeSet = insertRowChange "users" payload mempty
-            let [change] = changesForTable "users" changeSet
-            change.table `shouldBe` "users"
-            rowFieldNew @"userId" change `shouldBe` Just userId
-
-        it "exposes old/new fields" do
-            let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a005"
-            let oldRow = Aeson.object ["id" Aeson..= userId, "name" Aeson..= ("Old" :: Text)]
-            let newRow = Aeson.object ["id" Aeson..= userId, "name" Aeson..= ("New" :: Text)]
-            let payload = AutoRefreshRowChangePayload
-                    { payloadOperation = AutoRefreshUpdate
-                    , payloadOldRow = Just oldRow
-                    , payloadNewRow = Just newRow
-                    , payloadLargePayloadId = Nothing
-                    }
-            let changeSet = insertRowChangeFromPayload "users" payload mempty
-            let [change] = changesForTable "users" changeSet
-            rowFieldNew @"name" change `shouldBe` Just ("New" :: Text)
-            rowFieldOld @"name" change `shouldBe` Just ("Old" :: Text)
-
-        it "work with only old row" do
-            let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a006"
-            let oldRow = Aeson.object ["id" Aeson..= userId, "name" Aeson..= ("Deleted" :: Text)]
-            let payload = AutoRefreshRowChangePayload
-                    { payloadOperation = AutoRefreshDelete
-                    , payloadOldRow = Just oldRow
-                    , payloadNewRow = Nothing
-                    , payloadLargePayloadId = Nothing
-                    }
-            let changeSet = insertRowChangeFromPayload "users" payload mempty
-            let [change] = changesForTable "users" changeSet
-            rowFieldNew @"name" change `shouldBe` (Nothing :: Maybe Text)
-            rowFieldOld @"name" change `shouldBe` Just ("Deleted" :: Text)
-
-        it "routes changes to the matching table slot" do
-            let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a002"
-            let projectId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a003"
-            let userRow = Aeson.object ["id" Aeson..= userId, "user_id" Aeson..= userId]
-            let projectRow = Aeson.object ["id" Aeson..= projectId, "user_id" Aeson..= userId]
-            let userPayload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshInsert, payloadOldRow = Nothing, payloadNewRow = Just userRow, payloadLargePayloadId = Nothing }
-            let projectPayload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshUpdate, payloadOldRow = Nothing, payloadNewRow = Just projectRow, payloadLargePayloadId = Nothing }
-            let changeSet =
-                    mempty
-                        |> insertRowChange "projects" projectPayload
-                        |> insertRowChange "users" userPayload
-            length (changesForTable "projects" changeSet) `shouldBe` 1
-            length (changesForTable "users" changeSet) `shouldBe` 1
-
-        it "detects table changes" do
-            let row = Aeson.object ["id" Aeson..= (1 :: Int)]
-            let payload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshInsert, payloadOldRow = Nothing, payloadNewRow = Just row, payloadLargePayloadId = Nothing }
-            let changeSet = insertRowChange "users" payload mempty
-            anyChangeOnTable "users" changeSet `shouldBe` True
-            anyChangeOnTable "projects" changeSet `shouldBe` False
-
-        it "checks fields across all tables without table filtering" do
-            let userId :: UUID = "d3f0e0f8-6a4a-4b0a-9ac2-7c29f9c0a004"
-            let userRow = Aeson.object ["id" Aeson..= userId, "user_id" Aeson..= userId]
-            let projectRow = Aeson.object ["id" Aeson..= ("p-1" :: Text), "user_id" Aeson..= userId]
-            let userPayload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshInsert, payloadOldRow = Nothing, payloadNewRow = Just userRow, payloadLargePayloadId = Nothing }
-            let projectPayload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshUpdate, payloadOldRow = Nothing, payloadNewRow = Just projectRow, payloadLargePayloadId = Nothing }
-            let changeSet =
-                    mempty
-                        |> insertRowChange "users" userPayload
-                        |> insertRowChange "projects" projectPayload
-            anyChangeWithField @"userId" (== userId) changeSet `shouldBe` True
-
-        it "supports custom field predicates" do
-            let userRow = Aeson.object ["id" Aeson..= ("u-1" :: Text), "status" Aeson..= ("archived" :: Text)]
-            let payload = AutoRefreshRowChangePayload { payloadOperation = AutoRefreshUpdate, payloadOldRow = Nothing, payloadNewRow = Just userRow, payloadLargePayloadId = Nothing }
-            let changeSet = insertRowChange "users" payload mempty
-            anyChangeWithField @"status" (`elem` ["active" :: Text, "archived"]) changeSet `shouldBe` True
-            anyChangeWithField @"status" (== ("active" :: Text)) changeSet `shouldBe` False

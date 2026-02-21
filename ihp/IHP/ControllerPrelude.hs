@@ -22,7 +22,6 @@ module IHP.ControllerPrelude
     , module IHP.RouterSupport
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
-    , module IHP.AutoRefresh.ChangeSet
     , module IHP.FlashMessages
     , module IHP.Controller.Context
     , module IHP.Modal.Types
@@ -72,8 +71,7 @@ import IHP.ViewSupport (View)
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
-import IHP.AutoRefresh (autoRefresh, autoRefreshWith, AutoRefreshOptions (..))
-import IHP.AutoRefresh.ChangeSet
+import IHP.AutoRefresh (autoRefresh)
 
 import IHP.LoginSupport.Helper.Controller
 import IHP.PageHead.ControllerFunctions

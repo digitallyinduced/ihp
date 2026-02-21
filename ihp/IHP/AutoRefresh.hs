@@ -9,7 +9,6 @@ import IHP.Prelude
 import IHP.AutoRefresh.Types
 import IHP.ControllerSupport
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
@@ -53,15 +52,6 @@ getOrCreateAutoRefreshServer =
             server <- newIORef (newAutoRefreshServer pgListener)
             pure (Just server, server)
 
--- | Options for fine-grained auto refresh via 'autoRefreshWith'.
---
--- The callback should be fast and ideally avoid additional SQL queries. It runs on the server and decides whether a
--- received batch of row changes should trigger a re-render.
-data AutoRefreshOptions = AutoRefreshOptions
-    { shouldRefresh :: AutoRefreshChangeSet -> IO Bool
-    -- ^ Return @True@ to re-render for the given batch of changes
-    }
-
 autoRefresh :: (
     ?theAction :: action
     , Controller action
@@ -69,33 +59,7 @@ autoRefresh :: (
     , ?context :: ControllerContext
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
-autoRefresh runAction =
-    autoRefreshInternal AutoRefreshSmartConfig runAction
-
--- | Like 'autoRefresh', but lets you decide (based on the changed rows) whether a refresh should re-render the page.
---
--- This is useful for pages that track high-churn tables but only care about a subset of rows (e.g. based on foreign keys
--- or current user id).
-autoRefreshWith :: forall action. (
-    ?theAction :: action
-    , Controller action
-    , ?modelContext :: ModelContext
-    , ?context :: ControllerContext
-    , ?request :: Request
-    ) => AutoRefreshOptions -> ((?modelContext :: ModelContext) => IO ()) -> IO ()
-autoRefreshWith options runAction =
-    autoRefreshInternal (AutoRefreshRowConfig options) runAction
-
--- | Shared setup for the initial render. The row-level path adds change tracking
--- and a refresh predicate, while the statement-level path only tracks table touches.
-autoRefreshInternal :: forall action. (
-    ?theAction :: action
-    , Controller action
-    , ?modelContext :: ModelContext
-    , ?context :: ControllerContext
-    , ?request :: Request
-    ) => AutoRefreshConfig -> ((?modelContext :: ModelContext) => IO ()) -> IO ()
-autoRefreshInternal config runAction = do
+autoRefresh runAction = do
     let autoRefreshState = Vault.lookup autoRefreshStateVaultKey ?request.vault
     autoRefreshServer <- getOrCreateAutoRefreshServer
 
@@ -160,31 +124,16 @@ autoRefreshInternal config runAction = do
                             lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
 
                             event <- MVar.newEmptyMVar
-                            session <- case config of
-                                AutoRefreshStatementConfig ->
-                                    pure AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, trackedIds = Map.empty }
-                                AutoRefreshRowConfig options -> do
-                                    pendingChanges <- newIORef (Just mempty)
-                                    pure AutoRefreshSessionWithChanges { id, renderView, event, tables, lastResponse, lastPing, pendingChanges, shouldRefresh = options.shouldRefresh, trackedIds = Map.empty }
-                                AutoRefreshSmartConfig ->
-                                    pure AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, trackedIds }
+                            let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, trackedIds }
                             modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                             async (gcSessions autoRefreshServer)
 
-                            case config of
-                                AutoRefreshStatementConfig -> registerNotificationTrigger ?touchedTables autoRefreshServer
-                                AutoRefreshRowConfig {} -> registerRowNotificationTrigger ?touchedTables autoRefreshServer
-                                AutoRefreshSmartConfig -> registerSmartNotificationTrigger ?touchedTables autoRefreshServer
+                            registerNotificationTrigger ?touchedTables autoRefreshServer
 
                             throw exception
                         _ -> error "Unimplemented WAI response type."
 
                 runAction `Exception.catch` handleResponse
-
-data AutoRefreshConfig
-    = AutoRefreshStatementConfig
-    | AutoRefreshRowConfig AutoRefreshOptions
-    | AutoRefreshSmartConfig
 
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
@@ -198,41 +147,27 @@ instance WSApp AutoRefreshWSApp where
         availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            session <- getSessionById autoRefreshServer sessionId
+            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
 
             let handleResponseException (ResponseException response) = case response of
                     Wai.ResponseBuilder status headers builder -> do
                         let html = ByteString.toLazyByteString builder
 
-                        when (html /= lastResponse session) do
+                        when (html /= lastResponse) do
                             sendTextData html
                             updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
-                    _ -> error "Unimplemented WAI response type."
+                    _   -> error "Unimplemented WAI response type."
 
             let handleOtherException :: SomeException -> IO ()
                 handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
 
             let currentRequest = ?request
             let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-            -- Create a dummy respond function that does nothing, since actual response
-            -- is handled by the handleResponseException handler
-            let onRender = (renderView session currentRequest dummyRespond) `catch` handleResponseException
+            let onRender = (renderView currentRequest dummyRespond) `catch` handleResponseException
 
-            case session of
-                AutoRefreshSession { event } ->
-                    async $ forever do
-                        MVar.takeMVar event
-                        onRender `catch` handleOtherException
-                AutoRefreshSessionWithChanges { event, pendingChanges, shouldRefresh } ->
-                    async $ forever do
-                        MVar.takeMVar event
-                        pending <- atomicModifyIORef' pendingChanges (\current -> (Just mempty, current))
-                        (case pending of
-                            Nothing -> onRender
-                            Just changes -> do
-                                shouldRender <- shouldRefresh changes
-                                when shouldRender onRender
-                            ) `catch` handleOtherException
+            async $ forever do
+                MVar.takeMVar event
+                onRender `catch` handleOtherException
 
             pure ()
 
@@ -249,16 +184,21 @@ instance WSApp AutoRefreshWSApp where
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
                 autoRefreshServer <- getOrCreateAutoRefreshServer
-                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\session -> session.id /= sessionId) server.sessions })
+                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
--- | Registers statement-level triggers that only notify about "something changed" per table.
+-- | Registers row-level triggers with smart ID-based filtering.
+--
+-- Uses row-level PostgreSQL triggers that include the changed row data in the notification payload.
+-- For UPDATE\/DELETE: extracts the row ID from the payload and checks if it's in the tracked set.
+-- For INSERT: always refreshes (we can't know if the new row matches without re-querying).
+-- For tables without ID tracking (raw SQL, fetchCount): always refreshes.
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
 
-    let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
+    let subscriptionRequired = touchedTables |> filter (\table -> table `Set.notMember` subscribedTables)
 
     -- In development, always re-run trigger SQL for all touched tables because
     -- `make db` drops and recreates the database, destroying triggers that were
@@ -270,114 +210,11 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     pgListener <- (.pgListener) <$> readIORef autoRefreshServer
     subscriptions <- subscriptionRequired |> mapM (\table -> do
-        -- We need to add the trigger from the main IHP database role other we will get this error:
-        -- ERROR:  permission denied for schema public
         withRowLevelSecurityDisabled do
             let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
+            runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
-        pgListener |> PGListener.subscribe (channelName table) \notification -> do
-            sessions <- (.sessions) <$> readIORef autoRefreshServer
-            sessions
-                |> mapMaybe (\session -> case session of
-                    AutoRefreshSession { tables, event } | table `Set.member` tables -> Just event
-                    AutoRefreshSession {} -> Nothing
-                    AutoRefreshSessionWithChanges {} -> Nothing)
-                |> mapM (\event -> MVar.tryPutMVar event ())
-            pure ())
-
-    -- Re-run trigger SQL for already-subscribed tables in dev mode
-    when isDevelopment do
-        let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
-        forM_ alreadySubscribed \table -> do
-            withRowLevelSecurityDisabled do
-                let pool = ?modelContext.hasqlPool
-                runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
-
-    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
-    pure ()
-
--- | Registers row-level triggers that include row data for fine-grained refresh decisions.
-registerRowNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
-registerRowNotificationTrigger touchedTablesVar autoRefreshServer = do
-    touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    subscribedRowTables <- (.subscribedRowTables) <$> (autoRefreshServer |> readIORef)
-
-    let subscriptionRequired = touchedTables |> filter (\table -> table `Set.notMember` subscribedRowTables)
-
-    -- In development, always re-run trigger SQL for all touched tables because
-    -- `make db` drops and recreates the database, destroying triggers that were
-    -- previously installed. The trigger SQL is idempotent so re-running is safe.
-    -- In production, only install triggers for newly seen tables.
-    let isDevelopment = ?context.frameworkConfig.environment == Development
-
-    modifyIORef' autoRefreshServer (\server -> server { subscribedRowTables = server.subscribedRowTables <> Set.fromList subscriptionRequired })
-
-    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-    subscriptions <- subscriptionRequired |> mapM (\table -> do
-        withRowLevelSecurityDisabled do
-            let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (mapM_ HasqlSession.script (notificationRowTriggerStatements table))
-
-        pgListener |> PGListener.subscribeJSON (rowChannelName table) (\payload -> do
-            resolvedPayload <- resolveAutoRefreshPayload payload
-            sessions <- (.sessions) <$> readIORef autoRefreshServer
-            sessions |> mapM_ (handleRowChange table resolvedPayload)
-            pure ()))
-
-    -- Re-run trigger SQL for already-subscribed tables in dev mode
-    when isDevelopment do
-        let alreadySubscribed = touchedTables |> filter (`Set.member` subscribedRowTables)
-        forM_ alreadySubscribed \table -> do
-            withRowLevelSecurityDisabled do
-                let pool = ?modelContext.hasqlPool
-                runSessionHasql pool (mapM_ HasqlSession.script (notificationRowTriggerStatements table))
-
-    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
-    pure ()
-    where
-        handleRowChange table resolvedPayload session = case session of
-            AutoRefreshSessionWithChanges { tables, pendingChanges, event }
-                | table `Set.member` tables -> do
-                    case resolvedPayload of
-                        Nothing ->
-                            writeIORef pendingChanges Nothing
-                        Just payload ->
-                            modifyIORef' pendingChanges (\pending -> case pending of
-                                Nothing -> Nothing
-                                Just current -> Just (insertRowChangeFromPayload table payload current))
-                    _ <- MVar.tryPutMVar event ()
-                    pure ()
-            AutoRefreshSessionWithChanges {} -> pure ()
-            AutoRefreshSession {} -> pure ()
-
--- | Registers row-level triggers with smart ID-based filtering.
---
--- Uses the same row-level PostgreSQL triggers as 'registerRowNotificationTrigger', but instead of
--- delegating filtering to a user-provided 'shouldRefresh' callback, it automatically filters
--- based on the row IDs that were fetched during the initial render.
---
--- For UPDATE/DELETE: extracts the row ID from the notification payload and checks if it's in the tracked set.
--- For INSERT: always refreshes (we can't know if the new row matches without re-querying).
--- For tables without ID tracking (raw SQL, fetchCount): always refreshes (today's behavior).
-registerSmartNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
-registerSmartNotificationTrigger touchedTablesVar autoRefreshServer = do
-    touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    subscribedRowTables <- (.subscribedRowTables) <$> (autoRefreshServer |> readIORef)
-
-    let subscriptionRequired = touchedTables |> filter (\table -> table `Set.notMember` subscribedRowTables)
-
-    let isDevelopment = ?context.frameworkConfig.environment == Development
-
-    modifyIORef' autoRefreshServer (\server -> server { subscribedRowTables = server.subscribedRowTables <> Set.fromList subscriptionRequired })
-
-    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-    subscriptions <- subscriptionRequired |> mapM (\table -> do
-        withRowLevelSecurityDisabled do
-            let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (mapM_ HasqlSession.script (notificationRowTriggerStatements table))
-
-        pgListener |> PGListener.subscribeJSON (rowChannelName table) (\payload -> do
+        pgListener |> PGListener.subscribeJSON (channelName table) (\payload -> do
             resolvedPayload <- resolveAutoRefreshPayload payload
             sessions <- (.sessions) <$> readIORef autoRefreshServer
             sessions |> mapM_ (handleSmartRowChange table resolvedPayload)
@@ -385,45 +222,36 @@ registerSmartNotificationTrigger touchedTablesVar autoRefreshServer = do
 
     -- Re-run trigger SQL for already-subscribed tables in dev mode
     when isDevelopment do
-        let alreadySubscribed = touchedTables |> filter (`Set.member` subscribedRowTables)
+        let alreadySubscribed = touchedTables |> filter (`Set.member` subscribedTables)
         forM_ alreadySubscribed \table -> do
             withRowLevelSecurityDisabled do
                 let pool = ?modelContext.hasqlPool
-                runSessionHasql pool (mapM_ HasqlSession.script (notificationRowTriggerStatements table))
+                runSessionHasql pool (mapM_ HasqlSession.script (notificationTriggerStatements table))
 
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
     where
-        handleSmartRowChange table resolvedPayload session = case session of
-            AutoRefreshSession { tables, event, trackedIds }
-                | table `Set.member` tables -> do
-                    let shouldRefreshNow = case Map.lookup table trackedIds of
-                            Nothing -> True  -- table not tracked with IDs (raw SQL, fetchCount, etc.)
-                            Just ids | Set.null ids -> True  -- empty ID set means can't filter
-                            Just ids -> case resolvedPayload of
-                                Nothing -> True  -- payload resolution failed, refresh to be safe
-                                Just payload -> shouldRefreshForPayload ids payload
-                    when shouldRefreshNow $
-                        MVar.tryPutMVar event () >> pure ()
-            -- Also handle AutoRefreshSessionWithChanges (from autoRefreshWith) and
-            -- AutoRefreshSession without matching table
-            AutoRefreshSessionWithChanges { tables, pendingChanges, event }
-                | table `Set.member` tables -> do
-                    case resolvedPayload of
-                        Nothing ->
-                            writeIORef pendingChanges Nothing
-                        Just payload ->
-                            modifyIORef' pendingChanges (\pending -> case pending of
-                                Nothing -> Nothing
-                                Just current -> Just (insertRowChangeFromPayload table payload current))
-                    _ <- MVar.tryPutMVar event ()
-                    pure ()
-            _ -> pure ()
+        handleSmartRowChange table resolvedPayload session@AutoRefreshSession { tables, event, trackedIds }
+            | table `Set.member` tables = do
+                let shouldRefreshNow = case Map.lookup table trackedIds of
+                        Nothing -> True  -- table not tracked with IDs (raw SQL, fetchCount, etc.)
+                        Just ids | Set.null ids -> True  -- empty ID set means can't filter
+                        Just ids -> case resolvedPayload of
+                            Nothing -> True  -- payload resolution failed, refresh to be safe
+                            Just payload -> shouldRefreshForPayload ids payload
+                when shouldRefreshNow $
+                    MVar.tryPutMVar event () >> pure ()
+            | otherwise = pure ()
 
 -- | Determines whether a notification payload should trigger a refresh based on tracked IDs.
 --
 -- For INSERT: always refresh (new row could match the query filters).
--- For UPDATE/DELETE: only refresh if the row's ID is in our tracked set.
+-- For UPDATE\/DELETE: only refresh if the row's ID is in our tracked set.
+--
+-- Note: For UPDATE, this means that if an UPDATE causes a row to newly match a WHERE filter
+-- (e.g. a status change), the refresh will be skipped if that row wasn't already tracked.
+-- This is an acceptable tradeoff: the page will catch up on the next INSERT or on the next
+-- full page load.
 shouldRefreshForPayload :: Set Text -> AutoRefreshRowChangePayload -> Bool
 shouldRefreshForPayload trackedIds payload =
     case payload.payloadOperation of
@@ -463,7 +291,7 @@ getSessionById :: IORef AutoRefreshServer -> UUID -> IO AutoRefreshSession
 getSessionById autoRefreshServer sessionId = do
     autoRefreshServer <- readIORef autoRefreshServer
     autoRefreshServer.sessions
-        |> find (\session -> session.id == sessionId)
+        |> find (\AutoRefreshSession { id } -> id == sessionId)
         |> Maybe.fromMaybe (error "getSessionById: Could not find the session")
         |> pure
 
@@ -486,45 +314,19 @@ gcSessions autoRefreshServer = do
 
 -- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
-isSessionExpired now session = (now `diffUTCTime` session.lastPing) > (secondsToNominalDiffTime 60)
+isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: Text -> ByteString
-channelName tableName = "ar_did_change_" <> cs tableName
+channelName tableName = "ar_did_change_row_" <> cs tableName
 
--- | Returns a SQL script to set up database notification triggers.
+-- | Returns a list of SQL statements to set up row-level database notification triggers.
 --
--- Wrapped in a DO $$ block with EXCEPTION handler because concurrent requests
--- can race to CREATE OR REPLACE the same function, causing PostgreSQL to throw
--- 'tuple concurrently updated' (SQLSTATE XX000). This is safe to ignore: the
--- other connection's CREATE OR REPLACE will have succeeded.
-notificationTriggerSQL :: Text -> Text
-notificationTriggerSQL tableName =
-        "DO $$\n"
-        <> "BEGIN\n"
-        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
-            <> "BEGIN\n"
-            <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
-            <> "    RETURN new;\n"
-            <> "END;\n"
-            <> "$BODY$ language plpgsql;\n"
-        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "    DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "EXCEPTION\n"
-        <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
-        <> "END; $$"
-    where
-        functionName = "ar_notify_did_change_" <> tableName
-        insertTriggerName = "ar_did_insert_" <> tableName
-        updateTriggerName = "ar_did_update_" <> tableName
-        deleteTriggerName = "ar_did_delete_" <> tableName
-
-notificationRowTriggerStatements :: Text -> [Text]
-notificationRowTriggerStatements tableName =
+-- These triggers send a JSON payload with the operation type and old\/new row data via pg_notify.
+-- For payloads exceeding ~8KB, the full JSON is stored in @large_pg_notifications@ and only
+-- a reference ID is sent in the notification.
+notificationTriggerStatements :: Text -> [Text]
+notificationTriggerStatements tableName =
         [ "BEGIN"
         , "CREATE UNLOGGED TABLE IF NOT EXISTS public.large_pg_notifications ("
             <> "id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL, "
@@ -544,7 +346,7 @@ notificationRowTriggerStatements tableName =
             <> "            payload := jsonb_build_object('op', lower(TG_OP), 'payloadId', large_pg_notification_id::text)::text;\n"
             <> "            DELETE FROM public.large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';\n"
             <> "        END IF;\n"
-            <> "        PERFORM pg_notify('" <> cs (rowChannelName tableName) <> "', payload);\n"
+            <> "        PERFORM pg_notify('" <> cs (channelName tableName) <> "', payload);\n"
             <> "        RETURN OLD;\n"
             <> "    ELSE\n"
             <> "        IF (TG_OP = 'UPDATE') THEN\n"
@@ -557,7 +359,7 @@ notificationRowTriggerStatements tableName =
             <> "            payload := jsonb_build_object('op', lower(TG_OP), 'payloadId', large_pg_notification_id::text)::text;\n"
             <> "            DELETE FROM public.large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';\n"
             <> "        END IF;\n"
-            <> "        PERFORM pg_notify('" <> cs (rowChannelName tableName) <> "', payload);\n"
+            <> "        PERFORM pg_notify('" <> cs (channelName tableName) <> "', payload);\n"
             <> "        RETURN NEW;\n"
             <> "    END IF;\n"
             <> "END;\n"
@@ -576,15 +378,12 @@ notificationRowTriggerStatements tableName =
         updateTriggerName = "ar_did_update_row_" <> tableName
         deleteTriggerName = "ar_did_delete_row_" <> tableName
 
-rowChannelName :: Text -> ByteString
-rowChannelName tableName = "ar_did_change_row_" <> cs tableName
-
 -- | Internal: When the PostgreSQL trigger had to store the full JSON payload in @large_pg_notifications@
--- (because @pg_notify@ payloads are limited to ~8KB), this loads the full row json so the change set passed
--- to 'IHP.AutoRefresh.AutoRefreshOptions.shouldRefresh' still contains @old@/@new@.
+-- (because @pg_notify@ payloads are limited to ~8KB), this loads the full row json so smart filtering
+-- receives the full row data for ID extraction.
 --
--- Returns 'Nothing' when the payload cannot be loaded or decoded. In that case auto refresh will force a refresh
--- instead of calling the user-provided 'shouldRefresh'.
+-- Returns 'Nothing' when the payload cannot be loaded or decoded. In that case auto refresh will force
+-- a refresh.
 resolveAutoRefreshPayload :: (?modelContext :: ModelContext) => AutoRefreshRowChangePayload -> IO (Maybe AutoRefreshRowChangePayload)
 resolveAutoRefreshPayload payload = case payload.payloadLargePayloadId of
     Nothing -> pure (Just payload)
