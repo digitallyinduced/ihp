@@ -9,22 +9,24 @@ Uses PostgreSQL's pipeline mode (via hasql) to send multiple independent queries
 in a single network round trip. This is especially beneficial for cloud database
 deployments where round-trip latency is 1-5ms.
 
-Compose queries using 'Applicative' operators:
+Compose queries using hasql's 'Pipeline' 'Applicative':
 
+> import qualified Hasql.Pipeline as Pipeline
+>
 > (users, posts) <- fetchPipelined $ (,)
 >     <$> toStatement (query @User)
 >     <*> toStatement (query @Post |> orderByDesc #createdAt)
 
-The 'PipelinedQuery' type is 'Applicative' but NOT 'Monad', which enforces at the
-type level that only independent queries can be pipelined.
+'Pipeline' is 'Applicative' but NOT 'Monad', which enforces at the type level
+that only independent queries can be pipelined.
 -}
 module IHP.FetchPipelined
-( PipelinedQuery
-, toStatement
+( toStatement
 , toStatementOneOrNothing
 , toStatementCount
 , toStatementExists
 , fetchPipelined
+, Pipeline.Pipeline
 ) where
 
 import IHP.Prelude
@@ -43,25 +45,7 @@ import Control.Exception (finally)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
 
--- | A composable query for pipeline execution.
---
--- Wraps a hasql 'Pipeline' step with tracked table names for AutoRefresh.
--- Compose using 'Applicative' operators:
---
--- > (,) <$> toStatement (query @User) <*> toStatement (query @Post)
-data PipelinedQuery a = PipelinedQuery ![Text] !(Pipeline.Pipeline a)
-
-instance Functor PipelinedQuery where
-    fmap f (PipelinedQuery t p) = PipelinedQuery t (fmap f p)
-    {-# INLINE fmap #-}
-
-instance Applicative PipelinedQuery where
-    pure a = PipelinedQuery [] (pure a)
-    {-# INLINE pure #-}
-    PipelinedQuery t1 p1 <*> PipelinedQuery t2 p2 = PipelinedQuery (t1 <> t2) (p1 <*> p2)
-    {-# INLINE (<*>) #-}
-
--- | Prepare a query builder for pipeline execution, returning all matching rows.
+-- | Convert a query builder into a 'Pipeline' step returning all matching rows.
 --
 -- __Example:__ Fetching users and posts in a single round trip
 --
@@ -74,14 +58,14 @@ toStatement :: forall model table queryBuilderProvider joinRegister.
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> PipelinedQuery [model]
+    ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
 toStatement !queryBuilder =
     let !sqlQuery = buildQuery queryBuilder
         !statement = buildStatement sqlQuery (Decoders.rowList (hasqlRowDecoder @model))
-    in PipelinedQuery [tableName @model] (Pipeline.statement () statement)
+    in Pipeline.statement () statement
 {-# INLINE toStatement #-}
 
--- | Prepare a query builder for pipeline execution, returning at most one row.
+-- | Convert a query builder into a 'Pipeline' step returning at most one row.
 --
 -- __Example:__
 --
@@ -94,14 +78,14 @@ toStatementOneOrNothing :: forall model table queryBuilderProvider joinRegister.
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> PipelinedQuery (Maybe model)
+    ) => queryBuilderProvider table -> Pipeline.Pipeline (Maybe model)
 toStatementOneOrNothing !queryBuilder =
     let !sqlQuery = buildQuery queryBuilder |> setJust #limitClause 1
         !statement = buildStatement sqlQuery (Decoders.rowMaybe (hasqlRowDecoder @model))
-    in PipelinedQuery [tableName @model] (Pipeline.statement () statement)
+    in Pipeline.statement () statement
 {-# INLINE toStatementOneOrNothing #-}
 
--- | Prepare a count query for pipeline execution.
+-- | Convert a query builder into a 'Pipeline' step returning a count.
 --
 -- __Example:__
 --
@@ -111,17 +95,17 @@ toStatementOneOrNothing !queryBuilder =
 toStatementCount :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> PipelinedQuery Int
+    ) => queryBuilderProvider table -> Pipeline.Pipeline Int
 toStatementCount !queryBuilder =
     let !statement = buildWrappedStatement
             "SELECT COUNT(*) FROM ("
             (buildQuery queryBuilder)
             ") AS _count_values"
             (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
-    in PipelinedQuery [symbolToText @table] (fromIntegral <$> Pipeline.statement () statement)
+    in fromIntegral <$> Pipeline.statement () statement
 {-# INLINE toStatementCount #-}
 
--- | Prepare an existence check for pipeline execution.
+-- | Convert a query builder into a 'Pipeline' step returning a boolean.
 --
 -- __Example:__
 --
@@ -131,20 +115,17 @@ toStatementCount !queryBuilder =
 toStatementExists :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> PipelinedQuery Bool
+    ) => queryBuilderProvider table -> Pipeline.Pipeline Bool
 toStatementExists !queryBuilder =
     let !statement = buildWrappedStatement
             "SELECT EXISTS ("
             (buildQuery queryBuilder)
             ") AS _exists_values"
             (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-    in PipelinedQuery [symbolToText @table] (Pipeline.statement () statement)
+    in Pipeline.statement () statement
 {-# INLINE toStatementExists #-}
 
--- | Execute a composed pipeline query in a single database round trip.
---
--- All queries composed via 'Applicative' are sent to PostgreSQL in pipeline mode,
--- typically completing in a single network round trip.
+-- | Execute a 'Pipeline' in a single database round trip.
 --
 -- When row-level security (RLS) is enabled, the pipeline is automatically wrapped
 -- with @set_config@ / reset statements to preserve the request's RLS context.
@@ -158,9 +139,8 @@ toStatementExists !queryBuilder =
 -- >         <*> toStatement (query @Post |> orderByDesc #createdAt |> limit 10)
 -- >         <*> toStatementCount (query @Comment)
 -- >     render DashboardView { .. }
-fetchPipelined :: (?modelContext :: ModelContext) => PipelinedQuery a -> IO a
-fetchPipelined (PipelinedQuery tables thePipeline) = do
-    mapM_ trackTableRead tables
+fetchPipelined :: (?modelContext :: ModelContext) => Pipeline.Pipeline a -> IO a
+fetchPipelined thePipeline = do
     let pool = ?modelContext.hasqlPool
     -- When RLS is enabled and we're not already in a transaction, wrap the
     -- pipeline with session-scoped set_config/reset statements.  These are
@@ -198,7 +178,7 @@ fetchPipelined (PipelinedQuery tables thePipeline) = do
             runQuery `finally` do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                Log.debug ("🔍 Pipeline (" <> tshow (length tables) <> " queries, " <> tshow queryTimeInMs <> "ms)")
+                Log.debug ("🔍 Pipeline (" <> tshow queryTimeInMs <> "ms)")
         else runQuery
 {-# INLINABLE fetchPipelined #-}
 
