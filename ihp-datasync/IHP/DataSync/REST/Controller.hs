@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module IHP.DataSync.REST.Controller where
 
-import IHP.ControllerPrelude hiding (OrderByClause, toStatement)
+import IHP.ControllerPrelude hiding (OrderByClause)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Data.Vector as Vector

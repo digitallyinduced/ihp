@@ -14,17 +14,17 @@ Compose queries using hasql's 'Pipeline' 'Applicative':
 > import qualified Hasql.Pipeline as Pipeline
 >
 > (users, posts) <- fetchPipelined $ (,)
->     <$> toStatement (query @User)
->     <*> toStatement (query @Post |> orderByDesc #createdAt)
+>     <$> (query @User |> toPipelineStatement)
+>     <*> (query @Post |> orderByDesc #createdAt |> toPipelineStatement)
 
 'Pipeline' is 'Applicative' but NOT 'Monad', which enforces at the type level
 that only independent queries can be pipelined.
 -}
 module IHP.FetchPipelined
-( toStatement
-, toStatementOneOrNothing
-, toStatementCount
-, toStatementExists
+( toPipelineStatement
+, toPipelineStatementOneOrNothing
+, toPipelineStatementCount
+, toPipelineStatementExists
 , fetchPipelined
 , Pipeline.Pipeline
 ) where
@@ -50,62 +50,62 @@ import Data.Functor.Contravariant.Divisible (conquer)
 -- __Example:__ Fetching users and posts in a single round trip
 --
 -- > (users, posts) <- fetchPipelined $ (,)
--- >     <$> toStatement (query @User |> filterWhere (#active, True))
--- >     <*> toStatement (query @Post |> orderByDesc #createdAt)
-toStatement :: forall model table queryBuilderProvider joinRegister.
+-- >     <$> (query @User |> filterWhere (#active, True) |> toPipelineStatement)
+-- >     <*> (query @Post |> orderByDesc #createdAt |> toPipelineStatement)
+toPipelineStatement :: forall model table queryBuilderProvider joinRegister.
     ( Table model
     , HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
     ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
-toStatement !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
-{-# INLINE toStatement #-}
+toPipelineStatement !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
+{-# INLINE toPipelineStatement #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning at most one row.
 --
 -- __Example:__
 --
 -- > (maybeUser, posts) <- fetchPipelined $ (,)
--- >     <$> toStatementOneOrNothing (query @User |> filterWhere (#email, email))
--- >     <*> toStatement (query @Post)
-toStatementOneOrNothing :: forall model table queryBuilderProvider joinRegister.
+-- >     <$> (query @User |> filterWhere (#email, email) |> toPipelineStatementOneOrNothing)
+-- >     <*> (query @Post |> toPipelineStatement)
+toPipelineStatementOneOrNothing :: forall model table queryBuilderProvider joinRegister.
     ( Table model
     , HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
     ) => queryBuilderProvider table -> Pipeline.Pipeline (Maybe model)
-toStatementOneOrNothing !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
-{-# INLINE toStatementOneOrNothing #-}
+toPipelineStatementOneOrNothing !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
+{-# INLINE toPipelineStatementOneOrNothing #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a count.
 --
 -- __Example:__
 --
 -- > (users, userCount) <- fetchPipelined $ (,)
--- >     <$> toStatement (query @User)
--- >     <*> toStatementCount (query @User |> filterWhere (#active, True))
-toStatementCount :: forall table queryBuilderProvider joinRegister.
+-- >     <$> (query @User |> toPipelineStatement)
+-- >     <*> (query @User |> filterWhere (#active, True) |> toPipelineStatementCount)
+toPipelineStatementCount :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Pipeline.Pipeline Int
-toStatementCount !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
-{-# INLINE toStatementCount #-}
+toPipelineStatementCount !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
+{-# INLINE toPipelineStatementCount #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a boolean.
 --
 -- __Example:__
 --
 -- > (users, hasUnread) <- fetchPipelined $ (,)
--- >     <$> toStatement (query @User)
--- >     <*> toStatementExists (query @Message |> filterWhere (#isUnread, True))
-toStatementExists :: forall table queryBuilderProvider joinRegister.
+-- >     <$> (query @User |> toPipelineStatement)
+-- >     <*> (query @Message |> filterWhere (#isUnread, True) |> toPipelineStatementExists)
+toPipelineStatementExists :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Pipeline.Pipeline Bool
-toStatementExists !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
-{-# INLINE toStatementExists #-}
+toPipelineStatementExists !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
+{-# INLINE toPipelineStatementExists #-}
 
 -- | Execute a 'Pipeline' in a single database round trip.
 --
@@ -117,9 +117,9 @@ toStatementExists !queryBuilder = Pipeline.statement () (buildExistsStatement qu
 --
 -- > action DashboardAction = do
 -- >     (users, posts, commentCount) <- fetchPipelined $ (,,)
--- >         <$> toStatement (query @User)
--- >         <*> toStatement (query @Post |> orderByDesc #createdAt |> limit 10)
--- >         <*> toStatementCount (query @Comment)
+-- >         <$> (query @User |> toPipelineStatement)
+-- >         <*> (query @Post |> orderByDesc #createdAt |> limit 10 |> toPipelineStatement)
+-- >         <*> (query @Comment |> toPipelineStatementCount)
 -- >     render DashboardView { .. }
 fetchPipelined :: (?modelContext :: ModelContext) => Pipeline.Pipeline a -> IO a
 fetchPipelined thePipeline = do
