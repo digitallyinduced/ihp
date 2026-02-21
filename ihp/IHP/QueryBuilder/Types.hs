@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass, MagicHash #-}
 {-|
 Module: IHP.QueryBuilder.Types
 Description: Core data types for the QueryBuilder
@@ -33,6 +33,8 @@ module IHP.QueryBuilder.Types
 , DefaultScope (..)
 , EqOrIsOperator (..)
 , FilterPrimaryKey (..)
+  -- * Param value extraction
+, getParamPrinterText
 ) where
 
 import IHP.Prelude
@@ -42,6 +44,9 @@ import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
 import qualified Hasql.Encoders as Encoders
 import qualified Prelude
+import Unsafe.Coerce (unsafeCoerce)
+import qualified Data.DList as DList
+import GHC.Exts (Any, Int#)
 import qualified Data.Text as Text
 
 -- | Represents whether string matching should be case-sensitive or not
@@ -164,6 +169,26 @@ instance Show ConditionValue where
 instance Eq ConditionValue where
     Literal a == Literal b = a == b
     _ == _ = False -- Params cannot be compared for equality
+
+-- | Mirror of hasql's internal @Params@ record (5 fields in hasql 1.10.x).
+-- Only the 5th field (printer) is accessed.
+--
+-- Fields use @Int#@ and @Any@ to match compiled layouts where
+-- GHCi would otherwise ignore @{-# UNPACK #-}@ pragmas.
+data ParamsMirror a = ParamsMirror
+    Int#                       -- size (unboxed, matching compiled hasql)
+    Any                        -- unknownTypes
+    Any                        -- columnsMetadata
+    Any                        -- serializer
+    (a -> DList.DList Text)    -- printer
+
+-- | Extract the text representation of parameter values from an 'Encoders.Params'.
+--
+-- Uses 'unsafeCoerce' to access the internal @printer@ field of the @Params@
+-- record to get the human-readable text form of encoded values.
+getParamPrinterText :: Encoders.Params () -> [Text]
+getParamPrinterText p = DList.toList (printer ())
+    where ParamsMirror _ _ _ _ printer = unsafeCoerce p
 
 -- | Represents a WHERE condition
 data Condition

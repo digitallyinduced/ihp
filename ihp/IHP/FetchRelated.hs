@@ -119,6 +119,7 @@ instance (
 -- > SELECT * FROM companies WHERE id IN (?)
 instance (
         Eq (PrimaryKey tableName)
+        , Show (PrimaryKey tableName)
         , HasField "id" relatedModel (Id' tableName)
         , relatedModel ~ GetModelByTableName (GetTableName relatedModel)
         , GetTableName relatedModel ~ tableName
