@@ -67,6 +67,7 @@ that is defined in flake-module.nix
             // {
                 default = withTestPostgres self.packages.${system}.default;
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-typed-sql = withTestPostgres self.packages.${system}.ihp-typed-sql;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
 
@@ -343,6 +344,7 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-typed-sql = pkgs.ghc.ihp-typed-sql;
             ihp-pglistener = pkgs.ghc.ihp-pglistener;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;

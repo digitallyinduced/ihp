@@ -6,7 +6,7 @@ import qualified Data.Text.IO                      as Text
 import           IHP.Log.Types
 import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
-                                                    sqlExec)
+                                                    sqlExecDiscardResult)
 import           IHP.Prelude
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
@@ -233,6 +233,30 @@ tests = do
                 assertGhciSuccess ghciOutput
                 ghciOutput `shouldContainText` "RUNTIME_OK"
 
+        it "UPDATE and DELETE with parameters" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciRunModule runtimeUpdateDeleteModule
+                assertGhciSuccess ghciOutput
+                ghciOutput `shouldContainText` "RUNTIME_OK"
+
+        it "empty results and edge cases" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciRunModule runtimeEdgeCasesModule
+                assertGhciSuccess ghciOutput
+                ghciOutput `shouldContainText` "RUNTIME_OK"
+
+        it "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" do
+            requirePostgresTestHook
+            withTestModelContext do
+                setupSchema
+                ghciOutput <- ghciRunModule runtimeExtraTypesModule
+                assertGhciSuccess ghciOutput
+                ghciOutput `shouldContainText` "RUNTIME_OK"
+
 requirePostgresTestHook :: IO ()
 requirePostgresTestHook = do
     maybePgHost <- lookupEnv "PGHOST"
@@ -242,40 +266,51 @@ requirePostgresTestHook = do
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
     logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext "" logger
+    databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
+    modelContext <- createModelContext databaseUrl logger
     let ?modelContext = modelContext
     action `Exception.finally` releaseModelContext modelContext
 
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
-    sqlExec "DROP TABLE IF EXISTS typed_sql_test_items" ()
-    sqlExec "DROP TABLE IF EXISTS typed_sql_test_authors" ()
-    sqlExec "DROP TYPE IF EXISTS typed_sql_test_pair" ()
+    -- Use sqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
+    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
+    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
+    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
+    sqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
 
-    sqlExec "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
+    sqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
 
-    sqlExec
+    sqlExecDiscardResult
         "CREATE TABLE typed_sql_test_authors (id UUID PRIMARY KEY, name TEXT NOT NULL)"
         ()
 
-    sqlExec
+    sqlExecDiscardResult
         "CREATE TABLE typed_sql_test_items (id UUID PRIMARY KEY, author_id UUID REFERENCES typed_sql_test_authors(id), name TEXT NOT NULL, views INT NOT NULL, score DOUBLE PRECISION, tags TEXT[] NOT NULL DEFAULT '{}')"
         ()
 
-    sqlExec
+    sqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Alice')"
         ()
 
-    sqlExec
+    sqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'Bob')"
         ()
 
-    sqlExec
+    sqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'First', 5, 1.5, ARRAY['red', 'blue'])"
         ()
 
-    sqlExec
+    sqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000002'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Second', 8, NULL, ARRAY['green'])"
+        ()
+
+    sqlExecDiscardResult
+        "CREATE TABLE typed_sql_test_extras (id UUID PRIMARY KEY, small_count SMALLINT NOT NULL DEFAULT 0, big_count BIGINT NOT NULL DEFAULT 0, amount NUMERIC, payload BYTEA, metadata JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT '2025-06-15 12:00:00+00', due_date DATE, active BOOLEAN NOT NULL DEFAULT TRUE)"
+        ()
+
+    sqlExecDiscardResult
+        "INSERT INTO typed_sql_test_extras (id, small_count, big_count, amount, payload, metadata, created_at, due_date, active) VALUES ('20000000-0000-0000-0000-000000000001'::uuid, 7, 1000000000, 99.95, '\\xDEADBEEF', '{\"key\": \"value\"}', '2025-06-15 12:00:00+00', '2025-06-15', true)"
         ()
 
     pure ()
@@ -364,23 +399,28 @@ ghciEnvironment :: IO [(String, String)]
 ghciEnvironment = do
     baseEnvironment <- getEnvironment
 
-    pgHost <- fromMaybe "" <$> lookupEnv "PGHOST"
-    pgDatabase <- fromMaybe "" <$> lookupEnv "PGDATABASE"
-    pgUser <- fromMaybe "" <$> lookupEnv "PGUSER"
-    pgPort <- lookupEnv "PGPORT"
+    -- Prefer an existing DATABASE_URL (e.g. set by withTestPostgres in nix)
+    existingDatabaseUrl <- lookupEnv "DATABASE_URL"
 
-    let databaseUrlParts :: [String]
-        databaseUrlParts =
-            [ "host=" <> pgHost
-            , "dbname=" <> pgDatabase
-            , "user=" <> pgUser
-            ] <> case pgPort of
-                Just port | not (null port) -> ["port=" <> port]
-                _ -> []
+    let databaseUrl = case existingDatabaseUrl of
+            Just url | not (null url) -> url
+            _ ->
+                let pgHost = fromMaybe "" (lookup "PGHOST" baseEnvironment)
+                    pgDatabase = fromMaybe "" (lookup "PGDATABASE" baseEnvironment)
+                    pgUser = fromMaybe "" (lookup "PGUSER" baseEnvironment)
+                    pgPort = lookup "PGPORT" baseEnvironment
+                    parts =
+                        [ "host=" <> pgHost
+                        , "dbname=" <> pgDatabase
+                        , "user=" <> pgUser
+                        ] <> case pgPort of
+                            Just port | not (null port) -> ["port=" <> port]
+                            _ -> []
+                in Prelude.unwords parts
 
     let overrides :: [(String, String)]
         overrides =
-            [ ("DATABASE_URL", Prelude.unwords databaseUrlParts)
+            [ ("DATABASE_URL", databaseUrl)
             ]
 
     pure (applyEnvironmentOverrides overrides baseEnvironment)
@@ -999,6 +1039,7 @@ runtimeModule = Text.unlines
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
+    , "import System.Environment (lookupEnv)"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
     , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
@@ -1025,7 +1066,8 @@ runtimeModule = Text.unlines
     , "main :: IO ()"
     , "main = do"
     , "    logger <- newLogger def { level = Warn }"
-    , "    modelContext <- createModelContext \"\" logger"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
     , "    flip Exception.finally (releaseModelContext modelContext) do"
     , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
@@ -1220,6 +1262,256 @@ runtimeModule = Text.unlines
     , ""
     , "        when ((rightJoinCoalescedRows :: [(Maybe Text, Text)]) /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\"), (Just \"(no-item)\", \"Bob\")]) do"
     , "            error (\"unexpected rows from right join with COALESCE: \" <> show rightJoinCoalescedRows)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeUpdateDeleteModule :: Text
+runtimeUpdateDeleteModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.Log.Types"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    logger <- newLogger def { level = Warn }"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        let itemId1 = (\"10000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let itemId2 = (\"10000000-0000-0000-0000-000000000002\" :: UUID)"
+    , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
+    , ""
+    , "        -- Clean slate"
+    , "        _ <- sqlExecTyped [typedSql| DELETE FROM typed_sql_test_items |]"
+    , ""
+    , "        -- Insert two rows"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId1}, ${authorId}, ${(\"First\" :: Text)}, ${5 :: Int}, ${(1.5 :: Double)}, ${([\"red\", \"blue\"] :: [Text])})"
+    , "        |]"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
+    , "        |]"
+    , ""
+    , "        -- UPDATE single column"
+    , "        rowsUpdated <- sqlExecTyped [typedSql|"
+    , "            UPDATE typed_sql_test_items SET views = ${10 :: Int} WHERE id = ${itemId1}"
+    , "        |]"
+    , "        assertTest \"UPDATE single column rows affected\" (rowsUpdated == 1)"
+    , ""
+    , "        viewsAfter <- sqlQueryTyped [typedSql| SELECT views FROM typed_sql_test_items WHERE id = ${itemId1} |]"
+    , "        assertTest \"UPDATE single column value\" ((viewsAfter :: [Int]) == [10])"
+    , ""
+    , "        -- UPDATE multiple columns"
+    , "        rowsUpdated2 <- sqlExecTyped [typedSql|"
+    , "            UPDATE typed_sql_test_items SET name = ${(\"Updated\" :: Text)}, views = ${99 :: Int} WHERE id = ${itemId2}"
+    , "        |]"
+    , "        assertTest \"UPDATE multiple columns rows affected\" (rowsUpdated2 == 1)"
+    , ""
+    , "        updated <- sqlQueryTyped [typedSql| SELECT name, views FROM typed_sql_test_items WHERE id = ${itemId2} |]"
+    , "        assertTest \"UPDATE multiple columns values\" ((updated :: [(Text, Int)]) == [(\"Updated\", 99)])"
+    , ""
+    , "        -- UPDATE with no matching rows"
+    , "        noMatch <- sqlExecTyped [typedSql|"
+    , "            UPDATE typed_sql_test_items SET views = ${0 :: Int} WHERE name = ${(\"NoSuchItem\" :: Text)}"
+    , "        |]"
+    , "        assertTest \"UPDATE no matching rows\" (noMatch == 0)"
+    , ""
+    , "        -- DELETE with WHERE"
+    , "        rowsDeleted <- sqlExecTyped [typedSql|"
+    , "            DELETE FROM typed_sql_test_items WHERE id = ${itemId1}"
+    , "        |]"
+    , "        assertTest \"DELETE WHERE rows affected\" (rowsDeleted == 1)"
+    , ""
+    , "        remaining <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |]"
+    , "        assertTest \"DELETE WHERE remaining rows\" ((remaining :: [Text]) == [\"Updated\"])"
+    , ""
+    , "        -- DELETE all remaining"
+    , "        rowsDeletedAll <- sqlExecTyped [typedSql| DELETE FROM typed_sql_test_items |]"
+    , "        assertTest \"DELETE all rows affected\" (rowsDeletedAll == 1)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeEdgeCasesModule :: Text
+runtimeEdgeCasesModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.Log.Types"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    logger <- newLogger def { level = Warn }"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let itemId1 = (\"10000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let itemId2 = (\"10000000-0000-0000-0000-000000000002\" :: UUID)"
+    , ""
+    , "        -- Empty result set (delete all items first)"
+    , "        _ <- sqlExecTyped [typedSql| DELETE FROM typed_sql_test_items |]"
+    , ""
+    , "        emptyRows <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |]"
+    , "        assertTest \"empty result set\" ((emptyRows :: [Text]) == [])"
+    , ""
+    , "        -- COUNT on empty table"
+    , "        countEmpty <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Maybe Integer]) == [Just 0])"
+    , ""
+    , "        -- Re-insert rows for further tests"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId1}, ${authorId}, ${(\"First\" :: Text)}, ${5 :: Int}, ${(1.5 :: Double)}, ${([\"red\", \"blue\"] :: [Text])})"
+    , "        |]"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
+    , "        |]"
+    , ""
+    , "        -- 5-tuple select"
+    , "        fiveTuple <- sqlQueryTyped [typedSql|"
+    , "            SELECT name, views, score, author_id IS NULL, tags"
+    , "            FROM typed_sql_test_items"
+    , "            WHERE id = ${itemId1}"
+    , "        |]"
+    , "        assertTest \"5-tuple select\" ((fiveTuple :: [(Text, Int, Maybe Double, Maybe Bool, [Text])]) == [(\"First\", 5, Just 1.5, Just False, [\"red\", \"blue\"])])"
+    , ""
+    , "        -- Multi-param WHERE with AND"
+    , "        andRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            WHERE views > ${3 :: Int} AND views < ${7 :: Int}"
+    , "            ORDER BY name"
+    , "        |]"
+    , "        assertTest \"multi-param WHERE AND\" ((andRows :: [Text]) == [\"First\"])"
+    , ""
+    , "        -- Multi-param WHERE with OR"
+    , "        orRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            WHERE name = ${(\"First\" :: Text)} OR name = ${(\"Second\" :: Text)}"
+    , "            ORDER BY name"
+    , "        |]"
+    , "        assertTest \"multi-param WHERE OR\" ((orRows :: [Text]) == [\"First\", \"Second\"])"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeExtraTypesModule :: Text
+runtimeExtraTypesModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.Log.Types"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
+    , "import Data.Time (UTCTime, Day, parseTimeM, defaultTimeLocale)"
+    , "import Data.Scientific (Scientific)"
+    , "import qualified Data.Aeson as Aeson"
+    , "import qualified Data.ByteString as BS"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_extras\" = UUID"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    logger <- newLogger def { level = Warn }"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , ""
+    , "        -- smallint -> Int"
+    , "        smallRows <- sqlQueryTyped [typedSql| SELECT small_count FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        assertTest \"smallint -> Int\" ((smallRows :: [Int]) == [7])"
+    , ""
+    , "        -- bigint -> Integer"
+    , "        bigRows <- sqlQueryTyped [typedSql| SELECT big_count FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        assertTest \"bigint -> Integer\" ((bigRows :: [Integer]) == [1000000000])"
+    , ""
+    , "        -- numeric -> Scientific"
+    , "        numericRows <- sqlQueryTyped [typedSql| SELECT amount FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        assertTest \"numeric -> Scientific\" ((numericRows :: [Maybe Scientific]) == [Just 99.95])"
+    , ""
+    , "        -- bytea -> ByteString"
+    , "        byteaRows <- sqlQueryTyped [typedSql| SELECT payload FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        assertTest \"bytea -> ByteString\" ((byteaRows :: [Maybe BS.ByteString]) == [Just (BS.pack [0xDE, 0xAD, 0xBE, 0xEF])])"
+    , ""
+    , "        -- bool -> Bool"
+    , "        boolRows <- sqlQueryTyped [typedSql| SELECT active FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        assertTest \"bool -> Bool\" ((boolRows :: [Bool]) == [True])"
+    , ""
+    , "        -- timestamptz -> UTCTime"
+    , "        tsRows <- sqlQueryTyped [typedSql| SELECT created_at FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        let Just expectedTime = parseTimeM True defaultTimeLocale \"%Y-%m-%d %H:%M:%S%Z\" \"2025-06-15 12:00:00UTC\" :: Maybe UTCTime"
+    , "        assertTest \"timestamptz -> UTCTime\" ((tsRows :: [UTCTime]) == [expectedTime])"
+    , ""
+    , "        -- date -> Day"
+    , "        dateRows <- sqlQueryTyped [typedSql| SELECT due_date FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        let Just expectedDate = parseTimeM True defaultTimeLocale \"%Y-%m-%d\" \"2025-06-15\" :: Maybe Day"
+    , "        assertTest \"date -> Day\" ((dateRows :: [Maybe Day]) == [Just expectedDate])"
+    , ""
+    , "        -- jsonb -> Aeson.Value"
+    , "        jsonRows <- sqlQueryTyped [typedSql| SELECT metadata FROM typed_sql_test_extras LIMIT 1 |]"
+    , "        let expectedJson = Aeson.object [(\"key\", Aeson.String \"value\")]"
+    , "        assertTest \"jsonb -> Aeson.Value\" ((jsonRows :: [Maybe Aeson.Value]) == [Just expectedJson])"
+    , ""
+    , "        -- multi-type tuple"
+    , "        tupleRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT small_count, big_count, active"
+    , "            FROM typed_sql_test_extras LIMIT 1"
+    , "        |]"
+    , "        assertTest \"multi-type tuple\" ((tupleRows :: [(Int, Integer, Bool)]) == [(7, 1000000000, True)])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]
