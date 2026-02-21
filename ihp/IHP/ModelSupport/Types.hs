@@ -85,6 +85,9 @@ data ModelContext = ModelContext
     -- | A callback that is called whenever a specific table is accessed using a SELECT query.
     -- The second argument is a list of fetched row IDs (empty list means IDs are unknown, e.g. raw SQL / fetchCount).
     , trackTableReadCallback :: Maybe (Text -> [Text] -> IO ())
+    -- | A callback that records the WHERE condition (as a 'Dynamic'-wrapped 'Condition') for a table read.
+    -- Used by AutoRefresh to evaluate INSERT payloads against query filters.
+    , trackTableConditionCallback :: Maybe (Text -> Maybe Dynamic -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }

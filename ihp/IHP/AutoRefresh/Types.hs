@@ -12,6 +12,7 @@ import qualified Data.UUID as UUID
 import qualified IHP.PGListener as PGListener
 import IHP.Prelude
 import qualified Data.Map.Strict as Map
+import Data.Dynamic (Dynamic)
 import Network.Wai (Request)
 import Wai.Request.Params.Middleware (Respond)
 
@@ -77,6 +78,11 @@ data AutoRefreshSession = AutoRefreshSession
         -- | Tracked row IDs per table. 'Nothing' for a table means we can't filter (raw SQL / fetchCount).
         -- 'Just ids' means only these IDs are relevant. Used by smart auto refresh to skip unrelated notifications.
         , trackedIds :: !(Map.Map Text (Set Text))
+        -- | Tracked WHERE conditions per table.  Each fetch appends its condition
+        -- (wrapped in 'Dynamic' to avoid a circular module dependency on 'Condition').
+        -- 'Nothing' means no condition (unfiltered query) — always refresh on INSERT.
+        -- Used by smart auto refresh to evaluate INSERT payloads against query filters.
+        , trackedConditions :: !(Map.Map Text [Maybe Dynamic])
         }
 
 data AutoRefreshServer = AutoRefreshServer

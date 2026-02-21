@@ -29,11 +29,13 @@ where
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
+import IHP.QueryBuilder.Types (SQLQuery(..))
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.QueryBuilder.HasqlCompiler (buildSnippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
+import Data.Dynamic (toDyn)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -90,9 +92,11 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColum
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
     fetch !queryBuilderProvider = do
         let pool = ?modelContext.hasqlPool
-        let snippet = buildSnippet (buildQuery queryBuilderProvider)
+        let !sqlQuery' = buildQuery queryBuilderProvider
+        let snippet = buildSnippet sqlQuery'
         results <- sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
         trackTableReadWithIds (tableName @model) (map (\m -> tshow (get #id m.contentValue)) results)
+        trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
         pure results
 
     {-# INLINE fetchOneOrNothing #-}
@@ -114,19 +118,21 @@ commonFetch !queryBuilder = do
     let decoder = Decoders.rowList (hasqlRowDecoder @model)
     results <- sqlQueryHasql pool snippet decoder
     trackTableReadWithIds (tableName @model) (map (\m -> tshow (get #id m)) results)
+    trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
     pure results
 
 {-# INLINE commonFetchOneOrNothing #-}
 commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model, HasField "id" model (Id' table), Show (PrimaryKey table)) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
-    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause 1
+    let !sqlQuery' = queryBuilder |> buildQuery |> setJust #limitClause 1
     let pool = ?modelContext.hasqlPool
-    let snippet = buildSnippet limitedQuery
+    let snippet = buildSnippet sqlQuery'
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @model)
     result <- sqlQueryHasql pool snippet decoder
     case result of
         Just m -> trackTableReadWithIds (tableName @model) [tshow (get #id m)]
         Nothing -> trackTableReadWithIds (tableName @model) []
+    trackTableCondition (tableName @model) (toDyn <$> sqlQuery'.whereCondition)
     pure result
 
 {-# INLINE commonFetchOne #-}

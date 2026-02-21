@@ -3,13 +3,33 @@ Module: IHP.AutoRefresh
 Description: Provides automatically diff-based refreshing views after page load
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.AutoRefresh where
+module IHP.AutoRefresh
+( autoRefresh
+, registerNotificationTrigger
+, shouldRefreshForPayload
+, matchesInsertPayload
+, matchesInsertPayloadDynamic
+, extractRowId
+, lookupColumn
+, jsonValueMatchesText
+, getAvailableSessions
+, getSessionById
+, updateSession
+, gcSessions
+, channelName
+, notificationTriggerStatements
+, resolveAutoRefreshPayload
+, autoRefreshStateVaultKey
+, globalAutoRefreshServerVar
+, AutoRefreshWSApp (..)
+) where
 
 import IHP.Prelude
 import IHP.AutoRefresh.Types
 import IHP.ControllerSupport
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
+import qualified Data.Aeson.Key as AesonKey
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
@@ -36,6 +56,9 @@ import qualified Data.TMap as TypeMap
 import IHP.RequestVault (pgListenerVaultKey)
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Environment (Environment(..))
+import Data.Dynamic (Dynamic, fromDynamic)
+import IHP.QueryBuilder.Types (Condition(..), FilterOperator(..), getSnippetPrinterText)
+import Hasql.DynamicStatements.Snippet (Snippet)
 
 {-# NOINLINE globalAutoRefreshServerVar #-}
 globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
@@ -107,6 +130,7 @@ autoRefresh runAction = do
                         Wai.ResponseBuilder status headers builder -> do
                             tables <- readIORef ?touchedTables
                             trackedIds <- readIORef ?trackedIds
+                            trackedConditions <- readIORef ?trackedConditions
                             lastPing <- getCurrentTime
 
                             -- It's important that we evaluate the response to HNF here
@@ -124,7 +148,7 @@ autoRefresh runAction = do
                             lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
 
                             event <- MVar.newEmptyMVar
-                            let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, trackedIds }
+                            let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, trackedIds, trackedConditions }
                             modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                             async (gcSessions autoRefreshServer)
 
@@ -231,31 +255,40 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
     where
-        handleSmartRowChange table resolvedPayload session@AutoRefreshSession { tables, event, trackedIds }
+        handleSmartRowChange table resolvedPayload session@AutoRefreshSession { tables, event, trackedIds, trackedConditions }
             | table `Set.member` tables = do
+                let conditions = Map.lookup table trackedConditions
                 let shouldRefreshNow = case Map.lookup table trackedIds of
                         Nothing -> True  -- table not tracked with IDs (raw SQL, fetchCount, etc.)
                         Just ids | Set.null ids -> True  -- empty ID set means can't filter
                         Just ids -> case resolvedPayload of
                             Nothing -> True  -- payload resolution failed, refresh to be safe
-                            Just payload -> shouldRefreshForPayload ids payload
+                            Just payload -> shouldRefreshForPayload ids conditions payload
                 when shouldRefreshNow $
                     MVar.tryPutMVar event () >> pure ()
             | otherwise = pure ()
 
--- | Determines whether a notification payload should trigger a refresh based on tracked IDs.
+-- | Determines whether a notification payload should trigger a refresh based on tracked IDs
+-- and WHERE conditions.
 --
--- For INSERT: always refresh (new row could match the query filters).
+-- For INSERT: evaluates the INSERT payload against tracked WHERE conditions. If ANY condition
+-- set matches the inserted row, we refresh. If no conditions are tracked, we refresh (safe fallback).
 -- For UPDATE\/DELETE: only refresh if the row's ID is in our tracked set.
 --
 -- Note: For UPDATE, this means that if an UPDATE causes a row to newly match a WHERE filter
 -- (e.g. a status change), the refresh will be skipped if that row wasn't already tracked.
 -- This is an acceptable tradeoff: the page will catch up on the next INSERT or on the next
 -- full page load.
-shouldRefreshForPayload :: Set Text -> AutoRefreshRowChangePayload -> Bool
-shouldRefreshForPayload trackedIds payload =
+shouldRefreshForPayload :: Set Text -> Maybe [Maybe Dynamic] -> AutoRefreshRowChangePayload -> Bool
+shouldRefreshForPayload trackedIds maybeConditions payload =
     case payload.payloadOperation of
-        AutoRefreshInsert -> True  -- can't filter without re-evaluating query filters
+        AutoRefreshInsert -> case maybeConditions of
+            Nothing -> True  -- no condition tracking for this table
+            Just conditions -> any (matchesInsertPayloadDynamic newRow) conditions
+          where
+            newRow = case payload.payloadNewRow of
+                Just (Aeson.Object obj) -> obj
+                _ -> AesonKeyMap.empty
         _ -> case extractRowId payload of
             Nothing -> True  -- can't extract ID, refresh to be safe
             Just rowId -> rowId `Set.member` trackedIds
@@ -272,6 +305,104 @@ extractRowId payload =
             Just (Aeson.Number n) -> Just (tshow (round n :: Integer))
             _ -> Nothing
         _ -> Nothing
+
+-- | Unwraps a 'Dynamic'-wrapped 'Maybe Condition' and evaluates it against an INSERT payload.
+--
+-- Returns 'True' (refresh) when:
+--   * The 'Dynamic' cannot be cast to 'Condition' (unexpected type, safe fallback)
+--   * The condition is 'Nothing' (unfiltered query)
+--   * The condition matches the payload
+matchesInsertPayloadDynamic :: AesonKeyMap.KeyMap Aeson.Value -> Maybe Dynamic -> Bool
+matchesInsertPayloadDynamic _      Nothing            = True  -- no condition (unfiltered query)
+matchesInsertPayloadDynamic newRow (Just condDynamic) =
+    case fromDynamic condDynamic of
+        Nothing        -> True  -- can't cast, safe fallback
+        Just condition -> matchesInsertPayload condition newRow
+
+-- | Evaluates a 'Condition' tree against a JSON object (the inserted row).
+--
+-- For each 'ColumnCondition':
+--   * Strips the table prefix from the column name (e.g. @\"tasks.project_id\"@ → @\"project_id\"@)
+--   * Extracts text values from the 'Snippet' via 'getSnippetPrinterText'
+--   * Conditions with 'applyLeft' or 'applyRight' (e.g. @LOWER(col)@) cannot be evaluated → 'True'
+--   * Unsupported operators (LIKE, regex, range comparisons, etc.) → 'True' (safe fallback)
+--
+-- For compound conditions:
+--   * 'AndCondition': both sub-conditions must match
+--   * 'OrCondition': at least one sub-condition must match
+matchesInsertPayload :: Condition -> AesonKeyMap.KeyMap Aeson.Value -> Bool
+matchesInsertPayload (AndCondition a b) row = matchesInsertPayload a row && matchesInsertPayload b row
+matchesInsertPayload (OrCondition a b) row = matchesInsertPayload a row || matchesInsertPayload b row
+matchesInsertPayload (ColumnCondition col op value applyLeft applyRight) row
+    -- Can't evaluate conditions with SQL transforms (LOWER, etc.)
+    | isJust applyLeft || isJust applyRight = True
+    | otherwise = case op of
+        EqOp    -> matchEq col value row
+        IsOp    -> matchIs col value row
+        InOp    -> matchIn col value row
+        -- For all other operators (NotEq, Like, regex, range, etc.),
+        -- we can't reliably evaluate → safe fallback to refresh
+        _       -> True
+
+-- | Match a column = value condition against a JSON row.
+matchEq :: Text -> Snippet -> AesonKeyMap.KeyMap Aeson.Value -> Bool
+matchEq col snippet row =
+    case getSnippetPrinterText snippet of
+        [filterText] -> jsonValueMatchesText (lookupColumn col row) filterText
+        _            -> True  -- multi-value or empty, can't evaluate
+
+-- | Match a column IS value condition (typically IS NULL).
+matchIs :: Text -> Snippet -> AesonKeyMap.KeyMap Aeson.Value -> Bool
+matchIs col snippet row =
+    case getSnippetPrinterText snippet of
+        [] ->
+            -- IS NULL: empty printer means no params (literal NULL)
+            case lookupColumn col row of
+                Nothing         -> True   -- column not in payload, can't evaluate
+                Just Aeson.Null -> True   -- matches IS NULL
+                Just _          -> False  -- non-null, doesn't match IS NULL
+        _ -> True  -- IS NOT NULL or other, safe fallback
+
+-- | Match a column IN (values) condition against a JSON row.
+matchIn :: Text -> Snippet -> AesonKeyMap.KeyMap Aeson.Value -> Bool
+matchIn col snippet row =
+    case lookupColumn col row of
+        Nothing       -> True  -- column not in payload, can't evaluate
+        Just jsonVal  -> any (jsonValueMatchesText (Just jsonVal)) filterTexts
+    where filterTexts = getSnippetPrinterText snippet
+
+-- | Look up a column in the JSON row, stripping any table prefix.
+--
+-- E.g. @\"tasks.project_id\"@ looks up key @\"project_id\"@.
+lookupColumn :: Text -> AesonKeyMap.KeyMap Aeson.Value -> Maybe Aeson.Value
+lookupColumn col row =
+    let colName = case Text.breakOnEnd "." col of
+            ("", c) -> c
+            (_, c)  -> c
+    in AesonKeyMap.lookup (AesonKey.fromText colName) row
+
+-- | Compare a JSON value against a text representation from the encoder printer.
+--
+-- The hasql printer quotes text values (e.g. @"\"abc\""@) but leaves UUIDs and
+-- numbers unquoted.  'unquote' strips surrounding double-quotes so that string
+-- comparisons work correctly.
+jsonValueMatchesText :: Maybe Aeson.Value -> Text -> Bool
+jsonValueMatchesText Nothing _ = True  -- column not found, can't evaluate → refresh
+jsonValueMatchesText (Just jsonVal) filterText = case jsonVal of
+    Aeson.String s -> s == unquote filterText
+    Aeson.Number n -> tshow (round n :: Integer) == filterText || tshow n == filterText
+    Aeson.Bool b   -> (if b then "true" else "false") == Text.toLower filterText
+                    || (if b then "t" else "f") == Text.toLower filterText
+    Aeson.Null     -> Text.toLower filterText == "null"
+    _              -> True  -- arrays, objects — can't compare, safe fallback
+    where
+        -- | Strip surrounding double-quotes added by the hasql printer for text values.
+        unquote t
+            | Text.length t >= 2
+            , Text.head t == '"'
+            , Text.last t == '"'
+            = Text.init (Text.tail t)
+            | otherwise = t
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]

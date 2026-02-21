@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass #-}
+{-# LANGUAGE BangPatterns, TypeFamilies, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, UndecidableInstances, StandaloneDeriving, FunctionalDependencies, FlexibleContexts, InstanceSigs, AllowAmbiguousTypes, DeriveAnyClass, MagicHash #-}
 {-|
 Module: IHP.QueryBuilder.Types
 Description: Core data types for the QueryBuilder
@@ -29,6 +29,8 @@ module IHP.QueryBuilder.Types
 , DefaultScope (..)
 , EqOrIsOperator (..)
 , FilterPrimaryKey (..)
+  -- * Param value extraction
+, getSnippetPrinterText
 ) where
 
 import IHP.Prelude
@@ -39,6 +41,10 @@ import qualified GHC.Generics
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Prelude
+import Unsafe.Coerce (unsafeCoerce)
+import qualified Data.DList as DList
+import GHC.Exts (Any, Int#)
+import qualified Data.Text as Text
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -146,6 +152,35 @@ data QueryBuilder (table :: Symbol) =
     | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
     | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
     | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
+
+-- | Mirror of hasql's internal @Snippet@ record (3 fields).
+-- Only the 3rd field (@Params ()@) is accessed.
+--
+-- Fields use @Int#@ and @Any@ to match compiled layouts where
+-- GHCi would otherwise ignore @{-# UNPACK #-}@ pragmas.
+data SnippetMirror = SnippetMirror
+    Any                        -- sql builder (Int -> TextBuilder)
+    Int#                       -- size (unboxed, matching compiled hasql)
+    Any                        -- Params () (the encoder)
+
+-- | Mirror of hasql's internal @Params@ record (5 fields in hasql 1.10.x).
+-- Only the 5th field (printer) is accessed.
+data ParamsMirror a = ParamsMirror
+    Int#                       -- size (unboxed, matching compiled hasql)
+    Any                        -- unknownTypes
+    Any                        -- columnsMetadata
+    Any                        -- serializer
+    (a -> DList.DList Text)    -- printer
+
+-- | Extract the text representation of parameter values from a 'Snippet'.
+--
+-- Uses 'unsafeCoerce' to access the internal @Params ()@ inside the @Snippet@,
+-- then extracts the @printer@ field to get the human-readable text form.
+getSnippetPrinterText :: Snippet -> [Text]
+getSnippetPrinterText snippet = DList.toList (printer ())
+    where
+        SnippetMirror _ _ paramsAny = unsafeCoerce snippet
+        ParamsMirror _ _ _ _ printer = unsafeCoerce paramsAny
 
 -- | Represents a WHERE condition
 data Condition

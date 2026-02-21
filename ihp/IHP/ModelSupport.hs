@@ -80,6 +80,7 @@ notConnectedModelContext logger = ModelContext
     , transactionRunner = Nothing
     , logger = logger
     , trackTableReadCallback = Nothing
+    , trackTableConditionCallback = Nothing
     , rowLevelSecurity = Nothing
     }
 
@@ -99,6 +100,7 @@ createModelContext databaseUrl logger = do
     hasqlPool <- HasqlPool.acquire hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
+    let trackTableConditionCallback = Nothing
     let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
     pure ModelContext { .. }
@@ -1034,6 +1036,16 @@ trackTableReadWithIds tableName ids = case ?modelContext.trackTableReadCallback 
     Nothing -> pure ()
 {-# INLINABLE trackTableReadWithIds #-}
 
+-- | Records the WHERE condition for a table read (as a 'Dynamic'-wrapped 'Condition').
+--
+-- Used internally by 'IHP.Fetch.commonFetch' so that AutoRefresh can evaluate INSERT
+-- payloads against query filters without re-executing the query.
+trackTableCondition :: (?modelContext :: ModelContext) => Text -> Maybe Dynamic -> IO ()
+trackTableCondition tableName condition = case ?modelContext.trackTableConditionCallback of
+    Just callback -> callback tableName condition
+    Nothing -> pure ()
+{-# INLINABLE trackTableCondition #-}
+
 -- | Track all tables in SELECT queries executed within the given IO action.
 --
 -- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
@@ -1051,19 +1063,23 @@ trackTableReadWithIds tableName ids = case ?modelContext.trackTableReadCallback 
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text), ?trackedIds :: IORef (Map.Map Text (Set.Set Text))) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text), ?trackedIds :: IORef (Map.Map Text (Set.Set Text)), ?trackedConditions :: IORef (Map.Map Text [Maybe Dynamic])) => IO ()) -> IO ()
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     trackedIdsVar <- newIORef Map.empty
+    trackedConditionsVar <- newIORef Map.empty
     let trackTableReadCallback = Just \tableName ids -> do
             modifyIORef' touchedTablesVar (Set.insert tableName)
             case ids of
                 [] -> modifyIORef' trackedIdsVar (Map.delete tableName)
                 _ -> modifyIORef' trackedIdsVar (Map.insertWith Set.union tableName (Set.fromList ids))
+    let trackTableConditionCallback = Just \tableName condition ->
+            modifyIORef' trackedConditionsVar (Map.insertWith (<>) tableName [condition])
     let oldModelContext = ?modelContext
-    let ?modelContext = oldModelContext { trackTableReadCallback }
+    let ?modelContext = oldModelContext { trackTableReadCallback, trackTableConditionCallback }
     let ?touchedTables = touchedTablesVar
     let ?trackedIds = trackedIdsVar
+    let ?trackedConditions = trackedConditionsVar
     trackedSection
 
 
