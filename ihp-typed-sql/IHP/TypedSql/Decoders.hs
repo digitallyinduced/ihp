@@ -45,22 +45,15 @@ tupleRowDecoderForColumns typeInfo tables joinNullableOids columns = do
 rowDecoderForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> DescribeColumn -> TH.ExpQ
 rowDecoderForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTable, dcAttnum } =
     case (Map.lookup dcTable tables, dcAttnum) of
-        (Just TableMeta { tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum)
-            | attnum `Set.member` tmPrimaryKeys -> do
-                let joinNullable = dcTable `Set.member` joinNullableOids
-                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+        (Just TableMeta { tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum) ->
+            let joinNullable = dcTable `Set.member` joinNullableOids
+                nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
+                isIdColumn = attnum `Set.member` tmPrimaryKeys || attnum `Map.member` tmForeignKeys
+            in do
                 columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
-                decodeIdColumn typeInfo nullable columnTypeOid
-            | attnum `Map.member` tmForeignKeys -> do
-                let joinNullable = dcTable `Set.member` joinNullableOids
-                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
-                columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
-                decodeIdColumn typeInfo nullable columnTypeOid
-            | otherwise -> do
-                let joinNullable = dcTable `Set.member` joinNullableOids
-                let nullable = joinNullable || maybe True (not . cmNotNull) (Map.lookup attnum tmColumns)
-                columnTypeOid <- maybe (failText (missingColumnType attnum dcTable)) (pure . cmTypeOid) (Map.lookup attnum tmColumns)
-                decodeColumnByOid typeInfo nullable columnTypeOid
+                if isIdColumn
+                    then decodeIdColumn typeInfo nullable columnTypeOid
+                    else decodeColumnByOid typeInfo nullable columnTypeOid
         _ ->
             decodeColumnByOid typeInfo True dcType
   where
@@ -92,9 +85,9 @@ decodeArrayColumn typeInfo nullable elementOid =
         Nothing -> failText ("typedSql: missing array element type for oid " <> show elementOid)
         Just elementType ->
             case ptiName elementType of
-                "int2" -> decodeIntArray nullable
-                "int4" -> decodeIntArray nullable
-                "int8" -> decodeIntegerArray nullable
+                "int2" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int4)
+                "int4" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int4)
+                "int8" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int8)
                 "text" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.text)
                 "varchar" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.text)
                 "bpchar" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.text)
@@ -106,16 +99,16 @@ decodeArrayColumn typeInfo nullable elementOid =
                 "numeric" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.numeric)
                 "json" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.json)
                 "jsonb" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.jsonb)
-                "bytea" -> decodeByteaArray nullable
+                "bytea" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.bytea)
                 unsupported ->
                     failText ("typedSql: unsupported array element type for hasql decoder: " <> unsupported)
 
 decodeScalarColumn :: Bool -> Text -> TH.ExpQ
 decodeScalarColumn nullable typeName =
     case typeName of
-        "int2" -> decodeIntScalar nullable
-        "int4" -> decodeIntScalar nullable
-        "int8" -> decodeIntegerScalar nullable
+        "int2" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int4)
+        "int4" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int4)
+        "int8" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int8)
         "text" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.text)
         "varchar" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.text)
         "bpchar" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.text)
@@ -131,7 +124,7 @@ decodeScalarColumn nullable typeName =
         "float4" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.float4)
         "float8" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.float8)
         "numeric" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.numeric)
-        "bytea" -> decodeByteaScalar nullable
+        "bytea" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.bytea)
         unsupported ->
             failText ("typedSql: unsupported column type for hasql decoder: " <> unsupported)
 
@@ -153,47 +146,32 @@ decodeSimpleArray nullable valueDecoder =
             )
         )
 
-decodeIntScalar :: Bool -> TH.ExpQ
-decodeIntScalar nullable =
+decodeIntLikeScalar :: Bool -> TH.Exp -> TH.ExpQ
+decodeIntLikeScalar nullable baseDecoder =
     if nullable
         then pure
             ( TH.AppE
                 (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral)))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper True (TH.VarE 'HasqlDecoders.int4)))
+                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper True baseDecoder))
             )
         else pure
             ( TH.AppE
                 (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper False (TH.VarE 'HasqlDecoders.int4)))
+                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper False baseDecoder))
             )
 
-decodeIntegerScalar :: Bool -> TH.ExpQ
-decodeIntegerScalar nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral)))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper True (TH.VarE 'HasqlDecoders.int8)))
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.VarE 'fromIntegral))
-                (TH.AppE (TH.VarE 'HasqlDecoders.column) (nullabilityWrapper False (TH.VarE 'HasqlDecoders.int8)))
-            )
-
-decodeIntArray :: Bool -> TH.ExpQ
-decodeIntArray nullable =
+decodeIntLikeArray :: Bool -> TH.Exp -> TH.ExpQ
+decodeIntLikeArray nullable baseDecoder =
     if nullable
         then pure
             ( TH.AppE
                 (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral))))
                 ( TH.AppE
                     (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        True
+                    ( nullabilityWrapper True
                         ( TH.AppE
                             (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int4))
+                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) baseDecoder)
                         )
                     )
                 )
@@ -203,55 +181,14 @@ decodeIntArray nullable =
                 (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral)))
                 ( TH.AppE
                     (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        False
+                    ( nullabilityWrapper False
                         ( TH.AppE
                             (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int4))
+                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) baseDecoder)
                         )
                     )
                 )
             )
-
-decodeIntegerArray :: Bool -> TH.ExpQ
-decodeIntegerArray nullable =
-    if nullable
-        then pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral))))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        True
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int8))
-                        )
-                    )
-                )
-            )
-        else pure
-            ( TH.AppE
-                (TH.AppE (TH.VarE 'fmap) (TH.AppE (TH.VarE 'map) (TH.VarE 'fromIntegral)))
-                ( TH.AppE
-                    (TH.VarE 'HasqlDecoders.column)
-                    ( nullabilityWrapper
-                        False
-                        ( TH.AppE
-                            (TH.VarE 'HasqlDecoders.listArray)
-                            (TH.AppE (TH.VarE 'HasqlDecoders.nonNullable) (TH.VarE 'HasqlDecoders.int8))
-                        )
-                    )
-                )
-            )
-
-decodeByteaScalar :: Bool -> TH.ExpQ
-decodeByteaScalar nullable =
-    decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.bytea)
-
-decodeByteaArray :: Bool -> TH.ExpQ
-decodeByteaArray nullable =
-    decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.bytea)
 
 nullabilityWrapper :: Bool -> TH.Exp -> TH.Exp
 nullabilityWrapper nullable valueDecoder =
