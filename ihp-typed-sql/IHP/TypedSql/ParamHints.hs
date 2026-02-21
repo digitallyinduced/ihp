@@ -123,9 +123,11 @@ joinTypeFromMeth = \case
 tableNamesFromTableRef :: Ast.TableRef -> Set.Set Text
 tableNamesFromTableRef = Set.fromList . Map.elems . buildAliasMapFromTableRef
 
--- | Get the text from an Ident, lowercased.
+-- | Get the text from an Ident.
+-- Unquoted identifiers are folded to lowercase (PostgreSQL convention).
+-- Quoted identifiers preserve case (they are case-sensitive in PostgreSQL).
 identToText :: Ast.Ident -> Text
-identToText (Ast.QuotedIdent t) = Text.toLower t
+identToText (Ast.QuotedIdent t) = t
 identToText (Ast.UnquotedIdent t) = Text.toLower t
 
 -- | Extract table name from a QualifiedName, ignoring schema prefix.
