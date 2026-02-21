@@ -32,12 +32,15 @@ planPlaceholders = go 1 "" "" [] where
             }
     go n accDescribe accRuntime exprs ('$':'{':rest) =
         let (expr, after) = breakOnClosing 0 "" rest -- parse until matching }
-            describeToken = reverse ('$' : CS.cs (show n))
-        in go (n + 1)
-              (describeToken <> accDescribe)
-              ('\0' : accRuntime)
-              (expr : exprs)
-              after
+        in case after of
+            [] | not (null rest) -> error "typedSql: unclosed ${ placeholder"
+            _ ->
+                let describeToken = reverse ('$' : CS.cs (show n))
+                in go (n + 1)
+                      (describeToken <> accDescribe)
+                      ('\0' : accRuntime)
+                      (expr : exprs)
+                      after
     go n accDescribe accRuntime exprs (c:rest) =
         go n (c : accDescribe) (c : accRuntime) exprs rest
 

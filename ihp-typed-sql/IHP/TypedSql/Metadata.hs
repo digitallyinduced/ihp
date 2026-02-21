@@ -145,8 +145,6 @@ describeStatementWith dbUrl sql = do
         let tables' = tables <> extraTables
         types <- loadTypeInfo dbUrl (Set.toList typeOids)
 
-        _ <- PQ.exec conn ("DEALLOCATE " <> statementName)
-
         pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types }
 
 -- | Ensure libpq returned a successful result.
@@ -168,20 +166,22 @@ ensureOk actionName = \case
 runHasqlMetadataSession :: BS.ByteString -> HasqlSession.Session a -> IO a
 runHasqlMetadataSession dbUrl session = do
     let settings = HasqlSettings.connectionString (CS.cs dbUrl)
-    hasqlConnection <-
-        HasqlConnection.acquire settings >>= \case
+    result <- bracket
+        (HasqlConnection.acquire settings >>= \case
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
                     <> CS.cs dbUrl <> ": " <> tshow connectionError
                     <> "\nHint: ensure your development database is running (e.g. devenv up)."))
             Right connection ->
                 pure connection
-    bracket (pure hasqlConnection) HasqlConnection.release \connection ->
-        HasqlConnection.use connection session >>= \case
-            Left sessionError ->
-                fail (CS.cs ("typedSql: metadata query failed: " <> tshow sessionError))
-            Right result ->
-                pure result
+        )
+        HasqlConnection.release
+        (\connection -> HasqlConnection.use connection session)
+    case result of
+        Left sessionError ->
+            fail (CS.cs ("typedSql: metadata query failed: " <> tshow sessionError))
+        Right value ->
+            pure value
 
 -- | Encoder for passing OID arrays into pg_catalog queries.
 oidArrayParamsEncoder :: HasqlEncoders.Params [Int32]
@@ -357,5 +357,5 @@ loadTypeInfo dbUrl typeOids = do
                            )
                     )
                     (mempty, [])
-    extras <- loadTypeInfo dbUrl missing
+    extras <- loadTypeInfo dbUrl (Set.toList (Set.fromList missing))
     pure (typeMap <> extras)

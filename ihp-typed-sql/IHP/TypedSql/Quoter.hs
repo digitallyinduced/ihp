@@ -20,8 +20,8 @@ import           IHP.Hasql.Encoders              ()
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
-import           IHP.TypedSql.ParamHints        (extractParamHints, extractJoinNullableTables,
-                                                 resolveParamHintTypes)
+import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
+                                                 parseSql, resolveParamHintTypes)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypeForParam)
@@ -53,7 +53,8 @@ typedSqlExp rawSql = do
 
     paramTypes <- mapM (hsTypeForParam drTypes) drParams
 
-    let paramHints = extractParamHints ppDescribeSql
+    let parsedAst = parseSql ppDescribeSql
+    let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
     let annotatedParams =
@@ -66,7 +67,7 @@ typedSqlExp rawSql = do
                 parsedExprs
                 paramTypes
 
-    let nullableTableNames = extractJoinNullableTables ppDescribeSql
+    let nullableTableNames = maybe Set.empty extractJoinNullableTablesFromAst parsedAst
     let joinNullableOids = drTables
             |> Map.toList
             |> filter (\(_, TableMeta { tmName }) -> tmName `Set.member` nullableTableNames)

@@ -86,7 +86,7 @@ decodeArrayColumn typeInfo nullable elementOid =
         Nothing -> failText ("typedSql: missing array element type for oid " <> show elementOid)
         Just elementType ->
             case ptiName elementType of
-                "int2" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int4)
+                "int2" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int2)
                 "int4" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int4)
                 "int8" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int8)
                 "text" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.text)
@@ -110,7 +110,7 @@ decodeArrayColumn typeInfo nullable elementOid =
 decodeScalarColumn :: Bool -> Text -> TH.ExpQ
 decodeScalarColumn nullable typeName =
     case typeName of
-        "int2" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int4)
+        "int2" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int2)
         "int4" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int4)
         "int8" -> decodeIntLikeScalar nullable (TH.VarE 'HasqlDecoders.int8)
         "text" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.text)

@@ -2,6 +2,9 @@ module IHP.TypedSql.ParamHints
     ( ParamHint (..)
     , extractParamHints
     , extractJoinNullableTables
+    , parseSql
+    , extractParamHintsFromAst
+    , extractJoinNullableTablesFromAst
     , resolveParamHintTypes
     ) where
 
@@ -32,16 +35,27 @@ data ParamHint = ParamHint
     }
     deriving (Eq, Show)
 
+-- | Parse SQL into an AST. Returns Nothing if parsing fails.
+parseSql :: String -> Maybe Ast.PreparableStmt
+parseSql sql =
+    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
+        Left _err -> Nothing
+        Right stmt -> Just stmt
+
 -- | Extract parameter hints by parsing SQL and walking the AST.
 -- Falls back to empty map if parsing fails.
 extractParamHints :: String -> Map.Map Int ParamHint
 extractParamHints sql =
-    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
-        Left _err -> Map.empty
-        Right stmt ->
-            let aliasMap = buildAliasMapFromStmt stmt
-                defTable = singleTable aliasMap
-            in collectFromStmt aliasMap defTable stmt
+    case parseSql sql of
+        Nothing -> Map.empty
+        Just stmt -> extractParamHintsFromAst stmt
+
+-- | Extract parameter hints from an already-parsed AST.
+extractParamHintsFromAst :: Ast.PreparableStmt -> Map.Map Int ParamHint
+extractParamHintsFromAst stmt =
+    let aliasMap = buildAliasMapFromStmt stmt
+        defTable = singleTable aliasMap
+    in collectFromStmt aliasMap defTable stmt
 
 -- | Extract table names that are on the nullable side of outer JOINs.
 -- LEFT JOIN: right-side tables are nullable.
@@ -49,9 +63,13 @@ extractParamHints sql =
 -- FULL [OUTER] JOIN: both sides are nullable.
 extractJoinNullableTables :: String -> Set.Set Text
 extractJoinNullableTables sql =
-    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
-        Left _err -> Set.empty
-        Right stmt -> nullableTablesFromStmt stmt
+    case parseSql sql of
+        Nothing -> Set.empty
+        Just stmt -> extractJoinNullableTablesFromAst stmt
+
+-- | Extract nullable tables from an already-parsed AST.
+extractJoinNullableTablesFromAst :: Ast.PreparableStmt -> Set.Set Text
+extractJoinNullableTablesFromAst = nullableTablesFromStmt
 
 nullableTablesFromStmt :: Ast.PreparableStmt -> Set.Set Text
 nullableTablesFromStmt = \case
