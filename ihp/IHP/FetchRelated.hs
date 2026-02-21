@@ -8,7 +8,7 @@ This modules provides helper functions to access relationshops for a model.
 
 See https://ihp.digitallyinduced.com/Guide/relationships.html for some examples.
 -}
-module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing, collectionFetchRelatedById, collectionFetchRelatedOrNothingById) where
+module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing, CollectionFetchRelated(..), CollectionFetchRelatedOrNothing(..), collectionFetchRelatedById, collectionFetchRelatedOrNothingById) where
 
 import IHP.Prelude
 import IHP.ModelSupport (Include, PrimaryKey, GetModelByTableName, Table, GetTableForId)
