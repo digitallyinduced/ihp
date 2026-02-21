@@ -74,74 +74,74 @@ withDB action = do
 tests :: Spec
 tests = do
     describe "IHP.FetchPipelined" do
-        describe "fetchPipelined" do
-            it "should fetch all rows with toPipelineStatement" $ withDB \modelContext -> do
+        describe "pipeline" do
+            it "should fetch all rows with fetchPipelined" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                items <- fetchPipelined $
-                    query @FpItem |> toPipelineStatement
+                items <- pipeline $
+                    query @FpItem |> fetchPipelined
                 length items `shouldBe` 3
 
             it "should apply filterWhere" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                items <- fetchPipelined $
-                    query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
+                items <- pipeline $
+                    query @FpItem |> filterWhere (#active, True) |> fetchPipelined
                 length items `shouldBe` 2
 
             it "should fetch multiple queries in one pipeline" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                (allItems, activeItems) <- fetchPipelined do
-                    allItems <- query @FpItem |> toPipelineStatement
-                    activeItems <- query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
+                (allItems, activeItems) <- pipeline do
+                    allItems <- query @FpItem |> fetchPipelined
+                    activeItems <- query @FpItem |> filterWhere (#active, True) |> fetchPipelined
                     pure (allItems, activeItems)
                 length allItems `shouldBe` 3
                 length activeItems `shouldBe` 2
 
             it "should pipeline three queries" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                (items, count, exists) <- fetchPipelined do
-                    items  <- query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
-                    count  <- query @FpItem |> toPipelineStatementCount
-                    exists <- query @FpItem |> filterWhere (#active, False) |> toPipelineStatementExists
+                (items, count, exists) <- pipeline do
+                    items  <- query @FpItem |> filterWhere (#active, True) |> fetchPipelined
+                    count  <- query @FpItem |> fetchCountPipelined
+                    exists <- query @FpItem |> filterWhere (#active, False) |> fetchExistsPipelined
                     pure (items, count, exists)
                 length items `shouldBe` 2
                 count `shouldBe` 3
                 exists `shouldBe` True
 
-        describe "toPipelineStatementOneOrNothing" do
+        describe "fetchOneOrNothingPipelined" do
             it "should return Just for matching row" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                result <- fetchPipelined $
-                    query @FpItem |> filterWhere (#name, "alpha" :: Text) |> toPipelineStatementOneOrNothing
+                result <- pipeline $
+                    query @FpItem |> filterWhere (#name, "alpha" :: Text) |> fetchOneOrNothingPipelined
                 ((.name) <$> result) `shouldBe` Just "alpha"
 
             it "should return Nothing for no match" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                result <- fetchPipelined $
-                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> toPipelineStatementOneOrNothing
+                result <- pipeline $
+                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> fetchOneOrNothingPipelined
                 result `shouldBe` Nothing
 
-        describe "toPipelineStatementCount" do
+        describe "fetchCountPipelined" do
             it "should count all rows" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                count <- fetchPipelined $
-                    query @FpItem |> toPipelineStatementCount
+                count <- pipeline $
+                    query @FpItem |> fetchCountPipelined
                 count `shouldBe` 3
 
             it "should count filtered rows" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                count <- fetchPipelined $
-                    query @FpItem |> filterWhere (#active, False) |> toPipelineStatementCount
+                count <- pipeline $
+                    query @FpItem |> filterWhere (#active, False) |> fetchCountPipelined
                 count `shouldBe` 1
 
-        describe "toPipelineStatementExists" do
+        describe "fetchExistsPipelined" do
             it "should return True when rows exist" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                exists <- fetchPipelined $
-                    query @FpItem |> toPipelineStatementExists
+                exists <- pipeline $
+                    query @FpItem |> fetchExistsPipelined
                 exists `shouldBe` True
 
             it "should return False when no rows match" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                exists <- fetchPipelined $
-                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> toPipelineStatementExists
+                exists <- pipeline $
+                    query @FpItem |> filterWhere (#name, "nonexistent" :: Text) |> fetchExistsPipelined
                 exists `shouldBe` False
