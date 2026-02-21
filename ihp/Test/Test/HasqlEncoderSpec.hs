@@ -4,7 +4,7 @@ module Test.HasqlEncoderSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
-import IHP.ModelSupport.Types (Id', PrimaryKey, IdNewtype(..))
+import IHP.ModelSupport.Types (PrimaryKey)
 import Test.ModelFixtures (UserId(..))
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)

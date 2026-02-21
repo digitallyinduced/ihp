@@ -24,6 +24,10 @@ instance IdNewtype PostId UUID where
     toId = PostId
     fromId (PostId x) = x
 instance Default PostId where def = PostId def
+instance IsString PostId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> PostId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to PostId")
 
 newtype TagId = TagId UUID
     deriving newtype (Eq, Ord, Show)
@@ -32,6 +36,10 @@ instance IdNewtype TagId UUID where
     toId = TagId
     fromId (TagId x) = x
 instance Default TagId where def = TagId def
+instance IsString TagId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> TagId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to TagId")
 
 newtype WeirdTagId = WeirdTagId UUID
     deriving newtype (Eq, Ord, Show)
@@ -40,6 +48,10 @@ instance IdNewtype WeirdTagId UUID where
     toId = WeirdTagId
     fromId (WeirdTagId x) = x
 instance Default WeirdTagId where def = WeirdTagId def
+instance IsString WeirdTagId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> WeirdTagId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to WeirdTagId")
 
 newtype TaggingId = TaggingId UUID
     deriving newtype (Eq, Ord, Show)
@@ -147,7 +159,14 @@ data CompositeTagging = CompositeTagging
 
 type instance GetTableName CompositeTagging = "composite_taggings"
 type instance GetModelByTableName "composite_taggings" = CompositeTagging
-type instance PrimaryKey "composite_taggings" = (PostId, TagId)
+type instance PrimaryKey "composite_taggings" = (UUID, UUID)
+
+newtype CompositeTaggingPK = CompositeTaggingPK (UUID, UUID)
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "composite_taggings" = CompositeTaggingPK
+instance IdNewtype CompositeTaggingPK (UUID, UUID) where
+    toId = CompositeTaggingPK
+    fromId (CompositeTaggingPK x) = x
 
 instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
