@@ -79,7 +79,7 @@ typedSqlExp rawSql = do
             case drColumns of
                 [DescribeColumn { dcType }] ->
                     case Map.lookup dcType drTypes of
-                        Just PgTypeInfo { ptiType = Just 'c' } -> True
+                        Just PgTypeInfo { ptiType = 'c' } -> True
                         _ -> False
                 _ -> False
     when (length drColumns == 1 && isCompositeColumn) $

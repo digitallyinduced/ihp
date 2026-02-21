@@ -23,6 +23,7 @@ import qualified Hasql.Connection              as HasqlConnection
 import qualified Hasql.Connection.Settings     as HasqlSettings
 import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.Encoders                as HasqlEncoders
+import qualified Hasql.Pipeline                as HasqlPipeline
 import qualified Hasql.Session                 as HasqlSession
 import qualified Hasql.Statement               as HasqlStatement
 import           IHP.FrameworkConfig           (defaultDatabaseUrl)
@@ -72,7 +73,7 @@ data PgTypeInfo = PgTypeInfo
     { ptiOid       :: !PQ.Oid
     , ptiName      :: !Text
     , ptiElem      :: !(Maybe PQ.Oid)
-    , ptiType      :: !(Maybe Char)
+    , ptiType      :: !Char
     , ptiNamespace :: !(Maybe Text)
     }
 
@@ -94,58 +95,59 @@ describeStatement sql = do
 -- This is the core path for metadata lookup in typedSql.
 describeStatementWith :: BS.ByteString -> BS.ByteString -> IO DescribeResult
 describeStatementWith dbUrl sql = do
-    conn <- PQ.connectdb dbUrl
-    status <- PQ.status conn
-    unless (status == PQ.ConnectionOk) do
-        err <- PQ.errorMessage conn
-        fail ("typedSql: could not connect to database: " <> CS.cs (fromMaybe "" err))
+    bracket (PQ.connectdb dbUrl) PQ.finish \conn -> do
+        status <- PQ.status conn
+        unless (status == PQ.ConnectionOk) do
+            err <- PQ.errorMessage conn
+            fail ("typedSql: could not connect to database at "
+                <> CS.cs dbUrl <> ": " <> CS.cs (fromMaybe "" err)
+                <> "\nHint: ensure your development database is running (e.g. devenv up).")
 
-    let statementName = "ihp_typed_sql_stmt"
-    _ <- ensureOk "prepare" =<< PQ.prepare conn statementName sql Nothing
-    desc <- ensureOk "describe" =<< PQ.describePrepared conn statementName
+        let statementName = "ihp_typed_sql_stmt"
+        _ <- ensureOk "prepare" =<< PQ.prepare conn statementName sql Nothing
+        desc <- ensureOk "describe" =<< PQ.describePrepared conn statementName
 
-    paramCount <- PQ.nparams desc
-    paramTypes <- mapM (PQ.paramtype desc) [0 .. paramCount - 1]
+        paramCount <- PQ.nparams desc
+        paramTypes <- mapM (PQ.paramtype desc) [0 .. paramCount - 1]
 
-    columnCount <- PQ.nfields desc
-    let PQ.Col columnCountCInt = columnCount
-    let columnCountInt = fromIntegral columnCountCInt :: Int
-    columns <- mapM (\i -> do
-        let colIndex = PQ.Col (fromIntegral i)
-        name <- fromMaybe "" <$> PQ.fname desc colIndex
-        colType <- PQ.ftype desc colIndex
-        tableOid <- PQ.ftable desc colIndex
-        attnumRaw <- PQ.ftablecol desc colIndex
-        let PQ.Col attnumCInt = attnumRaw
-        let attnumInt = fromIntegral attnumCInt :: Int
-        let attnum =
-                if tableOid == PQ.Oid 0 || attnumInt <= 0
-                    then Nothing
-                    else Just attnumInt
-        pure DescribeColumn { dcName = name, dcType = colType, dcTable = tableOid, dcAttnum = attnum }
-        ) [0 .. columnCountInt - 1]
+        columnCount <- PQ.nfields desc
+        let PQ.Col columnCountCInt = columnCount
+        let columnCountInt = fromIntegral columnCountCInt :: Int
+        columns <- mapM (\i -> do
+            let colIndex = PQ.Col (fromIntegral i)
+            name <- fromMaybe "" <$> PQ.fname desc colIndex
+            colType <- PQ.ftype desc colIndex
+            tableOid <- PQ.ftable desc colIndex
+            attnumRaw <- PQ.ftablecol desc colIndex
+            let PQ.Col attnumCInt = attnumRaw
+            let attnumInt = fromIntegral attnumCInt :: Int
+            let attnum =
+                    if tableOid == PQ.Oid 0 || attnumInt <= 0
+                        then Nothing
+                        else Just attnumInt
+            pure DescribeColumn { dcName = name, dcType = colType, dcTable = tableOid, dcAttnum = attnum }
+            ) [0 .. columnCountInt - 1]
 
-    let tableOids = Set.fromList (map dcTable columns) |> Set.delete (PQ.Oid 0)
-        typeOids = Set.fromList paramTypes <> Set.fromList (map dcType columns)
+        let tableOids = Set.fromList (map dcTable columns) |> Set.delete (PQ.Oid 0)
+            typeOids = Set.fromList paramTypes <> Set.fromList (map dcType columns)
 
-    tables <- loadTableMeta dbUrl (Set.toList tableOids)
-    let referencedOids =
-            tables
-                |> Map.elems
-                |> foldl'
-                    (\acc TableMeta { tmForeignKeys } ->
-                        acc <> Set.fromList (Map.elems tmForeignKeys)
-                    )
-                    mempty
-    let missingRefs = referencedOids `Set.difference` Map.keysSet tables
-    extraTables <- loadTableMeta dbUrl (Set.toList missingRefs)
-    let tables' = tables <> extraTables
-    types <- loadTypeInfo dbUrl (Set.toList typeOids)
+        tables <- loadTableMeta dbUrl (Set.toList tableOids)
+        let referencedOids =
+                tables
+                    |> Map.elems
+                    |> foldl'
+                        (\acc TableMeta { tmForeignKeys } ->
+                            acc <> Set.fromList (Map.elems tmForeignKeys)
+                        )
+                        mempty
+        let missingRefs = referencedOids `Set.difference` Map.keysSet tables
+        extraTables <- loadTableMeta dbUrl (Set.toList missingRefs)
+        let tables' = tables <> extraTables
+        types <- loadTypeInfo dbUrl (Set.toList typeOids)
 
-    _ <- PQ.exec conn ("DEALLOCATE " <> statementName)
-    PQ.finish conn
+        _ <- PQ.exec conn ("DEALLOCATE " <> statementName)
 
-    pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types }
+        pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types }
 
 -- | Ensure libpq returned a successful result.
 -- Errors here surface as typedSql compile-time failures.
@@ -169,7 +171,9 @@ runHasqlMetadataSession dbUrl session = do
     hasqlConnection <-
         HasqlConnection.acquire settings >>= \case
             Left connectionError ->
-                fail (CS.cs ("typedSql: could not connect to database: " <> tshow connectionError))
+                fail (CS.cs ("typedSql: could not connect to database at "
+                    <> CS.cs dbUrl <> ": " <> tshow connectionError
+                    <> "\nHint: ensure your development database is running (e.g. devenv up)."))
             Right connection ->
                 pure connection
     bracket (pure hasqlConnection) HasqlConnection.release \connection ->
@@ -242,7 +246,7 @@ foreignKeysStatement =
             ))
 
 -- | Query to load type information for a set of type OIDs.
-typeInfoStatement :: HasqlStatement.Statement [Int32] [(Int32, Text, Int32, Maybe Text, Maybe Text)]
+typeInfoStatement :: HasqlStatement.Statement [Int32] [(Int32, Text, Int32, Text, Maybe Text)]
 typeInfoStatement =
     HasqlStatement.preparable
         (mconcat
@@ -256,7 +260,7 @@ typeInfoStatement =
                 <$> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
                 <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)
                 <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.int4)
-                <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)
+                <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text) -- typtype (NOT NULL in pg_type)
                 <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)
             ))
 
@@ -266,9 +270,12 @@ loadTableMeta :: BS.ByteString -> [PQ.Oid] -> IO (Map.Map PQ.Oid TableMeta)
 loadTableMeta _ [] = pure mempty
 loadTableMeta dbUrl tableOids = do
     let tableOidParams = map toOidInt32 tableOids
-    rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams tableColumnsStatement)
-    primaryKeys <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams primaryKeysStatement)
-    foreignKeys <- runHasqlMetadataSession dbUrl (HasqlSession.statement tableOidParams foreignKeysStatement)
+    (rows, primaryKeys, foreignKeys) <- runHasqlMetadataSession dbUrl $
+        HasqlSession.pipeline $
+            (,,)
+                <$> HasqlPipeline.statement tableOidParams tableColumnsStatement
+                <*> HasqlPipeline.statement tableOidParams primaryKeysStatement
+                <*> HasqlPipeline.statement tableOidParams foreignKeysStatement
 
     let pkMap = primaryKeys
             |> foldl' (\acc (relid, attnum) ->
@@ -335,11 +342,14 @@ loadTypeInfo dbUrl typeOids = do
                             nextMissing = case elemOid' of
                                 Just o | o `Set.notMember` requested -> o : missingAcc
                                 _ -> missingAcc
+                            typtypeChar = case CS.cs typtype :: [Char] of
+                                (c:_) -> c
+                                []    -> 'b' -- fallback to base type
                         in ( Map.insert thisOid PgTypeInfo
                                 { ptiOid = thisOid
                                 , ptiName = name
                                 , ptiElem = elemOid'
-                                , ptiType = typtype >>= (listToMaybe . CS.cs)
+                                , ptiType = typtypeChar
                                 , ptiNamespace = nsp
                                 }
                                 acc

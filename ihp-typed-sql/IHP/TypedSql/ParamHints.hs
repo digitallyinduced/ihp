@@ -374,9 +374,9 @@ extractParam = \case
     Ast.CExprAExpr (Ast.ParamCExpr n _) -> Just n
     _ -> Nothing
 
--- | Merge two hint maps, discarding hints that conflict (same index, different hint).
+-- | Merge two hint maps. On conflict, the left (earlier) hint wins.
 mergeHintMaps :: Map.Map Int ParamHint -> Map.Map Int ParamHint -> Map.Map Int ParamHint
-mergeHintMaps = Map.unionWith (\a b -> if a == b then a else a)
+mergeHintMaps = Map.union
 
 ----------------------------------------------------------------------
 -- Type resolution (unchanged from before)
@@ -414,7 +414,6 @@ resolveParamHintTypes tables typeInfo hints = do
         columns
             |> Map.toList
             |> List.find (\(_, ColumnMeta { cmName }) -> Text.toLower cmName == Text.toLower columnName)
-            |> fmap (\(attnum, column) -> (attnum, column))
 
 -- | Strip a top-level Maybe wrapper to get the base column type.
 -- Used when parameter hints should be non-nullable inputs.

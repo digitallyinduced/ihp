@@ -128,9 +128,9 @@ hsTypeForPg typeInfo nullable PgTypeInfo { ptiName, ptiElem, ptiType } = do
         _ | ptiName == "inet" -> pure (TH.ConT ''Inet)
         _ | ptiName == "tsvector" -> pure (TH.ConT ''Tsvector)
         _ | ptiName == "interval" -> pure (TH.ConT ''Interval)
-        _ | ptiType == Just 'e' ->
+        _ | ptiType == 'e' ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
-        _ | ptiType == Just 'c' ->
+        _ | ptiType == 'c' ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
         _ -> pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName ptiName))))
     pure (wrapNull nullable base)
