@@ -296,3 +296,5 @@ test-suite tests
         Test.HasqlEncoderSpec
         Test.AutoRefreshSpec
         Test.Pagination.ControllerFunctionsSpec
+        Test.FetchPipelinedSpec
+        Test.ModelFixtures

@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-|
 Module: Test.FetchPipelinedSpec
 Description: Integration tests for IHP.FetchPipelined
@@ -89,18 +90,20 @@ tests = do
 
             it "should fetch multiple queries in one pipeline" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                (allItems, activeItems) <- fetchPipelined $ (,)
-                    <$> (query @FpItem |> toPipelineStatement)
-                    <*> (query @FpItem |> filterWhere (#active, True) |> toPipelineStatement)
+                (allItems, activeItems) <- fetchPipelined do
+                    allItems <- query @FpItem |> toPipelineStatement
+                    activeItems <- query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
+                    pure (allItems, activeItems)
                 length allItems `shouldBe` 3
                 length activeItems `shouldBe` 2
 
             it "should pipeline three queries" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
-                (items, count, exists) <- fetchPipelined $ (,,)
-                    <$> (query @FpItem |> filterWhere (#active, True) |> toPipelineStatement)
-                    <*> (query @FpItem |> toPipelineStatementCount)
-                    <*> (query @FpItem |> filterWhere (#active, False) |> toPipelineStatementExists)
+                (items, count, exists) <- fetchPipelined do
+                    items  <- query @FpItem |> filterWhere (#active, True) |> toPipelineStatement
+                    count  <- query @FpItem |> toPipelineStatementCount
+                    exists <- query @FpItem |> filterWhere (#active, False) |> toPipelineStatementExists
+                    pure (items, count, exists)
                 length items `shouldBe` 2
                 count `shouldBe` 3
                 exists `shouldBe` True
