@@ -10,6 +10,7 @@ import qualified Data.Set                         as Set
 import qualified Data.String.Conversions          as CS
 import qualified Database.PostgreSQL.LibPQ        as PQ
 import qualified Hasql.Decoders                   as HasqlDecoders
+import qualified Hasql.Mapping.IsScalar           as Mapping
 import qualified Language.Haskell.TH              as TH
 import           IHP.Hasql.FromRow                as HasqlFromRow
 import           IHP.ModelSupport.Types           (Id' (..))
@@ -100,8 +101,11 @@ decodeArrayColumn typeInfo nullable elementOid =
                 "json" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.json)
                 "jsonb" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.jsonb)
                 "bytea" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.bytea)
-                unsupported ->
-                    failText ("typedSql: unsupported array element type for hasql decoder: " <> unsupported)
+                "timestamptz" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.timestamptz)
+                "timestamp" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.timestamp)
+                "date" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.date)
+                "time" -> decodeSimpleArray nullable (TH.VarE 'HasqlDecoders.time)
+                _ -> decodeMappingArray nullable
 
 decodeScalarColumn :: Bool -> Text -> TH.ExpQ
 decodeScalarColumn nullable typeName =
@@ -125,8 +129,12 @@ decodeScalarColumn nullable typeName =
         "float8" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.float8)
         "numeric" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.numeric)
         "bytea" -> decodeSimpleScalar nullable (TH.VarE 'HasqlDecoders.bytea)
-        unsupported ->
-            failText ("typedSql: unsupported column type for hasql decoder: " <> unsupported)
+        "point" -> decodeMappingScalar nullable
+        "polygon" -> decodeMappingScalar nullable
+        "inet" -> decodeMappingScalar nullable
+        "tsvector" -> decodeMappingScalar nullable
+        "interval" -> decodeMappingScalar nullable
+        _ -> decodeMappingScalar nullable
 
 decodeSimpleScalar :: Bool -> TH.Exp -> TH.ExpQ
 decodeSimpleScalar nullable valueDecoder =
@@ -189,6 +197,14 @@ decodeIntLikeArray nullable baseDecoder =
                     )
                 )
             )
+
+decodeMappingScalar :: Bool -> TH.ExpQ
+decodeMappingScalar nullable =
+    decodeSimpleScalar nullable (TH.VarE 'Mapping.decoder)
+
+decodeMappingArray :: Bool -> TH.ExpQ
+decodeMappingArray nullable =
+    decodeSimpleArray nullable (TH.VarE 'Mapping.decoder)
 
 nullabilityWrapper :: Bool -> TH.Exp -> TH.Exp
 nullabilityWrapper nullable valueDecoder =
