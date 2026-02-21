@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module IHP.DataSync.ControllerImpl where
 
-import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
+import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar, toStatement)
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson

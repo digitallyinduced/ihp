@@ -6,7 +6,7 @@ Copyright: (c) digitally induced GmbH, 2021
 -}
 module IHP.DataSync.DynamicQuery where
 
-import IHP.ControllerPrelude hiding (OrderByClause)
+import IHP.ControllerPrelude hiding (OrderByClause, toStatement)
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
