@@ -215,6 +215,7 @@ library
         , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
         , IHP.Fetch.Statement
+        , IHP.FetchPipelined
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.Static
