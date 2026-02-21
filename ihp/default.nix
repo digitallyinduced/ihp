@@ -1,11 +1,3 @@
-direnv: loading ~/digitallyinduced/ihp3/.envrc
-direnv: using flake . --override-input devenv-root file+file:///Users/marc/digitallyinduced/ihp3/.devenv/root
-direnv: nix-direnv: Using cached dev shell
-Running tasks     devenv:enterShell
-
-Running           devenv:enterShell
-Succeeded         devenv:enterShell (26.68ms)
-1 Succeeded
 { mkDerivation, aeson, async, attoparsec, base, basic-prelude
 , binary, blaze-html, blaze-markup, bytestring, case-insensitive
 , cereal, cereal-text, classy-prelude, clientsession, conduit-extra
