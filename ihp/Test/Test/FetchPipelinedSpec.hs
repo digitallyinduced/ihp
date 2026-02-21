@@ -9,8 +9,7 @@ module Test.FetchPipelinedSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.QueryBuilder
-import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..), Table(..), GetModelByTableName)
-import IHP.ModelSupport.Types (GetTableName, PrimaryKey, Id'(..))
+import IHP.ModelSupport
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.FetchPipelined
 import qualified Hasql.Pool as HasqlPool
