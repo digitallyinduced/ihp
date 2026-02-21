@@ -197,18 +197,17 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
                     instance Default UserId where def = UserId def
-                    instance Show UserId where show (UserId x) = show x
                     instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
                     instance InputValue UserId where inputValue (UserId x) = inputValue x
                     instance IsString UserId where
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
-                            Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
                         defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
@@ -351,18 +350,17 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
                     instance Default UserId where def = UserId def
-                    instance Show UserId where show (UserId x) = show x
                     instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
                     instance InputValue UserId where inputValue (UserId x) = inputValue x
                     instance IsString UserId where
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
-                            Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
                         defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
@@ -504,18 +502,17 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
                     instance Default UserId where def = UserId def
-                    instance Show UserId where show (UserId x) = show x
                     instance IsEmpty UserId where isEmpty (UserId x) = isEmpty x
                     instance InputValue UserId where inputValue (UserId x) = inputValue x
                     instance IsString UserId where
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
-                            Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to UserId")
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
                         defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
@@ -693,18 +690,17 @@ tests = do
 
                     type instance PrimaryKey "landing_pages" = UUID
 
-                    newtype LandingPageId = LandingPageId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    newtype LandingPageId = LandingPageId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "landing_pages" = LandingPageId
                     type instance GetTableForId LandingPageId = "landing_pages"
                     instance IdNewtype LandingPageId UUID where { toId = LandingPageId; fromId (LandingPageId x) = x }
                     instance Default LandingPageId where def = LandingPageId def
-                    instance Show LandingPageId where show (LandingPageId x) = show x
                     instance IsEmpty LandingPageId where isEmpty (LandingPageId x) = isEmpty x
                     instance InputValue LandingPageId where inputValue (LandingPageId x) = inputValue x
                     instance IsString LandingPageId where
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> LandingPageId pk
-                            Nothing -> error ("Unable to convert " <> show str <> " to LandingPageId")
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to LandingPageId")
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder LandingPageId where
                         defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [LandingPageId] where
@@ -1015,18 +1011,17 @@ tests = do
 
                     type instance PrimaryKey "posts" = UUID
 
-                    newtype PostId = PostId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
+                    newtype PostId = PostId UUID deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "posts" = PostId
                     type instance GetTableForId PostId = "posts"
                     instance IdNewtype PostId UUID where { toId = PostId; fromId (PostId x) = x }
                     instance Default PostId where def = PostId def
-                    instance Show PostId where show (PostId x) = show x
                     instance IsEmpty PostId where isEmpty (PostId x) = isEmpty x
                     instance InputValue PostId where inputValue (PostId x) = inputValue x
                     instance IsString PostId where
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> PostId pk
-                            Nothing -> error ("Unable to convert " <> show str <> " to PostId")
+                            Nothing -> Prelude.error ("Unable to convert " <> Prelude.show str <> " to PostId")
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder PostId where
                         defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [PostId] where

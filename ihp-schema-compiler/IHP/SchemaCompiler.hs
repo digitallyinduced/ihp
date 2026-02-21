@@ -402,6 +402,7 @@ compilePrimaryKeysModule schema@(Schema statements) =
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
             module Generated.ActualTypes.PrimaryKeys where
             $defaultImports
+            import qualified Prelude
             import Generated.Enums
             import qualified Data.Functor.Contravariant
         |]
@@ -1030,19 +1031,18 @@ compileIdNewtype table = case primaryKeyColumns table of
 compileSingleColumnIdNewtype :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Column -> Text
 compileSingleColumnIdNewtype table column = Text.unlines
     [ "newtype " <> idTypeName <> " = " <> idTypeName <> " " <> pkType
-        <> " deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar)"
+        <> " deriving newtype (Eq, Ord, Show, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar)"
         <> " deriving stock (Data)"
     , "type instance Id' " <> tshow table.name <> " = " <> idTypeName
     , "type instance GetTableForId " <> idTypeName <> " = " <> tshow table.name
     , "instance IdNewtype " <> idTypeName <> " " <> pkType <> " where { toId = " <> idTypeName <> "; fromId (" <> idTypeName <> " x) = x }"
     , "instance Default " <> idTypeName <> " where def = " <> idTypeName <> " def"
-    , "instance Show " <> idTypeName <> " where show (" <> idTypeName <> " x) = show x"
     , "instance IsEmpty " <> idTypeName <> " where isEmpty (" <> idTypeName <> " x) = isEmpty x"
     , "instance InputValue " <> idTypeName <> " where inputValue (" <> idTypeName <> " x) = inputValue x"
     , "instance IsString " <> idTypeName <> " where"
     , "    fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of"
     , "        Just pk -> " <> idTypeName <> " pk"
-    , "        Nothing -> error (\"Unable to convert \" <> show str <> \" to " <> idTypeName <> "\")"
+    , "        Nothing -> Prelude.error (\"Unable to convert \" <> Prelude.show str <> \" to " <> idTypeName <> "\")"
     , "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> idTypeName <> " where"
     , "    defaultParam = Hasql.Encoders.nonNullable Mapping.encoder"
     , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> idTypeName <> "] where"
@@ -1122,7 +1122,7 @@ compileCompositeIdNewtype table = Text.unlines
     , "type instance GetTableForId " <> idTypeName <> " = " <> tshow table.name
     , "instance IdNewtype " <> idTypeName <> " (" <> pkTupleType <> ") where { toId = " <> idTypeName <> "; fromId (" <> idTypeName <> " x) = x }"
     , "instance Default " <> idTypeName <> " where def = " <> idTypeName <> " def"
-    , "instance Show " <> idTypeName <> " where show (" <> idTypeName <> " x) = show x"
+    , "instance Show " <> idTypeName <> " where show (" <> idTypeName <> " x) = Prelude.show x"
     ]
     where
         idTypeName = primaryKeyTypeName table.name
