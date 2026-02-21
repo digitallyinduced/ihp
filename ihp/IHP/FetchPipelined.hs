@@ -32,8 +32,8 @@ module IHP.FetchPipelined
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
-import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement)
 import IHP.Hasql.FromRow (FromRowHasql(..))
+import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
@@ -59,10 +59,7 @@ toStatement :: forall model table queryBuilderProvider joinRegister.
     , KnownSymbol table
     , FromRowHasql model
     ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
-toStatement !queryBuilder =
-    let !sqlQuery = buildQuery queryBuilder
-        !statement = buildStatement sqlQuery (Decoders.rowList (hasqlRowDecoder @model))
-    in Pipeline.statement () statement
+toStatement !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
 {-# INLINE toStatement #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning at most one row.
@@ -79,10 +76,7 @@ toStatementOneOrNothing :: forall model table queryBuilderProvider joinRegister.
     , KnownSymbol table
     , FromRowHasql model
     ) => queryBuilderProvider table -> Pipeline.Pipeline (Maybe model)
-toStatementOneOrNothing !queryBuilder =
-    let !sqlQuery = buildQuery queryBuilder |> setJust #limitClause 1
-        !statement = buildStatement sqlQuery (Decoders.rowMaybe (hasqlRowDecoder @model))
-    in Pipeline.statement () statement
+toStatementOneOrNothing !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
 {-# INLINE toStatementOneOrNothing #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a count.
@@ -96,13 +90,7 @@ toStatementCount :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Pipeline.Pipeline Int
-toStatementCount !queryBuilder =
-    let !statement = buildWrappedStatement
-            "SELECT COUNT(*) FROM ("
-            (buildQuery queryBuilder)
-            ") AS _count_values"
-            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
-    in fromIntegral <$> Pipeline.statement () statement
+toStatementCount !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
 {-# INLINE toStatementCount #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning a boolean.
@@ -116,13 +104,7 @@ toStatementExists :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Pipeline.Pipeline Bool
-toStatementExists !queryBuilder =
-    let !statement = buildWrappedStatement
-            "SELECT EXISTS ("
-            (buildQuery queryBuilder)
-            ") AS _exists_values"
-            (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-    in Pipeline.statement () statement
+toStatementExists !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
 {-# INLINE toStatementExists #-}
 
 -- | Execute a 'Pipeline' in a single database round trip.
