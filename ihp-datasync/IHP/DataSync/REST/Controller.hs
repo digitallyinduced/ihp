@@ -25,7 +25,7 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Statement as Hasql
 
 instance (
-    Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))

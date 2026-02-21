@@ -46,7 +46,7 @@ runDataSyncController ::
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
@@ -111,7 +111,7 @@ buildMessageHandler ::
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     )
     => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
 buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
@@ -512,7 +512,7 @@ encodePatchToSetSql ren columnTypes patch =
 
 sqlQueryWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -531,7 +531,7 @@ sqlQueryWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQue
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -546,7 +546,7 @@ sqlQueryWriteWithRLSAndTransactionId pool Nothing statement = runSession pool (s
 
 sqlExecWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
