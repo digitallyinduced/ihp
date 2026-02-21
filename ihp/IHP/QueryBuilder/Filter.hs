@@ -621,12 +621,12 @@ filterWhereCaseInsensitive (name, value) queryBuilderProvider = injectQueryBuild
 {-# INLINE filterWhereCaseInsensitive #-}
 
 
-filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> queryBuilderProvider table -> queryBuilderProvider table
+filterWhereIdIn :: forall table model queryBuilderProvider (joinRegister :: Type). (KnownSymbol table, Table model, model ~ GetModelByTableName table, HasQueryBuilder queryBuilderProvider joinRegister, DefaultParamEncoder [PrimaryKey table], IdNewtype (Id' table) (PrimaryKey table)) => [Id' table] -> queryBuilderProvider table -> queryBuilderProvider table
 filterWhereIdIn values queryBuilderProvider =
     -- We don't need to treat null values differently here, because primary keys imply not-null
     -- Extract the raw primary key values from the Id wrappers
     let
-        rawPrimaryKeys = map (\(Id pk) -> pk) values
+        rawPrimaryKeys = map fromId values
         condition = ColumnCondition (primaryKeyConditionColumnSelector @model) InOp (paramValue rawPrimaryKeys) Nothing Nothing
      in
         injectQueryBuilder $ addCondition condition (getQueryBuilder queryBuilderProvider)

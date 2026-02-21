@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK not-home, hide #-}
+{-# LANGUAGE PatternSynonyms #-}
 module IHP.Prelude
 ( module CorePrelude
 , module Data.Text.IO
@@ -71,7 +72,7 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, Id', pattern Id, IdNewtype(..), GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
 import Data.TMap (TMap)
 import Data.IORef
 import Data.Time.Format
