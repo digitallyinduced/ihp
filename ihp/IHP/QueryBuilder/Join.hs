@@ -35,7 +35,10 @@ innerJoin :: forall model' table' name' value' model table name value queryBuild
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
                             ) => (Proxy name, Proxy name') -> queryBuilderProvider table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table
-innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+innerJoin (name, name') queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+        joinInfo = Join joinTableName leftJoinColumn rightJoinColumn
+    in injectQueryBuilder $ QueryBuilder sq { joins = joinInfo : joins sq }
     where
         baseTableName = symbolToText @table
         joinTableName = symbolToText @table'
@@ -92,7 +95,10 @@ innerJoinThirdTable :: forall model model' name name' value value' table table' 
                             table' ~ GetTableName model',
                             baseModel ~ GetModelByTableName baseTable
                         ) => (Proxy name, Proxy name') -> queryBuilderProvider baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
-innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+innerJoinThirdTable (name, name') queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+        joinInfo = Join joinTableName leftJoinColumn rightJoinColumn
+    in injectQueryBuilder $ QueryBuilder sq { joins = joinInfo : joins sq }
      where
         baseTableName = symbolToText @table'
         joinTableName = symbolToText @table

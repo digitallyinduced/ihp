@@ -1,10 +1,10 @@
-direnv: loading ~/digitallyinduced/ihp4/.envrc
-direnv: using flake . --override-input devenv-root file+file:///Users/marc/digitallyinduced/ihp4/.devenv/root
+direnv: loading ~/digitallyinduced/ihp3/.envrc
+direnv: using flake . --override-input devenv-root file+file:///Users/marc/digitallyinduced/ihp3/.devenv/root
 direnv: nix-direnv: Using cached dev shell
 Running tasks     devenv:enterShell
 
 Running           devenv:enterShell
-Succeeded         devenv:enterShell (14.76ms)
+Succeeded         devenv:enterShell (26.68ms)
 1 Succeeded
 { mkDerivation, aeson, async, attoparsec, base, basic-prelude
 , binary, blaze-html, blaze-markup, bytestring, case-insensitive
@@ -16,16 +16,16 @@ Succeeded         devenv:enterShell (14.76ms)
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
 , http-client, http-client-tls, http-media, http-types, ihp-context
 , ihp-hsx, ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead
-, ihp-pglistener, ihp-postgresql-simple-extra, inflections
-, interpolate, ip, lens, lib, mime-types, minio-hs
-, mono-traversable, mtl, neat-interpolation, network, network-uri
-, parser-combinators, postgresql-libpq, postgresql-simple
-, postgresql-types, process, pwstore-fast, random, random-strings
-, regex-tdfa, resource-pool, resourcet, safe-exceptions, scientific
-, slugger, split, stm, string-conversions, template-haskell
-, temporary, text, time, transformers, typerep-map, unagi-chan
-, unix, unliftio, unordered-containers, uri-encode, uuid, vault
-, vector, wai, wai-app-static, wai-asset-path, wai-cors, wai-extra
+, ihp-pglistener, inflections, interpolate, ip, lens, lib
+, mime-types, minio-hs, mono-traversable, mtl, neat-interpolation
+, network, network-uri, parser-combinators, postgresql-simple
+, postgresql-simple-postgresql-types, postgresql-types, process
+, pwstore-fast, random, random-strings, regex-tdfa, resource-pool
+, resourcet, safe-exceptions, scientific, slugger, split, stm
+, string-conversions, template-haskell, temporary, text, time
+, transformers, typerep-map, unagi-chan, unix, unliftio
+, unordered-containers, uri-encode, uuid, vault, vector, wai
+, wai-app-static, wai-asset-path, wai-cors, wai-extra
 , wai-flash-messages, wai-request-params, wai-session
 , wai-session-clientsession, wai-util, wai-websockets, warp
 , warp-systemd, websockets, with-utf8, wreq
@@ -45,14 +45,15 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
-    ip lens mime-types minio-hs mono-traversable mtl neat-interpolation
-    network network-uri parser-combinators postgresql-libpq
-    postgresql-simple postgresql-types process pwstore-fast random
-    random-strings regex-tdfa resource-pool resourcet safe-exceptions
-    scientific slugger split stm string-conversions template-haskell
-    temporary text time transformers typerep-map unagi-chan unix
-    unliftio unordered-containers uri-encode uuid vault vector wai
+    ihp-pglistener inflections interpolate ip lens mime-types minio-hs
+    mono-traversable mtl neat-interpolation network network-uri
+    parser-combinators postgresql-simple
+    postgresql-simple-postgresql-types postgresql-types process
+    pwstore-fast random random-strings regex-tdfa resource-pool
+    resourcet safe-exceptions scientific slugger split stm
+    string-conversions template-haskell temporary text time
+    transformers typerep-map unagi-chan unix unliftio
+    unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
     wai-request-params wai-session wai-session-clientsession wai-util
     wai-websockets warp warp-systemd websockets with-utf8 wreq
@@ -67,14 +68,15 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-context
     ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener ihp-postgresql-simple-extra inflections interpolate
-    ip lens mime-types minio-hs mono-traversable mtl neat-interpolation
-    network network-uri parser-combinators postgresql-libpq
-    postgresql-simple postgresql-types process pwstore-fast random
-    random-strings regex-tdfa resource-pool resourcet safe-exceptions
-    scientific slugger split stm string-conversions template-haskell
-    temporary text time transformers typerep-map unagi-chan unix
-    unliftio unordered-containers uri-encode uuid vault vector wai
+    ihp-pglistener inflections interpolate ip lens mime-types minio-hs
+    mono-traversable mtl neat-interpolation network network-uri
+    parser-combinators postgresql-simple
+    postgresql-simple-postgresql-types postgresql-types process
+    pwstore-fast random random-strings regex-tdfa resource-pool
+    resourcet safe-exceptions scientific slugger split stm
+    string-conversions template-haskell temporary text time
+    transformers typerep-map unagi-chan unix unliftio
+    unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
     wai-request-params wai-session wai-session-clientsession wai-util
     wai-websockets warp warp-systemd websockets with-utf8 wreq

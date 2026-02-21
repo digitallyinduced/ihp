@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, PolyKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, PolyKinds, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Consolidates all postgresql-simple FromField\/ToField\/FromRow orphan instances
@@ -19,6 +19,10 @@ import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.Types as PG
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey, LabeledData(..), FieldWithDefault(..), FieldWithUpdate(..))
 import IHP.NameSupport (fieldNameToColumnName)
+
+-- Import postgresql-simple-postgresql-types for FromField/ToField instances
+-- of all postgresql-types types (Point, Polygon, Inet, Interval, etc.)
+import Database.PostgreSQL.Simple.PostgresqlTypes ()
 
 -- Id instances
 
@@ -59,3 +63,4 @@ instance ToField value => ToField [value] where
 
 instance (FromField value, Typeable value) => FromField [value] where
     fromField field value = PG.fromPGArray <$> (fromField field value)
+

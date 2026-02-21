@@ -2,14 +2,23 @@ $(document).on('ready turbolinks:load', function () {
     initDataHoverCard();
 });
 
+// Dispose hovercards before Turbolinks replaces the page to prevent orphaned tooltip elements
+document.addEventListener('turbolinks:before-render', function () {
+    document.querySelectorAll('td[data-foreign-key-column]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+    });
+});
+
 function initDataHoverCard() {
     document.querySelectorAll('td[data-foreign-key-column]').forEach(function (element) {
         var bsTooltip = new bootstrap.Tooltip(element, {
             title: "Loading",
             html: true,
             placement: 'left',
-            template: '<div class="tooltip foreign-key-hovercard" role="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>',
-            boundary: 'window'
+            container: 'body',
+            popperConfig: { strategy: 'fixed' },
+            template: '<div class="tooltip foreign-key-hovercard" role="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>'
         });
 
         var hoverCard = null;

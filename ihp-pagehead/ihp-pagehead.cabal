@@ -31,7 +31,7 @@ common shared-properties
         , LambdaCase
         , QuasiQuotes
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties

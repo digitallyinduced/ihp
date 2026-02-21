@@ -55,8 +55,6 @@ common shared-properties
             , text
             , postgresql-simple
             , ihp-pglistener
-            , ihp-postgresql-simple-extra
-            , postgresql-libpq
             , wai-app-static
             , wai-util
             , bytestring
@@ -140,6 +138,7 @@ common shared-properties
             , hasql-postgresql-types
             , hasql-transaction
             , postgresql-types
+            , postgresql-simple-postgresql-types
             , contravariant
     default-extensions:
         OverloadedStrings
@@ -161,7 +160,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
@@ -216,6 +215,7 @@ library
         , IHP.QueryBuilder.HasqlCompiler
         , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
+        , IHP.Fetch.Statement
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.Static
@@ -273,7 +273,8 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: Test
-    build-depends: ihp 
+    ghc-options: -threaded
+    build-depends: ihp
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -292,5 +293,7 @@ test-suite tests
         Test.Controller.CookieSpec
         Test.PGListenerSpec
         Test.MockingSpec
+        Test.ControllerSupportSpec
         Test.HasqlEncoderSpec
         Test.AutoRefreshSpec
+        Test.Pagination.ControllerFunctionsSpec

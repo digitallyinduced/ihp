@@ -29,8 +29,6 @@ common shared-properties
             , text
             , hasql
             , hasql-pool
-            , hasql-dynamic-statements
-            , hasql-implicits
             , hasql-transaction
             , bytestring
             , aeson
@@ -65,6 +63,7 @@ common shared-properties
             , postgresql-types
             , hasql-mapping
             , hasql-postgresql-types
+            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -91,7 +90,7 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
@@ -106,7 +105,7 @@ common shared-properties
             +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations

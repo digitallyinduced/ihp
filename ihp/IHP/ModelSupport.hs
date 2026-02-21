@@ -300,8 +300,9 @@ sqlExec theQuery theParameters = do
 -- > sqlExecDiscardResult "CREATE TABLE users ()" ()
 sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
 sqlExecDiscardResult theQuery theParameters = do
-    _ <- sqlExec theQuery theParameters
-    pure ()
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlExecHasql pool snippet
 {-# INLINABLE sqlExecDiscardResult #-}
 
 
@@ -320,33 +321,27 @@ setRLSConfigStatement = Hasql.preparable
      <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
     (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
 
--- | Runs a query using the hasql pool with prepared statements
+-- | Runs a hasql 'Hasql.Statement' directly on the pool.
 --
--- This function executes a query using hasql's prepared statement mechanism,
--- which provides better performance than postgresql-simple for repeated queries.
---
--- When RLS is enabled, the query is wrapped in a transaction that first sets the
--- role and user id via 'setRLSConfigStatement'.
+-- Core execution function that handles session construction, RLS wrapping,
+-- pool execution, cached plan error retry, and debug logging.
+-- Works with both prepared ('Hasql.preparable') and unprepared statements.
 --
 -- __Example:__
 --
--- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
+-- > result <- sqlStatementHasql pool someId myPreparedStatement
 --
-sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
-sqlQueryHasql pool snippet decoder = do
+sqlStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
+sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet decoder
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                -- In transaction: RLS already configured at BEGIN time
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Tx.statement () statement
+                    Tx.statement input statement
             _ ->
-                Hasql.statement () statement
+                Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> do
@@ -371,26 +366,44 @@ sqlQueryHasql pool snippet decoder = do
                 let sqlText = Hasql.toSql statement
                 Log.debug ("🔍 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
+{-# INLINABLE sqlStatementHasql #-}
+
+-- | Runs a query built from a dynamic 'Snippet'.
+--
+-- Converts the snippet to a 'Hasql.Statement' and delegates to 'sqlStatementHasql'.
+--
+-- __Example:__
+--
+-- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
+--
+sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
+sqlQueryHasql pool snippet decoder =
+    sqlStatementHasql pool () (Snippet.toStatement snippet decoder)
 {-# INLINABLE sqlQueryHasql #-}
 
--- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
+-- | Like 'sqlStatementHasql' but for write operations (DELETE, UPDATE, INSERT without results).
 --
--- When RLS is enabled, the statement is wrapped in a transaction that first sets the
--- role and user id via 'setRLSConfigStatement'.
-sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
-sqlExecHasql pool snippet = do
+-- Uses 'Tx.Write' for RLS transactions (vs 'Tx.Read' in 'sqlStatementHasql').
+-- Takes a 'Hasql.Statement' directly — use this when you have a pre-built statement
+-- rather than a 'Snippet'.
+--
+-- __Example:__
+--
+-- > sqlExecStatement pool workerId myUpdateStatement
+--
+sqlExecStatement :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a () -> IO ()
+sqlExecStatement pool input statement = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.noResult
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+                Hasql.statement input statement
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Tx.statement () statement
+                    Tx.statement input statement
             _ ->
-                Hasql.statement () statement
+                Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> do
@@ -415,6 +428,14 @@ sqlExecHasql pool snippet = do
                 let sqlText = Hasql.toSql statement
                 Log.debug ("💾 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
+{-# INLINABLE sqlExecStatement #-}
+
+-- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
+--
+-- When RLS is enabled, the statement is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
+sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
+sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toStatement snippet Decoders.noResult)
 {-# INLINABLE sqlExecHasql #-}
 
 -- | Like 'sqlExecHasql' but returns the number of affected rows
@@ -427,9 +448,7 @@ sqlExecHasqlCount pool snippet = do
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Just _, _) ->
-                Hasql.statement () statement
-            (_, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement () statement

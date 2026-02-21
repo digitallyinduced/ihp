@@ -9,11 +9,15 @@ module IHP.QueryBuilder.Types
   QueryBuilder (..)
 , SQLQuery (..)
 , Condition (..)
+, ConditionValue (..)
 , Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+  -- * Helpers
+, addCondition
+, qualifyAndJoinColumns
   -- * Type-level Join Tracking
 , NoJoins
 , EmptyModelList
@@ -36,9 +40,9 @@ import IHP.ModelSupport
 import IHP.HSX.ToHtml
 import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
 import qualified Prelude
+import qualified Data.Text as Text
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -135,34 +139,38 @@ instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTa
     getQueryIndex _ = Just $ symbolToText @foreignTable <> "." <> fieldNameToColumnName (symbolToText @indexColumn)
     {-# INLINABLE getQueryIndex #-}
 
--- | The main QueryBuilder data type, representing different query operations
-data QueryBuilder (table :: Symbol) =
-    NewQueryBuilder { selectFrom :: !Text, columns :: ![Text] }
-    | DistinctQueryBuilder   { queryBuilder :: !(QueryBuilder table) }
-    | DistinctOnQueryBuilder { queryBuilder :: !(QueryBuilder table), distinctOnColumn :: !Text }
-    | FilterByQueryBuilder   { queryBuilder :: !(QueryBuilder table), queryFilter :: !(Text, FilterOperator, Snippet), applyLeft :: !(Maybe Text), applyRight :: !(Maybe Text) }
-    | OrderByQueryBuilder    { queryBuilder :: !(QueryBuilder table), queryOrderByClause :: !OrderByClause }
-    | LimitQueryBuilder      { queryBuilder :: !(QueryBuilder table), queryLimit :: !Int }
-    | OffsetQueryBuilder     { queryBuilder :: !(QueryBuilder table), queryOffset :: !Int }
-    | UnionQueryBuilder      { firstQueryBuilder :: !(QueryBuilder table), secondQueryBuilder :: !(QueryBuilder table) }
-    | JoinQueryBuilder       { queryBuilder :: !(QueryBuilder table), joinData :: Join}
+-- | The QueryBuilder is a flat newtype over SQLQuery. Each combinator directly
+-- modifies fields of the underlying SQLQuery, avoiding any recursive tree traversal.
+newtype QueryBuilder (table :: Symbol) = QueryBuilder { unQueryBuilder :: SQLQuery }
+
+-- | Add a WHERE condition to a QueryBuilder, ANDing with any existing condition.
+addCondition :: Condition -> QueryBuilder table -> QueryBuilder table
+addCondition condition (QueryBuilder sq) = QueryBuilder $ sq
+    { whereCondition = case whereCondition sq of
+        Nothing -> Just condition
+        Just existing -> Just (AndCondition existing condition)
+    }
+{-# INLINE addCondition #-}
+
+-- | A condition value: either a parameterized encoder or a literal SQL fragment.
+data ConditionValue
+    = Param !(Encoders.Params ())   -- ^ Parameterized value: compiler assigns $N
+    | Literal !Text                 -- ^ Raw SQL text (for filterWhereSql, NULL comparisons, etc.)
+
+instance Show ConditionValue where
+    showsPrec _ (Param _) = Prelude.showString "<Param>"
+    showsPrec _ (Literal t) = Prelude.showString "Literal " . Prelude.shows t
+
+instance Eq ConditionValue where
+    Literal a == Literal b = a == b
+    _ == _ = False -- Params cannot be compared for equality
 
 -- | Represents a WHERE condition
 data Condition
-    = ColumnCondition !Text !FilterOperator !Snippet !(Maybe Text) !(Maybe Text)
-    --                ^col  ^op             ^value    ^applyLeft    ^applyRight
+    = ColumnCondition !Text !FilterOperator !ConditionValue !(Maybe Text) !(Maybe Text)
+    --                ^col  ^op             ^value           ^applyLeft    ^applyRight
     | OrCondition !Condition !Condition
     | AndCondition !Condition !Condition
-
--- | Snippet doesn't have a Show instance, so we provide one for debugging QueryBuilder
-instance Show Snippet where
-    showsPrec _ _ = Prelude.showString "<Snippet>"
-
--- | Snippet is an opaque type with no Eq instance. We compare snippets by their
--- rendered SQL template via 'Snippet.toSql'. This only compares the SQL structure
--- (e.g. @col = $1@), not the parameter values.
-snippetEq :: Snippet -> Snippet -> Bool
-snippetEq a b = Snippet.toSql a == Snippet.toSql b
 
 -- | Returns a numeric tag for each Condition constructor.
 -- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
@@ -172,38 +180,35 @@ conditionTag OrCondition {} = 1
 conditionTag AndCondition {} = 2
 
 instance Eq Condition where
-    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && snippetEq s1 s2 && al1 == al2 && ar1 == ar2
+    (ColumnCondition c1 o1 s1 al1 ar1) == (ColumnCondition c2 o2 s2 al2 ar2) = c1 == c2 && o1 == o2 && s1 == s2 && al1 == al2 && ar1 == ar2
     (OrCondition l1 r1) == (OrCondition l2 r2) = l1 == l2 && r1 == r2
     (AndCondition l1 r1) == (AndCondition l2 r2) = l1 == l2 && r1 == r2
     a == b = conditionTag a == conditionTag b
 
--- | Returns a numeric tag for each QueryBuilder constructor.
--- Pattern match is exhaustive so adding a constructor triggers -Wincomplete-patterns.
-queryBuilderTag :: QueryBuilder table -> Int
-queryBuilderTag NewQueryBuilder {} = 0
-queryBuilderTag DistinctQueryBuilder {} = 1
-queryBuilderTag DistinctOnQueryBuilder {} = 2
-queryBuilderTag FilterByQueryBuilder {} = 3
-queryBuilderTag OrderByQueryBuilder {} = 4
-queryBuilderTag LimitQueryBuilder {} = 5
-queryBuilderTag OffsetQueryBuilder {} = 6
-queryBuilderTag UnionQueryBuilder {} = 7
-queryBuilderTag JoinQueryBuilder {} = 8
+deriving instance Show Condition
+
+instance Show (QueryBuilder table) where
+    show (QueryBuilder sq) = "QueryBuilder " ++ Prelude.show sq
 
 instance Eq (QueryBuilder table) where
-    (NewQueryBuilder s1 c1) == (NewQueryBuilder s2 c2) = s1 == s2 && c1 == c2
-    (DistinctQueryBuilder q1) == (DistinctQueryBuilder q2) = q1 == q2
-    (DistinctOnQueryBuilder q1 d1) == (DistinctOnQueryBuilder q2 d2) = q1 == q2 && d1 == d2
-    (FilterByQueryBuilder q1 (b1, op1, sn1) l1 r1) == (FilterByQueryBuilder q2 (b2, op2, sn2) l2 r2) = q1 == q2 && b1 == b2 && op1 == op2 && snippetEq sn1 sn2 && l1 == l2 && r1 == r2
-    (OrderByQueryBuilder q1 o1) == (OrderByQueryBuilder q2 o2) = q1 == q2 && o1 == o2
-    (LimitQueryBuilder q1 l1) == (LimitQueryBuilder q2 l2) = q1 == q2 && l1 == l2
-    (OffsetQueryBuilder q1 o1) == (OffsetQueryBuilder q2 o2) = q1 == q2 && o1 == o2
-    (UnionQueryBuilder f1 s1) == (UnionQueryBuilder f2 s2) = f1 == f2 && s1 == s2
-    (JoinQueryBuilder q1 j1) == (JoinQueryBuilder q2 j2) = q1 == q2 && j1 == j2
-    a == b = queryBuilderTag a == queryBuilderTag b
+    (QueryBuilder sq1) == (QueryBuilder sq2) = sqlQueryEq sq1 sq2
 
-deriving instance Show Condition
-deriving instance Show (QueryBuilder table)
+-- | Compare two SQLQuery values. Uses snippetEq for comparing Condition fields.
+sqlQueryEq :: SQLQuery -> SQLQuery -> Bool
+sqlQueryEq a b =
+    selectFrom a == selectFrom b
+    && columnsSql a == columnsSql b
+    && distinctClause a == distinctClause b
+    && distinctOnClause a == distinctOnClause b
+    && condEq (whereCondition a) (whereCondition b)
+    && joins a == joins b
+    && orderByClause a == orderByClause b
+    && limitClause a == limitClause b
+    && offsetClause a == offsetClause b
+  where
+    condEq Nothing Nothing = True
+    condEq (Just c1) (Just c2) = c1 == c2
+    condEq _ _ = False
 
 -- | Display QueryBuilder's as their sql query inside HSX
 instance KnownSymbol table => ToHtml (QueryBuilder table) where
@@ -232,6 +237,10 @@ data SQLQuery = SQLQuery
     , limitClause :: !(Maybe Int)
     , offsetClause :: !(Maybe Int)
     , columns :: ![Text]
+    , columnsSql :: !Text
+    -- ^ Pre-computed qualified column selector, e.g. @"users.id, users.name"@.
+    -- Built once at query construction time so the compiler avoids re-qualifying
+    -- and re-joining the column list on every compilation.
     } deriving (Show)
 
 
@@ -254,7 +263,32 @@ instance {-# OVERLAPPABLE #-} DefaultScope table where
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
-    def = NewQueryBuilder { selectFrom = tableName @(GetModelByTableName table), columns = columnNames @(GetModelByTableName table) }
+    def = let tn = tableName @(GetModelByTableName table)
+              cols = columnNames @(GetModelByTableName table)
+          in QueryBuilder SQLQuery
+        { queryIndex = Nothing
+        , selectFrom = tn
+        , columns = cols
+        , columnsSql = qualifyAndJoinColumns tn cols
+        , distinctClause = False
+        , distinctOnClause = Nothing
+        , whereCondition = Nothing
+        , joins = []
+        , orderByClause = []
+        , limitClause = Nothing
+        , offsetClause = Nothing
+        }
+
+-- | Pre-compute the qualified, comma-separated column selector.
+-- E.g. @qualifyAndJoinColumns "users" ["id", "name"] = "users.id, users.name"@
+--
+-- Intentionally NOINLINE: call sites (query, def) are lifted to CAFs, so
+-- this is evaluated once per table type. NOINLINE prevents GHC from inlining
+-- the map/intercalate into every use site of the resulting SQLQuery.
+qualifyAndJoinColumns :: Text -> [Text] -> Text
+qualifyAndJoinColumns tableName columns =
+    Text.intercalate ", " (map (\c -> tableName <> "." <> c) columns)
+{-# NOINLINE qualifyAndJoinColumns #-}
 
 -- | Helper to deal with @some_field IS NULL@ and @some_field = 'some value'@
 class EqOrIsOperator value where toEqOrIsOperator :: value -> FilterOperator

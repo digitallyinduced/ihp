@@ -111,8 +111,9 @@ tests = around (withIHPApp WebApplication testConfig) do
                 |> createRecord
 
             -- Step 1: fetchNextJob — atomically locks the job and sets status to Running
+            let pool = ?modelContext.hasqlPool
             let workerId = Data.UUID.nil
-            maybeJob <- fetchNextJob @UpdatePostViewsJob workerId
+            maybeJob <- fetchNextJob @UpdatePostViewsJob pool workerId
 
             case maybeJob of
                 Nothing -> expectationFailure "No job found in queue"
@@ -124,7 +125,7 @@ tests = around (withIHPApp WebApplication testConfig) do
                     perform lockedJob
 
                     -- Step 3: jobDidSucceed — marks job as Succeeded in DB
-                    jobDidSucceed lockedJob
+                    jobDidSucceed pool lockedJob
 
             -- Verify side effect
             updatedPost <- fetch post.id

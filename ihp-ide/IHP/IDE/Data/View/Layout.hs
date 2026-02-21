@@ -35,9 +35,6 @@ tableHead rows tableName =
                         <a
                             href={NewRowAction tableName}
                             class="btn btn-link btn-add"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="bottom"
-                            title={"Add " <> tableNameToModelName tableName}
                         >{addIcon}</a>
                     </div>
                 </th>
@@ -67,20 +64,16 @@ isBoolField fieldName tableCols = case (find (\c -> c.columnName == (cs fieldNam
     Nothing -> False
 
 isSqlFunction :: Text -> Bool
-isSqlFunction text = text `elem`
+isSqlFunction text = Text.toLower text `elem`
     [ "uuidv7()"
     , "uuidv4()"
     , "uuid_generate_v4()"
-    , "NOW()"
-    , "NULL"]
+    , "now()"
+    , "null"
+    , "default"]
 
 isSqlFunction_ :: ByteString -> Bool
-isSqlFunction_ text = text `elem`
-    [ "uuidv7()"
-    , "uuidv4()"
-    , "uuid_generate_v4()"
-    , "NOW()"
-    , "NULL"]
+isSqlFunction_ text = isSqlFunction (cs text)
 
 fillField col value isBoolField = "fillField('" <> col.columnName <> "', '" <> value <> "'," <> isBoolField <> ");"
 
