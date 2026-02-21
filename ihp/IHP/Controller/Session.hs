@@ -34,7 +34,7 @@ import Prelude
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
 import Control.Monad (when)
-import IHP.ModelSupport.Types (PrimaryKey, Id', pattern Id, IdNewtype(..))
+import IHP.ModelSupport.Types (IdNewtype(..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault

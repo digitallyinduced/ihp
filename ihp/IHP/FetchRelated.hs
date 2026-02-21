@@ -11,7 +11,7 @@ See https://ihp.digitallyinduced.com/Guide/relationships.html for some examples.
 module IHP.FetchRelated (fetchRelated, collectionFetchRelated, collectionFetchRelatedOrNothing, fetchRelatedOrNothing, maybeFetchRelatedOrNothing, collectionFetchRelatedById, collectionFetchRelatedOrNothingById) where
 
 import IHP.Prelude
-import IHP.ModelSupport (Include, Id', PrimaryKey, GetModelByTableName, Table, GetTableForId, IdNewtype(..))
+import IHP.ModelSupport (Include, PrimaryKey, GetModelByTableName, Table, GetTableForId)
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Hasql.FromRow (FromRowHasql)

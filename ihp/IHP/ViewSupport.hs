@@ -37,7 +37,6 @@ module IHP.ViewSupport
 import IHP.Prelude
 import qualified Text.Blaze.Html5 as Html5
 import IHP.ControllerSupport
-import IHP.ModelSupport
 import qualified Data.Aeson as JSON
 import qualified Data.Text as Text
 import qualified Data.Typeable as Typeable
@@ -54,7 +53,6 @@ import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import qualified IHP.HSX.Attribute as HSX
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import IHP.ActionType (isActiveController)
 

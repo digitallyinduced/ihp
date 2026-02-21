@@ -197,7 +197,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
@@ -209,12 +209,14 @@ tests = do
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
                             Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
@@ -349,7 +351,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
@@ -361,12 +363,14 @@ tests = do
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
                             Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
@@ -500,7 +504,7 @@ tests = do
 
                     type instance PrimaryKey "users" = UUID
 
-                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+                    newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "users" = UserId
                     type instance GetTableForId UserId = "users"
                     instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
@@ -512,12 +516,14 @@ tests = do
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> UserId pk
                             Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder UserId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe UserId) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe UserId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(UserId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type User = User'
 
@@ -687,7 +693,7 @@ tests = do
 
                     type instance PrimaryKey "landing_pages" = UUID
 
-                    newtype LandingPageId = LandingPageId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+                    newtype LandingPageId = LandingPageId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "landing_pages" = LandingPageId
                     type instance GetTableForId LandingPageId = "landing_pages"
                     instance IdNewtype LandingPageId UUID where { toId = LandingPageId; fromId (LandingPageId x) = x }
@@ -699,12 +705,14 @@ tests = do
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> LandingPageId pk
                             Nothing -> error ("Unable to convert " <> show str <> " to LandingPageId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder LandingPageId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [LandingPageId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\(LandingPageId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe LandingPageId) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(LandingPageId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe LandingPageId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(LandingPageId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type LandingPage = LandingPage' (QueryBuilder.QueryBuilder "paragraph_ctas") (QueryBuilder.QueryBuilder "paragraph_ctas")
 
@@ -1007,7 +1015,7 @@ tests = do
 
                     type instance PrimaryKey "posts" = UUID
 
-                    newtype PostId = PostId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+                    newtype PostId = PostId UUID deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar) deriving stock (Data)
                     type instance Id' "posts" = PostId
                     type instance GetTableForId PostId = "posts"
                     instance IdNewtype PostId UUID where { toId = PostId; fromId (PostId x) = x }
@@ -1019,12 +1027,14 @@ tests = do
                         fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of
                             Just pk -> PostId pk
                             Nothing -> error ("Unable to convert " <> show str <> " to PostId")
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder PostId where
+                        defaultParam = Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [PostId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\(PostId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe PostId) where
-                        defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(PostId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nullable Mapping.encoder
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe PostId] where
-                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\(PostId x) -> x) Mapping.encoder)
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder
 
                     type Post = Post'
 

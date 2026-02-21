@@ -1012,7 +1012,7 @@ compileBuild table@(CreateTable { name, columns }) =
 --
 -- For a table "users" with UUID primary key, generates:
 --
--- > newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, NFData, FromField, ToField, ToJSON, FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder) deriving stock (Data)
+-- > newtype UserId = UserId UUID deriving newtype (Eq, Ord, Hashable, NFData, FromField, ToField, ToJSON, FromJSON, Mapping.IsScalar) deriving stock (Data)
 -- > type instance Id' "users" = UserId
 -- > type instance GetTableForId UserId = "users"
 -- > instance IdNewtype UserId UUID where { toId = UserId; fromId (UserId x) = x }
@@ -1030,7 +1030,7 @@ compileIdNewtype table = case primaryKeyColumns table of
 compileSingleColumnIdNewtype :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Column -> Text
 compileSingleColumnIdNewtype table column = Text.unlines
     [ "newtype " <> idTypeName <> " = " <> idTypeName <> " " <> pkType
-        <> " deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar, Hasql.Implicits.Encoders.DefaultParamEncoder)"
+        <> " deriving newtype (Eq, Ord, Hashable, DeepSeq.NFData, FromField, ToField, Data.Aeson.ToJSON, Data.Aeson.FromJSON, Mapping.IsScalar)"
         <> " deriving stock (Data)"
     , "type instance Id' " <> tshow table.name <> " = " <> idTypeName
     , "type instance GetTableForId " <> idTypeName <> " = " <> tshow table.name
@@ -1043,12 +1043,14 @@ compileSingleColumnIdNewtype table column = Text.unlines
     , "    fromString str = case parsePrimaryKey (Data.String.Conversions.cs str) of"
     , "        Just pk -> " <> idTypeName <> " pk"
     , "        Nothing -> error (\"Unable to convert \" <> show str <> \" to " <> idTypeName <> "\")"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> idTypeName <> " where"
+    , "    defaultParam = Hasql.Encoders.nonNullable Mapping.encoder"
     , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> idTypeName <> "] where"
-    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Data.Functor.Contravariant.contramap (\\(" <> idTypeName <> " x) -> x) Mapping.encoder)"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable Mapping.encoder"
     , "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe " <> idTypeName <> ") where"
-    , "    defaultParam = Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\\(" <> idTypeName <> " x) -> x) Mapping.encoder)"
+    , "    defaultParam = Hasql.Encoders.nullable Mapping.encoder"
     , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe " <> idTypeName <> "] where"
-    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Data.Functor.Contravariant.contramap (\\(" <> idTypeName <> " x) -> x) Mapping.encoder)"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable Mapping.encoder"
     ]
     where
         idTypeName = primaryKeyTypeName table.name

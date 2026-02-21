@@ -24,7 +24,6 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
-import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
 import Data.String.Conversions (cs ,ConvertibleStrings)
@@ -37,7 +36,6 @@ import GHC.Records
 import GHC.TypeLits
 import Data.Proxy
 import Data.Data
-import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
@@ -339,15 +337,7 @@ sqlStatementHasql pool input statement = do
                                 Right a -> pure a
                         | otherwise -> throwIO (HasqlError err)
                     Right a -> pure a
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                let sqlText = Hasql.toSql statement
-                Log.debug ("🔍 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-        else runQuery
+    logQueryTiming currentLogLevel ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlStatementHasql #-}
 
 -- | Runs a query built from a dynamic 'Snippet'.
@@ -401,15 +391,7 @@ sqlExecStatement pool input statement = do
                                 Right () -> pure ()
                         | otherwise -> throwIO (HasqlError err)
                     Right () -> pure ()
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                let sqlText = Hasql.toSql statement
-                Log.debug ("💾 " <> truncateQuery (cs sqlText) <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-        else runQuery
+    logQueryTiming currentLogLevel ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlExecStatement #-}
 
 -- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
@@ -443,15 +425,7 @@ sqlExecHasqlCount pool snippet = do
                 case result of
                     Left err -> throwIO (HasqlError err)
                     Right count -> pure count
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                let sqlText = Hasql.toSql statement
-                Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-        else runQuery
+    logQueryTiming currentLogLevel ("💾 " <> cs (Hasql.toSql statement)) runQuery
 {-# INLINABLE sqlExecHasqlCount #-}
 
 -- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
@@ -482,16 +456,23 @@ runSessionHasql pool session = do
                                 Right () -> pure ()
                         | otherwise -> throwIO (HasqlError err)
                     Right () -> pure ()
+    logQueryTiming currentLogLevel "💾 runSessionHasql" runQuery
+{-# INLINABLE runSessionHasql #-}
+
+
+-- | Run an IO action, logging its duration when the log level is 'Debug'.
+-- The label is prepended to the timing message, e.g. @"🔍 SELECT ..."@.
+{-# INLINE logQueryTiming #-}
+logQueryTiming :: (?context :: ModelContext) => LogLevel -> Text -> IO a -> IO a
+logQueryTiming currentLogLevel label runQuery =
     if currentLogLevel == Debug
         then do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                Log.debug ("💾 runSessionHasql (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double) :: Int
+                Log.debug (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
-{-# INLINABLE runSessionHasql #-}
-
 
 -- | Exception type for hasql errors
 data HasqlError = HasqlError HasqlPool.UsageError

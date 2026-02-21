@@ -55,8 +55,6 @@ import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text.Encoding
-import Data.Hashable (Hashable)
-import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import Database.PostgreSQL.Simple.Types (Query)
 import qualified Database.PostgreSQL.Simple as PG
