@@ -42,7 +42,6 @@ import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as HasqlStatement
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
-import Control.Exception (finally)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
 
@@ -160,14 +159,7 @@ fetchPipelined thePipeline = do
                                 Right a -> pure a
                         | otherwise -> throwIO (HasqlError err)
                     Right a -> pure a
-    if currentLogLevel == Log.Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                Log.debug ("🔍 Pipeline (" <> tshow queryTimeInMs <> "ms)")
-        else runQuery
+    logQueryTiming currentLogLevel "🔍 Pipeline" runQuery
 {-# INLINABLE fetchPipelined #-}
 
 -- | Session-scoped RLS config for pipeline mode.
