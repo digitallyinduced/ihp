@@ -84,6 +84,7 @@ test-suite tests
             , ihp
             , ihp-log
             , ihp-typed-sql
+            , containers
             , directory
             , filepath
             , hspec

@@ -1,6 +1,7 @@
 module Test.TypedSqlSpec where
 
 import qualified Control.Exception                 as Exception
+import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
 import           IHP.Log.Types
@@ -8,6 +9,7 @@ import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
                                                     sqlExecDiscardResult)
 import           IHP.Prelude
+import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables)
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
@@ -256,6 +258,33 @@ tests = do
                 ghciOutput <- ghciRunModule runtimeExtraTypesModule
                 assertGhciSuccess ghciOutput
                 ghciOutput `shouldContainText` "RUNTIME_OK"
+
+    describe "TypedSql SQL parser (pure, no postgres)" do
+        it "parseSql succeeds on simple SELECT" do
+            parseSql "SELECT 1" `shouldSatisfy` isJust
+
+        it "parseSql handles leading/trailing whitespace from quasiquoter" do
+            parseSql " SELECT 1 " `shouldSatisfy` isJust
+
+        it "extractJoinNullableTables detects LEFT JOIN nullable table" do
+            let sql = " SELECT i.name, a.name FROM items i LEFT JOIN authors a ON a.id = i.aid LIMIT 1 "
+            extractJoinNullableTables sql `shouldBe` Set.fromList ["authors"]
+
+        it "extractJoinNullableTables detects RIGHT JOIN nullable table" do
+            let sql = " SELECT i.name, a.name FROM items i RIGHT JOIN authors a ON a.id = i.aid LIMIT 1 "
+            extractJoinNullableTables sql `shouldBe` Set.fromList ["items"]
+
+        it "extractJoinNullableTables detects FULL JOIN nullable tables" do
+            let sql = "SELECT i.name, a.name FROM items i FULL JOIN authors a ON a.id = i.aid"
+            extractJoinNullableTables sql `shouldBe` Set.fromList ["items", "authors"]
+
+        it "extractJoinNullableTables returns empty for INNER JOIN" do
+            let sql = " SELECT i.name, a.name FROM items i INNER JOIN authors a ON a.id = i.aid "
+            extractJoinNullableTables sql `shouldBe` Set.empty
+
+        it "extractJoinNullableTables returns empty for plain FROM" do
+            let sql = " SELECT name FROM items LIMIT 1 "
+            extractJoinNullableTables sql `shouldBe` Set.empty
 
 requirePostgresTestHook :: IO ()
 requirePostgresTestHook = do
@@ -1279,7 +1308,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1367,7 +1396,7 @@ runtimeEdgeCasesModule = Text.unlines
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
     , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""

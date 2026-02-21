@@ -36,9 +36,11 @@ data ParamHint = ParamHint
     deriving (Eq, Show)
 
 -- | Parse SQL into an AST. Returns Nothing if parsing fails.
+-- Note: postgresql-syntax does not tolerate leading/trailing whitespace,
+-- so we strip it before parsing.
 parseSql :: String -> Maybe Ast.PreparableStmt
 parseSql sql =
-    case Parsing.run Parsing.preparableStmt (Text.pack sql) of
+    case Parsing.run Parsing.preparableStmt (Text.strip (Text.pack sql)) of
         Left _err -> Nothing
         Right stmt -> Just stmt
 
