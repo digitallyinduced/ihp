@@ -17,7 +17,6 @@ import qualified Data.Set                 as Set
 import qualified Data.String.Conversions  as CS
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Language.Haskell.TH      as TH
-import           IHP.ModelSupport.Types   (Id')
 import           IHP.Prelude
 import           PostgresqlTypes.Point    (Point)
 import           PostgresqlTypes.Polygon  (Polygon)
