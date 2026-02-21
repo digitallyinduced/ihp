@@ -31,144 +31,237 @@ tests = do
                 assertGhciSuccess ghciOutput
 
         compileFailTest "fails when a scalar parameter has the wrong type"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(\"not an int\" :: Text)} LIMIT 1 |]")
             []
 
         compileFailTest "fails when a foreign-key parameter has the wrong type"
-            (mkCompileFailModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${(\"not-an-id\" :: Text)} LIMIT 1 |]")
             []
 
         compileFailTest "fails when an IN parameter has the wrong element type"
-            (mkCompileFailModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
                 "let authorIds = [\"one\" :: Text, \"two\" :: Text]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]")
             []
 
         compileFailTest "fails when a placeholder expression is invalid Haskell"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(} LIMIT 1 |]")
             ["failed to parse expression"]
 
         compileFailTest "fails when SQL parameter count does not match ${...} placeholders"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = $1 LIMIT 1 |]")
             ["placeholder count mismatch"]
 
         compileFailTest "fails when selecting a single composite value without expansion"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT ROW(name, views)::typed_sql_test_pair FROM typed_sql_test_items LIMIT 1 |]")
             ["composite columns must be expanded"]
 
         compileFailTest "fails when SQL references an unknown column"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT no_such_column FROM typed_sql_test_items LIMIT 1 |]")
             ["does not exist"]
 
         compileFailTest "fails when primary-key result type is annotated as UUID instead of Id"
-            (mkCompileFailModuleWithPK ["typed_sql_test_items"] "TypedQuery UUID"
+            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery UUID"
                 "[typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when nullable column result is annotated as non-Maybe"
-            (mkCompileFailModule "TypedQuery Double"
+            (mkTestModule "TypedQuery Double"
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when LEFT JOIN nullable side is not annotated as Maybe"
-            (mkCompileFailModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
         compileFailTest "fails when RIGHT JOIN nullable side is not annotated as Maybe"
-            (mkCompileFailModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
             []
 
         compileFailTest "fails when tuple arity does not match selected columns"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when boolean expression result is annotated as Int"
-            (mkCompileFailModule "TypedQuery Int"
+            (mkTestModule "TypedQuery Int"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when boolean expression result is annotated as non-Maybe Bool"
-            (mkCompileFailModule "TypedQuery Bool"
+            (mkTestModule "TypedQuery Bool"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when COUNT(*) result is annotated as non-Maybe Integer"
-            (mkCompileFailModule "TypedQuery Integer"
+            (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
         compileFailTest "fails when COALESCE expression is annotated as non-Maybe Text"
-            (mkCompileFailModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
         compileFailTest "fails when literal expression result is annotated as non-Maybe Int"
-            (mkCompileFailModule "TypedQuery Int"
+            (mkTestModule "TypedQuery Int"
                 "[typedSql| SELECT 1 |]")
             []
 
         compileFailTest "fails when arithmetic expression result is annotated as non-Maybe Int"
-            (mkCompileFailModule "TypedQuery Int"
+            (mkTestModule "TypedQuery Int"
                 "[typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when CASE expression result is annotated as non-Maybe Text"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when EXISTS expression result is annotated as non-Maybe Bool"
-            (mkCompileFailModule "TypedQuery Bool"
+            (mkTestModule "TypedQuery Bool"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
             []
 
         compileFailTest "fails when NULL literal result is annotated as non-Maybe Text"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT NULL::text |]")
             []
 
         compileFailTest "fails when CTE result is annotated as Maybe Text"
-            (mkCompileFailModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]")
             []
 
         compileFailTest "fails when subquery result is annotated as Maybe Text"
-            (mkCompileFailModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]")
             []
 
         compileFailTest "fails when UNION result is annotated as non-Maybe Text"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
         compileFailTest "fails when window function result is annotated as non-Maybe Integer"
-            (mkCompileFailModule "TypedQuery Integer"
+            (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when grouped COUNT(*) result is annotated as non-Maybe Integer"
-            (mkCompileFailModule "TypedQuery (Text, Integer)"
+            (mkTestModule "TypedQuery (Text, Integer)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
 
         compileFailTest "fails when array literal result is annotated as non-Maybe [Text]"
-            (mkCompileFailModule "TypedQuery [Text]"
+            (mkTestModule "TypedQuery [Text]"
                 "[typedSql| SELECT ARRAY['x','y']::text[] |]")
             []
 
         compileFailTest "fails when NULLIF expression result is annotated as non-Maybe Text"
-            (mkCompileFailModule "TypedQuery Text"
+            (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
             []
+
+    describe "TypedSql macro compile-time success" do
+        compilePassTest "primary key inferred as Id'"
+            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery (Id' \"typed_sql_test_items\")"
+                "[typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "nullable column inferred as Maybe"
+            (mkTestModule "TypedQuery (Maybe Double)"
+                "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "LEFT JOIN right side inferred as Maybe"
+            (mkTestModule "TypedQuery (Text, Maybe Text)"
+                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
+
+        compilePassTest "RIGHT JOIN left side inferred as Maybe"
+            (mkTestModule "TypedQuery (Maybe Text, Text)"
+                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
+
+        compilePassTest "tuple arity matches selected columns"
+            (mkTestModule "TypedQuery (Text, Int)"
+                "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "boolean expression inferred as Maybe Bool"
+            (mkTestModule "TypedQuery (Maybe Bool)"
+                "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "COUNT(*) inferred as Maybe Integer"
+            (mkTestModule "TypedQuery (Maybe Integer)"
+                "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
+
+        compilePassTest "COALESCE in RIGHT JOIN inferred as Maybe"
+            (mkTestModule "TypedQuery (Maybe Text, Text)"
+                "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
+
+        compilePassTest "literal expression inferred as Maybe Int"
+            (mkTestModule "TypedQuery (Maybe Int)"
+                "[typedSql| SELECT 1 |]")
+
+        compilePassTest "arithmetic expression inferred as Maybe Int"
+            (mkTestModule "TypedQuery (Maybe Int)"
+                "[typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "CASE expression inferred as Maybe Text"
+            (mkTestModule "TypedQuery (Maybe Text)"
+                "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "EXISTS expression inferred as Maybe Bool"
+            (mkTestModule "TypedQuery (Maybe Bool)"
+                "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
+
+        compilePassTest "NULL literal inferred as Maybe Text"
+            (mkTestModule "TypedQuery (Maybe Text)"
+                "[typedSql| SELECT NULL::text |]")
+
+        compilePassTest "CTE preserves column type"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]")
+
+        compilePassTest "subquery preserves column type"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]")
+
+        compilePassTest "UNION inferred as Maybe"
+            (mkTestModule "TypedQuery (Maybe Text)"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
+
+        compilePassTest "window function inferred as Maybe Integer"
+            (mkTestModule "TypedQuery (Maybe Integer)"
+                "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "grouped COUNT(*) inferred as (Text, Maybe Integer)"
+            (mkTestModule "TypedQuery (Text, Maybe Integer)"
+                "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
+
+        compilePassTest "array literal inferred as Maybe [Text]"
+            (mkTestModule "TypedQuery (Maybe [Text])"
+                "[typedSql| SELECT ARRAY['x','y']::text[] |]")
+
+        compilePassTest "NULLIF inferred as Maybe Text"
+            (mkTestModule "TypedQuery (Maybe Text)"
+                "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
+
+        compilePassTest "scalar parameter accepts correct type"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(5 :: Int)} LIMIT 1 |]")
+
+        compilePassTest "foreign-key parameter accepts Id' type"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+                "let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]")
+
+        compilePassTest "INNER JOIN columns are non-Maybe"
+            (mkTestModule "TypedQuery (Text, Text)"
+                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
     describe "TypedSql macro runtime execution" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
@@ -418,6 +511,16 @@ shouldContainText haystack needle =
 
 -- Module generators ----------------------------------------------------------
 
+-- | Spec helper: compile-pass test with shared boilerplate.
+compilePassTest :: Text -> Text -> SpecWith ()
+compilePassTest description moduleText =
+    it (cs description) do
+        requirePostgresTestHook
+        withTestModelContext do
+            setupSchema
+            ghciOutput <- ghciLoadModule moduleText
+            assertGhciSuccess ghciOutput
+
 -- | Spec helper: compile-fail test with shared boilerplate.
 compileFailTest :: Text -> Text -> [Text] -> SpecWith ()
 compileFailTest description moduleText expectedFragments =
@@ -439,9 +542,10 @@ runtimeTest description moduleText =
             assertGhciSuccess ghciOutput
             ghciOutput `shouldContainText` "RUNTIME_OK"
 
--- | Build a compile-fail module from just a type signature and body expression.
-mkCompileFailModule :: Text -> Text -> Text
-mkCompileFailModule typeSig body = Text.unlines
+-- | Build a test module from a type signature and body expression.
+-- Used for both compile-pass and compile-fail tests.
+mkTestModule :: Text -> Text -> Text
+mkTestModule typeSig body = Text.unlines
     [ "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
@@ -450,13 +554,13 @@ mkCompileFailModule typeSig body = Text.unlines
     , "import IHP.Prelude"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
     , ""
-    , "bad :: " <> typeSig
-    , "bad = " <> body
+    , "query :: " <> typeSig
+    , "query = " <> body
     ]
 
--- | Build a compile-fail module that also needs PrimaryKey type instances.
-mkCompileFailModuleWithPK :: [Text] -> Text -> Text -> Text
-mkCompileFailModuleWithPK pkTables typeSig body = Text.unlines $
+-- | Build a test module that also needs PrimaryKey type instances.
+mkTestModuleWithPK :: [Text] -> Text -> Text -> Text
+mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
@@ -465,15 +569,15 @@ mkCompileFailModuleWithPK pkTables typeSig body = Text.unlines $
     , "module TypedSqlCase where"
     , ""
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (PrimaryKey)"
+    , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
     , ""
     ]
     <> map (\t -> "type instance PrimaryKey \"" <> t <> "\" = UUID") pkTables
     <>
     [ ""
-    , "bad :: " <> typeSig
-    , "bad = " <> body
+    , "query :: " <> typeSig
+    , "query = " <> body
     ]
 
 -- Test modules ---------------------------------------------------------------
