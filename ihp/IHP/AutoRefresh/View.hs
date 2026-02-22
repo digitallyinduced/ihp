@@ -11,6 +11,6 @@ import Network.Wai (vault)
 
 autoRefreshMeta :: (?context :: ControllerContext) => Html5.Html
 autoRefreshMeta =
-    case Vault.lookup autoRefreshStateVaultKey ?context.request.vault of
+    case Vault.lookup autoRefreshStateVaultKey (vault ?context.request) of
         Just (AutoRefreshEnabled { sessionId }) -> [hsx|<meta property="ihp-auto-refresh-id" content={tshow sessionId}/>|]
         _ -> mempty
