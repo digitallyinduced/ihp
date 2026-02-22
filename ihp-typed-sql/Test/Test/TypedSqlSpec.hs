@@ -553,7 +553,7 @@ mkTestIdNewtype tableName =
         , "type instance Id' \"" <> tableName <> "\" = " <> idName
         , "instance IdNewtype " <> idName <> " UUID where { toId = " <> idName <> "; fromId (" <> idName <> " x) = x }"
         , "instance IsString " <> idName <> " where"
-        , "    fromString str = case readMay str of"
+        , "    fromString str = case Text.Read.readMaybe str of"
         , "        Just pk -> " <> idName <> " pk"
         , "        Nothing -> error \"Unable to convert to " <> idName <> "\""
         , "instance Hasql.Implicits.Encoders.DefaultParamEncoder " <> idName <> " where defaultParam = Hasql.Encoders.nonNullable Mapping.encoder"
@@ -609,6 +609,7 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     , "import qualified Hasql.Implicits.Encoders"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Mapping.IsScalar as Mapping"
+    , "import qualified Text.Read"
     , ""
     ]
     <> concatMap mkTestIdNewtype pkTables
@@ -640,6 +641,7 @@ compilePassModule = Text.unlines $
     , "import qualified Hasql.Implicits.Encoders"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Mapping.IsScalar as Mapping"
+    , "import qualified Text.Read"
     , ""
     ]
     <> mkTestIdNewtype "typed_sql_test_items"
@@ -796,6 +798,7 @@ runtimeModule = Text.unlines $
     , "import qualified Hasql.Implicits.Encoders"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Mapping.IsScalar as Mapping"
+    , "import qualified Text.Read"
     , "import System.Environment (lookupEnv)"
     , ""
     ]
@@ -1045,6 +1048,7 @@ runtimeUpdateDeleteModule = Text.unlines $
     , "import qualified Hasql.Implicits.Encoders"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Mapping.IsScalar as Mapping"
+    , "import qualified Text.Read"
     , "import System.Environment (lookupEnv)"
     , ""
     ]
@@ -1140,6 +1144,7 @@ runtimeEdgeCasesModule = Text.unlines $
     , "import qualified Hasql.Implicits.Encoders"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Mapping.IsScalar as Mapping"
+    , "import qualified Text.Read"
     , "import System.Environment (lookupEnv)"
     , ""
     ]
