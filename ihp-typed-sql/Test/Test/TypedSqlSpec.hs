@@ -570,13 +570,10 @@ tableNameToIdName tableName =
             Nothing -> t
         -- Singularize: drop trailing 's' from last part
         singularize t = fromMaybe t (Text.stripSuffix "s" t)
-        modelName = mconcat (map capitalize (initOrEmpty parts) <> [singularize (capitalize (lastOrEmpty parts))])
+        modelName = case reverse parts of
+            [] -> ""
+            (lastPart:restParts) -> mconcat (map capitalize (reverse restParts)) <> singularize (capitalize lastPart)
     in modelName <> "Id"
-    where
-        initOrEmpty [] = []
-        initOrEmpty xs = init xs
-        lastOrEmpty [] = ""
-        lastOrEmpty xs = last xs
 
 -- | Build a test module from a type signature and body expression.
 -- Used for both compile-pass and compile-fail tests.
