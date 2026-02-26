@@ -124,9 +124,60 @@ modelNameToTableName modelName =
 --
 -- >>> columnNameToFieldName "project_id"
 -- "projectId"
+--
+-- >>> columnNameToFieldName "foo_25bar"
+-- "foo25bar"
 columnNameToFieldName :: Text -> Text
-columnNameToFieldName columnName = escapeHaskellKeyword (unwrapEither columnName $ Inflector.toCamelCased False columnName)
+columnNameToFieldName columnName = escapeHaskellKeyword (columnNameToFieldName' columnName)
 {-# INLINABLE columnNameToFieldName #-}
+
+-- Internal implementation that handles numbers after underscores correctly
+columnNameToFieldName' :: Text -> Text
+columnNameToFieldName' columnName
+    | Text.null columnName = columnName
+    | hasNumberAfterUnderscore columnName = customCamelCase columnName
+    | otherwise = unwrapEither columnName $ Inflector.toCamelCased False columnName
+  where
+    -- Check if there's a pattern like "_\d" (underscore followed by digit)
+    hasNumberAfterUnderscore text = 
+        not (Text.null text) && "_" `Text.isInfixOf` text && any isDigitAfterUnderscore (Text.zip text (Text.drop 1 text))
+    isDigitAfterUnderscore ('_', c) = Char.isDigit c
+    isDigitAfterUnderscore _ = False
+    
+    -- Custom camel case: split at digit-letter boundaries carefully
+    customCamelCase text =
+        text
+        |> Text.split (== '_')
+        |> processSegments 0
+        |> mconcat
+      where
+        processSegments :: Int -> [Text] -> [Text]
+        processSegments _ [] = []
+        processSegments idx (segment:rest)
+            | Text.null segment = processSegments idx rest
+            | Char.isDigit (Text.head segment) = 
+                -- Digit-only segment (e.g., "123" from "test_123_column")
+                -- Keep as-is, don't increment word count
+                if Text.all Char.isDigit segment
+                then segment : processSegments idx rest
+                else 
+                    -- Mixed segment (e.g., "25bar" from "foo_25bar")
+                    -- Keep lowercase to indicate they're joined
+                    lcfirstSegment segment : processSegments (idx+1) rest
+            | idx == 0 = 
+                -- First word segment: lowercase
+                lcfirstSegment segment : processSegments (idx+1) rest
+            | otherwise =
+                -- Other word segments: capitalize
+                ucfirstSegment segment : processSegments (idx+1) rest
+        
+        lcfirstSegment seg
+            | Text.null seg = seg
+            | otherwise = Text.toLower (Text.take 1 seg) <> Text.drop 1 seg
+            
+        ucfirstSegment seg
+            | Text.null seg = seg
+            | otherwise = Text.toUpper (Text.take 1 seg) <> Text.drop 1 seg
 
 {-# INLINABLE unwrapEither #-}
 unwrapEither _ (Right value) = value
@@ -139,9 +190,42 @@ unwrapEither input (Left value) = error ("IHP.NameSupport: " <> show value <> " 
 --
 -- >>> fieldNameToColumnName "projectId"
 -- "project_id"
+--
+-- >>> fieldNameToColumnName "foo25bar"
+-- "foo_25bar"
 fieldNameToColumnName :: Text -> Text
-fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
+fieldNameToColumnName fieldName = fieldNameToColumnName' fieldName
 {-# INLINABLE fieldNameToColumnName #-}
+
+-- Internal implementation that handles numbers correctly to ensure round-trip
+fieldNameToColumnName' :: Text -> Text
+fieldNameToColumnName' fieldName
+    | Text.null fieldName = fieldName
+    | Text.any Char.isDigit fieldName = customUnderscore fieldName
+    | otherwise = unwrapEither fieldName $ Inflector.toUnderscore fieldName
+  where
+    -- Custom underscore conversion that inserts underscores before digit sequences
+    -- and before uppercase letters
+    customUnderscore text =
+        text
+        |> Text.unpack
+        |> processChars
+        |> Text.pack
+      where
+        processChars :: String -> String
+        processChars [] = []
+        processChars (c:cs) = c : go c cs
+        
+        go :: Char -> String -> String
+        go _ [] = []
+        go prev (c:cs)
+            -- Insert underscore before a digit if previous char was a letter (transition from letter to digit)
+            | Char.isDigit c && Char.isLetter prev = '_' : c : go c cs
+            -- Insert underscore before uppercase letter if previous char was lowercase or digit
+            | Char.isUpper c && (Char.isLower prev || Char.isDigit prev) = '_' : Char.toLower c : go (Char.toLower c) cs
+            -- Keep uppercase letters as lowercase
+            | Char.isUpper c = Char.toLower c : go (Char.toLower c) cs
+            | otherwise = c : go c cs
 
 -- | Returns a more friendly version for an identifier
 humanize :: Text -> Text
