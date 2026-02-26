@@ -133,7 +133,14 @@ let
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-simple-postgresql-types);
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal super.postgresql-simple-postgresql-types (old: {
+                src = builtins.fetchTarball {
+                    url = "https://github.com/nikita-volkov/postgresql-simple-postgresql-types/archive/c786a1fb.tar.gz";
+                    sha256 = "0hrlfbqnhf8jcc36hnq62mp6jnh9w1m2n1i4b9qvd3mdzy4w7knx";
+                };
+                revision = null;
+                editedCabalFile = null;
+            })));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
