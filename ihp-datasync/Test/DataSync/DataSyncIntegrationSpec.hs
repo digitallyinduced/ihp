@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances, DerivingStrategies, GeneralizedNewtypeDeriving #-}
 module Test.DataSync.DataSyncIntegrationSpec where
 
 import Test.Hspec
@@ -18,7 +18,7 @@ import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, putContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
 import qualified IHP.ModelSupport as ModelSupport
-import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
 import IHP.FrameworkConfig.Types
@@ -37,7 +37,14 @@ import Control.Concurrent (threadDelay)
 import qualified IHP.Log as Log
 
 -- | Define CurrentUserRecord for this test module
-data TestUser = TestUser { id :: Id' "test_users" }
+newtype TestUserId = TestUserId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "test_users" = TestUserId
+instance IdNewtype TestUserId UUID where
+    toId = TestUserId
+    fromId (TestUserId x) = x
+
+data TestUser = TestUser { id :: TestUserId }
     deriving (Show, Typeable)
 
 type instance CurrentUserRecord = TestUser

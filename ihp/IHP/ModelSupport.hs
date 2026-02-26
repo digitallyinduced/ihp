@@ -24,7 +24,6 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
-import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
 import Data.String.Conversions (cs ,ConvertibleStrings)
@@ -37,7 +36,6 @@ import GHC.Records
 import GHC.TypeLits
 import Data.Proxy
 import Data.Data
-import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
@@ -174,47 +172,29 @@ getModelName :: forall model. KnownSymbol (GetModelName model) => Text
 getModelName = cs $! symbolVal (Proxy :: Proxy (GetModelName model))
 {-# INLINE getModelName #-}
 
-instance InputValue (PrimaryKey model') => InputValue (Id' model') where
-    {-# INLINE inputValue #-}
-    inputValue = inputValue . unpackId
 
-instance IsEmpty (PrimaryKey table) => IsEmpty (Id' table) where
-    isEmpty (Id primaryKey) = isEmpty primaryKey
-
-recordToInputValue :: (HasField "id" entity (Id entity), Show (PrimaryKey (GetTableName entity))) => entity -> Text
+recordToInputValue :: (HasField "id" entity (Id entity), IdNewtype (Id entity) (PrimaryKey (GetTableName entity)), Show (PrimaryKey (GetTableName entity))) => entity -> Text
 recordToInputValue entity =
     entity.id
-    |> unpackId
+    |> fromId
     |> Text.pack . show
 {-# INLINE recordToInputValue #-}
-
-instance Show (PrimaryKey model) => Show (Id' model) where
-    {-# INLINE show #-}
-    show = show . unpackId
 
 -- | Turns an @UUID@ into a @Id@ type
 --
 -- > let uuid :: UUID = "5240e79c-97ff-4a5f-8567-84112541aaba"
 -- > let userId :: Id User = packId uuid
 --
-packId :: PrimaryKey model -> Id' model
-packId uuid = Id uuid
+packId :: IdNewtype id pk => pk -> id
+packId = toId
 
 -- | Unwraps a @Id@ value into an @UUID@
 --
 -- >>> unpackId ("296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: Id User)
 -- "296e5a50-b237-4ee9-83b0-17fb1e6f208f" :: UUID
 --
-unpackId :: Id' model -> PrimaryKey model
-unpackId (Id uuid) = uuid
-
--- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
--- to write the Id like a string:
---
--- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-instance (Read (PrimaryKey model), ParsePrimaryKey (PrimaryKey model)) => IsString (Id' model) where
-    fromString uuid = textToId uuid
-    {-# INLINE fromString #-}
+unpackId :: IdNewtype id pk => id -> pk
+unpackId = fromId
 
 instance ParsePrimaryKey UUID where
     parsePrimaryKey = Read.readMaybe . cs
@@ -233,9 +213,9 @@ instance ParsePrimaryKey Text where
 -- can just write it like:
 --
 -- > let projectId = "ca63aace-af4b-4e6c-bcfa-76ca061dbdc6" :: Id Project
-textToId :: (HasCallStack, ParsePrimaryKey (PrimaryKey model), ConvertibleStrings text Text) => text -> Id' model
+textToId :: (HasCallStack, IdNewtype id pk, ParsePrimaryKey pk, ConvertibleStrings text Text) => text -> id
 textToId text = case parsePrimaryKey (cs text) of
-        Just id -> Id id
+        Just pk -> toId pk
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
 {-# INLINE textToId #-}
 
@@ -994,13 +974,6 @@ fieldWithUpdateSnippet
 fieldWithUpdateSnippet name model
   | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
   | otherwise = Snippet.sql (cs $ fieldNameToColumnName $ cs $ symbolVal name)
-
-instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
-  toJSON (Id a) = toJSON a
-
-instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
-    parseJSON value = Id <$> parseJSON value
-
 
 instance Default Aeson.Value where
     def = Aeson.Null

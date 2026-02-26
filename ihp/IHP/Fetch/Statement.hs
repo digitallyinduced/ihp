@@ -18,7 +18,7 @@ module IHP.Fetch.Statement
 
 import Prelude
 import IHP.ModelSupport (Table(..), primaryKeyConditionColumnSelector, GetModelByTableName)
-import IHP.ModelSupport.Types (Id'(..), GetTableName)
+import IHP.ModelSupport.Types (Id', GetTableName)
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Decoders as Decoders

@@ -3,6 +3,8 @@ Module: Test.ModelFixtures
 Description: Shared model types for test specs
 Copyright: (c) digitally induced GmbH, 2020
 -}
+{-# LANGUAGE DerivingStrategies, GeneralizedNewtypeDeriving #-}
+
 module Test.ModelFixtures where
 
 import IHP.Prelude
@@ -10,6 +12,77 @@ import IHP.ModelSupport
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Job.Types (JobStatus(..))
 import IHP.Job.Queue ()
+import qualified IHP.HSX.Attribute as HSX
+
+-- | Per-table Id newtypes for test models.
+-- These are shared across all test modules.
+
+newtype PostId = PostId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "posts" = PostId
+instance IdNewtype PostId UUID where
+    toId = PostId
+    fromId (PostId x) = x
+instance Default PostId where def = PostId def
+instance IsString PostId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> PostId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to PostId")
+
+newtype TagId = TagId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "tags" = TagId
+instance IdNewtype TagId UUID where
+    toId = TagId
+    fromId (TagId x) = x
+instance Default TagId where def = TagId def
+instance IsString TagId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> TagId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to TagId")
+
+newtype WeirdTagId = WeirdTagId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "weird_tags" = WeirdTagId
+instance IdNewtype WeirdTagId UUID where
+    toId = WeirdTagId
+    fromId (WeirdTagId x) = x
+instance Default WeirdTagId where def = WeirdTagId def
+instance IsString WeirdTagId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> WeirdTagId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to WeirdTagId")
+
+newtype TaggingId = TaggingId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "taggings" = TaggingId
+instance IdNewtype TaggingId UUID where
+    toId = TaggingId
+    fromId (TaggingId x) = x
+instance Default TaggingId where def = TaggingId def
+
+newtype UserId = UserId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "users" = UserId
+instance IdNewtype UserId UUID where
+    toId = UserId
+    fromId (UserId x) = x
+instance Default UserId where def = UserId def
+instance InputValue UserId where inputValue (UserId x) = inputValue x
+instance HSX.ApplyAttribute UserId where
+    applyAttribute attr attr' (UserId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+instance IsString UserId where
+    fromString str = case parsePrimaryKey (cs str) of
+        Just pk -> UserId pk
+        Nothing -> error ("Unable to convert " <> show str <> " to UserId")
+
+newtype BackgroundJobId = BackgroundJobId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "background_jobs" = BackgroundJobId
+instance IdNewtype BackgroundJobId UUID where
+    toId = BackgroundJobId
+    fromId (BackgroundJobId x) = x
+instance Default BackgroundJobId where def = BackgroundJobId def
 
 data Post = Post
         { id :: UUID
@@ -86,7 +159,14 @@ data CompositeTagging = CompositeTagging
 
 type instance GetTableName CompositeTagging = "composite_taggings"
 type instance GetModelByTableName "composite_taggings" = CompositeTagging
-type instance PrimaryKey "composite_taggings" = (Id' "posts", Id' "tags")
+type instance PrimaryKey "composite_taggings" = (UUID, UUID)
+
+newtype CompositeTaggingPK = CompositeTaggingPK (UUID, UUID)
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "composite_taggings" = CompositeTaggingPK
+instance IdNewtype CompositeTaggingPK (UUID, UUID) where
+    toId = CompositeTaggingPK
+    fromId (CompositeTaggingPK x) = x
 
 instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
