@@ -155,4 +155,6 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
 
                 -- Verify autoRefresh skipped subscription machinery entirely
                 maybeServerRef <- MVar.readMVar globalAutoRefreshServerVar
-                maybeServerRef `shouldBe` Nothing
+                case maybeServerRef of
+                    Nothing -> pure ()
+                    Just _ -> expectationFailure "Expected globalAutoRefreshServerVar to be Nothing"
