@@ -59,6 +59,7 @@ import IHP.FetchPipelined
 import IHP.FetchRelated
 import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo(..))
+import qualified Network.Wai
 import IHP.RouterSupport hiding (get, post)
 import IHP.Controller.Redirect
 import Database.PostgreSQL.Simple.Types (Only (..))
@@ -91,5 +92,5 @@ import IHP.HSX.ToHtml ()
 --
 -- > setModal MyModalView { .. }
 --
-setModal :: (?context :: ControllerContext, ?request :: Request, View view) => view -> IO ()
+setModal :: (?context :: ControllerContext, ?request :: Network.Wai.Request, View view) => view -> IO ()
 setModal view = let ?view = view in Modal.setModal (ViewSupport.html view)
