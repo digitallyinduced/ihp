@@ -56,79 +56,84 @@ autoRefresh :: (
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    let autoRefreshState = Vault.lookup autoRefreshStateVaultKey ?request.vault
-    autoRefreshServer <- getOrCreateAutoRefreshServer
+    -- When PGListener is not available, degrade gracefully to a
+    -- plain action without auto-refresh.
+    case Vault.lookup pgListenerVaultKey ?request.vault of
+        Nothing -> runAction
+        Just _ -> do
+            let autoRefreshState = Vault.lookup autoRefreshStateVaultKey ?request.vault
+            autoRefreshServer <- getOrCreateAutoRefreshServer
 
-    case autoRefreshState of
-        Just (AutoRefreshEnabled {}) -> do
-            -- When this function calls the 'action ?theAction' in the other case
-            -- we will evaluate this branch
-            runAction
-        _ -> do
-            availableSessions <- getAvailableSessions autoRefreshServer
+            case autoRefreshState of
+                Just (AutoRefreshEnabled {}) -> do
+                    -- When this function calls the 'action ?theAction' in the other case
+                    -- we will evaluate this branch
+                    runAction
+                _ -> do
+                    availableSessions <- getAvailableSessions autoRefreshServer
 
-            id <- UUID.nextRandom
+                    id <- UUID.nextRandom
 
-            -- Update the vault with AutoRefreshEnabled so that autoRefreshMeta can read it
-            let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
-            let ?request = newRequest
-            -- Update request in controller context so freeze captures the updated state
-            let ControllerContext { customFieldsRef } = ?context
-            modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
+                    -- Update the vault with AutoRefreshEnabled so that autoRefreshMeta can read it
+                    let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
+                    let ?request = newRequest
+                    -- Update request in controller context so freeze captures the updated state
+                    let ControllerContext { customFieldsRef } = ?context
+                    modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
 
-            -- We save the current state of the controller context here. This includes e.g. all current
-            -- flash messages, the current user, ...
-            --
-            -- This frozen context is used as a "template" inside renderView to make a new controller context
-            -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
-            frozenControllerContext <- freeze ?context
+                    -- We save the current state of the controller context here. This includes e.g. all current
+                    -- flash messages, the current user, ...
+                    --
+                    -- This frozen context is used as a "template" inside renderView to make a new controller context
+                    -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
+                    frozenControllerContext <- freeze ?context
 
-            let originalRequest = ?request
-            let renderView = \_waiRequest waiRespond -> do
-                    controllerContext <- unfreeze frozenControllerContext
-                    let ?context = controllerContext
-                    let ?request = originalRequest
-                    let ?respond = waiRespond
-                    putContext originalRequest
-                    action ?theAction
+                    let originalRequest = ?request
+                    let renderView = \_waiRequest waiRespond -> do
+                            controllerContext <- unfreeze frozenControllerContext
+                            let ?context = controllerContext
+                            let ?request = originalRequest
+                            let ?respond = waiRespond
+                            putContext originalRequest
+                            action ?theAction
 
-            -- We save the allowed session ids to the session cookie to only grant a client access
-            -- to sessions it initially opened itself
-            --
-            -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
-            setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
+                    -- We save the allowed session ids to the session cookie to only grant a client access
+                    -- to sessions it initially opened itself
+                    --
+                    -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
+                    setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
-            withTableReadTracker do
-                let handleResponse exception@(ResponseException response) = case response of
-                        Wai.ResponseBuilder status headers builder -> do
-                            tables <- readIORef ?touchedTables
-                            lastPing <- getCurrentTime
+                    withTableReadTracker do
+                        let handleResponse exception@(ResponseException response) = case response of
+                                Wai.ResponseBuilder status headers builder -> do
+                                    tables <- readIORef ?touchedTables
+                                    lastPing <- getCurrentTime
 
-                            -- It's important that we evaluate the response to HNF here
-                            -- Otherwise a response `error "fail"` will break auto refresh and cause
-                            -- the action to be unreachable until the server is restarted.
-                            --
-                            -- Specifically a request like this will crash the action:
-                            --
-                            -- > curl --header 'Accept: application/json' http://localhost:8000/ShowItem?itemId=6bbe1a72-400a-421e-b26a-ff58d17af3e5
-                            --
-                            -- Let's assume that the view has no implementation for JSON responses. Then
-                            -- it will render a 'error "JSON not implemented"'. After this curl request
-                            -- all future HTML requests to the current action will fail with a 503.
-                            --
-                            lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+                                    -- It's important that we evaluate the response to HNF here
+                                    -- Otherwise a response `error "fail"` will break auto refresh and cause
+                                    -- the action to be unreachable until the server is restarted.
+                                    --
+                                    -- Specifically a request like this will crash the action:
+                                    --
+                                    -- > curl --header 'Accept: application/json' http://localhost:8000/ShowItem?itemId=6bbe1a72-400a-421e-b26a-ff58d17af3e5
+                                    --
+                                    -- Let's assume that the view has no implementation for JSON responses. Then
+                                    -- it will render a 'error "JSON not implemented"'. After this curl request
+                                    -- all future HTML requests to the current action will fail with a 503.
+                                    --
+                                    lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
 
-                            event <- MVar.newEmptyMVar
-                            let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
-                            modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
-                            async (gcSessions autoRefreshServer)
+                                    event <- MVar.newEmptyMVar
+                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
+                                    modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
+                                    async (gcSessions autoRefreshServer)
 
-                            registerNotificationTrigger ?touchedTables autoRefreshServer
+                                    registerNotificationTrigger ?touchedTables autoRefreshServer
 
-                            throw exception
-                        _   -> error "Unimplemented WAI response type."
+                                    throw exception
+                                _   -> error "Unimplemented WAI response type."
 
-                runAction `Exception.catch` handleResponse
+                        runAction `Exception.catch` handleResponse
 
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
