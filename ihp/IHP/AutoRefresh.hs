@@ -56,8 +56,8 @@ autoRefresh :: (
     , ?request :: Request
     ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
 autoRefresh runAction = do
-    -- When PGListener is not available (e.g. in test environments),
-    -- degrade gracefully to a plain action without auto-refresh.
+    -- When PGListener is not available, degrade gracefully to a
+    -- plain action without auto-refresh.
     case Vault.lookup pgListenerVaultKey ?request.vault of
         Nothing -> runAction
         Just _ -> do
