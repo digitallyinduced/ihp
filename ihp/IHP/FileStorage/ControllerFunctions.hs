@@ -44,6 +44,7 @@ import System.OsPath (encodeUtf)
 import qualified Network.Wreq as Wreq
 import Control.Lens hiding ((|>), set)
 import qualified Network.Mime as Mime
+import qualified Network.HTTP.Types.URI as URI
 
 -- | Uploads a file to a directory in the storage
 --
@@ -313,7 +314,9 @@ refreshTemporaryDownloadUrlFromFile record = do
             pure record
 
 contentDispositionAttachmentAndFileName :: Wai.FileInfo LByteString -> IO (Maybe Text)
-contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; filename=\"" <> cs (fileInfo.fileName) <> "\""))
+contentDispositionAttachmentAndFileName fileInfo =
+    let encodedFileName = cs (URI.urlEncode False (fileInfo.fileName))
+    in pure (Just ("attachment; filename*=UTF-8''" <> encodedFileName))
 
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --

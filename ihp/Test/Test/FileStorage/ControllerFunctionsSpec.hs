@@ -45,6 +45,25 @@ tests = describe "IHP.FileStorage.ControllerFunctions" $ do
 
                 result.url `shouldBe` ("/Test.FileStorage.ControllerFunctionsSpec/4c55dac2-e411-45ac-aa10-b957b01221df")
 
+    describe "contentDispositionAttachmentAndFileName" $ do
+        let fileInfoWith name = FileInfo { fileName = name, fileContentType = "application/octet-stream", fileContent = "" }
+
+        it "produces RFC 5987 encoded header for a plain ASCII filename" $ do
+            result <- contentDispositionAttachmentAndFileName (fileInfoWith "report.pdf")
+            result `shouldBe` Just "attachment; filename*=UTF-8''report.pdf"
+
+        it "percent-encodes spaces in the filename" $ do
+            result <- contentDispositionAttachmentAndFileName (fileInfoWith "my report.pdf")
+            result `shouldBe` Just "attachment; filename*=UTF-8''my%20report.pdf"
+
+        it "percent-encodes special characters in the filename" $ do
+            result <- contentDispositionAttachmentAndFileName (fileInfoWith "file (final).pdf")
+            result `shouldBe` Just "attachment; filename*=UTF-8''file%20%28final%29.pdf"
+
+        it "percent-encodes non-ASCII characters in the filename" $ do
+            result <- contentDispositionAttachmentAndFileName (fileInfoWith (cs ("ファイル.pdf" :: Text)))
+            result `shouldBe` Just "attachment; filename*=UTF-8''%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB.pdf"
+
     describe "createTemporaryDownloadUrlFromPath" $ do
         it "returns baseUrl concatenated with objectPath when objectPath does not start with http:// or https://" $ do
             withFrameworkConfig \frameworkConfig -> do
