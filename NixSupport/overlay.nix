@@ -63,6 +63,7 @@ let
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            wai-csp = localPackage "wai-csp";
 
             # Lazy session middleware: defer cookie decryption until first access,
             # skip Set-Cookie when session is unmodified.
