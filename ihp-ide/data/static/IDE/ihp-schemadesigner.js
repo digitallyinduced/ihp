@@ -49,8 +49,11 @@ function initSchemaDesigner() {
             $('#typeSelector').val('DATE').trigger('change');
         }
     });
-    $('.select2').select2({ tags: true });
-    $('.select2-simple').select2();
+    var $modal = $('.modal');
+    var select2Options = $modal.length ? { tags: true, dropdownParent: $modal } : { tags: true };
+    var select2SimpleOptions = $modal.length ? { dropdownParent: $modal } : {};
+    $('.select2').select2(select2Options);
+    $('.select2-simple').select2(select2SimpleOptions);
     $('#typeSelector').change(function () {
         switch (this.value) {
             case "UUID":
@@ -187,10 +190,13 @@ function initCodeEditor() {
 }
 
 function initTooltip() {
+    // Remove any orphaned tooltip elements left over from Turbolinks/morphdom transitions
+    document.querySelectorAll('body > .tooltip').forEach(function (el) { el.remove(); });
+
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
         var existing = bootstrap.Tooltip.getInstance(el);
         if (existing) existing.dispose();
-        new bootstrap.Tooltip(el, { container: 'body' });
+        new bootstrap.Tooltip(el, { container: 'body', popperConfig: { strategy: 'fixed' } });
     });
 }
 
@@ -199,6 +205,14 @@ document.addEventListener('turbolinks:load', initCodeEditor);
 document.addEventListener('turbolinks:load', initQueryAce);
 document.addEventListener('turbolinks:load', initTooltip);
 document.addEventListener('turbolinks:load', initDataEditorForeignKeyAutocomplete);
+
+// Dispose all tooltips before Turbolinks replaces the page to prevent orphaned tooltip elements
+document.addEventListener('turbolinks:before-render', function () {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+    });
+});
 
 function initQueryAce() {
     var editorEl = document.getElementById('queryInput');
@@ -341,8 +355,9 @@ function checkBeforeUnload() {
 function initDataEditorForeignKeyAutocomplete() {
     const elements = document.querySelectorAll('.form-control.is-foreign-key-column');
 
+    var $modal = $('.modal');
     for (const element of elements) {
-        $(element).select2({
+        var options = {
             ajax: {
                 url: element.dataset.selectUrl,
                 processResults: data => ({ results: data }),
@@ -383,6 +398,8 @@ function initDataEditorForeignKeyAutocomplete() {
                 return row.id;
             },
             placeholder:' Search ...'
-        })
+        };
+        if ($modal.length) options.dropdownParent = $modal;
+        $(element).select2(options);
     }
 }

@@ -275,7 +275,7 @@ ihpFlake:
                         export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
                         export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
 
-                        make -j static/app.css static/app.js
+                        make -j static/prod.css static/prod.js
                         runHook postBuild
                     '';
                     installPhase = ''

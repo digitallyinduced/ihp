@@ -24,6 +24,7 @@ import IHP.Log.Types
 
 import qualified System.Process as Process
 import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
+import qualified IHP.PGListener as PGListener
 
 withConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withConnection databaseUrl action = do
@@ -47,12 +48,13 @@ withIHPApp application configBuilder hspecAction = do
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             ModelSupport.withModelContext testDatabaseUrl logger \modelContext -> do
-                -- Use the central test middleware stack
-                let baseRequest = defaultRequest
-                mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
-                let mockRespond = const (pure ResponseReceived)
+                PGListener.withPGListener testDatabaseUrl logger \pgListener' -> do
+                    let baseRequest = defaultRequest
+                    let pgListener = Just pgListener'
+                    mockRequest <- runTestMiddlewares frameworkConfig modelContext pgListener baseRequest
+                    let mockRespond = const (pure ResponseReceived)
 
-                hspecAction MockContext { .. }
+                    hspecAction MockContext { .. }
 
 withTestDatabase :: ByteString -> (ByteString -> IO ()) -> IO ()
 withTestDatabase masterDatabaseUrl callback = do

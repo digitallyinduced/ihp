@@ -16,6 +16,7 @@ module IHP.QueryBuilder
   -- * Core Types
 , QueryBuilder (..)
 , Condition (..)
+, ConditionValue (..)
 , Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
@@ -37,8 +38,7 @@ module IHP.QueryBuilder
   -- * SQL Compilation
 , buildQuery
   -- * Hasql Compilation
-, toSnippet
-, snippetToSQL
+, toSQL
   -- * Filtering
 , filterWhere
 , filterWhereCaseInsensitive
@@ -101,7 +101,7 @@ module IHP.QueryBuilder
 
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler
-import IHP.QueryBuilder.HasqlCompiler (toSnippet, snippetToSQL, compileOperator)
+import IHP.QueryBuilder.HasqlCompiler (toSQL, compileOperator)
 import IHP.QueryBuilder.Filter
 import IHP.QueryBuilder.Join
 import IHP.QueryBuilder.Order

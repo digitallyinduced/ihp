@@ -51,6 +51,7 @@ import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
+import IHP.Modal.Types (modalContainerVaultKey)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do
@@ -114,6 +115,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
 
         let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
         let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+        let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
 
         let toolServerVaultMiddleware app req respond = do
                 availableApps <- AvailableApps <$> findApplications
@@ -133,6 +135,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                     $ viewLayoutMiddleware
                     $ responseHeadersMiddleware
                     $ rlsContextMiddleware
+                    $ modalMiddleware
                     $ toolServerVaultMiddleware
                     $ modelContextMiddleware modelContext
                     $ frameworkConfigMiddleware frameworkConfig

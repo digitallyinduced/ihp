@@ -203,6 +203,8 @@ data CSSFramework = CSSFramework
     , styledInputInvalidClass :: CSSFramework -> FormField -> Text
     -- | Class applied to the div wrapping the label and input, e.g. @"form-group"@
     , styledFormGroupClass :: Text
+    -- | Class applied to @<label>@ elements in form fields, e.g. @"form-label"@
+    , styledLabelClass :: Text
     -- | Elements that containers the validation error message for a invalid form field
     , styledValidationResult :: CSSFramework -> FormField -> Blaze.Html
     -- | Class name for container of validation error message

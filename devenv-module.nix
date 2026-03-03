@@ -65,7 +65,9 @@ that is defined in flake-module.nix
 
             # Override checks that need a running PostgreSQL for integration tests
             // {
+                default = withTestPostgres self.packages.${system}.default;
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-typed-sql = withTestPostgres self.packages.${system}.ihp-typed-sql;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
 
@@ -232,7 +234,8 @@ that is defined in flake-module.nix
                         # Development Specific Tools (not in ihp.nix)
                         hspec
                         ihp-hsx
-                        ihp-postgresql-simple-extra
+                        postgresql-simple-postgresql-types
+                        postgresql-syntax
                         tasty-bench
 
                         # Packages needed for ghci to load IHP modules
@@ -341,6 +344,7 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-typed-sql = pkgs.ghc.ihp-typed-sql;
             ihp-pglistener = pkgs.ghc.ihp-pglistener;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
@@ -456,6 +460,14 @@ that is defined in flake-module.nix
                         (hsDataDir pkgs.ghc.ihp-ide.data)
                         (hsDataDir pkgs.ghc.ihp.data)
                     ];
+                    # The Makefile references $(IHP)/static/vendor/bootstrap.min.css etc.
+                    # These vendor files (bootstrap, jquery, select2) are fetched via Nix
+                    # in ihp-static, not in the ihp cabal data-files.
+                    postBuild = ''
+                        for f in ${config.packages.ihp-static}/vendor/*; do
+                            ln -sf "$f" "$out/static/vendor/$(basename "$f")" 2>/dev/null || true
+                        done
+                    '';
                 };
         };
     };

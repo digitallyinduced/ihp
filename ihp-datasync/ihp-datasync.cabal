@@ -29,8 +29,6 @@ common shared-properties
             , text
             , hasql
             , hasql-pool
-            , hasql-dynamic-statements
-            , hasql-implicits
             , hasql-transaction
             , bytestring
             , aeson
@@ -65,6 +63,7 @@ common shared-properties
             , postgresql-types
             , hasql-mapping
             , hasql-postgresql-types
+            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

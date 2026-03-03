@@ -21,8 +21,6 @@ import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Statement as Statement
@@ -49,8 +47,8 @@ data Change
     deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
-createNotificationFunction :: Text -> RLS.TableWithRLS -> Snippet
-createNotificationFunction uuidFunction table = Snippet.sql [i|
+createNotificationFunction :: Text -> RLS.TableWithRLS -> Text
+createNotificationFunction uuidFunction table = [i|
     DO $$
     BEGIN
         -- This inner block handles concurrent installations from multiple
@@ -164,7 +162,7 @@ retrieveChangesStatement = Statement.preparable
 
 installTableChangeTriggersSession :: Text -> RLS.TableWithRLS -> Session.Session ()
 installTableChangeTriggersSession uuidFunction table =
-    Snippet.toSession (createNotificationFunction uuidFunction table) Decoders.noResult
+    Session.script (createNotificationFunction uuidFunction table)
 
 retrieveChangesSession :: UUID -> Session.Session Text
 retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement

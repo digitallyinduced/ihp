@@ -292,6 +292,8 @@ do
 
 The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
 
+> **Tip:** For compile-time type-checked SQL queries, see the [Typed SQL Guide](typed-sql.html). Typed SQL automatically infers Haskell types from your SQL at compile time, eliminating the need for manual `FromRow` instances.
+
 Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) to run a raw SQL query:
 
 ```haskell

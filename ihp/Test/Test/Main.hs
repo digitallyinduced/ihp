@@ -23,6 +23,8 @@ import qualified Test.MockingSpec
 import qualified Test.HasqlEncoderSpec
 import qualified Test.ControllerSupportSpec
 import qualified Test.AutoRefreshSpec
+import qualified Test.Pagination.ControllerFunctionsSpec
+import qualified Test.FetchPipelinedSpec
 
 main :: IO ()
 main = hspec do
@@ -46,3 +48,5 @@ main = hspec do
     Test.HasqlEncoderSpec.tests
     Test.ControllerSupportSpec.tests
     Test.AutoRefreshSpec.tests
+    Test.Pagination.ControllerFunctionsSpec.tests
+    Test.FetchPipelinedSpec.tests
