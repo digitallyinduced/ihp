@@ -6,6 +6,8 @@
 :set -iihp-pglistener
 :set -iihp-modal
 :set -iihp
+:set -iihp-typed-sql
+:set -iihp-typed-sql/Test
 :set -iihp/Test
 :set -iihp-ide
 :set -iihp-schema-compiler

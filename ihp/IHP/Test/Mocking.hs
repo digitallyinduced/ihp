@@ -33,6 +33,7 @@ import IHP.Server (initMiddlewareStack)
 import qualified IHP.Server as Server
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.RouterSupport (FrontController)
+import qualified IHP.PGListener as PGListener
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -42,21 +43,21 @@ data MockContext application = InitControllerContext application => MockContext
     , mockRequest :: Request
     , mockRespond :: Respond
     , application :: application
+    , pgListener :: Maybe PGListener.PGListener
     }
 
 -- | Run a request through the test middleware stack.
--- This applies the same middlewares that IHP.Server uses (with PGListener disabled).
+-- This applies the same middlewares that IHP.Server uses.
 -- Used for initial setup only - actual request params are handled in callActionWithParams.
-runTestMiddlewares :: FrameworkConfig -> ModelContext -> Request -> IO Request
-runTestMiddlewares frameworkConfig modelContext baseRequest = do
+runTestMiddlewares :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> Request -> IO Request
+runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
     -- Capture the modified request after running through middlewares
     resultRef <- newIORef baseRequest
     let captureApp req respond = do
             writeIORef resultRef req
             respond (responseLBS HTTP.status200 [] "")
 
-    -- Use the same middleware stack as production, but without PGListener
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext maybePgListener
 
     -- Run request through middleware stack
     _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
@@ -72,7 +73,8 @@ mockContextNoDatabase application configBuilder = do
 
    -- Start with a minimal request - the middleware stack will set up session, etc.
    let baseRequest = defaultRequest
-   mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
+   let pgListener = Nothing
+   mockRequest <- runTestMiddlewares frameworkConfig modelContext pgListener baseRequest
    let mockRespond = const (pure ResponseReceived)
 
    pure MockContext{..}
@@ -93,15 +95,17 @@ withMockContext :: (InitControllerContext application) => application -> ConfigB
 withMockContext application configBuilder action =
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
         withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
-            let baseRequest = defaultRequest
-            mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
-            let mockRespond = const (pure ResponseReceived)
-            action MockContext{..}
+            PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener' -> do
+                let baseRequest = defaultRequest
+                let pgListener = Just pgListener'
+                mockRequest <- runTestMiddlewares frameworkConfig modelContext pgListener baseRequest
+                let mockRespond = const (pure ResponseReceived)
+                action MockContext{..}
 
 -- | Build a WAI 'Application' from a 'MockContext' for use with @runSession@.
 initTestApplication :: (FrontController RootApplication) => MockContext application -> IO Application
-initTestApplication MockContext { frameworkConfig, modelContext } = do
-    middleware <- initMiddlewareStack frameworkConfig modelContext Nothing
+initTestApplication MockContext { frameworkConfig, modelContext, pgListener } = do
+    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
     pure (middleware $ Server.application handleNotFound (\app -> app))
 
 -- | Combines 'withMockContext' and 'initTestApplication' into a single bracket.
@@ -180,7 +184,8 @@ callActionWithParams controller params = do
             runActionWithNewContext controller
 
     -- Run through middleware stack (like the real server does)
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    let MockContext { pgListener } = ?mocking
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
     _ <- middlewareStack controllerApp baseRequest captureRespond
 
     readIORef responseRef >>= \case

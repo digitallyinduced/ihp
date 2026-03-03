@@ -171,6 +171,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                 Left exception -> do
                     Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
                     Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
+                    runJobLoop -- retry after transient error
                 Right (Just job) -> do
                     Log.info ("Starting job: " <> tshow job)
 

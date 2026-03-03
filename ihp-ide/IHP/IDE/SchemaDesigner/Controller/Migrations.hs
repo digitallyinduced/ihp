@@ -26,7 +26,13 @@ instance Controller MigrationsController where
 
     action MigrationsAction = do
         migrations <- findRecentMigrations
-        migratedRevisions <- findMigratedRevisions
+
+        result <- Exception.try findMigratedRevisions
+        migratedRevisions <- case result of
+            Left (exception :: SomeException) -> do
+                setErrorMessage ("Could not connect to the database: " <> tshow exception)
+                pure []
+            Right revisions -> pure revisions
 
         migrationsWithSql <- forM migrations $ \migration -> do
                 sql <- readSqlStatements migration

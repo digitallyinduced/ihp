@@ -30,11 +30,11 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
-import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement)
+import IHP.QueryBuilder.HasqlCompiler (buildStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import qualified Hasql.Statement as Hasql
-import IHP.Fetch.Statement (fetchByIdOneOrNothingStatement, fetchByIdListStatement)
+import IHP.Fetch.Statement (fetchByIdOneOrNothingStatement, fetchByIdListStatement, buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -109,19 +109,15 @@ instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColum
 commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
 commonFetch !queryBuilder = do
     trackTableRead (tableName @model)
-    let !sqlQuery' = buildQuery queryBuilder
     let pool = ?modelContext.hasqlPool
-    let statement = buildStatement sqlQuery' (Decoders.rowList (hasqlRowDecoder @model))
-    sqlStatementHasql pool () statement
+    sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
 
 {-# INLINE commonFetchOneOrNothing #-}
-commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO (Maybe model)
+commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model, model ~ GetModelByTableName table) => queryBuilderProvider table -> IO (Maybe model)
 commonFetchOneOrNothing !queryBuilder = do
     trackTableRead (tableName @model)
-    let !limitedQuery = queryBuilder |> buildQuery |> setJust #limitClause 1
     let pool = ?modelContext.hasqlPool
-    let statement = buildStatement limitedQuery (Decoders.rowMaybe (hasqlRowDecoder @model))
-    sqlStatementHasql pool () statement
+    sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
 
 {-# INLINE commonFetchOne #-}
 commonFetchOne :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO model
@@ -147,10 +143,9 @@ commonFetchOne !queryBuilder = do
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
 fetchCount !queryBuilder = do
-    let statement = buildWrappedStatement "SELECT COUNT(*) FROM (" (buildQuery queryBuilder) ") AS _count_values" (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
     trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
-    fromIntegral <$> sqlStatementHasql pool () statement
+    fromIntegral <$> sqlStatementHasql pool () (buildCountStatement queryBuilder)
 {-# INLINE fetchCount #-}
 
 -- | Checks whether the query has any results.
@@ -165,10 +160,9 @@ fetchCount !queryBuilder = do
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Bool
 fetchExists !queryBuilder = do
-    let statement = buildWrappedStatement "SELECT EXISTS (" (buildQuery queryBuilder) ") AS _exists_values" (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
     trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
-    sqlStatementHasql pool () statement
+    sqlStatementHasql pool () (buildExistsStatement queryBuilder)
 {-# INLINE fetchExists #-}
 
 {-# INLINE genericFetchId #-}
