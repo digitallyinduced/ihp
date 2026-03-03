@@ -3,12 +3,27 @@ module Test.DataSync.ChangeNotifications where
 import Test.Hspec
 import IHP.Prelude
 import Data.Aeson
-import IHP.DataSync.ChangeNotifications (Change(..))
+import IHP.DataSync.ChangeNotifications (Change(..), makeCachedInstallTableChangeTriggers)
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
 import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
+import IHP.DataSync.RowLevelSecurity (TableWithRLS(..))
 import qualified Data.Set as Set
 import qualified Prelude
+import qualified Hasql.Pool
+import qualified Hasql.Pool.Config as Hasql.Pool.Config
+import qualified Hasql.Connection.Settings as HasqlSettings
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession)
+import qualified Control.Exception as Exception
+import System.Environment (lookupEnv)
+import Control.Concurrent (threadDelay)
+import Control.Monad (replicateM)
+import Control.Concurrent.Async (mapConcurrently_, async, wait)
+import qualified Hasql.Connection as Connection
+import qualified Data.UUID.V4 as UUID
+import qualified Data.UUID as UUID
+import qualified Data.Text as Text
 
 tests = do
     describe "IHP.DataSync.ChangeNotifications" do
@@ -137,3 +152,120 @@ tests = do
             it "returns empty set for LiteralExpression" do
                 let condition = LiteralExpression (String "hello")
                 conditionColumns condition `shouldBe` Set.empty
+
+        describe "concurrent trigger installation" do
+            it "does not exhaust the connection pool under concurrent trigger installation" do
+                withDB \connStr -> do
+                    -- Small pool (4 connections) to make pool exhaustion visible
+                    withHasqlPool connStr \pool -> do
+                        execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
+
+                        -- Use a unique table name to avoid stale global MVar state
+                        -- across repeated test runs in the same ghci session
+                        tableUuid <- UUID.nextRandom
+                        let tableName = "test_concurrent_" <> Text.replace "-" "_" (UUID.toText tableUuid)
+                        execSQL pool (cs ("CREATE TABLE " <> tableName <> " (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), body TEXT)"))
+
+                        let table = TableWithRLS tableName
+
+                        -- Hold AccessExclusiveLock from a raw connection (not from the pool).
+                        -- This simulates slow DDL: trigger installation requires
+                        -- AccessExclusiveLock which blocks while we hold it,
+                        -- tying up pool connections on master.
+                        Right lockConn <- Connection.acquire (HasqlSettings.connectionString (cs connStr))
+                        _ <- Connection.use lockConn $
+                            Session.script (cs ("BEGIN; LOCK TABLE " <> tableName <> " IN ACCESS EXCLUSIVE MODE"))
+
+                        -- Create 10 independent cached installers, simulating 10
+                        -- concurrent WebSocket connections.
+                        -- On master: each gets its own IORef cache, so all 10 call
+                        --   installTableChangeTriggers independently → 4 grab pool
+                        --   connections and block on DDL → pool exhausted.
+                        -- On fix: all share the process-global MVar, so only 1 grabs
+                        --   a pool connection for DDL, the other 9 wait on the MVar
+                        --   in Haskell without consuming pool connections.
+                        installers <- replicateM 10 (makeCachedInstallTableChangeTriggers pool)
+
+                        -- Launch concurrent trigger installations in background
+                        installsAsync <- async $
+                            mapConcurrently_ (\install -> install table) installers
+
+                        -- Give installs time to start and block on the held lock
+                        threadDelay 1_000_000
+
+                        -- Canary query: if the pool is exhausted (all connections
+                        -- stuck in DDL), this will time out.
+                        canaryResult <- race
+                            (threadDelay 5_000_000)  -- 5s timeout
+                            (runSession pool (Session.script "SELECT 1"))
+
+                        -- Release lock so blocked DDL threads can complete.
+                        -- Using a raw connection + ROLLBACK avoids cancel (which
+                        -- blocks on FFI calls to libpq).
+                        _ <- Connection.use lockConn $
+                            Session.script "ROLLBACK"
+                        Connection.release lockConn
+
+                        -- Wait for installers to finish (now unblocked)
+                        _ <- Exception.try @Exception.SomeException (wait installsAsync)
+
+                        case canaryResult of
+                            Left () -> expectationFailure
+                                "Pool exhausted — canary query timed out because concurrent trigger installation consumed all connections"
+                            Right _ -> pure ()  -- Pool had available connections
+
+-- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
+
+getMasterDatabaseUrl :: IO Text
+getMasterDatabaseUrl = do
+    envUrl <- lookupEnv "DATABASE_URL"
+    case envUrl of
+        Just url -> pure (cs url)
+        Nothing -> pure "postgresql:///postgres"
+
+makePool :: Text -> IO Hasql.Pool.Pool
+makePool connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+    [ Hasql.Pool.Config.size 4
+    , Hasql.Pool.Config.staticConnectionSettings
+        (HasqlSettings.connectionString connStr)
+    ]
+
+execSQL :: Hasql.Pool.Pool -> ByteString -> IO ()
+execSQL pool sql = runSession pool (Session.script (cs sql))
+
+canConnectToPostgres :: IO Bool
+canConnectToPostgres = do
+    masterUrl <- getMasterDatabaseUrl
+    result <- Exception.try $ Exception.bracket (makePool masterUrl) Hasql.Pool.release
+        (\pool -> execSQL pool "SELECT 1")
+    case result of
+        Left (_ :: Exception.SomeException) -> pure False
+        Right _ -> pure True
+
+withTestDatabase :: (Text -> IO a) -> IO a
+withTestDatabase action = do
+    masterUrl <- getMasterDatabaseUrl
+    testDbName <- randomDatabaseName
+    Exception.bracket (makePool masterUrl) Hasql.Pool.release \masterPool -> do
+        execSQL masterPool (cs ("CREATE DATABASE " <> testDbName))
+        let testConnStr = "dbname=" <> testDbName
+        Exception.finally
+            (action testConnStr)
+            (execSQL masterPool (cs ("DROP DATABASE " <> testDbName <> " WITH (FORCE)")))
+
+randomDatabaseName :: IO Text
+randomDatabaseName = do
+    uuid <- UUID.nextRandom
+    let name = "ihp_test_cn_" <> (uuid |> UUID.toText |> Text.replace "-" "_")
+    pure name
+
+withHasqlPool :: Text -> (Hasql.Pool.Pool -> IO a) -> IO a
+withHasqlPool connStr action =
+    Exception.bracket (makePool connStr) Hasql.Pool.release action
+
+withDB :: (Text -> IO ()) -> IO ()
+withDB action = do
+    available <- canConnectToPostgres
+    if available
+        then withTestDatabase action
+        else pendingWith "PostgreSQL not available (set DATABASE_URL or start a local Postgres)"
