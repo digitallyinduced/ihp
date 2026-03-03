@@ -21,7 +21,6 @@ import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
 import qualified Data.Map.Strict as Map
 import Control.Concurrent.MVar
-import Control.Exception (SomeException)
 import qualified Data.UUID as UUID
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
