@@ -152,6 +152,7 @@ tests = do
                 let condition = LiteralExpression (String "hello")
                 conditionColumns condition `shouldBe` Set.empty
 
+        -- https://github.com/digitallyinduced/ihp/issues/2467
         describe "concurrent trigger installation" do
             it "does not exhaust the connection pool under concurrent trigger installation" do
                 withDB \connStr -> do
