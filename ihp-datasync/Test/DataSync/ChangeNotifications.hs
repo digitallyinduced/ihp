@@ -19,7 +19,6 @@ import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
 import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM)
-import Control.Concurrent.Async (mapConcurrently_, async, wait)
 import qualified Hasql.Connection as Connection
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
