@@ -18,8 +18,8 @@ import IHP.DataSync.Hasql (runSession)
 import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (replicateM)
-import qualified Hasql.Connection as Connection
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
@@ -155,8 +155,9 @@ tests = do
         describe "concurrent trigger installation" do
             it "does not exhaust the connection pool under concurrent trigger installation" do
                 withDB \connStr -> do
-                    -- Small pool (4 connections) to make pool exhaustion visible
-                    withHasqlPool connStr \pool -> do
+                    -- Tiny pool (2 connections) + short acquisition timeout to
+                    -- make pool exhaustion visible quickly.
+                    Exception.bracket (makePoolWithTimeout 2 3 connStr) Hasql.Pool.release \pool -> do
                         execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
 
                         -- Use a unique table name to avoid stale global MVar state
@@ -167,51 +168,39 @@ tests = do
 
                         let table = TableWithRLS tableName
 
-                        -- Hold AccessExclusiveLock from a raw connection (not from the pool).
-                        -- This simulates slow DDL: trigger installation requires
-                        -- AccessExclusiveLock which blocks while we hold it,
-                        -- tying up pool connections on master.
-                        Right lockConn <- Connection.acquire (HasqlSettings.connectionString (cs connStr))
-                        _ <- Connection.use lockConn $
-                            Session.script (cs ("BEGIN; LOCK TABLE " <> tableName <> " IN ACCESS EXCLUSIVE MODE"))
-
-                        -- Create 10 independent cached installers, simulating 10
+                        -- Create many independent cached installers, simulating
                         -- concurrent WebSocket connections.
-                        -- On master: each gets its own IORef cache, so all 10 call
-                        --   installTableChangeTriggers independently → 4 grab pool
-                        --   connections and block on DDL → pool exhausted.
+                        -- On master: each gets its own IORef cache, so all of them
+                        --   call installTableChangeTriggers independently. The DDL
+                        --   requires AccessExclusiveLock, so they queue up behind
+                        --   each other at the DB level, each holding a pool
+                        --   connection while waiting → pool exhausted for seconds.
                         -- On fix: all share the process-global MVar, so only 1 grabs
-                        --   a pool connection for DDL, the other 9 wait on the MVar
+                        --   a pool connection for DDL, the rest wait on the MVar
                         --   in Haskell without consuming pool connections.
-                        installers <- replicateM 10 (makeCachedInstallTableChangeTriggers pool)
+                        installers <- replicateM 20000 (makeCachedInstallTableChangeTriggers pool)
 
-                        -- Launch concurrent trigger installations in background
-                        installsAsync <- async $
-                            mapConcurrently_ (\install -> install table) installers
+                        -- Barrier: ensure all 20000 threads are created and waiting
+                        -- before they rush the pool simultaneously.
+                        barrier <- newEmptyMVar
 
-                        -- Give installs time to start and block on the held lock
-                        threadDelay 1_000_000
+                        result <- Exception.try $ do
+                            installsAsync <- async $
+                                mapConcurrently_ (\install -> readMVar barrier >> install table) installers
 
-                        -- Canary query: if the pool is exhausted (all connections
-                        -- stuck in DDL), this will time out.
-                        canaryResult <- race
-                            (threadDelay 5_000_000)  -- 5s timeout
-                            (runSession pool (Session.script "SELECT 1"))
+                            -- Give threads time to start and block on barrier
+                            threadDelay 500_000
 
-                        -- Release lock so blocked DDL threads can complete.
-                        -- Using a raw connection + ROLLBACK avoids cancel (which
-                        -- blocks on FFI calls to libpq).
-                        _ <- Connection.use lockConn $
-                            Session.script "ROLLBACK"
-                        Connection.release lockConn
+                            -- Release all installers at once
+                            putMVar barrier ()
 
-                        -- Wait for installers to finish (now unblocked)
-                        _ <- Exception.try @Exception.SomeException (wait installsAsync)
+                            wait installsAsync
 
-                        case canaryResult of
-                            Left () -> expectationFailure
-                                "Pool exhausted — canary query timed out because concurrent trigger installation consumed all connections"
-                            Right _ -> pure ()  -- Pool had available connections
+                        case result of
+                            Left (_ :: Hasql.Pool.UsageError) ->
+                                expectationFailure
+                                    "Pool exhausted — concurrent trigger installation caused AcquisitionTimeoutUsageError"
+                            Right () -> pure ()
 
 -- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
 
@@ -223,8 +212,19 @@ getMasterDatabaseUrl = do
         Nothing -> pure "postgresql:///postgres"
 
 makePool :: Text -> IO Hasql.Pool.Pool
-makePool connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
-    [ Hasql.Pool.Config.size 4
+makePool = makePoolN 4
+
+makePoolN :: Int -> Text -> IO Hasql.Pool.Pool
+makePoolN poolSize connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+    [ Hasql.Pool.Config.size poolSize
+    , Hasql.Pool.Config.staticConnectionSettings
+        (HasqlSettings.connectionString connStr)
+    ]
+
+makePoolWithTimeout :: Int -> Int -> Text -> IO Hasql.Pool.Pool
+makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+    [ Hasql.Pool.Config.size poolSize
+    , Hasql.Pool.Config.acquisitionTimeout (fromIntegral timeoutSeconds)
     , Hasql.Pool.Config.staticConnectionSettings
         (HasqlSettings.connectionString connStr)
     ]
