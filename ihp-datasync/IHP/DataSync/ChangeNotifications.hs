@@ -19,7 +19,9 @@ import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
-import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
+import Control.Concurrent.MVar
+import Control.Exception (SomeException)
 import qualified Data.UUID as UUID
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
@@ -190,24 +192,49 @@ makeInstallTableChangeTriggers :: Environment -> Hasql.Pool.Pool -> IO (RLS.Tabl
 makeInstallTableChangeTriggers Development pool = pure (installTableChangeTriggers pool)
 makeInstallTableChangeTriggers Production pool = makeCachedInstallTableChangeTriggers pool
 
--- | Process-global cache of tables whose change triggers have been installed.
--- Shared across all WebSocket connections to avoid redundant DDL.
+-- | Process-global lock map for trigger installation. Each table gets an MVar
+-- that serializes installation in Haskell-land, so only one connection per
+-- table hits the database while others wait cheaply without consuming a pool
+-- connection.
 -- See: https://github.com/digitallyinduced/ihp/issues/2467
-{-# NOINLINE globalTriggerCache #-}
-globalTriggerCache :: IORef (Set.Set RLS.TableWithRLS)
-globalTriggerCache = unsafePerformIO (newIORef Set.empty)
+{-# NOINLINE globalTriggerInstallLocks #-}
+globalTriggerInstallLocks :: MVar (Map.Map RLS.TableWithRLS (MVar ()))
+globalTriggerInstallLocks = unsafePerformIO (newMVar Map.empty)
 
--- | Wraps 'installTableChangeTriggers' with a process-global per-table cache
+-- | Wraps 'installTableChangeTriggers' with a process-global per-table lock
 -- so each table's triggers are only installed once per process lifetime.
--- Only marks a table as installed after successful trigger installation,
--- so failed installs can retry on subsequent connections.
+-- Concurrent callers for the same table block on an MVar in Haskell (not on
+-- a database connection), preventing pool exhaustion from DDL lock waits.
+-- If installation fails, the lock is removed so future connections can retry.
 makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
 makeCachedInstallTableChangeTriggers pool = do
     pure \tableName -> do
-        alreadyInstalled <- Set.member tableName <$> readIORef globalTriggerCache
-        unless alreadyInstalled do
-            installTableChangeTriggers pool tableName
-            atomicModifyIORef' globalTriggerCache \set -> (Set.insert tableName set, ())
+        -- Atomically check if this table already has a lock entry.
+        -- If not, create an empty MVar and register as the installer.
+        (lock, weAreInstaller) <- modifyMVar globalTriggerInstallLocks \locks ->
+            case Map.lookup tableName locks of
+                Just existingLock ->
+                    pure (locks, (existingLock, False))
+                Nothing -> do
+                    newLock <- newEmptyMVar
+                    pure (Map.insert tableName newLock locks, (newLock, True))
+
+        if weAreInstaller
+            then do
+                -- We won the race — do the actual install.
+                -- On success, signal waiters. On failure, remove the lock
+                -- so future connections can retry, then re-throw.
+                installTableChangeTriggers pool tableName
+                    `catch` \e -> do
+                        modifyMVar_ globalTriggerInstallLocks \locks ->
+                            pure (Map.delete tableName locks)
+                        throwIO (e :: SomeException)
+                putMVar lock ()
+            else
+                -- Another connection is installing (or has installed).
+                -- This blocks until the installer calls putMVar, then
+                -- immediately returns the () without taking it.
+                readMVar lock
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
