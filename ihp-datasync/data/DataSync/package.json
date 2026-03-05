@@ -12,7 +12,7 @@
   "author": "digitally induced GmbH",
   "license": "MIT",
   "devDependencies": {
-    "jest": "^27.5.0",
+    "jest": "^30.2.0",
     "typescript": "*"
   }
 }
