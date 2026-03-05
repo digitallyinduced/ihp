@@ -11,6 +11,7 @@ import IHP.Controller.Context
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
+import Data.Bits ((.|.))
 import qualified Data.Aeson as Aeson
 import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
@@ -418,7 +419,7 @@ tests = do
                 let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = 3 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
@@ -428,7 +429,7 @@ tests = do
                 let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = ["colorField"] } }
+                let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = 2 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
@@ -448,7 +449,7 @@ tests = do
                 let ?request = ?context.request
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = 3 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
@@ -493,10 +494,13 @@ data FillRecord = FillRecord { boolField :: Bool, colorField :: Color, meta :: M
     deriving (Show, Eq)
 
 instance SetField "boolField" FillRecord Bool where
-    setField value record = record { boolField = value } |> modify #meta (modify #touchedFields ("boolField":))
+    setField value record = record { boolField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 1 } }
 
 instance SetField "colorField" FillRecord Color where
-    setField value record = record { colorField = value } |> modify #meta (modify #touchedFields ("colorField":))
+    setField value record = record { colorField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 2 } }
 
 instance SetField "meta" FillRecord MetaBag where
     setField value record = record { meta = value }
+
+instance FieldBit "boolField" FillRecord where fieldBit = 1
+instance FieldBit "colorField" FillRecord where fieldBit = 2
