@@ -14,7 +14,6 @@ module IHP.SchemaCompiler
 
 import ClassyPrelude
 import Data.Bits (bit)
-import qualified Data.Set as Set
 import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
@@ -516,8 +515,8 @@ fieldBitPositions table@(CreateTable { columns }) =
 
 columnsWithBitIndices :: [Column] -> [Column] -> [(Column, Int)]
 columnsWithBitIndices allColumns subset =
-    let subsetNames = Set.fromList (map (.name) subset)
-    in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `Set.member` subsetNames]
+    let subsetNames = setFromList (map (.name) subset) :: Set Text
+    in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `member` subsetNames]
 
 compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
