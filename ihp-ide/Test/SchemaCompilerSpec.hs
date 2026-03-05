@@ -267,8 +267,9 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let pool = ?modelContext.hasqlPool
                         let touched = Data.Set.fromList model.meta.touchedFields
+                        if Data.Set.null touched then pure model else do
+                        let pool = ?modelContext.hasqlPool
                         sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
@@ -364,8 +365,9 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let pool = ?modelContext.hasqlPool
                         let touched = Data.Set.fromList model.meta.touchedFields
+                        if Data.Set.null touched then pure model else do
+                        let pool = ?modelContext.hasqlPool
                         sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
@@ -436,8 +438,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
+                        sqlStatementHasql pool model Generated.Statements.CreateUser.statement
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -458,8 +459,9 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let pool = ?modelContext.hasqlPool
                         let touched = Data.Set.fromList model.meta.touchedFields
+                        if Data.Set.null touched then pure model else do
+                        let pool = ?modelContext.hasqlPool
                         sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
@@ -588,8 +590,9 @@ tests = do
 
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
-                        let pool = ?modelContext.hasqlPool
                         let touched = Data.Set.fromList model.meta.touchedFields
+                        if Data.Set.null touched then pure model else do
+                        let pool = ?modelContext.hasqlPool
                         sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
@@ -857,8 +860,9 @@ tests = do
 
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
-                        let pool = ?modelContext.hasqlPool
                         let touched = Data.Set.fromList model.meta.touchedFields
+                        if Data.Set.null touched then pure model else do
+                        let pool = ?modelContext.hasqlPool
                         sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
@@ -923,30 +927,19 @@ tests = do
             it "should generate correct Create statement module" do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: Set.Set Text -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement touchedFields = Statement.preparable (cs (sql touchedFields)) (encoder touchedFields) decoder
+                    statement :: Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
+                    statement = Statement.preparable sql encoder decoder
 
-                    sql :: Set.Set Text -> Text
-                    sql touchedFields =
-                        let entries = catMaybes
-                                [ Just "id"
-                                , Just "title"
-                                , Just "body"
+                    sql :: Text
+                    sql = "INSERT INTO posts (id, title, body) VALUES ($$1, $$2, $$3) RETURNING id, title, body"
+
+                    encoder :: Encoders.Params Generated.ActualTypes.Post
+                    encoder =
+                            mconcat
+                                [ (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                , (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                                , (.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
                                 ]
-                            columns = Text.intercalate ", " entries
-                            placeholders = Text.intercalate ", " ["$$" <> cs (show i) | i <- [1 .. length entries]]
-                        in if null entries
-                            then "INSERT INTO posts DEFAULT VALUES RETURNING id, title, body"
-                            else "INSERT INTO posts (" <> columns <> ") VALUES (" <> placeholders <> ") RETURNING id, title, body"
-
-
-                    encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
-                    encoder touchedFields = mconcat $$ catMaybes
-                        [ Just ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid)))
-                        , Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
-                        , Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
-                        ]
-
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
                     decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
@@ -959,7 +952,7 @@ tests = do
                 let output = compileUpdateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
                     statement :: Set.Set Text -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement touchedFields = Statement.preparable (cs (sql touchedFields)) (encoder touchedFields) decoder
+                    statement touchedFields = Statement.preparable (sql touchedFields) (encoder touchedFields) decoder
 
                     sql :: Set.Set Text -> Text
                     sql touchedFields =
@@ -968,12 +961,10 @@ tests = do
                                 , if Set.member "title" touchedFields then Just "title" else Nothing
                                 , if Set.member "body" touchedFields then Just "body" else Nothing
                                 ]
-                            setClauses = [col <> " = $$" <> cs (show i) | (i, col) <- zip [1..] setEntries]
+                            setClauses = [col <> " = $$" <> Text.pack (show i) | (i, col) <- zip [1..] setEntries]
                             pkIdx = length setEntries + 1
-                            whereClause = \startIdx -> "id" <> " = $$" <> cs (show startIdx)
-                        in if null setEntries
-                            then "SELECT id, title, body FROM posts WHERE " <> whereClause 1
-                            else "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> " RETURNING id, title, body"
+                            whereClause = \startIdx -> "id" <> " = $$" <> Text.pack (show startIdx)
+                        in "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> " RETURNING id, title, body"
 
 
                     encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
