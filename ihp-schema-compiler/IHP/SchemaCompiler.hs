@@ -5,6 +5,10 @@ module IHP.SchemaCompiler
 , CompilerOptions(..)
 , fullCompileOptions
 , previewCompilerOptions
+, compileCreateStatement
+, compileUpdateStatement
+, compileFetchByIdStatement
+, Schema(..)
 ) where
 
 import ClassyPrelude
@@ -41,6 +45,7 @@ compile = do
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             Directory.createDirectoryIfMissing True "build/Generated"
             Directory.createDirectoryIfMissing True "build/Generated/ActualTypes"
+            Directory.createDirectoryIfMissing True "build/Generated/Statements"
 
             forEach (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
@@ -54,8 +59,10 @@ compileModules options schema =
        <> actualTypesTableModules schema
        <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
        <> tableModules options schema
-       <> [ ("build/Generated/Types.hs", compileIndex schema)
-       ]
+       <> statementModules schema
+       <> [ ("build/Generated/Statements.hs", compileStatementsIndex schema)
+          , ("build/Generated/Types.hs", compileIndex schema)
+          ]
 
 applyTables :: (CreateTable -> (OsPath, Text)) -> Schema -> [(OsPath, Text)]
 applyTables applyFunction schema =
@@ -109,6 +116,11 @@ tableModule options table =
             , tableModuleBody options table
             ]
         moduleName = "Generated." <> tableNameToModelName table.name
+        modelName = tableNameToModelName table.name
+        statementImports = Text.unlines
+            [ "import qualified Generated.Statements.Create" <> modelName
+            , "import qualified Generated.Statements.Update" <> modelName
+            ]
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
             {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
@@ -116,6 +128,7 @@ tableModule options table =
             module $moduleName where
             $defaultImports
             import Generated.ActualTypes
+            $statementImports
         |]
 
 tableIncludeModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
@@ -342,6 +355,7 @@ defaultImports = [trimming|
     import qualified Hasql.DynamicStatements.Snippet as Snippet
     import IHP.Hasql.Encoders ()
     import qualified Hasql.Mapping.IsScalar as Mapping
+    import qualified Hasql.Mapping.IsStatement as Mapping
     import Hasql.PostgresqlTypes ()
 |]
 
@@ -371,7 +385,9 @@ compileEnums options schema@(Schema statements) = Text.unlines
             import qualified Data.Text.Encoding
             import qualified Control.DeepSeq as DeepSeq
             import qualified Hasql.Encoders
+            import qualified Hasql.Decoders
             import qualified Hasql.Implicits.Encoders
+            import qualified Hasql.Mapping.IsScalar as Mapping
             import qualified Data.HashMap.Strict as HashMap
         |]
 
@@ -604,6 +620,10 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> modelName <> "] where\n"
         <> "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
+        -- IsScalar instance for hasql-mapping (used by generated IsStatement instances)
+        <> "instance Mapping.IsScalar " <> modelName <> " where\n"
+        <> "    encoder = Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue\n"
+        <> "    decoder = Hasql.Decoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " textToEnum" <> modelName <> "\n"
     where
         modelName = tableNameToModelName name
         valueConstructors = map enumValueToConstructorName values
@@ -692,8 +712,7 @@ compileCreate table@(CreateTable { name, columns }) =
 
         -- Hasql bodies
         hasqlCreateBody = "let pool = ?modelContext.hasqlPool\n"
-                <> "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \") RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+                <> "sqlStatementHasql pool (Generated.Statements.Create" <> funcName <> ".Create" <> funcName <> " model) (Mapping.statement @Generated.Statements.Create" <> funcName <> ".Create" <> funcName <> ")"
         hasqlCreateManyBody = "let pool = ?modelContext.hasqlPool\n"
                 <> "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (" <> snippetCreateManyValueExpr <> ") <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
                 <> "sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @" <> modelName <> "))"
@@ -762,8 +781,7 @@ compileUpdate table@(CreateTable { name, columns }) =
 
         -- Hasql bodies
         hasqlUpdateBody = "let pool = ?modelContext.hasqlPool\n"
-                <> "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> " <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @" <> modelName <> "))"
+                <> "sqlStatementHasql pool (Generated.Statements.Update" <> funcName <> ".Update" <> funcName <> " model) (Mapping.statement @Generated.Statements.Update" <> funcName <> ".Update" <> funcName <> ")"
         hasqlUpdateDiscardBody = "let pool = ?modelContext.hasqlPool\n"
                 <> "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> "\n"
                 <> "sqlExecHasql pool snippet"
@@ -796,80 +814,16 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
         columnBinding columnName = columnName <> " <- field"
 
         referencing = columnsReferencingTable table.name
-        -- Pair each referencing column with its generated field name for proper matching
         referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
 
         compileField (fieldName, _)
             | isColumn fieldName = fieldName
-            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(n, _) -> n == fieldName) referencingWithFieldNames in compileFromRowQueryBuilder table ref
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
 
-        isPrimaryKey name = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
-        isColumn name = name `elem` columnNames
+        isColumn colName = colName `elem` columnNames
         isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
-
-        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
-            where
-                -- | When the referenced column is nullable, we have to wrap the @Id@ in @Just@
-                primaryKeyField :: Text
-                primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
-                actualPrimaryKeyField :: Text
-                actualPrimaryKeyField = case primaryKeyColumns table of
-                        [] -> error $ "Impossible happened in compilePrimaryKeyInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                        [pk] -> columnNameToFieldName pk.name
-                        pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs name <> "' which has more than one column as its primary key."
-
-
-                (Just refTable) = let (Schema statements) = ?schema in
-                        statements
-                        |> find \case
-                                StatementCreateTable CreateTable { name } -> name == refTableName
-                                otherwise -> False
-
-                refColumn :: Column
-                refColumn = refTable
-                        |> \case StatementCreateTable CreateTable { columns } -> columns
-                                 _ -> error "refColumn: expected StatementCreateTable"
-                        |> find (\col -> col.name == refFieldName)
-                        |> \case
-                            Just refColumn -> refColumn
-                            Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
-
-        compileQuery column@(Column { name }) = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
-        -- compileQuery column@(Column { name }) | isReferenceColum column = columnNameToFieldName name <> " = (" <> toBinding modelName column <> ")"
-        --compileQuery (HasMany hasManyName inverseOf) = columnNameToFieldName hasManyName <> " = (QueryBuilder.filterWhere (Data.Proxy.Proxy @" <> tshow relatedFieldName <> ", " <> (fromJust $ toBinding' (tableNameToModelName name) relatedIdField)  <> ") (QueryBuilder.query @" <> tableNameToModelName hasManyName <>"))"
-        --    where
-        --        compileInverseOf Nothing = (columnNameToFieldName (singularize name)) <> "Id"
-        --        compileInverseOf (Just name) = columnNameToFieldName (singularize name)
-        --        relatedFieldName = compileInverseOf inverseOf
-        --        relatedIdField = relatedField "id"
-        --        relatedForeignKeyField = relatedField relatedFieldName
-        --        relatedField :: Text -> Attribute
-        --        relatedField relatedFieldName =
-        --            let
-        --                isFieldName name (Field fieldName _) = (columnNameToFieldName fieldName) == name
-        --                (Table _ attributes) = relatedTable
-        --            in case find (isFieldName relatedFieldName) (fieldsOnly attributes) of
-        --                Just a -> a
-        --                Nothing ->
-        --                    let (Table tableName _) = relatedTable
-        --                    in error (
-        --                            "Could not find field "
-        --                            <> show relatedFieldName
-        --                            <> " in table"
-        --                            <> cs tableName
-        --                            <> " "
-        --                            <> (show $ fieldsOnly attributes)
-        --                            <> ".\n\nThis is caused by `+ hasMany " <> show hasManyName <> "`"
-        --                        )
-        --        relatedTable = case find (\(Table tableName _) -> tableName == hasManyName) database of
-        --            Just t -> t
-        --            Nothing -> error ("Could not find table " <> show hasManyName)
-        --        toBinding' modelName attributes =
-        --            case relatedForeignKeyField of
-        --                Field _ fieldType | allowNull fieldType -> Just $ "Just (" <> fromJust (toBinding modelName attributes) <> ")"
-        --                otherwise -> toBinding modelName attributes
 
 -- | Generates a FromRowHasql instance for hasql-based queries
 --
@@ -879,55 +833,39 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
 -- Applicative but not Monad. Column values are bound via a lambda so that
 -- one-to-many QueryBuilders can reference the decoded primary key.
 compileFromRowHasqlInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowHasqlInstance table@(CreateTable { name, columns }) = cs [i|instance FromRowHasql #{modelName} where
-    hasqlRowDecoder = (\\#{intercalate " " columnNames} -> let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))} in theRecord)
-#{unsafeInit . indent . indent $ unlines applicativeDecoders}
+compileFromRowHasqlInstance table@(CreateTable { name, columns }) =
+    let modelName = qualifiedConstructorNameFromTableName name
+        decoderBody = compileRowDecoderBody table columns (compileFromRowQueryBuilder table) "        "
+    in cs [i|instance FromRowHasql #{modelName} where
+    hasqlRowDecoder = #{decoderBody}
 |]
+
+-- | Compile a QueryBuilder expression for a one-to-many field in FromRow/FromRowHasql instances
+compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text) -> Text
+compileFromRowQueryBuilder table (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
     where
-        modelName = qualifiedConstructorNameFromTableName name
-        columnNames = map (columnNameToFieldName . (.name)) columns
-        columnDecoderExpr columnName = hasqlColumnDecoder table (fromJust $ find (\col -> columnNameToFieldName col.name == columnName) columns)
-        applicativeDecoders = case columnNames of
-            [] -> error "compileFromRowHasqlInstance: table has no columns"
-            (first:rest) -> ("<$> " <> columnDecoderExpr first) : map (\cn -> "<*> " <> columnDecoderExpr cn) rest
+        primaryKeyField :: Text
+        primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
+        actualPrimaryKeyField :: Text
+        actualPrimaryKeyField = case primaryKeyColumns table of
+                [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs table.name <> ". At least one primary key is required."
+                [pk] -> columnNameToFieldName pk.name
+                pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs table.name <> "' which has more than one column as its primary key."
 
-        referencing = columnsReferencingTable table.name
-        -- Pair each referencing column with its generated field name for proper matching
-        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
+        (Just refTable) = let (Schema statements) = ?schema in
+                statements
+                |> find \case
+                        StatementCreateTable CreateTable { name } -> name == refTableName
+                        otherwise -> False
 
-        compileField (fieldName, _)
-            | isColumn fieldName = fieldName
-            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
-            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
-            | otherwise = "def"
-
-        isColumn name = name `elem` columnNames
-        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
-
-        compileSetQueryBuilder (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
-            where
-                primaryKeyField :: Text
-                primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
-                actualPrimaryKeyField :: Text
-                actualPrimaryKeyField = case primaryKeyColumns table of
-                        [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs name <> ". At least one primary key is required."
-                        [pk] -> columnNameToFieldName pk.name
-                        pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs name <> "' which has more than one column as its primary key."
-
-                (Just refTable) = let (Schema statements) = ?schema in
-                        statements
-                        |> find \case
-                                StatementCreateTable CreateTable { name } -> name == refTableName
-                                otherwise -> False
-
-                refColumn :: Column
-                refColumn = refTable
-                        |> \case StatementCreateTable CreateTable { columns } -> columns
-                                 _ -> error "refColumn: expected StatementCreateTable"
-                        |> find (\col -> col.name == refFieldName)
-                        |> \case
-                            Just refColumn -> refColumn
-                            Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
+        refColumn :: Column
+        refColumn = refTable
+                |> \case StatementCreateTable CreateTable { columns } -> columns
+                         _ -> error "refColumn: expected StatementCreateTable"
+                |> find (\col -> col.name == refFieldName)
+                |> \case
+                    Just refColumn -> refColumn
+                    Nothing -> error (cs $ "Could not find " <> refTable.name <> "." <> refFieldName <> " referenced by a foreign key constraint. Make sure that there is no typo in the foreign key constraint")
 
 -- | Generate a hasql decoder expression for a column based on its PostgresType and nullability
 -- Note: Generated columns are treated as nullable in the Haskell type (even if notNull=True)
@@ -977,7 +915,7 @@ hasqlValueDecoder = \case
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
-    PCustomType typeName -> "(Decoders.enum (Just \"public\") " <> tshow (Text.toLower typeName) <> " textToEnum" <> tableNameToModelName typeName <> ")"
+    PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
@@ -1203,3 +1141,334 @@ hasExplicitOrImplicitDefault column = case column of
         Column { columnType = PSerial } -> True
         Column { columnType = PBigserial } -> True
         _ -> False
+
+-- Statement Module Generation
+-- ===========================
+
+-- | Generate all statement modules for all tables (Create, Update, FetchById per table)
+statementModules :: (?compilerOptions :: CompilerOptions) => Schema -> [(OsPath, Text)]
+statementModules schema =
+    let ?schema = schema
+    in schema.statements
+        |> concatMap \case
+            StatementCreateTable table | tableHasPrimaryKey table ->
+                statementModulesForTable table
+            _ -> []
+
+statementModulesForTable :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [(OsPath, Text)]
+statementModulesForTable table =
+    let modelName = tableNameToModelName table.name
+        mkPath suffix = (OsPath.</>) "build/Generated/Statements" (either (error . show) id (encodeUtf (cs (suffix <> modelName) <> ".hs")))
+    in [ (mkPath "Create", compileCreateStatement table)
+       , (mkPath "Update", compileUpdateStatement table)
+       , (mkPath "Fetch", compileFetchByIdStatement table)
+       ]
+
+-- | Barrel module that re-exports all statement modules
+compileStatementsIndex :: (?compilerOptions :: CompilerOptions) => Schema -> Text
+compileStatementsIndex schema@(Schema statements) =
+    let tableNames = statements
+            |> mapMaybe \case
+                StatementCreateTable table | tableHasPrimaryKey table -> Just (tableNameToModelName table.name)
+                _ -> Nothing
+        imports = tableNames >>= \modelName ->
+            [ "import qualified Generated.Statements.Create" <> modelName
+            , "import qualified Generated.Statements.Update" <> modelName
+            , "import qualified Generated.Statements.Fetch" <> modelName
+            ]
+    in Text.unlines
+        [ "-- This file is auto generated and will be overriden regulary."
+        , "module Generated.Statements ("
+        , Text.intercalate ",\n" (map (\imp -> "    module " <> Text.drop (length ("import qualified " :: Text)) imp) imports)
+        , ") where"
+        , Text.unlines imports
+        ]
+
+-- | Imports for a statement module. Always imports all possible types since
+-- the modules are auto-generated and {-# OPTIONS_GHC -Wno-unused-imports #-} suppresses warnings.
+statementModuleImports :: (?schema :: Schema) => CreateTable -> Text
+statementModuleImports table =
+    Text.unlines
+        [ "import Generated.ActualTypes"
+        , "import Generated.Enums"
+        , "import IHP.ModelSupport (isTouched)"
+        , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
+        , "import qualified Hasql.Statement as Statement"
+        , "import qualified Hasql.Decoders as Decoders"
+        , "import qualified Hasql.Encoders as Encoders"
+        , "import qualified Hasql.Mapping.IsStatement as Mapping"
+        , "import qualified Hasql.Mapping.IsScalar as Mapping"
+        , "import Hasql.PostgresqlTypes ()"
+        , "import Data.Functor.Contravariant (contramap, (>$<))"
+        , "import Data.Default (def)"
+        , "import qualified Data.Dynamic"
+        , "import Data.UUID (UUID)"
+        , "import Data.Text (Text)"
+        , "import Data.Int (Int16, Int32, Int64)"
+        , "import Data.Time.Clock (UTCTime)"
+        , "import Data.Time.LocalTime (LocalTime, TimeOfDay)"
+        , "import qualified Data.Time.Calendar"
+        , "import Data.Scientific (Scientific)"
+        , "import qualified Data.Aeson"
+        , "import qualified Database.PostgreSQL.Simple.Types"
+        , "import PostgresqlTypes.Point (Point)"
+        , "import PostgresqlTypes.Polygon (Polygon)"
+        , "import PostgresqlTypes.Inet (Inet)"
+        , "import PostgresqlTypes.Tsvector (Tsvector)"
+        , "import PostgresqlTypes.Interval (Interval)"
+        ]
+
+-- | Map a PostgresType to its hasql value encoder expression
+hasqlValueEncoder :: PostgresType -> Text
+hasqlValueEncoder = \case
+    PUUID -> "Encoders.uuid"
+    PText -> "Encoders.text"
+    PSmallInt -> "(fromIntegral >$< Encoders.int2)"
+    PInt -> "(fromIntegral >$< Encoders.int4)"
+    PBigInt -> "(fromIntegral >$< Encoders.int8)"
+    PSerial -> "(fromIntegral >$< Encoders.int4)"
+    PBigserial -> "(fromIntegral >$< Encoders.int8)"
+    PBoolean -> "Encoders.bool"
+    PReal -> "Encoders.float4"
+    PDouble -> "Encoders.float8"
+    PTimestampWithTimezone -> "Encoders.timestamptz"
+    PTimestamp -> "Encoders.timestamp"
+    PDate -> "Encoders.date"
+    PTime -> "Encoders.time"
+    (PNumeric _ _) -> "Encoders.numeric"
+    PJSONB -> "Encoders.jsonb"
+    PBinary -> "((\\ (Database.PostgreSQL.Simple.Types.Binary bs) -> bs) >$< Encoders.bytea)"
+    (PVaryingN _) -> "Encoders.text"
+    (PCharacterN _) -> "Encoders.text"
+    (PInterval _) -> "Mapping.encoder"
+    PPoint -> "Mapping.encoder"
+    PPolygon -> "Mapping.encoder"
+    PInet -> "Mapping.encoder"
+    PTSVector -> "Mapping.encoder"
+    PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
+    PCustomType _ -> "Mapping.encoder"
+    PSingleChar -> "Encoders.char"
+    PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
+    PEventTrigger -> error "hasqlValueEncoder: PEventTrigger not supported"
+
+-- | Format a list of encoder expressions into a mconcat block
+formatEncoderBlock :: [Text] -> Text
+formatEncoderBlock [] = "        mempty"
+formatEncoderBlock encoderLines =
+    "        mconcat\n            [ " <> intercalate "\n            , " encoderLines <> "\n            ]"
+
+-- | Generate one encoder expression for a column, accessing a field from the unwrapped record.
+-- The expression assumes the record is in scope.
+hasqlColumnEncoder :: (?schema :: Schema) => CreateTable -> Column -> Text
+hasqlColumnEncoder table column@Column { name, columnType, notNull, generator }
+    | isJust generator = error $ "hasqlColumnEncoder: cannot encode generated column " <> cs name
+    | otherwise = "(." <> fieldName <> ") >$< Encoders.param (" <> nullability <> " " <> encoder <> ")"
+    where
+        fieldName = columnNameToFieldName name
+        -- For encoders, columns that are nullable in Haskell (not notNull) use nullable encoder
+        isNullable = not notNull
+        nullability = if isNullable then "Encoders.nullable" else "Encoders.nonNullable"
+        isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
+        isForeignKey = isJust (findForeignKeyConstraint table column)
+        needsIdWrapper = isPrimaryKey || isForeignKey
+        baseEncoder = hasqlValueEncoder columnType
+        encoder = if needsIdWrapper then "((\\ (Id pk) -> pk) >$< " <> baseEncoder <> ")" else baseEncoder
+
+-- | Generate the Create statement module for a table
+compileCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileCreateStatement table@(CreateTable { name, columns }) =
+    let modelName = tableNameToModelName name
+        moduleName = "Generated.Statements.Create" <> modelName
+        newtypeName = "Create" <> modelName
+        writableColumns = onlyWritableColumns columns
+        allColumnNames = commaSep (map (.name) columns)
+        writableColumnNames = commaSep (map (.name) writableColumns)
+        paramCount = length writableColumns
+        placeholders = commaSep (map (\i -> "$" <> tshow i) [1..paramCount])
+
+        sql = "INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES (" <> placeholders <> ") RETURNING " <> allColumnNames
+
+        encoderBlock = formatEncoderBlock (map (hasqlColumnEncoder table) writableColumns)
+
+        decoderBlock = compileStatementDecoder modelName table columns
+    in Text.unlines
+        [ "-- This file is auto generated and will be overriden regulary."
+        , "{-# LANGUAGE TypeFamilies #-}"
+        , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
+        , "module " <> moduleName <> " where"
+        , ""
+        , statementModuleImports table
+        , "newtype " <> newtypeName <> " = " <> newtypeName <> " " <> qualifiedConstructorNameFromTableName name
+        , ""
+        , "instance Mapping.IsStatement " <> newtypeName <> " where"
+        , "    type Result " <> newtypeName <> " = " <> qualifiedConstructorNameFromTableName name
+        , "    statement = Statement.preparable sql encoder decoder"
+        , "      where"
+        , "        sql = " <> tshow sql
+        , "        encoder = contramap (\\ (" <> newtypeName <> " record) -> record) $"
+        , encoderBlock
+        , "        decoder = " <> decoderBlock
+        ]
+
+-- | Generate the Update statement module for a table (CASE WHEN approach)
+compileUpdateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileUpdateStatement table@(CreateTable { name, columns }) =
+    let modelName = tableNameToModelName name
+        moduleName = "Generated.Statements.Update" <> modelName
+        newtypeName = "Update" <> modelName
+        writableColumns = onlyWritableColumns columns
+        pkColumns = primaryKeyColumns table
+        allColumnNames = commaSep (map (.name) columns)
+
+        -- Build CASE WHEN SQL and encoder pairs
+        -- Each writable column gets 2 params: bool flag + value
+        (setClauses, paramIdx) = foldl' buildSetClause ([], 1 :: Int) writableColumns
+        setClausesSql = intercalate ", " (reverse setClauses)
+
+        -- WHERE clause uses pkColumns
+        (whereClauses, _) = foldl' (\(acc, idx) col -> (col.name <> " = $" <> tshow idx : acc, idx + 1)) ([], paramIdx) pkColumns
+        whereClauseSql = intercalate " AND " (reverse whereClauses)
+
+        sql = "UPDATE " <> name <> " SET " <> setClausesSql <> " WHERE " <> whereClauseSql <> " RETURNING " <> allColumnNames
+
+        -- Encoder: for each writable column, emit (isTouched flag, nullable value), then pk columns
+        -- Value params are always nullable: we send NULL when the field is untouched (the CASE WHEN skips it anyway)
+        touchedEncoderLines = writableColumns >>= \col ->
+            let fieldName = columnNameToFieldName col.name
+                colName = tshow col.name
+                isPrimaryKey = [col.name] == primaryKeyColumnNames table.primaryKeyConstraint
+                isForeignKey = isJust (findForeignKeyConstraint table col)
+                needsIdWrapper = isPrimaryKey || isForeignKey
+                baseEncoder = hasqlValueEncoder col.columnType
+                valueEncoder = if needsIdWrapper then "((\\ (Id pk) -> pk) >$< " <> baseEncoder <> ")" else baseEncoder
+                isNullable = not col.notNull
+                -- For nullable columns, the field is already Maybe a, so we pass it through or send Nothing
+                -- For non-nullable columns, we wrap in Just when touched, Nothing when untouched
+                valueExpr = if isNullable
+                    then "(\\record -> if isTouched " <> colName <> " record then record." <> fieldName <> " else Nothing)"
+                    else "(\\record -> if isTouched " <> colName <> " record then Just record." <> fieldName <> " else Nothing)"
+            in [ "isTouched " <> colName <> " >$< Encoders.param (Encoders.nonNullable Encoders.bool)"
+               , valueExpr <> " >$< Encoders.param (Encoders.nullable " <> valueEncoder <> ")"
+               ]
+        pkEncoderLines = map (hasqlColumnEncoder table) pkColumns
+        allEncoderLines = touchedEncoderLines <> pkEncoderLines
+
+        encoderBlock = formatEncoderBlock allEncoderLines
+
+        decoderBlock = compileStatementDecoder modelName table columns
+    in Text.unlines
+        [ "-- This file is auto generated and will be overriden regulary."
+        , "{-# LANGUAGE TypeFamilies #-}"
+        , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
+        , "module " <> moduleName <> " where"
+        , ""
+        , statementModuleImports table
+        , ""
+        , "newtype " <> newtypeName <> " = " <> newtypeName <> " " <> qualifiedConstructorNameFromTableName name
+        , ""
+        , "instance Mapping.IsStatement " <> newtypeName <> " where"
+        , "    type Result " <> newtypeName <> " = " <> qualifiedConstructorNameFromTableName name
+        , "    statement = Statement.preparable sql encoder decoder"
+        , "      where"
+        , "        sql = " <> tshow sql
+        , "        encoder = contramap (\\ (" <> newtypeName <> " record) -> record) $"
+        , encoderBlock
+        , "        decoder = " <> decoderBlock
+        ]
+    where
+        buildSetClause (acc, idx) col =
+            let clause = col.name <> " = CASE WHEN $" <> tshow idx <> " THEN $" <> tshow (idx + 1) <> " ELSE " <> col.name <> " END"
+            in (clause : acc, idx + 2)
+
+-- | Generate the FetchById statement module for a table
+compileFetchByIdStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileFetchByIdStatement table@(CreateTable { name, columns }) =
+    let modelName = tableNameToModelName name
+        moduleName = "Generated.Statements.Fetch" <> modelName
+        newtypeName = "Fetch" <> modelName
+        pkColumns = primaryKeyColumns table
+        allColumnNames = commaSep (map (.name) columns)
+
+        -- WHERE clause
+        (whereClauses, _) = foldl' (\(acc, idx) col -> (col.name <> " = $" <> tshow idx : acc, idx + 1)) ([], 1 :: Int) pkColumns
+        whereClauseSql = intercalate " AND " (reverse whereClauses)
+
+        sql = "SELECT " <> allColumnNames <> " FROM " <> name <> " WHERE " <> whereClauseSql <> " LIMIT 1"
+
+        -- Encoder: primary key columns only
+        encoderBlock = formatEncoderBlock (map (hasqlColumnEncoder table) pkColumns)
+
+        decoderBlock = compileStatementDecoder modelName table columns
+    in Text.unlines
+        [ "-- This file is auto generated and will be overriden regulary."
+        , "{-# LANGUAGE TypeFamilies #-}"
+        , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
+        , "module " <> moduleName <> " where"
+        , ""
+        , statementModuleImports table
+        , ""
+        , "newtype " <> newtypeName <> " = " <> newtypeName <> " (Id' " <> tshow name <> ")"
+        , ""
+        , "instance Mapping.IsStatement " <> newtypeName <> " where"
+        , "    type Result " <> newtypeName <> " = Maybe " <> qualifiedConstructorNameFromTableName name
+        , "    statement = Statement.preparable sql encoder decoder"
+        , "      where"
+        , "        sql = " <> tshow sql
+        , "        encoder = contramap (\\ (" <> newtypeName <> " theId) -> theId) $"
+        , "            " <> fetchByIdEncoder table
+        , "        decoder = Decoders.rowMaybe (" <> compileStatementRowDecoder modelName table columns <> ")"
+        ]
+
+-- | Encoder for FetchById - handles single and composite primary keys
+fetchByIdEncoder :: (?schema :: Schema) => CreateTable -> Text
+fetchByIdEncoder table = case primaryKeyColumns table of
+    [col] ->
+        let baseEncoder = hasqlValueEncoder col.columnType
+        in "(\\ (Id pk) -> pk) >$< Encoders.param (Encoders.nonNullable " <> baseEncoder <> ")"
+    cols ->
+        let encoders = zipWith (\col idx ->
+                let baseEncoder = hasqlValueEncoder col.columnType
+                    accessor = "(\\(Id (" <> commaSep (map (\i -> if i == idx then "v" else "_") [0..length cols - 1]) <> ")) -> v)"
+                in accessor <> " >$< Encoders.param (Encoders.nonNullable " <> baseEncoder <> ")"
+                ) cols [0..]
+        in "mconcat [" <> intercalate ", " encoders <> "]"
+
+-- | Generate a decoder block for singleRow that constructs a model record
+compileStatementDecoder :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> CreateTable -> [Column] -> Text
+compileStatementDecoder modelName table columns =
+    "Decoders.singleRow (" <> compileStatementRowDecoder modelName table columns <> ")"
+
+-- | Shared helper for building a row decoder body (lambda + applicative chain).
+-- The @compileQueryBuilderField@ parameter controls how one-to-many QueryBuilder fields are compiled:
+-- - 'compileFromRowHasqlInstance' passes the real QueryBuilder filter expression
+-- - 'compileStatementRowDecoder' passes @\\_ _ -> "def"@ (no QueryBuilder available in statement decoders)
+-- The @decoderIndent@ parameter controls indentation of the @<$>@ / @<*>@ lines.
+compileRowDecoderBody :: (?schema :: Schema, ?compilerOptions :: CompilerOptions)
+    => CreateTable -> [Column] -> ((Text, Text) -> Text) -> Text -> Text
+compileRowDecoderBody table columns compileSetQueryBuilder decoderIndent =
+    let columnNames = map (columnNameToFieldName . (.name)) columns
+        referencing = columnsReferencingTable table.name
+        referencingWithFieldNames = zip (map fst (compileQueryBuilderFields referencing)) referencing
+
+        compileField (fieldName, _)
+            | isColumn fieldName = fieldName
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(name, _) -> name == fieldName) referencingWithFieldNames in compileSetQueryBuilder ref
+            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
+            | otherwise = "def"
+
+        isColumn colName = colName `elem` columnNames
+        isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
+
+        decoderExprs = map (hasqlColumnDecoder table) columns
+
+        lambdaArgs = intercalate " " columnNames
+        constructorArgs = intercalate " " (map compileField (dataFields table))
+        lambdaBody = "(\\" <> lambdaArgs <> " -> let theRecord = " <> qualifiedConstructorNameFromTableName table.name <> " " <> constructorArgs <> " in theRecord)"
+    in case decoderExprs of
+        [] -> error "compileRowDecoderBody: table has no columns"
+        (first:rest) -> lambdaBody <> "\n" <> decoderIndent <> "<$> " <> first <> concatMap (\d -> "\n" <> decoderIndent <> "<*> " <> d) rest
+
+-- | Generate a row decoder expression that constructs a model record (for statement modules)
+compileStatementRowDecoder :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> CreateTable -> [Column] -> Text
+compileStatementRowDecoder _modelName table columns =
+    compileRowDecoderBody table columns (\_ -> "def") "            "

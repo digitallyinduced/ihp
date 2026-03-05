@@ -850,6 +850,12 @@ instance SetField "touchedFields" MetaBag [Text] where
     setField value meta = meta { touchedFields = value }
     {-# INLINE setField #-}
 
+-- | Returns 'True' if the named field has been touched (is in @touchedFields@).
+-- Used by generated Update statement modules to determine which columns to send.
+isTouched :: (HasField "meta" record MetaBag) => Text -> record -> Bool
+isTouched fieldName record = fieldName `elem` record.meta.touchedFields
+{-# INLINE isTouched #-}
+
 -- | Returns 'True' if any fields of the record have unsaved changes
 --
 -- __Example:__ Returns 'False' for freshly fetched records

@@ -50,6 +50,9 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Mood] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
+                    instance Mapping.IsScalar Mood where
+                        encoder = Hasql.Encoders.enum (Just "public") "mood" inputValue
+                        decoder = Hasql.Decoders.enum (Just "public") "mood" textToEnumMood
                 |]
             it "should deal with enums that have no values" do
                 -- https://github.com/digitallyinduced/ihp/issues/1026
@@ -115,6 +118,9 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Province] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
+                    instance Mapping.IsScalar Province where
+                        encoder = Hasql.Encoders.enum (Just "public") "province" inputValue
+                        decoder = Hasql.Decoders.enum (Just "public") "province" textToEnumProvince
                 |]
             it "should deal with duplicate enum values" do
                 let enum1 = CreateEnumType { name = "property_type", values = ["APARTMENT", "HOUSE"] }
@@ -147,6 +153,9 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [PropertyType] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
+                    instance Mapping.IsScalar PropertyType where
+                        encoder = Hasql.Encoders.enum (Just "public") "property_type" inputValue
+                        decoder = Hasql.Decoders.enum (Just "public") "property_type" textToEnumPropertyType
                 |]
         describe "compileCreate" do
             let statement = StatementCreateTable $ (table "users") {
@@ -236,8 +245,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ") RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -259,8 +267,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -333,8 +340,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ") RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -356,8 +362,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -427,8 +432,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id) VALUES (" <> Snippet.param model.id <> Snippet.sql ") RETURNING id, ts"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -450,8 +454,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, ts"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -557,8 +560,7 @@ tests = do
                     createLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     createLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ") RETURNING id"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
+                        sqlStatementHasql pool (Generated.Statements.CreateLandingPage.CreateLandingPage model) (Mapping.statement @Generated.Statements.CreateLandingPage.CreateLandingPage)
 
                     createManyLandingPage :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
                     createManyLandingPage [] = pure []
@@ -580,8 +582,7 @@ tests = do
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE landing_pages SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
+                        sqlStatementHasql pool (Generated.Statements.UpdateLandingPage.UpdateLandingPage model) (Mapping.statement @Generated.Statements.UpdateLandingPage.UpdateLandingPage)
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
@@ -826,8 +827,7 @@ tests = do
                     createPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     createPost model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ") RETURNING id, title, user_id"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.Post))
+                        sqlStatementHasql pool (Generated.Statements.CreatePost.CreatePost model) (Mapping.statement @Generated.Statements.CreatePost.CreatePost)
 
                     createManyPost :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
                     createManyPost [] = pure []
@@ -849,8 +849,7 @@ tests = do
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE posts SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "title = " <> fieldWithUpdateSnippet #title model <> Snippet.sql ", " <> Snippet.sql "user_id = " <> fieldWithUpdateSnippet #userId model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id <> Snippet.sql " RETURNING id, title, user_id"
-                        sqlQueryHasql pool snippet (Decoders.singleRow (hasqlRowDecoder @Generated.ActualTypes.Post))
+                        sqlStatementHasql pool (Generated.Statements.UpdatePost.UpdatePost model) (Mapping.statement @Generated.Statements.UpdatePost.UpdatePost)
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
@@ -892,6 +891,98 @@ tests = do
                         {-# INLINE newRecord #-}
                         newRecord = Generated.ActualTypes.User def  def
                 |]
+
+        describe "statement module content" do
+            let statements =
+                    [ StatementCreateTable CreateTable
+                        { name = "posts"
+                        , columns =
+                            [ (col "id" PUUID) { notNull = True, isUnique = True }
+                            , (col "title" PText) { notNull = True }
+                            , (col "body" PText) { notNull = True }
+                            ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                        , constraints = []
+                        , unlogged = False
+                        }
+                    ]
+            let [StatementCreateTable theTable] = statements
+            let ?schema = Schema statements
+            let ?compilerOptions = fullCompileOptions
+
+            it "should generate correct Create statement module" do
+                let output = compileCreateStatement theTable
+                getStatementBody output `shouldBe` [trimming|
+                    newtype CreatePost = CreatePost Generated.ActualTypes.Post
+
+                    instance Mapping.IsStatement CreatePost where
+                        type Result CreatePost = Generated.ActualTypes.Post
+                        statement = Statement.preparable sql encoder decoder
+                          where
+                            sql = "INSERT INTO posts (id, title, body) VALUES ($$1, $$2, $$3) RETURNING id, title, body"
+                            encoder = contramap (\ (CreatePost record) -> record) $$
+                            mconcat
+                                [ (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                , (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                                , (.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                                ]
+                            decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    |]
+
+            it "should generate correct Update statement module" do
+                let output = compileUpdateStatement theTable
+                getStatementBody output `shouldBe` [trimming|
+                    newtype UpdatePost = UpdatePost Generated.ActualTypes.Post
+
+                    instance Mapping.IsStatement UpdatePost where
+                        type Result UpdatePost = Generated.ActualTypes.Post
+                        statement = Statement.preparable sql encoder decoder
+                          where
+                            sql = "UPDATE posts SET id = CASE WHEN $$1 THEN $$2 ELSE id END, title = CASE WHEN $$3 THEN $$4 ELSE title END, body = CASE WHEN $$5 THEN $$6 ELSE body END WHERE id = $$7 RETURNING id, title, body"
+                            encoder = contramap (\ (UpdatePost record) -> record) $$
+                            mconcat
+                                [ isTouched "id" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
+                                , (\record -> if isTouched "id" record then Just record.id else Nothing) >$$< Encoders.param (Encoders.nullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                , isTouched "title" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
+                                , (\record -> if isTouched "title" record then Just record.title else Nothing) >$$< Encoders.param (Encoders.nullable Encoders.text)
+                                , isTouched "body" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
+                                , (\record -> if isTouched "body" record then Just record.body else Nothing) >$$< Encoders.param (Encoders.nullable Encoders.text)
+                                , (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                ]
+                            decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    |]
+
+            it "should generate correct FetchById statement module" do
+                let output = compileFetchByIdStatement theTable
+                getStatementBody output `shouldBe` [trimming|
+                    newtype FetchPost = FetchPost (Id' "posts")
+
+                    instance Mapping.IsStatement FetchPost where
+                        type Result FetchPost = Maybe Generated.ActualTypes.Post
+                        statement = Statement.preparable sql encoder decoder
+                          where
+                            sql = "SELECT id, title, body FROM posts WHERE id = $$1 LIMIT 1"
+                            encoder = contramap (\ (FetchPost theId) -> theId) $$
+                                (\ (Id pk) -> pk) >$$< Encoders.param (Encoders.nonNullable Encoders.uuid)
+                            decoder = Decoders.rowMaybe ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    |]
+
+-- | Extract the body of a statement module (everything after the import block)
+getStatementBody :: Text -> Text
+getStatementBody full =
+    Text.splitOn "\n" full
+        |> dropWhile (\line -> "import " `isPrefixOf` line || isEmpty line || "-- " `isPrefixOf` line || "{-#" `isPrefixOf` line || "module " `isPrefixOf` line)
+        |> Text.unlines
+        |> Text.strip
 
 getInstanceDecl :: Text -> Text -> Text
 getInstanceDecl instanceName full =
