@@ -976,6 +976,26 @@ tests = do
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text))
                     |]
 
+            it "should use Haskell field names (not SQL column names) for isTouched in Update" do
+                let snakeStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "blog_posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True }
+                                , (col "post_title" PText) { notNull = True }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            }
+                        ]
+                let [StatementCreateTable snakeTable] = snakeStatements
+                let ?schema = Schema snakeStatements
+                let output = compileUpdateStatement snakeTable
+                -- isTouched should use "postTitle" (Haskell field name), not "post_title" (SQL column name)
+                output `shouldSatisfy` Text.isInfixOf "isTouched \"postTitle\""
+                output `shouldSatisfy` (not . Text.isInfixOf "isTouched \"post_title\"")
+
 -- | Extract the body of a statement module (everything after the import block)
 getStatementBody :: Text -> Text
 getStatementBody full =

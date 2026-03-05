@@ -1335,7 +1335,7 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
         -- Value params are always nullable: we send NULL when the field is untouched (the CASE WHEN skips it anyway)
         touchedEncoderLines = writableColumns >>= \col ->
             let fieldName = columnNameToFieldName col.name
-                colName = tshow col.name
+                colName = tshow fieldName
                 isPrimaryKey = [col.name] == primaryKeyColumnNames table.primaryKeyConstraint
                 isForeignKey = isJust (findForeignKeyConstraint table col)
                 needsIdWrapper = isPrimaryKey || isForeignKey
