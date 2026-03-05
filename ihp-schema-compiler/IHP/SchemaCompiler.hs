@@ -1555,7 +1555,7 @@ compileCreateManyStatement table@(CreateTable { name, columns }) =
         , "import qualified Data.Text as Text"
         , ""
         , "statement :: Int -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
-        , "statement count = Statement.Statement (sql count) (encoder count) decoder False"
+        , "statement count = Statement.unpreparable (sql count) (encoder count) decoder"
         , ""
         , "sql :: Int -> Text"
         , "sql count = \"INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES \""
