@@ -78,7 +78,6 @@ instance DefaultParamEncoder JobStatus where
 instance DefaultParamEncoder [JobStatus] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
 
--- | IsScalar instance for hasql-mapping, used by generated statement modules
 instance Mapping.IsScalar JobStatus where
     encoder = Encoders.enum (Just "public") "job_status" inputValue
     decoder = Decoders.enum (Just "public") "job_status" textToEnumJobStatus
