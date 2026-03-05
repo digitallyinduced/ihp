@@ -356,7 +356,6 @@ defaultImports = [trimming|
     import IHP.Hasql.Encoders ()
     import qualified Hasql.Mapping.IsScalar as Mapping
     import Hasql.PostgresqlTypes ()
-    import qualified Data.Set
 |]
 
 
@@ -714,7 +713,7 @@ compileCreate table@(CreateTable { name, columns }) =
         isDynamic = hasAnyDefaults writableColumns
         hasqlCreateBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
-                <> "let touched = Data.Set.fromList model.meta.touchedFields\n"
+                <> "let touched = model.meta.touchedFields\n"
                 <> "sqlStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".statement touched)"
             else "let pool = ?modelContext.hasqlPool\n"
                 <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
@@ -785,8 +784,8 @@ compileUpdate table@(CreateTable { name, columns }) =
                     <> " <> Snippet.sql \")\""
 
         -- Hasql bodies: skip DB round-trip when nothing is touched
-        hasqlUpdateBody = "let touched = Data.Set.fromList model.meta.touchedFields\n"
-                <> "if Data.Set.null touched then pure model else do\n"
+        hasqlUpdateBody = "let touched = model.meta.touchedFields\n"
+                <> "if null touched then pure model else do\n"
                 <> "    let pool = ?modelContext.hasqlPool\n"
                 <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".statement touched)"
         hasqlUpdateDiscardBody = "let pool = ?modelContext.hasqlPool\n"
@@ -1389,8 +1388,8 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
-        , "statement :: Set.Set Text -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFields = Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
+        , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
+        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
         , ""
         , sqlBody
         , ""
@@ -1452,8 +1451,8 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
-        , "statement :: Set.Set Text -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFields = Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
+        , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
+        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
         , ""
         , sqlBody
         , ""

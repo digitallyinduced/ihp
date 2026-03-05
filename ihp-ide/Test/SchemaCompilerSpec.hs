@@ -245,7 +245,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = Data.Set.fromList model.meta.touchedFields
+                        let touched = model.meta.touchedFields
                         sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
@@ -267,8 +267,8 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        if Data.Set.null touched then pure model else do
+                        let touched = model.meta.touchedFields
+                        if null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -343,7 +343,7 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = Data.Set.fromList model.meta.touchedFields
+                        let touched = model.meta.touchedFields
                         sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
@@ -365,8 +365,8 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        if Data.Set.null touched then pure model else do
+                        let touched = model.meta.touchedFields
+                        if null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -459,8 +459,8 @@ tests = do
 
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        if Data.Set.null touched then pure model else do
+                        let touched = model.meta.touchedFields
+                        if null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -568,7 +568,7 @@ tests = do
                     createLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     createLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = Data.Set.fromList model.meta.touchedFields
+                        let touched = model.meta.touchedFields
                         sqlStatementHasql pool model (Generated.Statements.CreateLandingPage.statement touched)
 
                     createManyLandingPage :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
@@ -590,8 +590,8 @@ tests = do
 
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        if Data.Set.null touched then pure model else do
+                        let touched = model.meta.touchedFields
+                        if null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
@@ -838,7 +838,7 @@ tests = do
                     createPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     createPost model = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = Data.Set.fromList model.meta.touchedFields
+                        let touched = model.meta.touchedFields
                         sqlStatementHasql pool model (Generated.Statements.CreatePost.statement touched)
 
                     createManyPost :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
@@ -860,8 +860,8 @@ tests = do
 
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
-                        let touched = Data.Set.fromList model.meta.touchedFields
-                        if Data.Set.null touched then pure model else do
+                        let touched = model.meta.touchedFields
+                        if null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
@@ -951,8 +951,8 @@ tests = do
             it "should generate correct Update statement module" do
                 let output = compileUpdateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: Set.Set Text -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement touchedFields = Statement.preparable (sql touchedFields) (encoder touchedFields) decoder
+                    statement :: [Text] -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
+                    statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder
 
                     sql :: Set.Set Text -> Text
                     sql touchedFields =
