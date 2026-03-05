@@ -7,6 +7,7 @@ module Test.ModelSupportSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.ModelSupport
+import Data.Bits ((.&.), (.|.))
 import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
@@ -116,6 +117,8 @@ tests = do
 
 data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
 instance SetField "id" Project Int where
-    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = "id":(touchedFields meta) } }
+    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = touchedFields meta .|. 1 } }
 instance SetField "name" Project Text where
-    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = "name":(touchedFields meta) } }
+    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = touchedFields meta .|. 2 } }
+instance TouchedField "id" Project where touchedFieldBit = 1
+instance TouchedField "name" Project where touchedFieldBit = 2
