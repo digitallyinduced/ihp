@@ -957,8 +957,7 @@ tests = do
                     sql :: Set.Set Text -> Text
                     sql touchedFields =
                         let setEntries = catMaybes
-                                [ if Set.member "id" touchedFields then Just "id" else Nothing
-                                , if Set.member "title" touchedFields then Just "title" else Nothing
+                                [ if Set.member "title" touchedFields then Just "title" else Nothing
                                 , if Set.member "body" touchedFields then Just "body" else Nothing
                                 ]
                             setClauses = [col <> " = $$" <> Text.pack (show i) | (i, col) <- zip [1..] setEntries]
@@ -969,8 +968,7 @@ tests = do
 
                     encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
                     encoder touchedFields = mconcat (catMaybes
-                        [ if Set.member "id" touchedFields then Just ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))) else Nothing
-                        , if Set.member "title" touchedFields then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
+                        [ if Set.member "title" touchedFields then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         , if Set.member "body" touchedFields then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         ])
                         <> (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))

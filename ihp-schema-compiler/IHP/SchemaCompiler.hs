@@ -1204,6 +1204,7 @@ statementModuleBaseImports =
         , "import qualified Hasql.Encoders as Encoders"
         , "import qualified Hasql.Mapping.IsScalar as Mapping"
         , "import Hasql.PostgresqlTypes ()"
+        , "import IHP.Job.Queue ()"
         , "import Data.Functor.Contravariant (contramap, (>$<))"
         , "import Data.Default (def)"
         , "import qualified Data.Dynamic"
@@ -1408,8 +1409,11 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
     let modelName = tableNameToModelName name
         moduleName = "Generated.Statements.Update" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
-        writableColumns = onlyWritableColumns columns
+        allWritableColumns = onlyWritableColumns columns
         pkColumns = primaryKeyColumns table
+        pkColumnNames = map (.name) pkColumns
+        -- Exclude PK columns from SET clause — they go in WHERE
+        writableColumns = filter (\col -> col.name `notElem` pkColumnNames) allWritableColumns
         allColumnNames = commaSep (map (.name) columns)
 
         -- Build the sql function body

@@ -23,6 +23,7 @@ import Control.Monad.Trans.Resource
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
+import qualified Hasql.Mapping.IsScalar as Mapping
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool as HasqlPool
@@ -439,6 +440,11 @@ instance DefaultParamEncoder JobStatus where
 -- | DefaultParamEncoder for lists of JobStatus, needed for filterWhereIn/filterWhereNotIn
 instance DefaultParamEncoder [JobStatus] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
+
+-- | IsScalar instance for hasql-mapping (used by generated statement modules)
+instance Mapping.IsScalar JobStatus where
+    encoder = Encoders.enum (Just "public") "job_status" inputValue
+    decoder = Decoders.enum (Just "public") "job_status" textToEnumJobStatus
 
 -- | Non-blocking write to a TBQueue. Returns True if the value was written,
 -- False if the queue was full.
