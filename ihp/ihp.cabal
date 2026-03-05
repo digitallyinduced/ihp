@@ -297,4 +297,5 @@ test-suite tests
         Test.AutoRefreshSpec
         Test.Pagination.ControllerFunctionsSpec
         Test.FetchPipelinedSpec
+        Test.JobQueueSpec
         Test.ModelFixtures
