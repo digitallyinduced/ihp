@@ -19,7 +19,7 @@ import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.QQ (hsx)
 import           IHP.HSX.ToHtml
-import           IHP.ModelSupport (Id', InputValue, TouchedField, didTouchField, getModelName, inputValue, isNew)
+import           IHP.ModelSupport (Id', InputValue, FieldBit, didTouchField, getModelName, inputValue, isNew)
 import           IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.Classes ()
@@ -788,7 +788,7 @@ selectField :: forall fieldName model item.
     , InputValue (SelectValue item)
     , Typeable model
     , Eq (SelectValue item)
-    , TouchedField fieldName model
+    , FieldBit fieldName model
     ) => Proxy fieldName -> [item] -> FormField
 selectField field items = FormField
         { fieldType =
@@ -876,7 +876,7 @@ radioField :: forall fieldName model item.
     , InputValue (SelectValue item)
     , Typeable model
     , Eq (SelectValue item)
-    , TouchedField fieldName model
+    , FieldBit fieldName model
     ) => Proxy fieldName -> [item] -> FormField
 radioField field items = (selectField field items)
     { fieldType =

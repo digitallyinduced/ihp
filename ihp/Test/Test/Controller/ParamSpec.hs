@@ -502,5 +502,5 @@ instance SetField "colorField" FillRecord Color where
 instance SetField "meta" FillRecord MetaBag where
     setField value record = record { meta = value }
 
-instance TouchedField "boolField" FillRecord where touchedFieldBit = 1
-instance TouchedField "colorField" FillRecord where touchedFieldBit = 2
+instance FieldBit "boolField" FillRecord where fieldBit = 1
+instance FieldBit "colorField" FillRecord where fieldBit = 2

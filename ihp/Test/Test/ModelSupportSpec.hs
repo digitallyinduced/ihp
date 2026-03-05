@@ -120,5 +120,5 @@ instance SetField "id" Project Int where
     setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = touchedFields meta .|. 1 } }
 instance SetField "name" Project Text where
     setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = touchedFields meta .|. 2 } }
-instance TouchedField "id" Project where touchedFieldBit = 1
-instance TouchedField "name" Project where touchedFieldBit = 2
+instance FieldBit "id" Project where fieldBit = 1
+instance FieldBit "name" Project where fieldBit = 2

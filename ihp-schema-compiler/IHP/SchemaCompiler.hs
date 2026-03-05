@@ -148,7 +148,7 @@ tableModuleBody options table = Text.unlines $ filter (not . Text.null)
     , if options.compileGetAndSetFieldInstances
             then compileSetFieldInstances table <> compileUpdateFieldInstances table
             else ""
-    , compileTouchedFieldInstances table
+    , compileFieldBitInstances table
     ]
 
 newtype Schema = Schema { statements :: [Statement] }
@@ -1173,12 +1173,12 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
                 compileTypePattern' ::  Text -> Text
                 compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table)))
 
-compileTouchedFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileTouchedFieldInstances table@(CreateTable { name }) = unlines (map compileInstance (fieldBitPositions table))
+compileFieldBitInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileFieldBitInstances table@(CreateTable { name }) = unlines (map compileInstance (fieldBitPositions table))
     where
         typePattern = compileTypePattern table
         compileInstance (fieldName, bitVal) =
-            "instance TouchedField " <> tshow fieldName <> " (" <> typePattern <> ") where touchedFieldBit = " <> tshow bitVal
+            "instance FieldBit " <> tshow fieldName <> " (" <> typePattern <> ") where fieldBit = " <> tshow bitVal
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
