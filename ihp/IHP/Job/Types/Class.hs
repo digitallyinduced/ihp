@@ -5,7 +5,6 @@ module IHP.Job.Types.Class
 
 import IHP.Prelude
 import IHP.FrameworkConfig.Types (FrameworkConfig)
-import IHP.ModelSupport.Types (ModelContext)
 import IHP.Job.Types.BackoffStrategy (BackoffStrategy (..))
 
 class Job job where

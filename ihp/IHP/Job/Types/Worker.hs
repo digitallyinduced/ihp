@@ -8,11 +8,9 @@ module IHP.Job.Types.Worker
 
 import IHP.Prelude
 import IHP.FrameworkConfig.Types (FrameworkConfig)
-import IHP.ModelSupport.Types (ModelContext)
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource (ResourceT, ReleaseKey)
 import Control.Concurrent.STM (TBQueue, TVar)
-import Control.Concurrent.Async (Async)
 
 class Worker application where
     workers :: application -> [JobWorker]
