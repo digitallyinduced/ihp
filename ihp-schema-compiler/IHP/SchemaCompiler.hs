@@ -785,7 +785,7 @@ compileUpdate table@(CreateTable { name, columns }) =
 
         -- Hasql bodies: skip DB round-trip when nothing is touched
         hasqlUpdateBody = "let touched = model.meta.touchedFields\n"
-                <> "if null touched then pure model else do\n"
+                <> "if List.null touched then pure model else do\n"
                 <> "    let pool = ?modelContext.hasqlPool\n"
                 <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".statement touched)"
         hasqlUpdateDiscardBody = "let pool = ?modelContext.hasqlPool\n"

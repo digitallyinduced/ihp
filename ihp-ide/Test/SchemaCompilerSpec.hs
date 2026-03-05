@@ -268,7 +268,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if null touched then pure model else do
+                        if List.null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -366,7 +366,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if null touched then pure model else do
+                        if List.null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -460,7 +460,7 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if null touched then pure model else do
+                        if List.null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
@@ -591,7 +591,7 @@ tests = do
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
                         let touched = model.meta.touchedFields
-                        if null touched then pure model else do
+                        if List.null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
@@ -861,7 +861,7 @@ tests = do
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
                         let touched = model.meta.touchedFields
-                        if null touched then pure model else do
+                        if List.null touched then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
