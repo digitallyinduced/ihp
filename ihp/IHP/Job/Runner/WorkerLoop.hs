@@ -6,11 +6,9 @@ module IHP.Job.Runner.WorkerLoop
 
 import IHP.Prelude
 import IHP.ControllerPrelude
-import IHP.Job.Types
 import qualified IHP.Environment as Environment
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception.Safe as Exception
-import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import qualified System.Timeout as Timeout
