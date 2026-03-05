@@ -13,6 +13,7 @@ module IHP.SchemaCompiler
 ) where
 
 import ClassyPrelude
+import Data.Bits (bit)
 import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
@@ -146,7 +147,7 @@ tableIncludeModule table =
 
 
 tableModuleBody :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CompilerOptions -> CreateTable -> Text
-tableModuleBody options table = Text.unlines
+tableModuleBody options table = Text.unlines $ filter (not . Text.null)
     [ compileInputValueInstance table
     , compileFromRowInstance table
     , compileFromRowHasqlInstance table
@@ -161,6 +162,7 @@ tableModuleBody options table = Text.unlines
     , if options.compileGetAndSetFieldInstances
             then compileSetFieldInstances table <> compileUpdateFieldInstances table
             else ""
+    , compileFieldBitInstances table
     ]
 
 newtype Schema = Schema { statements :: [Statement] }
@@ -356,6 +358,7 @@ defaultImports = [trimming|
     import IHP.Hasql.Encoders ()
     import qualified Hasql.Mapping.IsScalar as Mapping
     import Hasql.PostgresqlTypes ()
+    import Data.Bits ((.&.), (.|.))
 |]
 
 
@@ -504,6 +507,12 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
         queryBuilderFields
             | ?compilerOptions.compileRelationSupport = columnsReferencingTable name |> compileQueryBuilderFields
             | otherwise = []
+
+-- | Returns a mapping from field name to its bitmask value (single bit set).
+-- Only column fields get bit positions (not meta or query builder fields).
+fieldBitPositions :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [(Text, Integer)]
+fieldBitPositions table@(CreateTable { columns }) =
+    zip (map (columnNameToFieldName . (.name)) columns) (map bit [0..])
 
 compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
@@ -1036,6 +1045,7 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
         setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
         modelName = tableNameToModelName name
         typeArgs = dataTypeArguments table
+        fieldBitMap = fieldBitPositions table
         compileSetField (name, fieldType) =
             "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
             "    {-# INLINE setField #-}\n" <>
@@ -1044,7 +1054,9 @@ compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map co
             where
                 compileAttribute name'
                     | name' == name = "newValue"
-                    | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
+                    | name' == "meta" = case lookup name fieldBitMap of
+                        Just bitVal -> "(meta { touchedFields = touchedFields meta .|. " <> tshow bitVal <> " })"
+                        Nothing -> "meta"
                     | otherwise = name'
 
 compileUpdateFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
@@ -1052,6 +1064,7 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
     where
         modelName = tableNameToModelName name
         typeArgs = dataTypeArguments table
+        fieldBitMap = fieldBitPositions table
         compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
             where
                 (valueTypeA, valueTypeB) =
@@ -1061,11 +1074,20 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
 
                 compileAttribute name'
                     | name' == name = "newValue"
-                    | name' == "meta" = "(meta { touchedFields = \"" <> name <> "\" : touchedFields meta })"
+                    | name' == "meta" = case lookup name fieldBitMap of
+                        Just bitVal -> "(meta { touchedFields = touchedFields meta .|. " <> tshow bitVal <> " })"
+                        Nothing -> "meta"
                     | otherwise = name'
 
                 compileTypePattern' ::  Text -> Text
                 compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table)))
+
+compileFieldBitInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileFieldBitInstances table@(CreateTable { name }) = unlines (map compileInstance (fieldBitPositions table))
+    where
+        typePattern = compileTypePattern table
+        compileInstance (fieldName, bitVal) =
+            "instance FieldBit " <> tshow fieldName <> " (" <> typePattern <> ") where fieldBit = " <> tshow bitVal
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|

@@ -27,6 +27,8 @@ import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
+import Data.Bits ((.&.), bit, clearBit)
+import Data.List (elemIndex)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
@@ -839,22 +841,19 @@ ids records = map (.id) records
 {-# INLINE ids #-}
 
 instance Default MetaBag where
-    def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
+    def = MetaBag { annotations = [], touchedFields = 0, originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
 instance SetField "annotations" MetaBag [(Text, Violation)] where
     setField value meta = meta { annotations = value }
     {-# INLINE setField #-}
 
-instance SetField "touchedFields" MetaBag [Text] where
+instance SetField "touchedFields" MetaBag Integer where
     setField value meta = meta { touchedFields = value }
     {-# INLINE setField #-}
 
 -- | Returns 'True' if the named field has been touched (is in @touchedFields@).
 -- Used by generated Update statement modules to determine which columns to send.
-isTouched :: (HasField "meta" record MetaBag) => Text -> record -> Bool
-isTouched fieldName record = fieldName `elem` record.meta.touchedFields
-{-# INLINE isTouched #-}
 
 -- | Returns 'True' if any fields of the record have unsaved changes
 --
@@ -872,7 +871,7 @@ isTouched fieldName record = fieldName `elem` record.meta.touchedFields
 -- >>> project |> set #name "New Name" |> didChangeRecord
 -- True
 didChangeRecord :: (HasField "meta" record MetaBag) => record -> Bool
-didChangeRecord record = isEmpty record.meta.touchedFields
+didChangeRecord record = record.meta.touchedFields /= 0
 
 -- | Returns 'True' if the specific field of the record has unsaved changes
 --
@@ -893,7 +892,7 @@ didChangeRecord record = isEmpty record.meta.touchedFields
 -- __Example:__ Setting a flash message after updating the profile picture
 --
 -- > when (user |> didChange #profilePictureUrl) (setSuccessMessage "Your Profile Picture has been updated. It might take a few minutes until it shows up everywhere")
-didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record, FieldBit fieldName record) => Proxy fieldName -> record -> Bool
 didChange field record = didTouchField field record && didChangeField
     where
         didChangeField :: Bool
@@ -926,10 +925,9 @@ didChange field record = didTouchField field record && didChangeField
 -- >>> project |> set #name project.name |> didTouchField #name
 -- True
 --
-didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record, FieldBit fieldName record) => Proxy fieldName -> record -> Bool
 didTouchField field record =
-    record.meta.touchedFields
-    |> includes (symbolToText @fieldName)
+    record.meta.touchedFields .&. fieldBit @fieldName @record /= 0
 
 -- | Construct a 'FieldWithDefault'
 --
@@ -937,15 +935,17 @@ didTouchField field record =
 --   record was created. This information is stored in the 'touchedFields'
 --   attribute of the 'meta' field.
 fieldWithDefault
-  :: ( KnownSymbol name
+  :: forall name model value.
+     ( KnownSymbol name
      , HasField name model value
      , HasField "meta" model MetaBag
+     , FieldBit name model
      )
   => Proxy name
   -> model
   -> FieldWithDefault value
 fieldWithDefault name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields =
+  | model.meta.touchedFields .&. fieldBit @name @model /= 0 =
     NonDefault (get name model)
   | otherwise = Default
 
@@ -955,15 +955,17 @@ fieldWithDefault name model
 --   record was accessed. This information is stored in the 'touchedFields'
 --   attribute of the 'meta' field.
 fieldWithUpdate
-  :: ( KnownSymbol name
-    , HasField name model value
-    , HasField "meta" model MetaBag
-    )
+  :: forall name model value.
+     ( KnownSymbol name
+     , HasField name model value
+     , HasField "meta" model MetaBag
+     , FieldBit name model
+     )
   => Proxy name
   -> model
   -> FieldWithUpdate name value
 fieldWithUpdate name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields =
+  | model.meta.touchedFields .&. fieldBit @name @model /= 0 =
     Update (get name model)
   | otherwise = NoUpdate name
 
@@ -1106,10 +1108,11 @@ isValid record = isEmpty record.meta.annotations
 copyRecord :: forall record id. (Table record, SetField "id" record id, Default id, SetField "meta" record MetaBag) => record -> record
 copyRecord existingRecord =
     let
-        fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
-
+        columns = columnNames @record
+        numColumns = length columns
+        idIndex = fromMaybe 0 $ elemIndex "id" columns
         meta :: MetaBag
-        meta = def { touchedFields = map IHP.NameSupport.columnNameToFieldName fieldsExceptId }
+        meta = def { touchedFields = (bit numColumns - 1) `clearBit` idIndex }
     in
         existingRecord
             |> set #id def
