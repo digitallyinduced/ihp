@@ -1,3 +1,4 @@
+-- | Compiles SQL schema definitions into Haskell modules
 module IHP.SchemaCompiler
 ( compile
 , compileStatementPreview
