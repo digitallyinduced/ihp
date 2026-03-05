@@ -183,13 +183,14 @@ notificationTriggersHealthy :: HasqlPool.Pool -> Text -> IO Bool
 notificationTriggersHealthy pool tableName = do
     let insertTriggerName = "did_insert_job_" <> tableName
     let updateTriggerName = "did_update_job_" <> tableName
+    -- PostgreSQL identifiers are stored as `name` and truncated to 63 bytes.
     let sql = "SELECT COUNT(*) FROM pg_trigger t"
             <> " JOIN pg_class c ON t.tgrelid = c.oid"
             <> " JOIN pg_namespace n ON c.relnamespace = n.oid"
             <> " WHERE n.nspname = current_schema()"
-            <> " AND c.relname = $1"
+            <> " AND c.relname = $1::name"
             <> " AND NOT t.tgisinternal"
-            <> " AND (t.tgname = $2 OR t.tgname = $3)"
+            <> " AND (t.tgname = $2::name OR t.tgname = $3::name)"
     let encoder =
             contramap (\(tableNameParam, _, _) -> tableNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
             <> contramap (\(_, insertTriggerNameParam, _) -> insertTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))

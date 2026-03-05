@@ -2,22 +2,18 @@ module Test.JobQueueSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Job.Queue (watchForJobWithPollerTriggerRepair)
+import qualified IHP.Job.Queue as JobQueue
 import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext, HasqlError (..))
 import qualified IHP.Log as Log
 import IHP.Log.Types (Logger, LogLevel (..), LoggerSettings (..))
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
-import qualified Hasql.Statement as Hasql
-import qualified Hasql.Encoders as Encoders
-import qualified Hasql.Decoders as Decoders
 import Control.Monad.Trans.Resource (runResourceT)
 import Control.Concurrent.STM (atomically, newTBQueue)
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
-import Data.Functor.Contravariant (contramap)
 
 data TestContext = TestContext
     { logger :: Logger
@@ -28,42 +24,52 @@ tests = do
     describe "IHP.Job.Queue" do
         it "recreates missing triggers when poller repair is enabled" do
             withJobWatcher True \pool -> do
-                dropNotificationTriggers pool
-                didRecover <- waitUntil 6_000_000 (notificationTriggersHealthy pool)
+                dropNotificationTriggers pool testTableName
+                didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool testTableName)
                 didRecover `shouldBe` True
 
         it "does not recreate missing triggers when poller repair is disabled" do
             withJobWatcher False \pool -> do
-                dropNotificationTriggers pool
+                dropNotificationTriggers pool testTableName
                 Concurrent.threadDelay 3_000_000
-                healthy <- notificationTriggersHealthy pool
+                healthy <- JobQueue.notificationTriggersHealthy pool testTableName
                 healthy `shouldBe` False
 
         it "keeps polling after trigger repair errors and recovers once table exists again" do
             withJobWatcher True \pool -> do
-                dropTestTable pool
+                dropTestTable pool testTableName
                 Concurrent.threadDelay 1_500_000
-                createTestTable pool
-                didRecover <- waitUntil 6_000_000 (notificationTriggersHealthy pool)
+                createTestTable pool testTableName
+                didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool testTableName)
+                didRecover `shouldBe` True
+
+        it "recreates missing triggers for long table names when poller repair is enabled" do
+            withJobWatcherForTable True longTestTableName \pool -> do
+                dropNotificationTriggers pool longTestTableName
+                didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool longTestTableName)
                 didRecover `shouldBe` True
 
 withJobWatcher :: Bool -> (HasqlPool.Pool -> IO ()) -> IO ()
-withJobWatcher enablePollerTriggerRepair action = do
+withJobWatcher enablePollerTriggerRepair =
+    withJobWatcherForTable enablePollerTriggerRepair testTableName
+
+withJobWatcherForTable :: Bool -> Text -> (HasqlPool.Pool -> IO ()) -> IO ()
+withJobWatcherForTable enablePollerTriggerRepair tableName action = do
     withDB \modelContext logger databaseUrl -> do
         let ?context = TestContext { logger = logger }
         let pool = modelContext.hasqlPool
 
         Exception.finally
             (do
-                dropTestArtifacts pool
-                createTestTable pool
+                dropTestArtifacts pool tableName
+                createTestTable pool tableName
 
                 PGListener.withPGListener databaseUrl logger \pgListener -> do
                     runResourceT do
                         queue <- liftIO (atomically (newTBQueue 32))
-                        (subscription, _) <- watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener testTableName 100000 queue
+                        (subscription, _) <- JobQueue.watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName 100000 queue
                         liftIO (action pool `Exception.finally` PGListener.unsubscribe subscription pgListener))
-            (dropTestArtifacts pool)
+            (dropTestArtifacts pool tableName)
 
 withDB :: (ModelContext -> Logger -> ByteString -> IO ()) -> IO ()
 withDB action = do
@@ -81,19 +87,22 @@ withDB action = do
 testTableName :: Text
 testTableName = "job_queue_spec_jobs"
 
-insertTriggerName :: Text
-insertTriggerName = "did_insert_job_" <> testTableName
+longTestTableName :: Text
+longTestTableName = "job_queue_spec_jobs_with_a_very_long_table_name_for_trigger_truncation_regression_1234567890"
 
-updateTriggerName :: Text
-updateTriggerName = "did_update_job_" <> testTableName
+insertTriggerName :: Text -> Text
+insertTriggerName tableName = "did_insert_job_" <> tableName
 
-triggerFunctionName :: Text
-triggerFunctionName = "notify_job_queued_" <> testTableName
+updateTriggerName :: Text -> Text
+updateTriggerName tableName = "did_update_job_" <> tableName
 
-createTestTable :: HasqlPool.Pool -> IO ()
-createTestTable pool = do
+triggerFunctionName :: Text -> Text
+triggerFunctionName tableName = "notify_job_queued_" <> tableName
+
+createTestTable :: HasqlPool.Pool -> Text -> IO ()
+createTestTable pool tableName = do
     runScript pool $
-        "CREATE TABLE IF NOT EXISTS \"" <> testTableName <> "\" ("
+        "CREATE TABLE IF NOT EXISTS \"" <> tableName <> "\" ("
         <> " id UUID PRIMARY KEY,"
         <> " status TEXT DEFAULT 'job_status_not_started' NOT NULL,"
         <> " locked_by UUID DEFAULT NULL,"
@@ -101,39 +110,21 @@ createTestTable pool = do
         <> " created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL"
         <> " );"
 
-dropTestTable :: HasqlPool.Pool -> IO ()
-dropTestTable pool =
-    runScript pool ("DROP TABLE IF EXISTS \"" <> testTableName <> "\" CASCADE;")
+dropTestTable :: HasqlPool.Pool -> Text -> IO ()
+dropTestTable pool tableName =
+    runScript pool ("DROP TABLE IF EXISTS \"" <> tableName <> "\" CASCADE;")
 
-dropNotificationTriggers :: HasqlPool.Pool -> IO ()
-dropNotificationTriggers pool =
+dropNotificationTriggers :: HasqlPool.Pool -> Text -> IO ()
+dropNotificationTriggers pool tableName =
     runScript pool $
-        "DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON \"" <> testTableName <> "\";"
-        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON \"" <> testTableName <> "\";"
+        "DROP TRIGGER IF EXISTS " <> insertTriggerName tableName <> " ON \"" <> tableName <> "\";"
+        <> "DROP TRIGGER IF EXISTS " <> updateTriggerName tableName <> " ON \"" <> tableName <> "\";"
 
-dropTestArtifacts :: HasqlPool.Pool -> IO ()
-dropTestArtifacts pool =
+dropTestArtifacts :: HasqlPool.Pool -> Text -> IO ()
+dropTestArtifacts pool tableName =
     runScript pool $
-        "DROP TABLE IF EXISTS \"" <> testTableName <> "\" CASCADE;"
-        <> "DROP FUNCTION IF EXISTS " <> triggerFunctionName <> "() CASCADE;"
-
-notificationTriggersHealthy :: HasqlPool.Pool -> IO Bool
-notificationTriggersHealthy pool = do
-    let sql = "SELECT COUNT(*) FROM pg_trigger t"
-            <> " JOIN pg_class c ON t.tgrelid = c.oid"
-            <> " JOIN pg_namespace n ON c.relnamespace = n.oid"
-            <> " WHERE n.nspname = current_schema()"
-            <> " AND c.relname = $1"
-            <> " AND NOT t.tgisinternal"
-            <> " AND (t.tgname = $2 OR t.tgname = $3)"
-    let encoder =
-            contramap (\(tableName, _, _) -> tableName) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_, insertTriggerName, _) -> insertTriggerName) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_, _, updateTriggerName) -> updateTriggerName) (Encoders.param (Encoders.nonNullable Encoders.text))
-    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
-    let statement = Hasql.unpreparable sql encoder decoder
-    count :: Int <- fromIntegral <$> runStatement pool (testTableName, insertTriggerName, updateTriggerName) statement
-    pure (count == 2)
+        "DROP TABLE IF EXISTS \"" <> tableName <> "\" CASCADE;"
+        <> "DROP FUNCTION IF EXISTS " <> triggerFunctionName tableName <> "() CASCADE;"
 
 runScript :: HasqlPool.Pool -> Text -> IO ()
 runScript pool sql = do
@@ -141,13 +132,6 @@ runScript pool sql = do
     case result of
         Left err -> Exception.throwIO (HasqlError err)
         Right () -> pure ()
-
-runStatement :: HasqlPool.Pool -> params -> Hasql.Statement params result -> IO result
-runStatement pool params statement = do
-    result <- HasqlPool.use pool (HasqlSession.statement params statement)
-    case result of
-        Left err -> Exception.throwIO (HasqlError err)
-        Right value -> pure value
 
 waitUntil :: Int -> IO Bool -> IO Bool
 waitUntil timeoutInMicroseconds predicate = loop 0
