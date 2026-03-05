@@ -245,7 +245,8 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -267,7 +268,8 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -340,7 +342,8 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -362,7 +365,8 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -432,7 +436,8 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.CreateUser.CreateUser model) (Mapping.statement @Generated.Statements.CreateUser.CreateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
@@ -454,7 +459,8 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.UpdateUser.UpdateUser model) (Mapping.statement @Generated.Statements.UpdateUser.UpdateUser)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
@@ -560,7 +566,8 @@ tests = do
                     createLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     createLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.CreateLandingPage.CreateLandingPage model) (Mapping.statement @Generated.Statements.CreateLandingPage.CreateLandingPage)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateLandingPage.statement touched)
 
                     createManyLandingPage :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
                     createManyLandingPage [] = pure []
@@ -582,7 +589,8 @@ tests = do
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.UpdateLandingPage.UpdateLandingPage model) (Mapping.statement @Generated.Statements.UpdateLandingPage.UpdateLandingPage)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
@@ -827,7 +835,8 @@ tests = do
                     createPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     createPost model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.CreatePost.CreatePost model) (Mapping.statement @Generated.Statements.CreatePost.CreatePost)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreatePost.statement touched)
 
                     createManyPost :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
                     createManyPost [] = pure []
@@ -849,7 +858,8 @@ tests = do
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool (Generated.Statements.UpdatePost.UpdatePost model) (Mapping.statement @Generated.Statements.UpdatePost.UpdatePost)
+                        let touched = Data.Set.fromList model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
@@ -913,20 +923,33 @@ tests = do
             it "should generate correct Create statement module" do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    newtype CreatePost = CreatePost Generated.ActualTypes.Post
+                    statement :: Set.Set Text -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
+                    statement touchedFields = Statement.preparable (cs (sql touchedFields)) (encoder touchedFields) decoder
 
-                    instance Mapping.IsStatement CreatePost where
-                        type Result CreatePost = Generated.ActualTypes.Post
-                        statement = Statement.preparable sql encoder decoder
-                          where
-                            sql = "INSERT INTO posts (id, title, body) VALUES ($$1, $$2, $$3) RETURNING id, title, body"
-                            encoder = contramap (\ (CreatePost record) -> record) $$
-                            mconcat
-                                [ (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
-                                , (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
-                                , (.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                    sql :: Set.Set Text -> Text
+                    sql touchedFields =
+                        let entries = catMaybes
+                                [ Just "id"
+                                , Just "title"
+                                , Just "body"
                                 ]
-                            decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            columns = Text.intercalate ", " entries
+                            placeholders = Text.intercalate ", " ["$$" <> cs (show i) | i <- [1 .. length entries]]
+                        in if null entries
+                            then "INSERT INTO posts DEFAULT VALUES RETURNING id, title, body"
+                            else "INSERT INTO posts (" <> columns <> ") VALUES (" <> placeholders <> ") RETURNING id, title, body"
+
+
+                    encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
+                    encoder touchedFields = mconcat $$ catMaybes
+                        [ Just ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid)))
+                        , Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
+                        , Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
+                        ]
+
+
+                    decoder :: Decoders.Result Generated.ActualTypes.Post
+                    decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                                 <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text)
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text))
@@ -935,24 +958,35 @@ tests = do
             it "should generate correct Update statement module" do
                 let output = compileUpdateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    newtype UpdatePost = UpdatePost Generated.ActualTypes.Post
+                    statement :: Set.Set Text -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
+                    statement touchedFields = Statement.preparable (cs (sql touchedFields)) (encoder touchedFields) decoder
 
-                    instance Mapping.IsStatement UpdatePost where
-                        type Result UpdatePost = Generated.ActualTypes.Post
-                        statement = Statement.preparable sql encoder decoder
-                          where
-                            sql = "UPDATE posts SET id = CASE WHEN $$1 THEN $$2 ELSE id END, title = CASE WHEN $$3 THEN $$4 ELSE title END, body = CASE WHEN $$5 THEN $$6 ELSE body END WHERE id = $$7 RETURNING id, title, body"
-                            encoder = contramap (\ (UpdatePost record) -> record) $$
-                            mconcat
-                                [ isTouched "id" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
-                                , (\record -> if isTouched "id" record then Just record.id else Nothing) >$$< Encoders.param (Encoders.nullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
-                                , isTouched "title" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
-                                , (\record -> if isTouched "title" record then Just record.title else Nothing) >$$< Encoders.param (Encoders.nullable Encoders.text)
-                                , isTouched "body" >$$< Encoders.param (Encoders.nonNullable Encoders.bool)
-                                , (\record -> if isTouched "body" record then Just record.body else Nothing) >$$< Encoders.param (Encoders.nullable Encoders.text)
-                                , (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                    sql :: Set.Set Text -> Text
+                    sql touchedFields =
+                        let setEntries = catMaybes
+                                [ if Set.member "id" touchedFields then Just "id" else Nothing
+                                , if Set.member "title" touchedFields then Just "title" else Nothing
+                                , if Set.member "body" touchedFields then Just "body" else Nothing
                                 ]
-                            decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            setClauses = [col <> " = $$" <> cs (show i) | (i, col) <- zip [1..] setEntries]
+                            pkIdx = length setEntries + 1
+                            whereClause = \startIdx -> "id" <> " = $$" <> cs (show startIdx)
+                        in if null setEntries
+                            then "SELECT id, title, body FROM posts WHERE " <> whereClause 1
+                            else "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> " RETURNING id, title, body"
+
+
+                    encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
+                    encoder touchedFields = mconcat (catMaybes
+                        [ if Set.member "id" touchedFields then Just ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))) else Nothing
+                        , if Set.member "title" touchedFields then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
+                        , if Set.member "body" touchedFields then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
+                        ])
+                        <> (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+
+
+                    decoder :: Decoders.Result Generated.ActualTypes.Post
+                    decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                                 <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text)
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text))
@@ -961,22 +995,23 @@ tests = do
             it "should generate correct FetchById statement module" do
                 let output = compileFetchByIdStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    newtype FetchPost = FetchPost (Id' "posts")
+                    statement :: Statement.Statement (Id' "posts") (Maybe Generated.ActualTypes.Post)
+                    statement = Statement.preparable sql encoder decoder
 
-                    instance Mapping.IsStatement FetchPost where
-                        type Result FetchPost = Maybe Generated.ActualTypes.Post
-                        statement = Statement.preparable sql encoder decoder
-                          where
-                            sql = "SELECT id, title, body FROM posts WHERE id = $$1 LIMIT 1"
-                            encoder = contramap (\ (FetchPost theId) -> theId) $$
-                                (\ (Id pk) -> pk) >$$< Encoders.param (Encoders.nonNullable Encoders.uuid)
-                            decoder = Decoders.rowMaybe ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                    sql :: Text
+                    sql = "SELECT id, title, body FROM posts WHERE id = $$1 LIMIT 1"
+
+                    encoder :: Encoders.Params (Id' "posts")
+                    encoder = (\ (Id pk) -> pk) >$$< Encoders.param (Encoders.nonNullable Encoders.uuid)
+
+                    decoder :: Decoders.Result (Maybe Generated.ActualTypes.Post)
+                    decoder = Decoders.rowMaybe ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                                 <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text)
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text))
                     |]
 
-            it "should use Haskell field names (not SQL column names) for isTouched in Update" do
+            it "should use Haskell field names (not SQL column names) for Set.member in Update" do
                 let snakeStatements =
                         [ StatementCreateTable CreateTable
                             { name = "blog_posts"
@@ -992,11 +1027,11 @@ tests = do
                 let [StatementCreateTable snakeTable] = snakeStatements
                 let ?schema = Schema snakeStatements
                 let output = compileUpdateStatement snakeTable
-                -- isTouched should use "postTitle" (Haskell field name), not "post_title" (SQL column name)
-                output `shouldSatisfy` Text.isInfixOf "isTouched \"postTitle\""
-                output `shouldSatisfy` (not . Text.isInfixOf "isTouched \"post_title\"")
+                -- Set.member should use "postTitle" (Haskell field name), not "post_title" (SQL column name)
+                output `shouldSatisfy` Text.isInfixOf "Set.member \"postTitle\""
+                output `shouldSatisfy` (not . Text.isInfixOf "Set.member \"post_title\"")
 
-            it "should use CASE WHEN with DB default for columns with DEFAULT in Create" do
+            it "should omit untouched columns with DEFAULT from INSERT" do
                 let defaultStatements =
                         [ StatementCreateTable CreateTable
                             { name = "posts"
@@ -1013,14 +1048,14 @@ tests = do
                 let [StatementCreateTable defaultTable] = defaultStatements
                 let ?schema = Schema defaultStatements
                 let output = compileCreateStatement defaultTable
-                -- id has DEFAULT uuid_generate_v4() -> CASE WHEN
-                output `shouldSatisfy` Text.isInfixOf "CASE WHEN"
-                output `shouldSatisfy` Text.isInfixOf "uuid_generate_v4()"
-                -- created_at has DEFAULT now() -> CASE WHEN
-                output `shouldSatisfy` Text.isInfixOf "now()"
-                -- title has no default -> plain $N placeholder
-                -- isTouched flags should be present for defaulted columns
-                output `shouldSatisfy` Text.isInfixOf "isTouched"
+                -- id has DEFAULT -> conditional on Set.member
+                output `shouldSatisfy` Text.isInfixOf "Set.member \"id\" touchedFields"
+                -- created_at has DEFAULT -> conditional on Set.member
+                output `shouldSatisfy` Text.isInfixOf "Set.member \"createdAt\" touchedFields"
+                -- title has no default -> always included (Just "title")
+                output `shouldSatisfy` Text.isInfixOf "Just \"title\""
+                -- No more CASE WHEN or inlined default expressions
+                output `shouldSatisfy` (not . Text.isInfixOf "CASE WHEN")
 
 -- | Extract the body of a statement module (everything after the import block)
 getStatementBody :: Text -> Text
