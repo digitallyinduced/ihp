@@ -971,7 +971,7 @@ tests = do
                         [ if Set.member "title" touchedFields then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         , if Set.member "body" touchedFields then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         ])
-                        <> (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                        <> ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid)))
 
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post

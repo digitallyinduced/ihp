@@ -1440,7 +1440,7 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
             , "    [ " <> Text.intercalate "\n    , " encoderEntries
             , "    ])"
             , "    <> " <> case pkEncoders of
-                    [e] -> e
+                    [e] -> "(" <> e <> ")"
                     es -> "mconcat [" <> Text.intercalate ", " es <> "]"
             ]
 
