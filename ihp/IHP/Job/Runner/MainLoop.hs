@@ -9,7 +9,6 @@ module IHP.Job.Runner.MainLoop
 import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ScriptSupport
-import IHP.Job.Types
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async

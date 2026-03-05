@@ -5,7 +5,6 @@ module IHP.Job.Queue.Fetch
 ) where
 
 import IHP.Prelude
-import IHP.Job.Types
 import IHP.Job.Queue.Pool (runPool)
 import IHP.ModelSupport (Table (..), GetModelByTableName)
 import IHP.ModelSupport.Types (PrimaryKey)
