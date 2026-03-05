@@ -122,6 +122,7 @@ tableModule options table =
         statementImports = Text.unlines
             [ "import qualified Generated.Statements.Create" <> modelName
             , "import qualified Generated.Statements.Update" <> modelName
+            , "import qualified Generated.Statements.CreateMany" <> modelName
             ]
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
