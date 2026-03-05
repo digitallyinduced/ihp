@@ -3,7 +3,7 @@ module Test.JobQueueSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.Job.Queue as JobQueue
-import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext, HasqlError (..))
+import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError (..))
 import qualified IHP.Log as Log
 import IHP.Log.Types (Logger, LogLevel (..), LoggerSettings (..))
 import qualified IHP.PGListener as PGListener
