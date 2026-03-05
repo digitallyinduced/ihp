@@ -14,7 +14,6 @@ module IHP.ModelSupport
 import IHP.ModelSupport.Types
 
 import IHP.HaskellSupport
-import IHP.NameSupport
 import IHP.InputValue
 import Prelude
 import Data.ByteString (ByteString)
