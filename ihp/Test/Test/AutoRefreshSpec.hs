@@ -160,6 +160,20 @@ tests = do
                         -- Cleanup
                         MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
 
+            describe "graceful degradation without PGListener" do
+                it "should run the action without crashing when PGListener is not available" $ withContext do
+                    MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
+
+                    response <- callActionWithParams ShowItemAction [("marketId", "degraded-ok")]
+                    body <- responseBody response
+                    cs body `shouldBe` ("degraded-ok" :: Text)
+
+                    -- Verify autoRefresh skipped subscription machinery entirely
+                    maybeServerRef <- MVar.readMVar globalAutoRefreshServerVar
+                    case maybeServerRef of
+                        Nothing -> pure ()
+                        Just _ -> expectationFailure "Expected globalAutoRefreshServerVar to be Nothing"
+
     describe "AutoRefresh meta tag" do
         it "renders nothing when disabled" do
             withFreshContext \context -> do

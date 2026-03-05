@@ -246,6 +246,18 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
+        , IHP.Job.Types.BackoffStrategy
+        , IHP.Job.Types.Class
+        , IHP.Job.Types.Status
+        , IHP.Job.Types.Worker
+        , IHP.Job.Queue.Pool
+        , IHP.Job.Queue.Fetch
+        , IHP.Job.Queue.Watch
+        , IHP.Job.Queue.Result
+        , IHP.Job.Queue.StatusInstances
+        , IHP.Job.Queue.STM
+        , IHP.Job.Runner.MainLoop
+        , IHP.Job.Runner.WorkerLoop
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
@@ -262,7 +274,8 @@ library
         , IHP.PGVersion
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
-    other-modules: Paths_ihp
+    other-modules:
+        Paths_ihp
 
 source-repository head
     type:     git
@@ -298,4 +311,5 @@ test-suite tests
         Test.AutoRefreshSpec
         Test.Pagination.ControllerFunctionsSpec
         Test.FetchPipelinedSpec
+        Test.JobQueueSpec
         Test.ModelFixtures

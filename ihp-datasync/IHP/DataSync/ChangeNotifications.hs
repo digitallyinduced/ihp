@@ -19,7 +19,8 @@ import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.TH
 import qualified IHP.DataSync.RowLevelSecurity as RLS
-import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
+import Control.Concurrent.MVar
 import qualified Data.UUID as UUID
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
@@ -28,6 +29,7 @@ import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 import IHP.PGVersion (defaultUuidFunction)
 import IHP.Environment (Environment(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -51,12 +53,15 @@ createNotificationFunction :: Text -> RLS.TableWithRLS -> Text
 createNotificationFunction uuidFunction table = [i|
     DO $$
     BEGIN
-        -- This inner block handles concurrent installations from multiple
-        -- DataSync subscriptions racing to set up triggers for the same table.
-        -- CREATE OR REPLACE FUNCTION can fail with 'tuple concurrently updated'
-        -- (XX000) when two connections replace the function simultaneously.
-        -- The table creation below must stay OUTSIDE this block so it always
-        -- runs, even when the exception handler swallows a concurrent error.
+        -- Serialize trigger DDL per table using an advisory lock keyed on the
+        -- table OID. Without this, concurrent DataSync WebSocket connections
+        -- race to DROP/CREATE triggers, each requiring AccessExclusiveLock,
+        -- which causes cascading lock waits that can exhaust the connection pool.
+        -- See: https://github.com/digitallyinduced/ihp/issues/2467
+        PERFORM pg_advisory_xact_lock(
+            (SELECT oid::int FROM pg_class WHERE relname = '#{tableName}' AND relnamespace = 'public'::regnamespace)
+        );
+
         BEGIN
             CREATE OR REPLACE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
                 DECLARE
@@ -126,19 +131,23 @@ createNotificationFunction uuidFunction table = [i|
             WHEN SQLSTATE 'XX000' THEN null; -- tuple concurrently updated
         END;
 
-        IF NOT EXISTS (
-            SELECT FROM pg_catalog.pg_class c
-            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-            WHERE c.relname = 'large_pg_notifications'
-              AND n.nspname = 'public'
-        ) THEN
-            CREATE UNLOGGED TABLE large_pg_notifications (
-                id UUID DEFAULT #{uuidFunction}() PRIMARY KEY NOT NULL,
-                payload TEXT DEFAULT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
-            );
-            CREATE INDEX large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
-        END IF;
+        BEGIN
+            IF NOT EXISTS (
+                SELECT FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = 'large_pg_notifications'
+                  AND n.nspname = 'public'
+            ) THEN
+                CREATE UNLOGGED TABLE large_pg_notifications (
+                    id UUID DEFAULT #{uuidFunction}() PRIMARY KEY NOT NULL,
+                    payload TEXT DEFAULT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+                );
+                CREATE INDEX large_pg_notifications_created_at_index ON large_pg_notifications (created_at);
+            END IF;
+        EXCEPTION
+            WHEN duplicate_table THEN null;
+        END;
     END; $$
 |]
 
@@ -182,18 +191,49 @@ makeInstallTableChangeTriggers :: Environment -> Hasql.Pool.Pool -> IO (RLS.Tabl
 makeInstallTableChangeTriggers Development pool = pure (installTableChangeTriggers pool)
 makeInstallTableChangeTriggers Production pool = makeCachedInstallTableChangeTriggers pool
 
--- | Wraps 'installTableChangeTriggers' with a per-table cache so each table's
--- triggers are only installed once per process lifetime.
+-- | Process-global lock map for trigger installation. Each table gets an MVar
+-- that serializes installation in Haskell-land, so only one connection per
+-- table hits the database while others wait cheaply without consuming a pool
+-- connection.
+-- See: https://github.com/digitallyinduced/ihp/issues/2467
+{-# NOINLINE globalTriggerInstallLocks #-}
+globalTriggerInstallLocks :: MVar (Map.Map RLS.TableWithRLS (MVar ()))
+globalTriggerInstallLocks = unsafePerformIO (newMVar Map.empty)
+
+-- | Wraps 'installTableChangeTriggers' with a process-global per-table lock
+-- so each table's triggers are only installed once per process lifetime.
+-- Concurrent callers for the same table block on an MVar in Haskell (not on
+-- a database connection), preventing pool exhaustion from DDL lock waits.
+-- If installation fails, the lock is removed so future connections can retry.
 makeCachedInstallTableChangeTriggers :: Hasql.Pool.Pool -> IO (RLS.TableWithRLS -> IO ())
 makeCachedInstallTableChangeTriggers pool = do
-    tables <- newIORef Set.empty
     pure \tableName -> do
-        shouldInstall <- atomicModifyIORef' tables \set ->
-            if Set.member tableName set
-                then (set, False)
-                else (Set.insert tableName set, True)
-        when shouldInstall do
-            installTableChangeTriggers pool tableName
+        -- Atomically check if this table already has a lock entry.
+        -- If not, create an empty MVar and register as the installer.
+        (lock, weAreInstaller) <- modifyMVar globalTriggerInstallLocks \locks ->
+            case Map.lookup tableName locks of
+                Just existingLock ->
+                    pure (locks, (existingLock, False))
+                Nothing -> do
+                    newLock <- newEmptyMVar
+                    pure (Map.insert tableName newLock locks, (newLock, True))
+
+        if weAreInstaller
+            then do
+                -- We won the race — do the actual install.
+                -- On success, signal waiters. On failure, remove the lock
+                -- so future connections can retry, then re-throw.
+                installTableChangeTriggers pool tableName
+                    `catch` \e -> do
+                        modifyMVar_ globalTriggerInstallLocks \locks ->
+                            pure (Map.delete tableName locks)
+                        throwIO (e :: SomeException)
+                putMVar lock ()
+            else
+                -- Another connection is installing (or has installed).
+                -- This blocks until the installer calls putMVar, then
+                -- immediately returns the () without taking it.
+                readMVar lock
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString

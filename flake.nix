@@ -58,7 +58,6 @@
                     options = ./NixSupport/nixosModules/options.nix;
                     binaryCache = ./NixSupport/nixosModules/binaryCache.nix;
                 };
-                nix-ci.impure = true;
             };
         }
     );
