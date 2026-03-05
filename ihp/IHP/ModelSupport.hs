@@ -967,40 +967,6 @@ fieldWithUpdate name model
     Update (get name model)
   | otherwise = NoUpdate name
 
--- | Like 'fieldWithDefault' but produces a hasql 'Snippet' instead of a 'FieldWithDefault'
---
---   When the field hasn't been touched, produces @DEFAULT@. Otherwise encodes the value
---   using hasql's 'DefaultParamEncoder'.
-fieldWithDefaultSnippet
-  :: ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithDefaultSnippet name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
-  | otherwise = Snippet.sql "DEFAULT"
-
--- | Like 'fieldWithUpdate' but produces a hasql 'Snippet' instead of a 'FieldWithUpdate'
---
---   When the field hasn't been touched, produces the column name (keeping the current DB value).
---   Otherwise encodes the new value using hasql's 'DefaultParamEncoder'.
-fieldWithUpdateSnippet
-  :: ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithUpdateSnippet name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
-  | otherwise = Snippet.sql (cs $ fieldNameToColumnName $ cs $ symbolVal name)
-
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
 

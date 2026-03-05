@@ -8,6 +8,7 @@ module IHP.SchemaCompiler
 , compileCreateStatement
 , compileUpdateStatement
 , compileFetchByIdStatement
+, compileCreateManyStatement
 , Schema(..)
 ) where
 
@@ -352,7 +353,6 @@ defaultImports = [trimming|
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
-    import qualified Hasql.DynamicStatements.Snippet as Snippet
     import IHP.Hasql.Encoders ()
     import qualified Hasql.Mapping.IsScalar as Mapping
     import Hasql.PostgresqlTypes ()
@@ -687,27 +687,6 @@ compileCreate table@(CreateTable { name, columns }) =
         writableColumns = onlyWritableColumns columns
         modelName = qualifiedConstructorNameFromTableName name
         funcName = tableNameToModelName name
-        columnNames = commaSep (map (.name) writableColumns)
-        allColumnNames = commaSep (map (.name) columns)
-
-        -- Hasql snippet bindings for INSERT VALUES
-        toSnippetBinding column@(Column { name }) =
-                if hasExplicitOrImplicitDefault column && not isArrayColumn
-                    then "fieldWithDefaultSnippet #" <> columnNameToFieldName name <> " model"
-                    else "Snippet.param model." <> columnNameToFieldName name
-            where
-                isArrayColumn = case column.columnType of
-                    PArray _ -> True
-                    _        -> False
-
-        snippetBindings :: [Text]
-        snippetBindings = map toSnippetBinding writableColumns
-
-        -- Build the snippet expression for a single INSERT VALUES clause
-        snippetValueExpr = intercalate " <> Snippet.sql \", \" <> " snippetBindings
-
-        -- For createMany, build snippet for each model
-        snippetCreateManyValueExpr = "mconcat $ List.intersperse (Snippet.sql \", \") $ List.map (\\model -> Snippet.sql \"(\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\") models"
 
         -- Hasql bodies
         isDynamic = hasAnyDefaults writableColumns
@@ -718,11 +697,13 @@ compileCreate table@(CreateTable { name, columns }) =
             else "let pool = ?modelContext.hasqlPool\n"
                 <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
         hasqlCreateManyBody = "let pool = ?modelContext.hasqlPool\n"
-                <> "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES \" <> (" <> snippetCreateManyValueExpr <> ") <> Snippet.sql \" RETURNING " <> allColumnNames <> "\"\n"
-                <> "sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @" <> modelName <> "))"
-        hasqlCreateDiscardBody = "let pool = ?modelContext.hasqlPool\n"
-                <> "let snippet = Snippet.sql \"INSERT INTO " <> name <> " (" <> columnNames <> ") VALUES (\" <> " <> snippetValueExpr <> " <> Snippet.sql \")\"\n"
-                <> "sqlExecHasql pool snippet"
+                <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement (List.length models))"
+        hasqlCreateDiscardBody = if isDynamic
+            then "let pool = ?modelContext.hasqlPool\n"
+                <> "let touched = model.meta.touchedFields\n"
+                <> "sqlStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".discardResultStatement touched)"
+            else "let pool = ?modelContext.hasqlPool\n"
+                <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".discardResultStatement"
     in
         -- Instance block: delegate to top-level functions
         "instance CanCreate " <> modelName <> " where\n"
@@ -765,32 +746,16 @@ compileUpdate table@(CreateTable { name, columns }) =
     let
         modelName = qualifiedConstructorNameFromTableName name
         funcName = tableNameToModelName name
-        writableColumns = onlyWritableColumns columns
-
-        allColumnNames = columns
-                |> map (.name)
-                |> intercalate ", "
-
-        -- Hasql snippet for SET clause: "col1 = " <> snippetBinding <> ", col2 = " <> ...
-        snippetSetClause = intercalate " <> Snippet.sql \", \" <> " $
-            map (\column -> "Snippet.sql \"" <> column.name <> " = \" <> fieldWithUpdateSnippet #" <> columnNameToFieldName column.name <> " model") writableColumns
-
-        -- Hasql snippet for WHERE clause
-        snippetWhereClause = case primaryKeyColumns table of
-            [] -> error $ "Impossible happened in compileUpdate. No primary keys found for table " <> cs name
-            [col] -> "Snippet.sql \"" <> col.name <> " = \" <> Snippet.param model." <> columnNameToFieldName col.name
-            cols -> "Snippet.sql \"(" <> commaSep (map (.name) cols) <> ") = (\" <> "
-                    <> intercalate " <> Snippet.sql \", \" <> " (map (\col -> "Snippet.param model." <> columnNameToFieldName col.name) cols)
-                    <> " <> Snippet.sql \")\""
 
         -- Hasql bodies: skip DB round-trip when nothing is touched
         hasqlUpdateBody = "let touched = model.meta.touchedFields\n"
                 <> "if List.null touched then pure model else do\n"
                 <> "    let pool = ?modelContext.hasqlPool\n"
                 <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".statement touched)"
-        hasqlUpdateDiscardBody = "let pool = ?modelContext.hasqlPool\n"
-                <> "let snippet = Snippet.sql \"UPDATE " <> name <> " SET \" <> " <> snippetSetClause <> " <> Snippet.sql \" WHERE \" <> " <> snippetWhereClause <> "\n"
-                <> "sqlExecHasql pool snippet"
+        hasqlUpdateDiscardBody = "let touched = model.meta.touchedFields\n"
+                <> "if List.null touched then pure () else do\n"
+                <> "    let pool = ?modelContext.hasqlPool\n"
+                <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".discardResultStatement touched)"
     in
         -- Instance block: delegate to top-level functions
         "instance CanUpdate " <> modelName <> " where\n"
@@ -1168,6 +1133,7 @@ statementModulesForTable table =
     in [ (mkPath "Create", compileCreateStatement table)
        , (mkPath "Update", compileUpdateStatement table)
        , (mkPath "Fetch", compileFetchByIdStatement table)
+       , (mkPath "CreateMany", compileCreateManyStatement table)
        ]
 
 -- | Barrel module that re-exports all statement modules
@@ -1181,6 +1147,7 @@ compileStatementsIndex schema@(Schema statements) =
             [ "import qualified Generated.Statements.Create" <> modelName
             , "import qualified Generated.Statements.Update" <> modelName
             , "import qualified Generated.Statements.Fetch" <> modelName
+            , "import qualified Generated.Statements.CreateMany" <> modelName
             ]
     in Text.unlines
         [ "-- This file is auto generated and will be overriden regulary."
@@ -1194,7 +1161,7 @@ compileStatementsIndex schema@(Schema statements) =
 statementModuleBaseImports :: Text
 statementModuleBaseImports =
     Text.unlines
-        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..))"
+        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map)"
         , "import Generated.ActualTypes"
         , "import Generated.Enums"
         , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
@@ -1335,19 +1302,28 @@ compileStaticCreateStatement :: (?schema :: Schema) => Text -> Text -> Text -> [
 compileStaticCreateStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns decoderBlock =
     let writableColumnNames = commaSep (map (.name) writableColumns)
         placeholders = commaSep ["$" <> tshow i | i <- [1 .. length writableColumns]]
-        sql = "INSERT INTO " <> tableName <> " (" <> writableColumnNames <> ") VALUES (" <> placeholders <> ") RETURNING " <> allColumnNames
         encoderLines = map (hasqlColumnEncoder table) writableColumns
     in Text.unlines
         [ "-- This file is auto generated and will be overriden regulary."
         , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
-        , "module " <> moduleName <> " (statement) where"
+        , "module " <> moduleName <> " (statement, discardResultStatement) where"
         , ""
         , statementModuleBaseImports
         , "statement :: Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement = Statement.preparable sql encoder decoder"
+        , "statement = Statement.preparable sqlReturningResult encoder decoder"
         , ""
-        , "sql :: Text"
-        , "sql = " <> tshow sql
+        , "discardResultStatement :: Statement.Statement " <> qualifiedModelName <> " ()"
+        , "discardResultStatement = Statement.preparable sqlDiscardResult encoder Decoders.noResult"
+        , ""
+        , "sql :: Bool -> Text"
+        , "sql returning = \"INSERT INTO " <> tableName <> " (" <> writableColumnNames <> ") VALUES (" <> placeholders <> ")\""
+        , "    <> if returning then \" RETURNING " <> allColumnNames <> "\" else \"\""
+        , ""
+        , "sqlReturningResult :: Text"
+        , "sqlReturningResult = sql True"
+        , ""
+        , "sqlDiscardResult :: Text"
+        , "sqlDiscardResult = sql False"
         , ""
         , "encoder :: Encoders.Params " <> qualifiedModelName
         , "encoder ="
@@ -1362,16 +1338,17 @@ compileDynamicCreateStatement :: (?schema :: Schema) => Text -> Text -> Text -> 
 compileDynamicCreateStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns decoderBlock =
     let sqlEntries = map (compileSqlEntry False) writableColumns
         sqlBody = Text.unlines
-            [ "sql :: Set.Set Text -> Text"
-            , "sql touchedFields ="
+            [ "sql :: Set.Set Text -> Bool -> Text"
+            , "sql touchedFields returning ="
             , "    let entries = catMaybes"
             , "            [ " <> Text.intercalate "\n            , " sqlEntries
             , "            ]"
             , "        columns = Text.intercalate \", \" entries"
             , "        placeholders = Text.intercalate \", \" [\"$\" <> Text.pack (show i) | i <- [1 .. length entries]]"
+            , "        returningClause = if returning then \" RETURNING " <> allColumnNames <> "\" else \"\""
             , "    in if null entries"
-            , "        then \"INSERT INTO " <> tableName <> " DEFAULT VALUES RETURNING " <> allColumnNames <> "\""
-            , "        else \"INSERT INTO " <> tableName <> " (\" <> columns <> \") VALUES (\" <> placeholders <> \") RETURNING " <> allColumnNames <> "\""
+            , "        then \"INSERT INTO " <> tableName <> " DEFAULT VALUES\" <> returningClause"
+            , "        else \"INSERT INTO " <> tableName <> " (\" <> columns <> \") VALUES (\" <> placeholders <> \")\" <> returningClause"
             ]
 
         encoderEntries = map (compileEncoderEntry False table) writableColumns
@@ -1384,12 +1361,15 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
     in Text.unlines
         [ "-- This file is auto generated and will be overriden regulary."
         , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
-        , "module " <> moduleName <> " (statement) where"
+        , "module " <> moduleName <> " (statement, discardResultStatement) where"
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
         , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
+        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
+        , ""
+        , "discardResultStatement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " ()"
+        , "discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
         , ""
         , sqlBody
         , ""
@@ -1419,15 +1399,16 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
         sqlEntries = map (compileSqlEntry True) writableColumns
 
         sqlBody = Text.unlines
-            [ "sql :: Set.Set Text -> Text"
-            , "sql touchedFields ="
+            [ "sql :: Set.Set Text -> Bool -> Text"
+            , "sql touchedFields returning ="
             , "    let setEntries = catMaybes"
             , "            [ " <> Text.intercalate "\n            , " sqlEntries
             , "            ]"
             , "        setClauses = [col <> \" = $\" <> Text.pack (show i) | (i, col) <- zip [1..] setEntries]"
             , "        pkIdx = length setEntries + 1"
             , "        whereClause = " <> compileUpdateWhereClause pkColumns
-            , "    in \"UPDATE " <> name <> " SET \" <> Text.intercalate \", \" setClauses <> \" WHERE \" <> whereClause pkIdx <> \" RETURNING " <> allColumnNames <> "\""
+            , "        returningClause = if returning then \" RETURNING " <> allColumnNames <> "\" else \"\""
+            , "    in \"UPDATE " <> name <> " SET \" <> Text.intercalate \", \" setClauses <> \" WHERE \" <> whereClause pkIdx <> returningClause"
             ]
 
         -- Build the encoder function body
@@ -1447,12 +1428,15 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
     in Text.unlines
         [ "-- This file is auto generated and will be overriden regulary."
         , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
-        , "module " <> moduleName <> " (statement) where"
+        , "module " <> moduleName <> " (statement, discardResultStatement) where"
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
         , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder"
+        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
+        , ""
+        , "discardResultStatement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " ()"
+        , "discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
         , ""
         , sqlBody
         , ""
@@ -1520,6 +1504,53 @@ fetchByIdEncoder table = case primaryKeyColumns table of
                 in accessor <> " >$< Encoders.param (Encoders.nonNullable " <> baseEncoder <> ")"
                 ) cols [0..]
         in "mconcat [" <> intercalate ", " encoders <> "]"
+
+-- | Generate the CreateMany statement module for a table
+--
+-- Batch inserts with count-parameterized SQL. Not preparable since SQL varies by count.
+-- Always includes ALL writable columns (no touched-fields logic).
+compileCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileCreateManyStatement table@(CreateTable { name, columns }) =
+    let modelName = tableNameToModelName name
+        moduleName = "Generated.Statements.CreateMany" <> modelName
+        qualifiedModelName = qualifiedConstructorNameFromTableName name
+        writableColumns = onlyWritableColumns columns
+        writableColumnNames = commaSep (map (.name) writableColumns)
+        allColumnNames = commaSep (map (.name) columns)
+        numCols = length writableColumns
+
+        encoderLines = map (hasqlColumnEncoder table) writableColumns
+        singleEncoderBlock = formatEncoderBlock encoderLines
+
+        rowDecoderBody = compileStatementRowDecoder modelName table columns
+    in Text.unlines
+        [ "-- This file is auto generated and will be overriden regulary."
+        , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
+        , "module " <> moduleName <> " (statement) where"
+        , ""
+        , statementModuleBaseImports
+        , "import qualified Data.Text as Text"
+        , ""
+        , "statement :: Int -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
+        , "statement count = Statement.Statement (sql count) (encoder count) decoder False"
+        , ""
+        , "sql :: Int -> Text"
+        , "sql count = \"INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES \""
+        , "    <> Text.intercalate \", \" [valueGroup (i * " <> tshow numCols <> ") | i <- [0..count - 1]]"
+        , "    <> \" RETURNING " <> allColumnNames <> "\""
+        , "  where"
+        , "    valueGroup offset = \"(\" <> Text.intercalate \", \" [\"$\" <> Text.pack (show (offset + j)) | j <- [1.." <> tshow numCols <> "]] <> \")\""
+        , ""
+        , "encoder :: Int -> Encoders.Params [" <> qualifiedModelName <> "]"
+        , "encoder count = mconcat [contramap (!! i) singleEncoder | i <- [0..count - 1]]"
+        , ""
+        , "singleEncoder :: Encoders.Params " <> qualifiedModelName
+        , "singleEncoder ="
+        , singleEncoderBlock
+        , ""
+        , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
+        , "decoder = Decoders.rowList (" <> rowDecoderBody <> ")"
+        ]
 
 -- | Generate a decoder block for singleRow that constructs a model record
 compileStatementDecoder :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> CreateTable -> [Column] -> Text

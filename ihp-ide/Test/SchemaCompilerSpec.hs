@@ -252,14 +252,13 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")"
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -274,9 +273,10 @@ tests = do
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
-                        let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        if List.null touched then pure () else do
+                            let pool = ?modelContext.hasqlPool
+                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -350,14 +350,13 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ids, electricity_unit_price"
-                        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id, ids, electricity_unit_price) VALUES (" <> Snippet.param model.id <> Snippet.sql ", " <> Snippet.param model.ids <> Snippet.sql ", " <> fieldWithDefaultSnippet #electricityUnitPrice model <> Snippet.sql ")"
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -372,9 +371,10 @@ tests = do
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
-                        let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "ids = " <> fieldWithUpdateSnippet #ids model <> Snippet.sql ", " <> Snippet.sql "electricity_unit_price = " <> fieldWithUpdateSnippet #electricityUnitPrice model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        if List.null touched then pure () else do
+                            let pool = ?modelContext.hasqlPool
+                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -444,14 +444,12 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> Snippet.param model.id <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, ts"
-                        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.User))
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO users (id) VALUES (" <> Snippet.param model.id <> Snippet.sql ")"
-                        sqlExecHasql pool snippet
+                        sqlStatementHasql pool model Generated.Statements.CreateUser.discardResultStatement
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -466,9 +464,10 @@ tests = do
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
-                        let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE users SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        if List.null touched then pure () else do
+                            let pool = ?modelContext.hasqlPool
+                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -575,14 +574,13 @@ tests = do
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id"
-                        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.LandingPage))
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement (List.length models))
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     createRecordDiscardResultLandingPage model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO landing_pages (id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ")"
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreateLandingPage.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.LandingPage where
                         updateRecord = updateRecordLandingPage
@@ -597,9 +595,10 @@ tests = do
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
-                        let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE landing_pages SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        if List.null touched then pure () else do
+                            let pool = ?modelContext.hasqlPool
+                            sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.LandingPage where
                         {-# INLINE newRecord #-}
@@ -845,14 +844,13 @@ tests = do
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES " <> (mconcat $ List.intersperse (Snippet.sql ", ") $ List.map (\model -> Snippet.sql "(" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")") models) <> Snippet.sql " RETURNING id, title, user_id"
-                        sqlQueryHasql pool snippet (Decoders.rowList (hasqlRowDecoder @Generated.ActualTypes.Post))
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement (List.length models))
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     createRecordDiscardResultPost model = do
                         let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "INSERT INTO posts (id, title, user_id) VALUES (" <> fieldWithDefaultSnippet #id model <> Snippet.sql ", " <> Snippet.param model.title <> Snippet.sql ", " <> Snippet.param model.userId <> Snippet.sql ")"
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        sqlStatementHasql pool model (Generated.Statements.CreatePost.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.Post where
                         updateRecord = updateRecordPost
@@ -867,9 +865,10 @@ tests = do
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
-                        let pool = ?modelContext.hasqlPool
-                        let snippet = Snippet.sql "UPDATE posts SET " <> Snippet.sql "id = " <> fieldWithUpdateSnippet #id model <> Snippet.sql ", " <> Snippet.sql "title = " <> fieldWithUpdateSnippet #title model <> Snippet.sql ", " <> Snippet.sql "user_id = " <> fieldWithUpdateSnippet #userId model <> Snippet.sql " WHERE " <> Snippet.sql "id = " <> Snippet.param model.id
-                        sqlExecHasql pool snippet
+                        let touched = model.meta.touchedFields
+                        if List.null touched then pure () else do
+                            let pool = ?modelContext.hasqlPool
+                            sqlStatementHasql pool model (Generated.Statements.UpdatePost.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.Post where
                         {-# INLINE newRecord #-}
@@ -928,10 +927,20 @@ tests = do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
                     statement :: Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement = Statement.preparable sql encoder decoder
+                    statement = Statement.preparable sqlReturningResult encoder decoder
 
-                    sql :: Text
-                    sql = "INSERT INTO posts (id, title, body) VALUES ($$1, $$2, $$3) RETURNING id, title, body"
+                    discardResultStatement :: Statement.Statement Generated.ActualTypes.Post ()
+                    discardResultStatement = Statement.preparable sqlDiscardResult encoder Decoders.noResult
+
+                    sql :: Bool -> Text
+                    sql returning = "INSERT INTO posts (id, title, body) VALUES ($$1, $$2, $$3)"
+                        <> if returning then " RETURNING id, title, body" else ""
+
+                    sqlReturningResult :: Text
+                    sqlReturningResult = sql True
+
+                    sqlDiscardResult :: Text
+                    sqlDiscardResult = sql False
 
                     encoder :: Encoders.Params Generated.ActualTypes.Post
                     encoder =
@@ -952,10 +961,13 @@ tests = do
                 let output = compileUpdateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
                     statement :: [Text] -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields) (encoder touchedFields) decoder
+                    statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder
 
-                    sql :: Set.Set Text -> Text
-                    sql touchedFields =
+                    discardResultStatement :: [Text] -> Statement.Statement Generated.ActualTypes.Post ()
+                    discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult
+
+                    sql :: Set.Set Text -> Bool -> Text
+                    sql touchedFields returning =
                         let setEntries = catMaybes
                                 [ if Set.member "title" touchedFields then Just "title" else Nothing
                                 , if Set.member "body" touchedFields then Just "body" else Nothing
@@ -963,7 +975,8 @@ tests = do
                             setClauses = [col <> " = $$" <> Text.pack (show i) | (i, col) <- zip [1..] setEntries]
                             pkIdx = length setEntries + 1
                             whereClause = \startIdx -> "id" <> " = $$" <> Text.pack (show startIdx)
-                        in "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> " RETURNING id, title, body"
+                            returningClause = if returning then " RETURNING id, title, body" else ""
+                        in "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> returningClause
 
 
                     encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
