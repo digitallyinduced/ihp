@@ -1195,7 +1195,8 @@ compileStatementsIndex schema@(Schema statements) =
 statementModuleBaseImports :: Text
 statementModuleBaseImports =
     Text.unlines
-        [ "import Generated.ActualTypes"
+        [ "import Prelude (($), (.), (<$>), (<*>), show, fromIntegral, length, null, zip, mconcat, (++), Just, Nothing, Maybe)"
+        , "import Generated.ActualTypes"
         , "import Generated.Enums"
         , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
         , "import qualified Hasql.Statement as Statement"
