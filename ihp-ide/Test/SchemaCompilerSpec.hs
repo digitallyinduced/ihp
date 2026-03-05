@@ -996,6 +996,32 @@ tests = do
                 output `shouldSatisfy` Text.isInfixOf "isTouched \"postTitle\""
                 output `shouldSatisfy` (not . Text.isInfixOf "isTouched \"post_title\"")
 
+            it "should use CASE WHEN with DB default for columns with DEFAULT in Create" do
+                let defaultStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True, defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "title" PText) { notNull = True }
+                                , (col "created_at" PTimestampWithTimezone) { notNull = True, defaultValue = Just (CallExpression "now" []) }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            }
+                        ]
+                let [StatementCreateTable defaultTable] = defaultStatements
+                let ?schema = Schema defaultStatements
+                let output = compileCreateStatement defaultTable
+                -- id has DEFAULT uuid_generate_v4() -> CASE WHEN
+                output `shouldSatisfy` Text.isInfixOf "CASE WHEN"
+                output `shouldSatisfy` Text.isInfixOf "uuid_generate_v4()"
+                -- created_at has DEFAULT now() -> CASE WHEN
+                output `shouldSatisfy` Text.isInfixOf "now()"
+                -- title has no default -> plain $N placeholder
+                -- isTouched flags should be present for defaulted columns
+                output `shouldSatisfy` Text.isInfixOf "isTouched"
+
 -- | Extract the body of a statement module (everything after the import block)
 getStatementBody :: Text -> Text
 getStatementBody full =

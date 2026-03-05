@@ -22,6 +22,7 @@ import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import qualified IHP.Postgres.Parser as PostgresParser
 import IHP.Postgres.Types
+import IHP.Postgres.Compiler (compileExpression)
 import qualified Control.Exception as Exception
 import qualified System.Environment
 import NeatInterpolation
@@ -1275,6 +1276,11 @@ hasqlColumnEncoder table column@Column { name, columnType, notNull, generator }
         encoder = if needsIdWrapper then "((\\ (Id pk) -> pk) >$< " <> baseEncoder <> ")" else baseEncoder
 
 -- | Generate the Create statement module for a table
+--
+-- For columns with DB defaults (e.g. @DEFAULT gen_random_uuid()@, serial types),
+-- the generated SQL uses @CASE WHEN $flag THEN $value ELSE default_expr END@ so
+-- that untouched fields fall back to the database default instead of sending
+-- Haskell @def@ values. Columns without defaults are sent unconditionally.
 compileCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileCreateStatement table@(CreateTable { name, columns }) =
     let modelName = tableNameToModelName name
@@ -1283,12 +1289,35 @@ compileCreateStatement table@(CreateTable { name, columns }) =
         writableColumns = onlyWritableColumns columns
         allColumnNames = commaSep (map (.name) columns)
         writableColumnNames = commaSep (map (.name) writableColumns)
-        paramCount = length writableColumns
-        placeholders = commaSep (map (\i -> "$" <> tshow i) [1..paramCount])
+
+        -- Build SQL placeholders and encoders, handling columns with defaults via CASE WHEN
+        (placeholderParts, paramIdx) = foldl' buildCreatePlaceholder ([], 1 :: Int) writableColumns
+        placeholders = commaSep (reverse placeholderParts)
 
         sql = "INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES (" <> placeholders <> ") RETURNING " <> allColumnNames
 
-        encoderBlock = formatEncoderBlock (map (hasqlColumnEncoder table) writableColumns)
+        -- Build encoder lines: columns with defaults get (bool flag + nullable value),
+        -- columns without defaults get just the value
+        encoderLines = writableColumns >>= \col ->
+            if hasExplicitOrImplicitDefault col
+                then
+                    let fieldName = columnNameToFieldName col.name
+                        colName = tshow fieldName
+                        isPrimaryKey = [col.name] == primaryKeyColumnNames table.primaryKeyConstraint
+                        isForeignKey = isJust (findForeignKeyConstraint table col)
+                        needsIdWrapper = isPrimaryKey || isForeignKey
+                        baseEncoder = hasqlValueEncoder col.columnType
+                        valueEncoder = if needsIdWrapper then "((\\ (Id pk) -> pk) >$< " <> baseEncoder <> ")" else baseEncoder
+                        isNullable = not col.notNull
+                        valueExpr = if isNullable
+                            then "(\\record -> if isTouched " <> colName <> " record then record." <> fieldName <> " else Nothing)"
+                            else "(\\record -> if isTouched " <> colName <> " record then Just record." <> fieldName <> " else Nothing)"
+                    in [ "isTouched " <> colName <> " >$< Encoders.param (Encoders.nonNullable Encoders.bool)"
+                       , valueExpr <> " >$< Encoders.param (Encoders.nullable " <> valueEncoder <> ")"
+                       ]
+                else [hasqlColumnEncoder table col]
+
+        encoderBlock = formatEncoderBlock encoderLines
 
         decoderBlock = compileStatementDecoder modelName table columns
     in Text.unlines
@@ -1309,6 +1338,27 @@ compileCreateStatement table@(CreateTable { name, columns }) =
         , encoderBlock
         , "        decoder = " <> decoderBlock
         ]
+    where
+        -- | Build a SQL placeholder for a column, returning (placeholder, nextParamIdx)
+        -- Columns with defaults: CASE WHEN $flag THEN $value ELSE <default_expr> END (2 params)
+        -- Columns without defaults: $value (1 param)
+        buildCreatePlaceholder :: ([Text], Int) -> Column -> ([Text], Int)
+        buildCreatePlaceholder (acc, idx) col
+            | hasExplicitOrImplicitDefault col =
+                let defaultExpr = columnDefaultExpression col
+                    placeholder = "CASE WHEN $" <> tshow idx <> " THEN $" <> tshow (idx + 1) <> " ELSE " <> defaultExpr <> " END"
+                in (placeholder : acc, idx + 2)
+            | otherwise =
+                ("$" <> tshow idx : acc, idx + 1)
+
+-- | Get the SQL default expression for a column.
+-- For columns with explicit defaults, renders the Expression to SQL.
+-- For serial\/bigserial columns, generates the nextval() call.
+columnDefaultExpression :: Column -> Text
+columnDefaultExpression Column { defaultValue = Just expr } = compileExpression expr
+columnDefaultExpression Column { name, columnType = PSerial } = "nextval('" <> name <> "_seq')"
+columnDefaultExpression Column { name, columnType = PBigserial } = "nextval('" <> name <> "_seq')"
+columnDefaultExpression col = error $ "columnDefaultExpression: column " <> cs col.name <> " has no default"
 
 -- | Generate the Update statement module for a table (CASE WHEN approach)
 compileUpdateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
