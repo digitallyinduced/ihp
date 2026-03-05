@@ -360,6 +360,7 @@ defaultImports = [trimming|
     import qualified Hasql.Mapping.IsScalar as Mapping
     import Hasql.PostgresqlTypes ()
     import Data.Bits ((.&.), (.|.))
+    import Control.Monad (unless)
 |]
 
 
