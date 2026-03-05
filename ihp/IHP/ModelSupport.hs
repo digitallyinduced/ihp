@@ -27,7 +27,7 @@ import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
-import Data.Bits ((.&.), (.|.), bit, clearBit)
+import Data.Bits ((.&.), bit, clearBit)
 import Data.List (elemIndex)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
