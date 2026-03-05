@@ -267,14 +267,14 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure model else do
+                        if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure () else do
+                        if touched == 0 then pure () else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -369,14 +369,14 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure model else do
+                        if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure () else do
+                        if touched == 0 then pure () else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -466,14 +466,14 @@ tests = do
                     updateRecordUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     updateRecordUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure model else do
+                        if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure () else do
+                        if touched == 0 then pure () else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -600,14 +600,14 @@ tests = do
                     updateRecordLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO Generated.ActualTypes.LandingPage
                     updateRecordLandingPage model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure model else do
+                        if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure () else do
+                        if touched == 0 then pure () else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.discardResultStatement touched)
 
@@ -872,14 +872,14 @@ tests = do
                     updateRecordPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO Generated.ActualTypes.Post
                     updateRecordPost model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure model else do
+                        if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
                         let touched = model.meta.touchedFields
-                        if List.null touched then pure () else do
+                        if touched == 0 then pure () else do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdatePost.discardResultStatement touched)
 
@@ -977,17 +977,17 @@ tests = do
             it "should generate correct Update statement module" do
                 let output = compileUpdateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: [Text] -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
-                    statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder
+                    statement :: Integer -> Statement.Statement Generated.ActualTypes.Post Generated.ActualTypes.Post
+                    statement touchedFields = Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder
 
-                    discardResultStatement :: [Text] -> Statement.Statement Generated.ActualTypes.Post ()
-                    discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult
+                    discardResultStatement :: Integer -> Statement.Statement Generated.ActualTypes.Post ()
+                    discardResultStatement touchedFields = Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult
 
-                    sql :: Set.Set Text -> Bool -> Text
+                    sql :: Integer -> Bool -> Text
                     sql touchedFields returning =
                         let setEntries = catMaybes
-                                [ if Set.member "title" touchedFields then Just "title" else Nothing
-                                , if Set.member "body" touchedFields then Just "body" else Nothing
+                                [ if testBit touchedFields 1 then Just "title" else Nothing
+                                , if testBit touchedFields 2 then Just "body" else Nothing
                                 ]
                             setClauses = [col <> " = $$" <> Text.pack (show i) | (i, col) <- zip [1..] setEntries]
                             pkIdx = length setEntries + 1
@@ -996,10 +996,10 @@ tests = do
                         in "UPDATE posts SET " <> Text.intercalate ", " setClauses <> " WHERE " <> whereClause pkIdx <> returningClause
 
 
-                    encoder :: Set.Set Text -> Encoders.Params Generated.ActualTypes.Post
+                    encoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
                     encoder touchedFields = mconcat (catMaybes
-                        [ if Set.member "title" touchedFields then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
-                        , if Set.member "body" touchedFields then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
+                        [ if testBit touchedFields 1 then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
+                        , if testBit touchedFields 2 then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         ])
                         <> ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid)))
 
@@ -1030,7 +1030,7 @@ tests = do
                                 <*> Decoders.column (Decoders.nonNullable Decoders.text))
                     |]
 
-            it "should use Haskell field names (not SQL column names) for Set.member in Update" do
+            it "should use correct bit indices for columns in Update" do
                 let snakeStatements =
                         [ StatementCreateTable CreateTable
                             { name = "blog_posts"
@@ -1046,9 +1046,8 @@ tests = do
                 let [StatementCreateTable snakeTable] = snakeStatements
                 let ?schema = Schema snakeStatements
                 let output = compileUpdateStatement snakeTable
-                -- Set.member should use "postTitle" (Haskell field name), not "post_title" (SQL column name)
-                output `shouldSatisfy` Text.isInfixOf "Set.member \"postTitle\""
-                output `shouldSatisfy` (not . Text.isInfixOf "Set.member \"post_title\"")
+                -- post_title is at index 1 in the columns list, so testBit should use 1
+                output `shouldSatisfy` Text.isInfixOf "testBit touchedFields 1"
 
             it "should omit untouched columns with DEFAULT from INSERT" do
                 let defaultStatements =
@@ -1067,10 +1066,10 @@ tests = do
                 let [StatementCreateTable defaultTable] = defaultStatements
                 let ?schema = Schema defaultStatements
                 let output = compileCreateStatement defaultTable
-                -- id has DEFAULT -> conditional on Set.member
-                output `shouldSatisfy` Text.isInfixOf "Set.member \"id\" touchedFields"
-                -- created_at has DEFAULT -> conditional on Set.member
-                output `shouldSatisfy` Text.isInfixOf "Set.member \"createdAt\" touchedFields"
+                -- id is at index 0, has DEFAULT -> conditional on testBit
+                output `shouldSatisfy` Text.isInfixOf "testBit touchedFields 0"
+                -- created_at is at index 2, has DEFAULT -> conditional on testBit
+                output `shouldSatisfy` Text.isInfixOf "testBit touchedFields 2"
                 -- title has no default -> always included (Just "title")
                 output `shouldSatisfy` Text.isInfixOf "Just \"title\""
                 -- No more CASE WHEN or inlined default expressions

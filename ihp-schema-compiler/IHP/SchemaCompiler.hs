@@ -515,6 +515,13 @@ fieldBitPositions :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) =>
 fieldBitPositions table@(CreateTable { columns }) =
     zip (map (columnNameToFieldName . (.name)) columns) (map bit [0..])
 
+-- | Given the full column list and a filtered subset, return each subset column
+-- paired with its bit index (position in the original list).
+columnsWithBitIndices :: [Column] -> [Column] -> [(Column, Int)]
+columnsWithBitIndices allColumns subset =
+    let subsetNames = map (.name) subset
+    in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `elem` subsetNames]
+
 compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
     where
@@ -759,11 +766,11 @@ compileUpdate table@(CreateTable { name, columns }) =
 
         -- Hasql bodies: skip DB round-trip when nothing is touched
         hasqlUpdateBody = "let touched = model.meta.touchedFields\n"
-                <> "if List.null touched then pure model else do\n"
+                <> "if touched == 0 then pure model else do\n"
                 <> "    let pool = ?modelContext.hasqlPool\n"
                 <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".statement touched)"
         hasqlUpdateDiscardBody = "let touched = model.meta.touchedFields\n"
-                <> "if List.null touched then pure () else do\n"
+                <> "if touched == 0 then pure () else do\n"
                 <> "    let pool = ?modelContext.hasqlPool\n"
                 <> "    sqlStatementHasql pool model (Generated.Statements.Update" <> funcName <> ".discardResultStatement touched)"
     in
@@ -1184,7 +1191,7 @@ compileStatementsIndex schema@(Schema statements) =
 statementModuleBaseImports :: Text
 statementModuleBaseImports =
     Text.unlines
-        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), (-), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map, Bool(..), Int)"
+        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), (-), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map, Bool(..), Int, Integer)"
         , "import Generated.ActualTypes"
         , "import Generated.Enums"
         , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
@@ -1217,7 +1224,7 @@ statementModuleBaseImports =
 statementModuleDynamicImports :: Text
 statementModuleDynamicImports =
     Text.unlines
-        [ "import qualified Data.Set as Set"
+        [ "import Data.Bits (testBit)"
         , "import Data.Maybe (catMaybes)"
         , "import qualified Data.Text as Text"
         ]
@@ -1281,20 +1288,19 @@ hasqlColumnEncoder table column@Column { name, columnType, notNull, generator }
 -- | Generate a conditional SQL entry for a column.
 -- When @alwaysConditional@ is True (Update), all columns are conditional on touchedFields.
 -- When False (Create), only columns with DB defaults are conditional.
-compileSqlEntry :: Bool -> Column -> Text
-compileSqlEntry alwaysConditional col
+-- The @bitIndex@ is the column's index in the original columns list (for testBit).
+compileSqlEntry :: Bool -> Int -> Column -> Text
+compileSqlEntry alwaysConditional bitIndex col
     | alwaysConditional || hasExplicitOrImplicitDefault col =
-        let fieldName = columnNameToFieldName col.name
-        in "if Set.member " <> tshow fieldName <> " touchedFields then Just " <> tshow col.name <> " else Nothing"
+        "if testBit touchedFields " <> tshow bitIndex <> " then Just " <> tshow col.name <> " else Nothing"
     | otherwise = "Just " <> tshow col.name
 
 -- | Generate a conditional encoder entry for a column.
 -- Same conditional logic as 'compileSqlEntry'.
-compileEncoderEntry :: (?schema :: Schema) => Bool -> CreateTable -> Column -> Text
-compileEncoderEntry alwaysConditional table col
+compileEncoderEntry :: (?schema :: Schema) => Bool -> Int -> CreateTable -> Column -> Text
+compileEncoderEntry alwaysConditional bitIndex table col
     | alwaysConditional || hasExplicitOrImplicitDefault col =
-        let fieldName = columnNameToFieldName col.name
-        in "if Set.member " <> tshow fieldName <> " touchedFields then Just (" <> hasqlColumnEncoder table col <> ") else Nothing"
+        "if testBit touchedFields " <> tshow bitIndex <> " then Just (" <> hasqlColumnEncoder table col <> ") else Nothing"
     | otherwise = "Just (" <> hasqlColumnEncoder table col <> ")"
 
 -- | Returns True when any writable column has a DB default (meaning Create needs dynamic SQL)
@@ -1359,9 +1365,10 @@ compileStaticCreateStatement moduleName qualifiedModelName tableName writableCol
 -- | Create statement with dynamic SQL (some columns have defaults)
 compileDynamicCreateStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns decoderBlock =
-    let sqlEntries = map (compileSqlEntry False) writableColumns
+    let columnBitIndices = columnsWithBitIndices columns writableColumns
+        sqlEntries = map (\(col, bitIdx) -> compileSqlEntry False bitIdx col) columnBitIndices
         sqlBody = Text.unlines
-            [ "sql :: Set.Set Text -> Bool -> Text"
+            [ "sql :: Integer -> Bool -> Text"
             , "sql touchedFields returning ="
             , "    let entries = catMaybes"
             , "            [ " <> Text.intercalate "\n            , " sqlEntries
@@ -1374,9 +1381,9 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
             , "        else \"INSERT INTO " <> tableName <> " (\" <> columns <> \") VALUES (\" <> placeholders <> \")\" <> returningClause"
             ]
 
-        encoderEntries = map (compileEncoderEntry False table) writableColumns
+        encoderEntries = map (\(col, bitIdx) -> compileEncoderEntry False bitIdx table col) columnBitIndices
         encoderBody = Text.unlines
-            [ "encoder :: Set.Set Text -> Encoders.Params " <> qualifiedModelName
+            [ "encoder :: Integer -> Encoders.Params " <> qualifiedModelName
             , "encoder touchedFields = mconcat $ catMaybes"
             , "    [ " <> Text.intercalate "\n    , " encoderEntries
             , "    ]"
@@ -1388,11 +1395,11 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
-        , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
+        , "statement :: Integer -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
+        , "statement touchedFields = Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
         , ""
-        , "discardResultStatement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " ()"
-        , "discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
+        , "discardResultStatement :: Integer -> Statement.Statement " <> qualifiedModelName <> " ()"
+        , "discardResultStatement touchedFields = Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
         , ""
         , sqlBody
         , ""
@@ -1419,10 +1426,11 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
         allColumnNames = commaSep (map (.name) columns)
 
         -- Build the sql function body
-        sqlEntries = map (compileSqlEntry True) writableColumns
+        columnBitIndices = columnsWithBitIndices columns writableColumns
+        sqlEntries = map (\(col, bitIdx) -> compileSqlEntry True bitIdx col) columnBitIndices
 
         sqlBody = Text.unlines
-            [ "sql :: Set.Set Text -> Bool -> Text"
+            [ "sql :: Integer -> Bool -> Text"
             , "sql touchedFields returning ="
             , "    let setEntries = catMaybes"
             , "            [ " <> Text.intercalate "\n            , " sqlEntries
@@ -1435,10 +1443,10 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
             ]
 
         -- Build the encoder function body
-        encoderEntries = map (compileEncoderEntry True table) writableColumns
+        encoderEntries = map (\(col, bitIdx) -> compileEncoderEntry True bitIdx table col) columnBitIndices
         pkEncoders = map (hasqlColumnEncoder table) pkColumns
         encoderBody = Text.unlines
-            [ "encoder :: Set.Set Text -> Encoders.Params " <> qualifiedModelName
+            [ "encoder :: Integer -> Encoders.Params " <> qualifiedModelName
             , "encoder touchedFields = mconcat (catMaybes"
             , "    [ " <> Text.intercalate "\n    , " encoderEntries
             , "    ])"
@@ -1455,11 +1463,11 @@ compileUpdateStatement table@(CreateTable { name, columns }) =
         , ""
         , statementModuleBaseImports
         , statementModuleDynamicImports
-        , "statement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
-        , "statement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
+        , "statement :: Integer -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
+        , "statement touchedFields = Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
         , ""
-        , "discardResultStatement :: [Text] -> Statement.Statement " <> qualifiedModelName <> " ()"
-        , "discardResultStatement touchedFieldsList = let touchedFields = Set.fromList touchedFieldsList in Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
+        , "discardResultStatement :: Integer -> Statement.Statement " <> qualifiedModelName <> " ()"
+        , "discardResultStatement touchedFields = Statement.preparable (sql touchedFields False) (encoder touchedFields) Decoders.noResult"
         , ""
         , sqlBody
         , ""
