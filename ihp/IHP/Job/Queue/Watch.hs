@@ -120,9 +120,9 @@ notificationTriggersHealthy pool tableName = do
             <> " JOIN pg_class c ON t.tgrelid = c.oid"
             <> " JOIN pg_namespace n ON c.relnamespace = n.oid"
             <> " WHERE n.nspname = current_schema()"
-            <> " AND c.relname = $1"
+            <> " AND c.relname = $1::name"
             <> " AND NOT t.tgisinternal"
-            <> " AND (t.tgname = $2 OR t.tgname = $3)"
+            <> " AND (t.tgname = $2::name OR t.tgname = $3::name)"
     let encoder =
             contramap (\(tableNameParam, _, _) -> tableNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
             <> contramap (\(_, insertTriggerNameParam, _) -> insertTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
