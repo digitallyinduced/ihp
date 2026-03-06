@@ -9,6 +9,7 @@ module IHP.SchemaCompiler
 , compileUpdateStatement
 , compileFetchByIdStatement
 , compileCreateManyStatement
+, compileRowDecoderModule
 , Schema(..)
 ) where
 

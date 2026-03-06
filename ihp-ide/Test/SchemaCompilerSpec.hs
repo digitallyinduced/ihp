@@ -928,6 +928,18 @@ tests = do
             let ?schema = Schema statements
             let ?compilerOptions = fullCompileOptions
 
+            it "should generate correct RowDecoder statement module" do
+                let output = compileRowDecoderModule theTable
+                getStatementBody output `shouldBe` [trimming|
+                    rowDecoder :: Decoders.Row Generated.ActualTypes.Post
+                    rowDecoder = do
+                        id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        title <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        body <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                        pure theRecord
+                    |]
+
             it "should generate correct Create statement module" do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
