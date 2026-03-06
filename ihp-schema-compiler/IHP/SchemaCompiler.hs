@@ -1036,45 +1036,60 @@ compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> has
 compileSetFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
     where
-        setMetaField = "instance SetField \"meta\" (" <> compileTypePattern table <>  ") MetaBag where\n    {-# INLINE setField #-}\n    setField newValue (" <> compileDataTypePattern table <> ") = " <> tableNameToModelName name <> " " <> (unwords (map (.name) columns)) <> " newValue"
-        modelName = tableNameToModelName name
-        typeArgs = dataTypeArguments table
         fieldBitMap = fieldBitPositions table
-        compileSetField (name, fieldType) =
-            "instance SetField " <> tshow name <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
+        compileSetField (fieldName, fieldType) =
+            "instance SetField " <> tshow fieldName <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
             "    {-# INLINE setField #-}\n" <>
-            "    setField newValue (" <> compileDataTypePattern table <> ") =\n" <>
-            "        " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+            "    setField newValue record = record" <> recordUpdate
             where
-                compileAttribute name'
-                    | name' == name = "newValue"
-                    | name' == "meta" = case lookup name fieldBitMap of
-                        Just bitVal -> "(meta { touchedFields = touchedFields meta .|. " <> tshow bitVal <> " })"
-                        Nothing -> "meta"
-                    | otherwise = name'
+                recordUpdate = case lookup fieldName fieldBitMap of
+                    Just bitVal ->
+                        " { " <> fieldName <> " = newValue" <>
+                        ", meta = record.meta { touchedFields = record.meta.touchedFields .|. " <> tshow bitVal <> " }" <>
+                        " }"
+                    Nothing ->
+                        " { " <> fieldName <> " = newValue }"
 
 compileUpdateFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
+compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileField (dataFields table))
     where
         modelName = tableNameToModelName name
         typeArgs = dataTypeArguments table
         fieldBitMap = fieldBitPositions table
-        compileSetField (name, fieldType) = "instance UpdateField " <> tshow name <> " (" <> compileTypePattern table <>  ") (" <> compileTypePattern' name  <> ") " <> valueTypeA <> " " <> valueTypeB <> " where\n    {-# INLINE updateField #-}\n    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
-            where
-                (valueTypeA, valueTypeB) =
-                    if name `elem` typeArgs
-                        then (name, name <> "'")
-                        else (fieldType, fieldType)
 
+        compileField (fieldName, fieldType)
+            | fieldName `elem` typeArgs = compilePolymorphic fieldName fieldType
+            | otherwise = compileSimple fieldName fieldType
+
+        -- Non-polymorphic: model type doesn't change, use record update
+        compileSimple fieldName fieldType =
+            "instance UpdateField " <> tshow fieldName <> " (" <> compileTypePattern table <> ") (" <> compileTypePattern table <> ") " <> fieldType <> " " <> fieldType <> " where\n" <>
+            "    {-# INLINE updateField #-}\n" <>
+            "    updateField newValue record = record" <> recordUpdate
+            where
+                recordUpdate = case lookup fieldName fieldBitMap of
+                    Just bitVal ->
+                        " { " <> fieldName <> " = newValue" <>
+                        ", meta = record.meta { touchedFields = record.meta.touchedFields .|. " <> tshow bitVal <> " }" <>
+                        " }"
+                    Nothing ->
+                        " { " <> fieldName <> " = newValue }"
+
+        -- Polymorphic: type changes, must use full pattern match
+        compilePolymorphic fieldName fieldType =
+            "instance UpdateField " <> tshow fieldName <> " (" <> compileTypePattern table <> ") (" <> compileTypePattern' fieldName <> ") " <> fieldName <> " " <> fieldName <> "'" <> " where\n" <>
+            "    {-# INLINE updateField #-}\n" <>
+            "    updateField newValue (" <> compileDataTypePattern table <> ") = " <> modelName <> " " <> (unwords (map compileAttribute (table |> dataFields |> map fst)))
+            where
                 compileAttribute name'
-                    | name' == name = "newValue"
-                    | name' == "meta" = case lookup name fieldBitMap of
+                    | name' == fieldName = "newValue"
+                    | name' == "meta" = case lookup fieldName fieldBitMap of
                         Just bitVal -> "(meta { touchedFields = touchedFields meta .|. " <> tshow bitVal <> " })"
                         Nothing -> "meta"
                     | otherwise = name'
 
-                compileTypePattern' ::  Text -> Text
-                compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) (dataTypeArguments table)))
+        compileTypePattern' :: Text -> Text
+        compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) typeArgs))
 
 compileFieldBitInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFieldBitInstances table@(CreateTable { name }) = unlines (map compileInstance (fieldBitPositions table))
