@@ -277,6 +277,10 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance FieldBit "id" (User') where fieldBit = 1
+                    instance FieldBit "ids" (User') where fieldBit = 2
+                    instance FieldBit "electricityUnitPrice" (User') where fieldBit = 4
                 |]
             it "should deal with integer default values for double columns" do
                 let statement = StatementCreateTable (table "users")
@@ -374,6 +378,10 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance FieldBit "id" (User') where fieldBit = 1
+                    instance FieldBit "ids" (User') where fieldBit = 2
+                    instance FieldBit "electricityUnitPrice" (User') where fieldBit = 4
                 |]
             it "should not touch GENERATED columns" do
                 let statement = StatementCreateTable (table "users")
@@ -468,6 +476,9 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance FieldBit "id" (User') where fieldBit = 1
+                    instance FieldBit "ts" (User') where fieldBit = 2
                 |]
             it "should handle tablets with generated columns" do
                 let statement = StatementCreateTable CreateTable
@@ -598,6 +609,8 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance FieldBit "id" (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where fieldBit = 1
                 |]
             it "should not use DEFAULT for array columns" do
                 let statement = StatementCreateTable (table "users")
@@ -867,6 +880,10 @@ tests = do
                         filterWhereId id builder =
                             builder |> QueryBuilder.filterWhere (#id, id)
                         {-# INLINE filterWhereId #-}
+
+                    instance FieldBit "id" (Post') where fieldBit = 1
+                    instance FieldBit "title" (Post') where fieldBit = 2
+                    instance FieldBit "userId" (Post') where fieldBit = 4
                 |]
             it "should produce no type parameters for a table that is referenced by other tables" do
                 let statements = parseSqlStatements [trimming|

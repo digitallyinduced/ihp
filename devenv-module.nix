@@ -153,9 +153,6 @@ that is defined in flake-module.nix
         devenv.shells.default = {
             packages = with pkgs; [ cabal2nix ];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
-            # Required for devenv v1.11+ to fix flake check
-            process.manager.implementation = "process-compose";
-            process.managers.process-compose.enable = true;
 
             languages.haskell.enable = true;
             languages.haskell.package =
@@ -257,7 +254,7 @@ that is defined in flake-module.nix
             '';
 
             languages.haskell.stack.enable = false; # Stack is not used in IHP
-            languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
+            languages.haskell.lsp.package = pkgs.ghc.haskell-language-server;
         };
 
         packages = {

@@ -1,7 +1,7 @@
 {
     inputs = {
         nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-        devenv.url = "github:cachix/devenv/v1.8.2";
+        devenv.url = "github:cachix/devenv/v2.0.2";
     };
 
     outputs = inputs@{ flake-parts, nixpkgs, ... }:
@@ -28,7 +28,6 @@
                 };
 
                 devenv.shells.default = {
-                    process.manager.implementation = "overmind";
                     packages = with pkgs; [
                         haskellPackages.wai-app-static
                         entr
