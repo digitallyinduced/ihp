@@ -1301,18 +1301,21 @@ compileRowDecoderModule table@(CreateTable { name, columns }) =
         isColumn colName = colName `elem` columnNames
         isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
-        columnBindings = map (\col -> "    " <> columnNameToFieldName col.name <> " <- " <> hasqlColumnDecoder table col) columns
+        columnDecoders = case map (\col -> hasqlColumnDecoder table col) columns of
+            [] -> []
+            (first:rest) -> ("    <$> " <> first) : map ("    <*> " <>) rest
         constructorArgs = intercalate " " (map compileField (dataFields table))
-        letBinding = "    let theRecord = " <> qualifiedConstructorNameFromTableName name <> " " <> constructorArgs
-    in "{-# LANGUAGE ApplicativeDo, OverloadedLabels, TypeApplications, ScopedTypeVariables #-}\n"
+        lambdaParams = intercalate " " (map (columnNameToFieldName . (.name)) columns)
+        -- Use explicit applicative style (<$>/<*>) instead of do-notation because
+        -- the recursive let (theRecord references itself via toDyn) prevents
+        -- GHC's ApplicativeDo from desugaring, and Decoders.Row has no Monad instance.
+        buildBody = "let theRecord = " <> qualifiedConstructorNameFromTableName name <> " " <> constructorArgs <> " in theRecord"
+    in "{-# LANGUAGE OverloadedLabels, TypeApplications, ScopedTypeVariables #-}\n"
         <> statementModuleHeader moduleName ["rowDecoder"] extraImports
         <> Text.unlines
         ([ "rowDecoder :: Decoders.Row " <> qualifiedModelName
-         , "rowDecoder = do"
-         ] <> columnBindings <>
-         [ letBinding
-         , "    pure theRecord"
-         ])
+         , "rowDecoder = (\\" <> lambdaParams <> " -> " <> buildBody <> ")"
+         ] <> columnDecoders)
 
 compileCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileCreateStatement table@(CreateTable { name, columns }) =
