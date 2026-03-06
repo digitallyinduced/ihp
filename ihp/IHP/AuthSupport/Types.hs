@@ -1,6 +1,7 @@
 module IHP.AuthSupport.Types where
 
 import IHP.Prelude
+import Data.Bits ((.|.))
 import Data.Data ()
 import IHP.ModelSupport
 
@@ -14,7 +15,7 @@ type instance GetModelName PasswordReset = "PasswordReset"
 
 instance SetField "email" PasswordReset Text where
     {-# INLINE setField #-}
-    setField newValue PasswordReset { .. } = PasswordReset { id, email = newValue, meta = meta { touchedFields = "email" : touchedFields meta } }
+    setField newValue PasswordReset { .. } = PasswordReset { id, email = newValue, meta = meta { touchedFields = touchedFields meta .|. 1 } }
 
 instance SetField "meta" PasswordReset MetaBag where
     {-# INLINE setField #-}
