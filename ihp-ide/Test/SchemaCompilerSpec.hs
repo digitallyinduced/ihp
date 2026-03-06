@@ -231,7 +231,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
                             <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
                             <*> Decoders.column (Decoders.nonNullable Decoders.float8)
 
@@ -333,7 +333,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
                             <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
                             <*> Decoders.column (Decoders.nonNullable Decoders.float8)
 
@@ -433,7 +433,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = (\id ts -> let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
                             <*> Decoders.column (Decoders.nullable Mapping.decoder)
 
                     type instance GetModelName (User') = "User"
@@ -566,7 +566,7 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
                         hasqlRowDecoder = (\id -> let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -836,9 +836,9 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.Post where
                         hasqlRowDecoder = (\id title userId -> let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
                             <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                            <*> Decoders.column (Decoders.nonNullable (Id <$> Decoders.uuid))
+                            <*> Decoders.column (Decoders.nonNullable Mapping.decoder)
 
                     type instance GetModelName (Post') = "Post"
 

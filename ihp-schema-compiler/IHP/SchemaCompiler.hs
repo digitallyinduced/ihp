@@ -857,13 +857,14 @@ hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } 
         isNullable = not notNull || isJust generator
         nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
 
-        -- Check if this column should be wrapped with Id
+        -- Check if this column is a primary key or foreign key (Id-wrapped type)
+        -- Since Id' has an IsScalar instance, we can use Mapping.decoder directly
         isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
         isForeignKey = isJust (findForeignKeyConstraint table column)
         needsIdWrapper = isPrimaryKey || isForeignKey
 
         baseDecoder = hasqlValueDecoder columnType
-        decoder = if needsIdWrapper then "(Id <$> " <> baseDecoder <> ")" else baseDecoder
+        decoder = if needsIdWrapper then "Mapping.decoder" else baseDecoder
 
 hasqlValueDecoder :: PostgresType -> Text
 hasqlValueDecoder = \case
