@@ -72,7 +72,7 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, Id', pattern Id, IdNewtype(..), GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, Id', pattern Id, IdNewtype(..), GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..), FieldBit (..))
 import Data.TMap (TMap)
 import Data.IORef
 import Data.Time.Format

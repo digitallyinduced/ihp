@@ -788,6 +788,7 @@ selectField :: forall fieldName model item.
     , InputValue (SelectValue item)
     , Typeable model
     , Eq (SelectValue item)
+    , FieldBit fieldName model
     ) => Proxy fieldName -> [item] -> FormField
 selectField field items = FormField
         { fieldType =
@@ -875,6 +876,7 @@ radioField :: forall fieldName model item.
     , InputValue (SelectValue item)
     , Typeable model
     , Eq (SelectValue item)
+    , FieldBit fieldName model
     ) => Proxy fieldName -> [item] -> FormField
 radioField field items = (selectField field items)
     { fieldType =

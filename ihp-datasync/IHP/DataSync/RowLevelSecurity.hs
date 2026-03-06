@@ -1,7 +1,7 @@
 module IHP.DataSync.RowLevelSecurity
 ( ensureRLSEnabled
 , hasRLSEnabled
-, TableWithRLS (tableName)
+, TableWithRLS (..)
 , makeCachedEnsureRLSEnabled
 , sqlQueryWithRLS
 , sqlQueryWriteWithRLS

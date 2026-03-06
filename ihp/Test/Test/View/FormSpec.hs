@@ -12,6 +12,7 @@ import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
 import qualified Text.Blaze.Renderer.Text as Blaze
 import IHP.ModelSupport
+import Data.Bits ((.|.))
 import qualified Network.Wai as Wai
 import IHP.ViewPrelude
 import qualified Data.Text.Lazy as LT
@@ -132,24 +133,26 @@ instance Record Project where
 instance SetField "id" (Project' ) (ProjectId) where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
-        Project newValue title (meta { touchedFields = "id" : touchedFields meta })
+        Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
 instance SetField "title" (Project' ) Text where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
-        Project id newValue (meta { touchedFields = "title" : touchedFields meta })
+        Project id newValue (meta { touchedFields = touchedFields meta .|. 2 })
 instance SetField "meta" (Project' ) MetaBag where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
         Project id title newValue
 instance UpdateField "id" (Project' ) (Project' ) (ProjectId) (ProjectId) where
     {-# INLINE updateField #-}
-    updateField newValue (Project id title meta) = Project newValue title (meta { touchedFields = "id" : touchedFields meta })
+    updateField newValue (Project id title meta) = Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "title" (Project' ) (Project' ) Text Text where
     {-# INLINE updateField #-}
-    updateField newValue (Project id title meta) = Project id newValue (meta { touchedFields = "title" : touchedFields meta })
+    updateField newValue (Project id title meta) = Project id newValue (meta { touchedFields = touchedFields meta .|. 2 })
 instance UpdateField "meta" (Project' ) (Project' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Project id title meta) = Project id title newValue
+instance FieldBit "id" (Project' ) where fieldBit = 1
+instance FieldBit "title" (Project' ) where fieldBit = 2
 
 -- Event model for testing date fields
 data Event' = Event 
@@ -175,15 +178,15 @@ instance Record Event where
 instance SetField "id" (Event' ) (EventId) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+        Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
 instance SetField "date" (Event' ) (Maybe Day) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+        Event id newValue createdAt (meta { touchedFields = touchedFields meta .|. 2 })
 instance SetField "createdAt" (Event' ) (Maybe UTCTime) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+        Event id date newValue (meta { touchedFields = touchedFields meta .|. 4 })
 instance SetField "meta" (Event' ) MetaBag where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
@@ -191,16 +194,19 @@ instance SetField "meta" (Event' ) MetaBag where
 
 instance UpdateField "id" (Event' ) (Event' ) (EventId) (EventId) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "date" (Event' ) (Event' ) (Maybe Day) (Maybe Day) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id newValue createdAt (meta { touchedFields = touchedFields meta .|. 2 })
 instance UpdateField "createdAt" (Event' ) (Event' ) (Maybe UTCTime) (Maybe UTCTime) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id date newValue (meta { touchedFields = touchedFields meta .|. 4 })
 instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Event id date createdAt meta) = Event id date createdAt newValue
+instance FieldBit "id" (Event' ) where fieldBit = 1
+instance FieldBit "date" (Event' ) where fieldBit = 2
+instance FieldBit "createdAt" (Event' ) where fieldBit = 4
 
 
 
