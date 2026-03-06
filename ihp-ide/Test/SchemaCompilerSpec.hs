@@ -230,10 +230,7 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
-                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -274,7 +271,7 @@ tests = do
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        unless (touched == 0) do
+                        unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -332,10 +329,7 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = (\id ids electricityUnitPrice -> let theRecord = Generated.ActualTypes.User id ids electricityUnitPrice def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
-                            <*> Decoders.column (Decoders.nullable (Decoders.listArray (Decoders.nonNullable Decoders.uuid)))
-                            <*> Decoders.column (Decoders.nonNullable Decoders.float8)
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -376,7 +370,7 @@ tests = do
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        unless (touched == 0) do
+                        unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -432,9 +426,7 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.User where
-                        hasqlRowDecoder = (\id ts -> let theRecord = Generated.ActualTypes.User id ts def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
-                            <*> Decoders.column (Decoders.nullable Mapping.decoder)
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -473,7 +465,7 @@ tests = do
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
-                        unless (touched == 0) do
+                        unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
@@ -565,8 +557,7 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
-                        hasqlRowDecoder = (\id -> let theRecord = Generated.ActualTypes.LandingPage id (QueryBuilder.filterWhere (#landingPageId, id) (QueryBuilder.query @ParagraphCta)) (QueryBuilder.filterWhere (#toLandingPageId, id) (QueryBuilder.query @ParagraphCta)) def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        hasqlRowDecoder = Generated.Statements.RowDecoderLandingPage.rowDecoder
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -607,7 +598,7 @@ tests = do
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
                         let touched = model.meta.touchedFields
-                        unless (touched == 0) do
+                        unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.discardResultStatement touched)
 
@@ -835,10 +826,7 @@ tests = do
                             pure theRecord
 
                     instance FromRowHasql Generated.ActualTypes.Post where
-                        hasqlRowDecoder = (\id title userId -> let theRecord = Generated.ActualTypes.Post id title userId def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                            <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
-                            <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                            <*> Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        hasqlRowDecoder = Generated.Statements.RowDecoderPost.rowDecoder
 
                     type instance GetModelName (Post') = "Post"
 
@@ -879,7 +867,7 @@ tests = do
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
                         let touched = model.meta.touchedFields
-                        unless (touched == 0) do
+                        unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
                             sqlStatementHasql pool model (Generated.Statements.UpdatePost.discardResultStatement touched)
 
@@ -962,16 +950,13 @@ tests = do
                     encoder :: Encoders.Params Generated.ActualTypes.Post
                     encoder =
                             mconcat
-                                [ (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                [ (.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)
                                 , (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
                                 , (.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
                                 ]
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
-                    decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    decoder = Decoders.singleRow RowDecoder.rowDecoder
                     |]
 
             it "should generate correct Update statement module" do
@@ -1001,14 +986,11 @@ tests = do
                         [ if testBit touchedFields 1 then Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         , if testBit touchedFields 2 then Just ((.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)) else Nothing
                         ])
-                        <> ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid)))
+                        <> ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder))
 
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
-                    decoder = Decoders.singleRow ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    decoder = Decoders.singleRow RowDecoder.rowDecoder
                     |]
 
             it "should generate correct FetchById statement module" do
@@ -1021,13 +1003,10 @@ tests = do
                     sql = "SELECT id, title, body FROM posts WHERE id = $$1 LIMIT 1"
 
                     encoder :: Encoders.Params (Id' "posts")
-                    encoder = (\ (Id pk) -> pk) >$$< Encoders.param (Encoders.nonNullable Encoders.uuid)
+                    encoder = Encoders.param (Encoders.nonNullable Mapping.encoder)
 
                     decoder :: Decoders.Result (Maybe Generated.ActualTypes.Post)
-                    decoder = Decoders.rowMaybe ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    decoder = Decoders.rowMaybe RowDecoder.rowDecoder
                     |]
 
             it "should generate correct CreateMany statement module" do
@@ -1049,16 +1028,13 @@ tests = do
                     singleEncoder :: Encoders.Params Generated.ActualTypes.Post
                     singleEncoder =
                             mconcat
-                                [ (.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))
+                                [ (.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)
                                 , (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
                                 , (.body) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
                                 ]
 
                     decoder :: Decoders.Result [Generated.ActualTypes.Post]
-                    decoder = Decoders.rowList ((\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text))
+                    decoder = Decoders.rowList RowDecoder.rowDecoder
                     |]
 
             it "should use correct bit indices for columns in Update" do
@@ -1121,17 +1097,14 @@ tests = do
 
                     encoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
                     encoder touchedFields = mconcat $$ catMaybes
-                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable ((\ (Id pk) -> pk) >$$< Encoders.uuid))) else Nothing
+                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)) else Nothing
                         , Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
                         , if testBit touchedFields 2 then Just ((.createdAt) >$$< Encoders.param (Encoders.nonNullable Encoders.timestamptz)) else Nothing
                         ]
 
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
-                    decoder = Decoders.singleRow ((\id title createdAt -> let theRecord = Generated.ActualTypes.Post id title createdAt def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                                <$$> Decoders.column (Decoders.nonNullable (Id <$$> Decoders.uuid))
-                                <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                                <*> Decoders.column (Decoders.nonNullable Decoders.timestamptz))
+                    decoder = Decoders.singleRow RowDecoder.rowDecoder
                     |]
 
 -- | Extract the body of a statement module (everything after the import block)
