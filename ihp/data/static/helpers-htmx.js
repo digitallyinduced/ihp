@@ -29,6 +29,25 @@
         document.dispatchEvent(ihpUnloadEvent);
     }
 
+    function clearTrackedTimers() {
+        if (typeof window.clearAllIntervals === 'function') {
+            window.clearAllIntervals();
+        }
+
+        if (typeof window.clearAllTimeouts === 'function') {
+            window.clearAllTimeouts();
+        }
+    }
+
+    function isBoostedPageSwap(event) {
+        return !!(
+            event &&
+            event.detail &&
+            event.detail.boosted &&
+            event.detail.shouldSwap !== false
+        );
+    }
+
     function applyToggleInput(input) {
         var selector = input.getAttribute('data-toggle');
         if (!selector) {
@@ -289,8 +308,13 @@
     });
 
     if (window.htmx) {
-        document.addEventListener('htmx:beforeSwap', function () {
+        document.addEventListener('htmx:beforeSwap', function (event) {
             dispatchIhpUnload();
+
+            // Match legacy transitionToNewPage behavior for HTMX-driven page navigation.
+            if (isBoostedPageSwap(event)) {
+                clearTrackedTimers();
+            }
         });
 
         document.addEventListener('htmx:load', function (event) {
