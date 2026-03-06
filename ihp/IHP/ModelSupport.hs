@@ -14,7 +14,6 @@ module IHP.ModelSupport
 import IHP.ModelSupport.Types
 
 import IHP.HaskellSupport
-import IHP.NameSupport
 import IHP.InputValue
 import Prelude
 import Data.ByteString (ByteString)
@@ -852,6 +851,9 @@ instance SetField "touchedFields" MetaBag Integer where
     setField value meta = meta { touchedFields = value }
     {-# INLINE setField #-}
 
+-- | Returns 'True' if the named field has been touched (is in @touchedFields@).
+-- Used by generated Update statement modules to determine which columns to send.
+
 -- | Returns 'True' if any fields of the record have unsaved changes
 --
 -- __Example:__ Returns 'False' for freshly fetched records
@@ -925,84 +927,6 @@ didChange field record = didTouchField field record && didChangeField
 didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record, FieldBit fieldName record) => Proxy fieldName -> record -> Bool
 didTouchField field record =
     record.meta.touchedFields .&. fieldBit @fieldName @record /= 0
-
--- | Construct a 'FieldWithDefault'
---
---   Use the default SQL value when the field hasn't been touched since the
---   record was created. This information is stored in the 'touchedFields'
---   attribute of the 'meta' field.
-fieldWithDefault
-  :: forall name model value.
-     ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , FieldBit name model
-     )
-  => Proxy name
-  -> model
-  -> FieldWithDefault value
-fieldWithDefault name model
-  | model.meta.touchedFields .&. fieldBit @name @model /= 0 =
-    NonDefault (get name model)
-  | otherwise = Default
-
--- | Construct a 'FieldWithUpdate'
---
---   Use the current database value when the field hasn't been touched since the
---   record was accessed. This information is stored in the 'touchedFields'
---   attribute of the 'meta' field.
-fieldWithUpdate
-  :: forall name model value.
-     ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , FieldBit name model
-     )
-  => Proxy name
-  -> model
-  -> FieldWithUpdate name value
-fieldWithUpdate name model
-  | model.meta.touchedFields .&. fieldBit @name @model /= 0 =
-    Update (get name model)
-  | otherwise = NoUpdate name
-
--- | Like 'fieldWithDefault' but produces a hasql 'Snippet' instead of a 'FieldWithDefault'
---
---   When the field hasn't been touched, produces @DEFAULT@. Otherwise encodes the value
---   using hasql's 'DefaultParamEncoder'.
-fieldWithDefaultSnippet
-  :: forall name model value.
-     ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     , FieldBit name model
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithDefaultSnippet name model
-  | model.meta.touchedFields .&. fieldBit @name @model /= 0 = Snippet.param (get name model)
-  | otherwise = Snippet.sql "DEFAULT"
-
--- | Like 'fieldWithUpdate' but produces a hasql 'Snippet' instead of a 'FieldWithUpdate'
---
---   When the field hasn't been touched, produces the column name (keeping the current DB value).
---   Otherwise encodes the new value using hasql's 'DefaultParamEncoder'.
-fieldWithUpdateSnippet
-  :: forall name model value.
-     ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     , FieldBit name model
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithUpdateSnippet name model
-  | model.meta.touchedFields .&. fieldBit @name @model /= 0 = Snippet.param (get name model)
-  | otherwise = Snippet.sql (cs $ fieldNameToColumnName $ cs $ symbolVal name)
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a

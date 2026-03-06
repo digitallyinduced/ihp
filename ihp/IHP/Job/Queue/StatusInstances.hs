@@ -11,7 +11,9 @@ import IHP.ModelSupport (InputValue (..))
 import qualified IHP.Controller.Param as Param
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder (..))
+import qualified Hasql.Mapping.IsScalar as Mapping
 
 -- | Mapping for @JOB_STATUS@:
 --
@@ -75,3 +77,7 @@ instance DefaultParamEncoder JobStatus where
 -- | DefaultParamEncoder for lists of JobStatus, needed for filterWhereIn/filterWhereNotIn
 instance DefaultParamEncoder [JobStatus] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (Encoders.enum (Just "public") "job_status" inputValue)
+
+instance Mapping.IsScalar JobStatus where
+    encoder = Encoders.enum (Just "public") "job_status" inputValue
+    decoder = Decoders.enum (Just "public") "job_status" textToEnumJobStatus
