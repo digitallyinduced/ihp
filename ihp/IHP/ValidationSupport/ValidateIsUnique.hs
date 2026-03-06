@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module IHP.ValidationSupport.ValidateIsUnique
 ( validateIsUnique
 , validateIsUniqueCaseInsensitive
@@ -29,7 +30,7 @@ import Hasql.Implicits.Encoders (DefaultParamEncoder)
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUnique :: forall field model savedModel fieldValue modelId savedModelId. (
+validateIsUnique :: forall field model savedModel fieldValue. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRowHasql savedModel
@@ -41,12 +42,12 @@ validateIsUnique :: forall field model savedModel fieldValue modelId savedModelI
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
-        , HasField "id" savedModel savedModelId
-        , HasField "id" model modelId
-        , savedModelId ~ modelId
-        , Eq modelId
+        , HasField "id" savedModel (Id' (GetTableName savedModel))
+        , HasField "id" model (Id' (GetTableName savedModel))
+        , Eq (Id' (GetTableName savedModel))
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
         , Table savedModel
+        , Show (PrimaryKey (GetTableName savedModel))
     ) => Proxy field -> model -> IO model
 validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model True
 {-# INLINE validateIsUnique #-}
@@ -70,7 +71,7 @@ validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model T
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue modelId savedModelId. (
+validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRowHasql savedModel
@@ -82,18 +83,18 @@ validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue mode
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
-        , HasField "id" savedModel savedModelId
-        , HasField "id" model modelId
-        , savedModelId ~ modelId
-        , Eq modelId
+        , HasField "id" savedModel (Id' (GetTableName savedModel))
+        , HasField "id" model (Id' (GetTableName savedModel))
+        , Eq (Id' (GetTableName savedModel))
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
         , Table savedModel
+        , Show (PrimaryKey (GetTableName savedModel))
     ) => Proxy field -> model -> IO model
 validateIsUniqueCaseInsensitive fieldProxy model = validateIsUniqueCaseAware fieldProxy model False
 {-# INLINE validateIsUniqueCaseInsensitive #-}
 
 -- | Internal helper for 'validateIsUnique' and 'validateIsUniqueCaseInsensitive'
-validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId savedModelId. (
+validateIsUniqueCaseAware :: forall field model savedModel fieldValue. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , FromRowHasql savedModel
@@ -105,12 +106,12 @@ validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId sa
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
-        , HasField "id" savedModel savedModelId
-        , HasField "id" model modelId
-        , savedModelId ~ modelId
-        , Eq modelId
+        , HasField "id" savedModel (Id' (GetTableName savedModel))
+        , HasField "id" model (Id' (GetTableName savedModel))
+        , Eq (Id' (GetTableName savedModel))
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
         , Table savedModel
+        , Show (PrimaryKey (GetTableName savedModel))
     ) => Proxy field -> model -> Bool -> IO model
 validateIsUniqueCaseAware fieldProxy model caseSensitive = do
     let value = getField @field model
@@ -139,7 +140,7 @@ validateIsUniqueCaseAware fieldProxy model caseSensitive = do
 -- >             Right user -> do
 -- >                 createRecord user
 -- >                 redirectTo UsersAction
-withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId savedModelId. (
+withCustomErrorMessageIO :: forall field model savedModel fieldValue. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
         , KnownSymbol field
@@ -150,10 +151,9 @@ withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId sav
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
         , SetField "meta" model MetaBag
-        , HasField "id" savedModel savedModelId
-        , HasField "id" model modelId
-        , savedModelId ~ modelId
-        , Eq modelId
+        , HasField "id" savedModel (Id' (GetTableName savedModel))
+        , HasField "id" model (Id' (GetTableName savedModel))
+        , Eq (Id' (GetTableName savedModel))
         , GetModelByTableName (GetTableName savedModel) ~ savedModel
     ) => Text -> (Proxy field -> model -> IO model) -> Proxy field -> model -> IO model
 withCustomErrorMessageIO message validator field model = do
