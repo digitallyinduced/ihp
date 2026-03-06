@@ -932,10 +932,11 @@ tests = do
                 let output = compileRowDecoderModule theTable
                 getStatementBody output `shouldBe` [trimming|
                     rowDecoder :: Decoders.Row Generated.ActualTypes.Post
-                    rowDecoder = (\id title body -> let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
-                        <$> Decoders.column (Decoders.nonNullable Mapping.decoder)
-                        <*> Decoders.column (Decoders.nonNullable Decoders.text)
-                        <*> Decoders.column (Decoders.nonNullable Decoders.text)
+                    rowDecoder = do
+                        id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        title <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        body <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        pure (let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                     |]
 
             it "should generate correct Create statement module" do
