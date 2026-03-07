@@ -23,7 +23,6 @@ import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Statement as Hasql
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
