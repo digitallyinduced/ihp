@@ -60,7 +60,6 @@ import Control.Exception (Exception)
 import Database.PostgreSQL.Simple.Types (Query)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Hasql.Pool as Hasql
-import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
@@ -80,7 +79,7 @@ data HasqlSessionError = HasqlSessionError HasqlErrors.SessionError
 instance Exception HasqlSessionError
 
 -- | Exception type for hasql pool usage errors
-data HasqlError = HasqlError HasqlPool.UsageError
+data HasqlError = HasqlError Hasql.UsageError
     deriving (Show)
 
 instance Exception HasqlError
