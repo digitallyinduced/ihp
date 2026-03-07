@@ -54,14 +54,14 @@ instance Controller DataController where
             let pool = ?modelContext.hasqlPool
             Just <$> if isQuery queryText then do
                     let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
-                    let statement = Snippet.toPreparedStatement snippet dynamicFieldDecoder
+                    let statement = Snippet.toStatement snippet dynamicFieldDecoder
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
                         Right rows -> pure (Right (SelectQueryResult rows))
                         Left err -> pure (Left (usageErrorToConsoleError err))
                 else do
-                    let statement = Snippet.toPreparedStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
+                    let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
