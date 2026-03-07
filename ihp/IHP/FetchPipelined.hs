@@ -40,7 +40,6 @@ import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as HasqlStatement
-import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
 import IHP.Hasql.Pool (usePoolWithRetry)
 import Data.Functor.Contravariant (contramap)
