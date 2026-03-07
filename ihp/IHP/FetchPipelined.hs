@@ -42,6 +42,7 @@ import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as HasqlStatement
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
+import IHP.Hasql.Pool (usePoolWithRetry)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
 
@@ -146,19 +147,7 @@ pipeline thePipeline = do
     let currentLogLevel = ?modelContext.logger.level
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
-            Nothing -> do
-                result <- HasqlPool.use pool session
-                case result of
-                    Left err
-                        | isCachedPlanError err -> do
-                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
-                            HasqlPool.release pool
-                            retryResult <- HasqlPool.use pool session
-                            case retryResult of
-                                Left retryErr -> throwIO (HasqlError retryErr)
-                                Right a -> pure a
-                        | otherwise -> throwIO (HasqlError err)
-                    Right a -> pure a
+            Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel "🔍 Pipeline" runQuery
 {-# INLINABLE pipeline #-}
 
