@@ -7,15 +7,15 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.TypedEncoder
-import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState)
 import qualified Data.Aeson as Aeson
 import qualified Data.Vector as Vector
 import qualified Control.Exception as Exception
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 
--- | Run a state-threaded param function and return just the SQL text.
--- Starts from emptyCompilerState so $1, $2, etc.
-paramToSql :: (CompilerState -> (Text, CompilerState)) -> Text
-paramToSql f = fst (f emptyCompilerState)
+-- | Convert a Snippet to SQL text for testing.
+paramToSql :: Snippet -> Text
+paramToSql = Snippet.toSql
 
 tests = do
     describe "IHP.DataSync.TypedEncoder" do

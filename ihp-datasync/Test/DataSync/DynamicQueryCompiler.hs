@@ -10,10 +10,12 @@ import IHP.DataSync.DynamicQuery
 import IHP.QueryBuilder hiding (OrderByClause)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Aeson as Aeson
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 
--- | Extract SQL text from a CompiledQuery for testing purposes.
-compiledQueryToSql :: CompiledQuery -> Text
-compiledQueryToSql (CompiledQuery sql _) = sql
+-- | Extract SQL text from a Snippet for testing purposes.
+compiledQueryToSql :: Snippet -> Text
+compiledQueryToSql = Snippet.toSql
 
 -- | Column types for the "posts" table used in tests.
 -- Simulates database column order: id first, then other columns in schema definition order.
@@ -38,7 +40,7 @@ productsTypes = ColumnTypeInfo
     }
 
 -- | Compile a query with the camelCase renamer and typed encoding.
-compile :: ColumnTypeInfo -> DynamicSQLQuery -> CompiledQuery
+compile :: ColumnTypeInfo -> DynamicSQLQuery -> Snippet
 compile = compileQueryTyped camelCaseRenamer
 
 -- | Expected SELECT clause for postsTypes when using SelectAll

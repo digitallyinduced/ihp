@@ -28,6 +28,7 @@ common shared-properties
             , mtl
             , text
             , hasql
+            , hasql-dynamic-statements
             , hasql-pool
             , hasql-transaction
             , bytestring
@@ -63,7 +64,6 @@ common shared-properties
             , postgresql-types
             , hasql-mapping
             , hasql-postgresql-types
-            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

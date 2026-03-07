@@ -21,7 +21,8 @@ import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
-import IHP.QueryBuilder.HasqlCompiler (CompilerState(..), emptyCompilerState, nextParam)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
@@ -124,8 +125,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 ensureRLSEnabled (query.table)
 
                 columnTypes <- columnTypeLookup query.table
-                let queryResult = compileQueryTyped (renamer query.table) columnTypes query
-                let stmt = compiledQueryStatement queryResult
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
+                let stmt = compiledQueryStatement querySnippet
 
                 result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId stmt
 
@@ -145,8 +146,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
                 columnTypes <- columnTypeLookup query.table
-                let theQuery@(CompiledQuery querySql queryCc) = compileQueryTyped (renamer query.table) columnTypes query
-                let stmt = compiledQueryStatement theQuery
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
+                let stmt = compiledQueryStatement querySnippet
 
                 result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
@@ -181,8 +182,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                             let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
                             if affectsFilterOrRLS
                                 then do
-                                    let (idPh, cc') = nextParam (uuidParam id) queryCc
-                                    let existsStmt = toStatement ("SELECT EXISTS(SELECT * FROM (" <> querySql <> ") AS records WHERE records.id = " <> idPh <> " LIMIT 1)") cc' (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    let existsSnippet = Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1)"
+                                    let existsStmt = Snippet.toPreparedStatement existsSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
                                     isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
                                     if isRecordInResultSet
                                         then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
@@ -203,8 +204,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                let (idPh, cc') = nextParam (uuidParam id) queryCc
-                                let filterStmt = toStatement (wrapDynamicQuery ("SELECT * FROM (" <> querySql <> ") AS records WHERE records.id = " <> idPh <> " LIMIT 1")) cc' dynamicRowDecoder
+                                let filterSnippet = Snippet.sql "SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1"
+                                let filterStmt = Snippet.toPreparedStatement (wrapDynamicQuery filterSnippet) dynamicRowDecoder
                                 newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool filterStmt
 
                                 case headMay newRecord of
@@ -248,11 +249,11 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
                 columnTypes <- columnTypeLookup query.table
-                let CompiledQuery querySql queryCc = compileQueryTyped (renamer query.table) columnTypes query
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
 
-                let countSql = "SELECT COUNT(*) FROM (" <> querySql <> ") AS _inner"
+                let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> querySnippet <> Snippet.sql ") AS _inner"
                 let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
-                let countStmt = toStatement countSql queryCc countDecoder
+                let countStmt = Snippet.toPreparedStatement countSnippet countDecoder
 
                 count :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
                 countRef <- newIORef count
@@ -302,10 +303,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         )
 
                 let columns = map (\(c,_,_) -> c) pairsList
-                let encodeOne st (_, colType, val) =
-                        let (t, st') = typedAesonValueToSnippet colType val st in (st', t)
-                let (cc, valueTexts) = List.mapAccumL encodeOne emptyCompilerState pairsList
-                let insertResult = compileInsert table columns valueTexts cc (renamer table) columnTypes
+                let valueSnippets = map (\(_, colType, val) -> typedAesonValueToSnippet colType val) pairsList
+                let insertResult = compileInsert table columns valueSnippets (renamer table) columnTypes
                 let stmt = compiledQueryStatement insertResult
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
@@ -328,14 +327,12 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                         let fieldNames = HashMap.keys firstRecord
                         let columns = map (renamer table).fieldToColumn fieldNames
 
-                        let encodeRow ccRow object = List.mapAccumL
-                                (\st (fieldName, col) -> case typedAesonValueToSnippet (lookupColumnType columnTypes col) (fromMaybe Aeson.Null (HashMap.lookup fieldName object)) st of
-                                    (t, st') -> (st', t))
-                                ccRow
+                        let encodeRow object = map
+                                (\(fieldName, col) -> typedAesonValueToSnippet (lookupColumnType columnTypes col) (fromMaybe Aeson.Null (HashMap.lookup fieldName object)))
                                 (zip fieldNames columns)
-                        let (ccFinal, valueRows) = List.mapAccumL encodeRow emptyCompilerState records
+                        let valueRows = map encodeRow records
 
-                        let insertResult = compileInsertMany table columns valueRows ccFinal (renamer table) columnTypes
+                        let insertResult = compileInsertMany table columns valueRows (renamer table) columnTypes
                         let stmt = compiledQueryStatement insertResult
 
                         records :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
@@ -349,9 +346,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 columnTypes <- columnTypeLookup table
 
-                let (setSql, cc0) = encodePatchToSetSql (renamer table) columnTypes patch
-                let (idPh, cc1) = nextParam (uuidParam id) cc0
-                let updateResult = compileUpdate table setSql ("id = " <> idPh) cc1 (renamer table) columnTypes
+                let setSql = encodePatchToSetSql (renamer table) columnTypes patch
+                let updateResult = compileUpdate table setSql (Snippet.sql "id = " <> uuidParam id) (renamer table) columnTypes
                 let stmt = compiledQueryStatement updateResult
 
                 result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
@@ -368,10 +364,9 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 columnTypes <- columnTypeLookup table
 
-                let (setSql, cc0) = encodePatchToSetSql (renamer table) columnTypes patch
-                let (cc1, idPhs) = List.mapAccumL (\st uuid -> case nextParam (uuidParam uuid) st of (t, st') -> (st', t)) cc0 ids
-                let inList = mconcat $ List.intersperse ", " idPhs
-                let updateResult = compileUpdate table setSql ("id IN (" <> inList <> ")") cc1 (renamer table) columnTypes
+                let setSql = encodePatchToSetSql (renamer table) columnTypes patch
+                let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
+                let updateResult = compileUpdate table setSql (Snippet.sql "id IN (" <> inList <> Snippet.sql ")") (renamer table) columnTypes
                 let stmt = compiledQueryStatement updateResult
 
                 records <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
@@ -383,8 +378,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage getRLSColumns DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                let (idPh, cc) = nextParam (uuidParam id) emptyCompilerState
-                let stmt = Hasql.preparable ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = " <> idPh) (ccEncoder cc) Decoders.noResult
+                let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+                let stmt = Snippet.toPreparedStatement deleteSnippet Decoders.noResult
                 sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecord { requestId }
@@ -392,9 +387,8 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
             handleMessage getRLSColumns DeleteRecordsMessage { table, ids, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                let (ccFinal, idPhs) = List.mapAccumL (\st uuid -> case nextParam (uuidParam uuid) st of (t, st') -> (st', t)) emptyCompilerState ids
-                let inList = mconcat $ List.intersperse ", " idPhs
-                let stmt = Hasql.preparable ("DELETE FROM " <> quoteIdentifier table <> " WHERE id IN (" <> inList <> ")") (ccEncoder ccFinal) Decoders.noResult
+                let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
+                let stmt = Snippet.toPreparedStatement (Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id IN (") <> inList <> Snippet.sql ")") Decoders.noResult
                 sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecords { requestId }
@@ -495,9 +489,8 @@ maxSubscriptionsPerConnection =
     case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
 
--- | Encode a JSON patch (field name -> value) into a SQL SET clause like @"col1" = $1, "col2" = $2@
--- and the accumulated 'CompilerState'.
-encodePatchToSetSql :: Renamer -> ColumnTypeInfo -> HashMap Text Value -> (Text, CompilerState)
+-- | Encode a JSON patch (field name -> value) into a SQL SET clause 'Snippet' like @"col1" = $1, "col2" = $2@.
+encodePatchToSetSql :: Renamer -> ColumnTypeInfo -> HashMap Text Value -> Snippet
 encodePatchToSetSql ren columnTypes patch =
     let pairsList = patch
             |> HashMap.toList
@@ -505,10 +498,10 @@ encodePatchToSetSql ren columnTypes patch =
                 let col = ren.fieldToColumn fieldName
                 in (col, lookupColumnType columnTypes col, val)
             )
-        encodeSetClause st (col, colType, val) =
-            let (valText, st') = typedAesonValueToSnippet colType val st in (st', quoteIdentifier col <> " = " <> valText)
-        (cc, setTexts) = List.mapAccumL encodeSetClause emptyCompilerState pairsList
-    in (mconcat $ List.intersperse ", " setTexts, cc)
+        encodeSetClause (col, colType, val) =
+            Snippet.sql (quoteIdentifier col <> " = ") <> typedAesonValueToSnippet colType val
+        setSnippets = map encodeSetClause pairsList
+    in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
 sqlQueryWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
