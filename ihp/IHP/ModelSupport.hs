@@ -371,7 +371,7 @@ sqlStatementHasql pool input statement = do
 --
 sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
 sqlQueryHasql pool snippet decoder =
-    sqlStatementHasql pool () (Snippet.toStatement snippet decoder)
+    sqlStatementHasql pool () (Snippet.toPreparedStatement snippet decoder)
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Like 'sqlStatementHasql' but for write operations (DELETE, UPDATE, INSERT without results).
@@ -420,7 +420,7 @@ sqlExecStatement pool input statement = do
 -- When RLS is enabled, the statement is wrapped in a transaction that first sets the
 -- role and user id via 'setRLSConfigStatement'.
 sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
-sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toStatement snippet Decoders.noResult)
+sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toPreparedStatement snippet Decoders.noResult)
 {-# INLINABLE sqlExecHasql #-}
 
 -- | Like 'sqlExecHasql' but returns the number of affected rows
@@ -431,7 +431,7 @@ sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippe
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.rowsAffected
+    let statement = Snippet.toPreparedStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
