@@ -40,7 +40,7 @@
                 overlays.default = import ./NixSupport/overlay.nix { inherit inputs self; };
                 flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
-                    path = inputs.ihp-boilerplate;
+                    path = /. + builtins.unsafeDiscardStringContext (toString inputs.ihp-boilerplate);
                     description = "Template for an IHP project";
                     welcomeText = ''
                         TODO this is shown when running nix init, could contain instruction to get started
